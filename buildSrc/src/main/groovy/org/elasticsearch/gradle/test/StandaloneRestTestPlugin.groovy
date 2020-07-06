@@ -83,7 +83,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.configurations.create("compileOnly")
-        project.dependencies.add('testCompile', project.project(':test:framework'))
+        project.dependencies.add('testImplementation', project.project(':test:framework'))
 
         EclipseModel eclipse = project.extensions.getByType(EclipseModel)
         eclipse.classpath.sourceSets = [testSourceSet]

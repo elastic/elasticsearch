@@ -14,10 +14,8 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
-import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 public class AnalyticsAggregatorFactory {
 
@@ -68,36 +66,21 @@ public class AnalyticsAggregatorFactory {
     public static void registerHistoBackedSumAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(SumAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) (name, valuesSourceConfig, valuesSource, context, parent, metadata) -> new HistoBackedSumAggregator(
-                name,
-                (HistogramValuesSource.Histogram) valuesSource,
-                valuesSourceConfig.format(),
-                context,
-                parent,
-                metadata
-            )
+            (MetricAggregatorSupplier) HistoBackedSumAggregator::new
         );
     }
 
     public static void registerHistoBackedValueCountAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (ValueCountAggregatorSupplier) (name, valuesSource, context, parent, metadata) ->
-                new HistoBackedValueCountAggregator(name, (HistogramValuesSource.Histogram) valuesSource, context, parent, metadata)
+            (MetricAggregatorSupplier) HistoBackedValueCountAggregator::new
         );
     }
 
     public static void registerHistoBackedAverageAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(AvgAggregationBuilder.NAME,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) (name, valuesSourceConfig, valuesSource, context, parent, metadata) -> new HistoBackedAvgAggregator(
-                name,
-                (HistogramValuesSource.Histogram) valuesSource,
-                valuesSourceConfig.format(),
-                context,
-                parent,
-                metadata
-            )
+            (MetricAggregatorSupplier) HistoBackedAvgAggregator::new
         );
     }
 }

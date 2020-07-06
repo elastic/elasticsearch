@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -143,11 +142,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         } else {
             this.categoryDefinition = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.categorizerStats = in.readOptionalWriteable(CategorizerStats::new);
-        } else {
-            this.categorizerStats = null;
-        }
+        this.categorizerStats = in.readOptionalWriteable(CategorizerStats::new);
         if (in.readBoolean()) {
             this.flushAcknowledgement = new FlushAcknowledgement(in);
         } else {
@@ -176,9 +171,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         writeNullable(modelPlot, out);
         writeNullable(annotation, out);
         writeNullable(categoryDefinition, out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(categorizerStats);
-        }
+        out.writeOptionalWriteable(categorizerStats);
         writeNullable(flushAcknowledgement, out);
         writeNullable(forecast, out);
         writeNullable(forecastRequestStats, out);

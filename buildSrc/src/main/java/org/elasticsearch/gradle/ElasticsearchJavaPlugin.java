@@ -42,6 +42,7 @@ import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
@@ -83,7 +84,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // apply global test task failure listener
         project.getRootProject().getPluginManager().apply(TestFailureReportingPlugin.class);
 
-        project.getPluginManager().apply(JavaPlugin.class);
+        project.getPluginManager().apply(JavaLibraryPlugin.class);
 
         configureConfigurations(project);
         configureRepositories(project);
@@ -114,8 +115,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     public static void configureConfigurations(Project project) {
         // we want to test compileOnly deps!
         Configuration compileOnlyConfig = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
-        Configuration testCompileConfig = project.getConfigurations().getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
-        testCompileConfig.extendsFrom(compileOnlyConfig);
+        Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
+        testImplementationConfig.extendsFrom(compileOnlyConfig);
 
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
@@ -130,7 +131,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             configuration.resolutionStrategy(ResolutionStrategy::failOnVersionConflict);
         });
 
-        // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
+        // force all dependencies added directly to compile/testImplementation to be non-transitive, except for ES itself
         Consumer<String> disableTransitiveDeps = configName -> {
             Configuration config = project.getConfigurations().getByName(configName);
             config.getDependencies().all(dep -> {
@@ -141,10 +142,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 }
             });
         };
-        disableTransitiveDeps.accept(JavaPlugin.COMPILE_CONFIGURATION_NAME);
-        disableTransitiveDeps.accept(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.API_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
     }
 
     private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
@@ -404,8 +406,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             nonInputProperties.systemProperty("gradle.user.home", gradleHome);
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
-
-            nonInputProperties.systemProperty("runtime.java", BuildParams.getRuntimeJavaVersion().getMajorVersion());
 
             // TODO: remove setting logging level via system property
             test.systemProperty("tests.logger.level", "WARN");

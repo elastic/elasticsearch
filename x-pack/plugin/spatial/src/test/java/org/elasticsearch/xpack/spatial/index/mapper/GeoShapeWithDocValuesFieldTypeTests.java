@@ -11,6 +11,8 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.junit.Before;
 
+import java.util.Map;
+
 public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase<GeoShapeWithDocValuesFieldType> {
 
     @Before
@@ -27,7 +29,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase<GeoSh
     }
 
     @Override
-    protected GeoShapeWithDocValuesFieldType createDefaultFieldType() {
-        return new GeoShapeWithDocValuesFieldType();
+    protected GeoShapeWithDocValuesFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        return new GeoShapeWithDocValuesFieldType(name, true, true, meta);
     }
 }

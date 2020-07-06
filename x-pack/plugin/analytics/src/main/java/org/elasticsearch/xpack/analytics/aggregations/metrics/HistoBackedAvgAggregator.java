@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
@@ -40,11 +41,17 @@ class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray compensations;
     DocValueFormat format;
 
-    HistoBackedAvgAggregator(String name, HistogramValuesSource.Histogram valuesSource, DocValueFormat formatter, SearchContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
+    HistoBackedAvgAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = valuesSource;
-        this.format = formatter;
+        // TODO: Stop depending on nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
+        this.format = valuesSourceConfig.format();
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);

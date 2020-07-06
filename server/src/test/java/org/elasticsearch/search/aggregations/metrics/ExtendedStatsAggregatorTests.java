@@ -46,8 +46,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         testCase(ft, iw -> {},
             stats -> {
                 assertEquals(0d, stats.getCount(), 0);
@@ -69,8 +68,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testRandomDoubles() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
         testCase(ft,
             iw -> {
@@ -122,8 +120,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
      */
     public void testVarianceNonNegative() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
         testCase(ft,
             iw -> {
@@ -151,8 +148,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testRandomLongs() throws IOException {
         MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        ft.setName("field");
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         final ExtendedSimpleStatsAggregator expected = new ExtendedSimpleStatsAggregator();
         testCase(ft,
             iw -> {
@@ -232,9 +228,8 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     private void verifyStatsOfDoubles(double[] values, double expectedSum,
                                       double expectedSumOfSqrs, double delta) throws IOException {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         final String fieldName = "field";
-        ft.setName(fieldName);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(fieldName, NumberFieldMapper.NumberType.DOUBLE);
         double max = Double.NEGATIVE_INFINITY;
         double min = Double.POSITIVE_INFINITY;
         for (double value : values) {

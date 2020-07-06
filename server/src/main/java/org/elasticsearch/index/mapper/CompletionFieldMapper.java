@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -35,7 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -92,8 +93,12 @@ public class CompletionFieldMapper extends FieldMapper {
     static final int COMPLETION_CONTEXTS_LIMIT = 10;
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new CompletionFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
         static {
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
@@ -189,7 +194,17 @@ public class CompletionFieldMapper extends FieldMapper {
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
         private ContextMappings contextMappings = null;
 
-        public CompletionFieldType() {
+        public CompletionFieldType(String name, FieldType luceneFieldType,
+                                   NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
+            super(name, true, false,
+                new TextSearchInfo(luceneFieldType, null, searchAnalyzer, searchQuoteAnalyzer), meta);
+        }
+
+        public CompletionFieldType(String name) {
+            this(name, Defaults.FIELD_TYPE,
+                new NamedAnalyzer("completion", AnalyzerScope.INDEX, new CompletionAnalyzer(Lucene.STANDARD_ANALYZER)),
+                new NamedAnalyzer("completion", AnalyzerScope.INDEX, new CompletionAnalyzer(Lucene.STANDARD_ANALYZER)),
+                Collections.emptyMap());
         }
 
         private CompletionFieldType(CompletionFieldType ref) {
@@ -200,17 +215,14 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         public void setPreserveSep(boolean preserveSep) {
-            checkIfFrozen();
             this.preserveSep = preserveSep;
         }
 
         public void setPreservePositionIncrements(boolean preservePositionIncrements) {
-            checkIfFrozen();
             this.preservePositionIncrements = preservePositionIncrements;
         }
 
         public void setContextMappings(ContextMappings contextMappings) {
-            checkIfFrozen();
             this.contextMappings = contextMappings;
         }
 
@@ -223,16 +235,6 @@ public class CompletionFieldMapper extends FieldMapper {
 
             }
             return indexAnalyzer;
-        }
-
-        @Override
-        public NamedAnalyzer searchAnalyzer() {
-            final NamedAnalyzer searchAnalyzer = super.searchAnalyzer();
-            if (searchAnalyzer != null && !(searchAnalyzer.analyzer() instanceof CompletionAnalyzer)) {
-                return new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX,
-                        new CompletionAnalyzer(searchAnalyzer, preserveSep, preservePositionIncrements));
-            }
-            return searchAnalyzer;
         }
 
         /**
@@ -277,7 +279,8 @@ public class CompletionFieldMapper extends FieldMapper {
          * Completion prefix query
          */
         public CompletionQuery prefixQuery(Object value) {
-            return new PrefixCompletionQuery(searchAnalyzer().analyzer(), new Term(name(), indexedValueForSearch(value)));
+            return new PrefixCompletionQuery(getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                new Term(name(), indexedValueForSearch(value)));
         }
 
         /**
@@ -293,9 +296,10 @@ public class CompletionFieldMapper extends FieldMapper {
         public CompletionQuery fuzzyQuery(String value, Fuzziness fuzziness, int nonFuzzyPrefixLength,
                                           int minFuzzyPrefixLength, int maxExpansions, boolean transpositions,
                                           boolean unicodeAware) {
-            return new FuzzyCompletionQuery(searchAnalyzer().analyzer(), new Term(name(), indexedValueForSearch(value)), null,
-                    fuzziness.asDistance(), transpositions, nonFuzzyPrefixLength, minFuzzyPrefixLength,
-                    unicodeAware, maxExpansions);
+            return new FuzzyCompletionQuery(getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                new Term(name(), indexedValueForSearch(value)), null,
+                fuzziness.asDistance(), transpositions, nonFuzzyPrefixLength, minFuzzyPrefixLength,
+                unicodeAware, maxExpansions);
         }
 
         @Override
@@ -308,7 +312,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
             if (preserveSep != that.preserveSep) return false;
             if (preservePositionIncrements != that.preservePositionIncrements) return false;
-            return !(contextMappings != null ? !contextMappings.equals(that.contextMappings) : that.contextMappings != null);
+            return Objects.equals(contextMappings, that.contextMappings);
 
         }
 
@@ -342,13 +346,13 @@ public class CompletionFieldMapper extends FieldMapper {
         private boolean preserveSeparators = Defaults.DEFAULT_PRESERVE_SEPARATORS;
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
 
-        private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Builder.class));
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build
          */
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
@@ -388,12 +392,16 @@ public class CompletionFieldMapper extends FieldMapper {
         @Override
         public CompletionFieldMapper build(BuilderContext context) {
             checkCompletionContextsLimit(context);
-            setupFieldType(context);
-            CompletionFieldType completionFieldType = (CompletionFieldType) this.fieldType;
-            completionFieldType.setContextMappings(contextMappings);
-            completionFieldType.setPreservePositionIncrements(preservePositionIncrements);
-            completionFieldType.setPreserveSep(preserveSeparators);
-            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(),
+            NamedAnalyzer searchAnalyzer = new NamedAnalyzer(this.searchAnalyzer.name(), AnalyzerScope.INDEX,
+                new CompletionAnalyzer(this.searchAnalyzer, preserveSeparators, preservePositionIncrements));
+
+            CompletionFieldType ft
+                = new CompletionFieldType(buildFullName(context), this.fieldType, searchAnalyzer, searchAnalyzer, meta);
+            ft.setContextMappings(contextMappings);
+            ft.setPreservePositionIncrements(preservePositionIncrements);
+            ft.setPreserveSep(preserveSeparators);
+            ft.setIndexAnalyzer(indexAnalyzer);
+            return new CompletionFieldMapper(name, this.fieldType, ft,
                 multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
         }
 
@@ -411,13 +419,21 @@ public class CompletionFieldMapper extends FieldMapper {
                 }
             }
         }
+
+        @Override
+        public Builder index(boolean index) {
+            if (index == false) {
+                throw new MapperParsingException("Completion field type must be indexed");
+            }
+            return builder;
+        }
     }
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings,
+    public CompletionFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                  MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.maxInputLength = maxInputLength;
     }
 
@@ -467,7 +483,7 @@ public class CompletionFieldMapper extends FieldMapper {
         for (Map.Entry<String, CompletionInputMetadata> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
             if (input.trim().isEmpty()) {
-                context.addIgnoredField(fieldType.name());
+                context.addIgnoredField(mappedFieldType.name());
                 continue;
             }
             // truncate input
@@ -629,8 +645,8 @@ public class CompletionFieldMapper extends FieldMapper {
         builder.startObject(simpleName())
                 .field(Fields.TYPE.getPreferredName(), CONTENT_TYPE);
         builder.field(Fields.ANALYZER.getPreferredName(), fieldType().indexAnalyzer().name());
-        if (fieldType().indexAnalyzer().name().equals(fieldType().searchAnalyzer().name()) == false) {
-            builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), fieldType().searchAnalyzer().name());
+        if (fieldType().indexAnalyzer().name().equals(fieldType().getTextSearchInfo().getSearchAnalyzer().name()) == false) {
+            builder.field(Fields.SEARCH_ANALYZER.getPreferredName(), fieldType().getTextSearchInfo().getSearchAnalyzer().name());
         }
         builder.field(Fields.PRESERVE_SEPARATORS.getPreferredName(), fieldType().preserveSep());
         builder.field(Fields.PRESERVE_POSITION_INCREMENTS.getPreferredName(), fieldType().preservePositionIncrements());

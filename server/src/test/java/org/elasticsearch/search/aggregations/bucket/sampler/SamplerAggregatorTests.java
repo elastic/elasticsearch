@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -31,10 +30,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.Min;
@@ -48,10 +46,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
      * Uses the sampler aggregation to find the minimum value of a field out of the top 3 scoring documents in a search.
      */
     public void testSampler() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
-        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        numericFieldType.setName("int");
+        TextFieldType textFieldType = new TextFieldType("text");
+        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -64,7 +60,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 for (int i = 0; i < value; i++) {
                     text.append("good ");
                 }
-                doc.add(new Field("text", text.toString(), textFieldType));
+                doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
                 doc.add(new SortedNumericDocValuesField("int", value));
                 w.addDocument(doc);
             }
@@ -86,10 +82,8 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRidiculousSize() throws IOException {
-        TextFieldType textFieldType = new TextFieldType();
-        textFieldType.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
-        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        numericFieldType.setName("int");
+        TextFieldType textFieldType = new TextFieldType("text");
+        MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setMaxBufferedDocs(100);
@@ -102,7 +96,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
                 for (int i = 0; i < value; i++) {
                     text.append("good ");
                 }
-                doc.add(new Field("text", text.toString(), textFieldType));
+                doc.add(new Field("text", text.toString(), TextFieldMapper.Defaults.FIELD_TYPE));
                 doc.add(new SortedNumericDocValuesField("int", value));
                 w.addDocument(doc);
             }

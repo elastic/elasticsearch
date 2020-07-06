@@ -140,6 +140,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /**
      * Sets the rollover target to rollover to another index
      */

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -48,8 +47,7 @@ import java.util.List;
 import java.util.Map;
 
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(SignificantTermsAggregatorFactory.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SignificantTermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(SignificantTermsAggregationBuilder.NAME,
@@ -169,7 +167,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       Map<String, Object> metadata) throws IOException {
         super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
 
-        if (config.unmapped() == false) {
+        if (config.hasValues()) {
             if (config.fieldContext().fieldType().isSearchable() == false) {
                 throw new IllegalArgumentException("SignificantText aggregation requires fields to be searchable, but ["
                     + config.fieldContext().fieldType().name() + "] is not");
@@ -198,11 +196,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          boolean collectsFromSingleBucket,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             SignificantTermsAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
@@ -228,9 +225,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
-        SignificanceLookup lookup = new SignificanceLookup(queryShardContext, config, backgroundFilter);
+        SignificanceLookup lookup = new SignificanceLookup(
+            queryShardContext,
+            config.fieldContext().fieldType(),
+            config.format(),
+            backgroundFilter
+        );
 
-        return sigTermsAggregatorSupplier.build(name, factories, valuesSource, config.format(),
+        return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
             significanceHeuristic, lookup, collectsFromSingleBucket, metadata);
     }
@@ -257,8 +259,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return new MapStringTermsAggregator(
                     name,
                     factories,
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
                     a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
-                    valuesSource,
                     null,
                     format,
                     bucketCountThresholds,
@@ -292,15 +294,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
-                if (Aggregator.descendsFromBucketAggregator(parent) == false &&
-                        factories == AggregatorFactories.EMPTY &&
-                        includeExclude == null) {
-                    /**
+                if (collectsFromSingleBucket && factories == AggregatorFactories.EMPTY && includeExclude == null) {
+                    /*
                      * We don't need to remap global ords iff this aggregator:
-                     *    - is not a child of a bucket aggregator AND
+                     *    - collects from a single bucket AND
                      *    - has no include/exclude rules AND
                      *    - has no sub-aggregator
-                     **/
+                     */
                     remapGlobalOrd = false;
                 }
 

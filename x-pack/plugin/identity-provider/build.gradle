@@ -15,49 +15,49 @@ archivesBaseName = 'x-pack-identity-provider'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   // So that we can extend LocalStateCompositeXPackPlugin
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 
   // the following are all SAML dependencies - might as well download the whole internet
-  compile "org.opensaml:opensaml-core:3.4.5"
-  compile "org.opensaml:opensaml-saml-api:3.4.5"
-  compile "org.opensaml:opensaml-saml-impl:3.4.5"
-  compile "org.opensaml:opensaml-messaging-api:3.4.5"
-  compile "org.opensaml:opensaml-messaging-impl:3.4.5"
-  compile "org.opensaml:opensaml-security-api:3.4.5"
-  compile "org.opensaml:opensaml-security-impl:3.4.5"
-  compile "org.opensaml:opensaml-profile-api:3.4.5"
-  compile "org.opensaml:opensaml-profile-impl:3.4.5"
-  compile "org.opensaml:opensaml-xmlsec-api:3.4.5"
-  compile "org.opensaml:opensaml-xmlsec-impl:3.4.5"
-  compile "org.opensaml:opensaml-soap-api:3.4.5"
-  compile "org.opensaml:opensaml-soap-impl:3.4.5"
-  compile "org.opensaml:opensaml-storage-api:3.4.5"
-  compile "org.opensaml:opensaml-storage-impl:3.4.5"
-  compile "net.shibboleth.utilities:java-support:7.5.1"
-  compile "org.apache.santuario:xmlsec:2.1.4"
-  compile "io.dropwizard.metrics:metrics-core:3.2.2"
-  compile ("org.cryptacular:cryptacular:1.2.4") {
+  api "org.opensaml:opensaml-core:3.4.5"
+  api "org.opensaml:opensaml-saml-api:3.4.5"
+  api "org.opensaml:opensaml-saml-impl:3.4.5"
+  api "org.opensaml:opensaml-messaging-api:3.4.5"
+  api "org.opensaml:opensaml-messaging-impl:3.4.5"
+  api "org.opensaml:opensaml-security-api:3.4.5"
+  api "org.opensaml:opensaml-security-impl:3.4.5"
+  api "org.opensaml:opensaml-profile-api:3.4.5"
+  api "org.opensaml:opensaml-profile-impl:3.4.5"
+  api "org.opensaml:opensaml-xmlsec-api:3.4.5"
+  api "org.opensaml:opensaml-xmlsec-impl:3.4.5"
+  api "org.opensaml:opensaml-soap-api:3.4.5"
+  api "org.opensaml:opensaml-soap-impl:3.4.5"
+  api "org.opensaml:opensaml-storage-api:3.4.5"
+  api "org.opensaml:opensaml-storage-impl:3.4.5"
+  api "net.shibboleth.utilities:java-support:7.5.1"
+  api "org.apache.santuario:xmlsec:2.1.4"
+  api "io.dropwizard.metrics:metrics-core:3.2.2"
+  api ("org.cryptacular:cryptacular:1.2.4") {
       exclude group: 'org.bouncycastle'
   }
-  compile "org.slf4j:slf4j-api:${versions.slf4j}"
-  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
-  compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpclient-cache:${versions.httpclient}"
   runtimeOnly 'com.google.guava:guava:19.0'
 
-  testCompile 'org.elasticsearch:securemock:1.2'
-  testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
+  testImplementation 'org.elasticsearch:securemock:1.2'
+  testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
   mapping from: /http.*/, to: 'httpclient'
 }

@@ -329,6 +329,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             {
                 builder.nullField(Fields.UPPER);
                 builder.nullField(Fields.LOWER);
+                builder.nullField(Fields.UPPER_POPULATION);
+                builder.nullField(Fields.LOWER_POPULATION);
+                builder.nullField(Fields.UPPER_SAMPLING);
+                builder.nullField(Fields.LOWER_SAMPLING);
             }
             builder.endObject();
         }

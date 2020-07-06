@@ -31,7 +31,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -40,9 +39,6 @@ import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallatio
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.elasticsearch.packaging.util.FileUtils.append;
-import static org.elasticsearch.packaging.util.FileUtils.cp;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
-import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
@@ -250,22 +246,10 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
-        final Path tempConf = getTempDir().resolve("esconf-alternate");
-
-        try {
-            mkdir(tempConf);
-            cp(installation.config("elasticsearch.yml"), tempConf.resolve("elasticsearch.yml"));
-            cp(installation.config("log4j2.properties"), tempConf.resolve("log4j2.properties"));
-
-            // we have to disable Log4j from using JMX lest it will hit a security
-            // manager exception before we have configured logging; this will fail
-            // startup since we detect usages of logging before it is configured
+        withCustomConfig(tempConf -> {
             final List<String> jvmOptions = List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
-            sh.chown(tempConf);
-
-            sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
 
             startElasticsearch();
@@ -275,10 +259,7 @@ public class ArchiveTests extends PackagingTestCase {
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
             stopElasticsearch();
-
-        } finally {
-            rm(tempConf);
-        }
+        });
     }
 
     public void test71CustomJvmOptionsDirectoryFile() throws Exception {
@@ -339,30 +320,16 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test80RelativePathConf() throws Exception {
 
-        final Path temp = getTempDir().resolve("esconf-alternate");
-        final Path tempConf = temp.resolve("config");
-
-        try {
-            mkdir(tempConf);
-            Stream.of("elasticsearch.yml", "log4j2.properties", "jvm.options")
-                .forEach(file -> cp(installation.config(file), tempConf.resolve(file)));
-
+        withCustomConfig(tempConf -> {
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
-            sh.chown(temp);
-
-            sh.setWorkingDirectory(temp);
-            sh.getEnv().put("ES_PATH_CONF", "config");
             startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
             stopElasticsearch();
-
-        } finally {
-            rm(tempConf);
-        }
+        });
     }
 
     public void test90SecurityCliPackaging() throws Exception {
@@ -420,7 +387,7 @@ public class ArchiveTests extends PackagingTestCase {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
-        sh.setWorkingDirectory(getTempDir());
+        sh.setWorkingDirectory(getRootTempDir());
 
         startElasticsearch();
         stopElasticsearch();
@@ -432,7 +399,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
         final Installation.Executables bin = installation.executables();
         // Run the cli tools from the tmp dir
-        sh.setWorkingDirectory(getTempDir());
+        sh.setWorkingDirectory(getRootTempDir());
 
         Platforms.PlatformAction action = () -> {
             Result result = sh.run(bin.certutilTool + " -h");

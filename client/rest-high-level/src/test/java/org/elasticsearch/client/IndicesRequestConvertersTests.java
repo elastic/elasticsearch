@@ -43,8 +43,11 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
+import org.elasticsearch.client.indices.DeleteDataStreamRequest;
+import org.elasticsearch.client.indices.GetDataStreamRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
@@ -254,6 +257,33 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
         Assert.assertThat(expectedParams, equalTo(request.getParameters()));
         Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
+    }
+
+    public void testPutDataStream() {
+        String name = randomAlphaOfLength(10);
+        CreateDataStreamRequest createDataStreamRequest = new CreateDataStreamRequest(name);
+        Request request = IndicesRequestConverters.putDataStream(createDataStreamRequest);
+        Assert.assertEquals("/_data_stream/" + name, request.getEndpoint());
+        Assert.assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        Assert.assertNull(request.getEntity());
+    }
+
+    public void testGetDataStream() {
+        String name = randomAlphaOfLength(10);
+        GetDataStreamRequest getDataStreamRequest = new GetDataStreamRequest(name);
+        Request request = IndicesRequestConverters.getDataStreams(getDataStreamRequest);
+        Assert.assertEquals("/_data_stream/" + name, request.getEndpoint());
+        Assert.assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        Assert.assertNull(request.getEntity());
+    }
+
+    public void testDeleteDataStream() {
+        String name = randomAlphaOfLength(10);
+        DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(name);
+        Request request = IndicesRequestConverters.deleteDataStream(deleteDataStreamRequest);
+        Assert.assertEquals("/_data_stream/" + name, request.getEndpoint());
+        Assert.assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        Assert.assertNull(request.getEntity());
     }
 
     public void testDeleteIndex() {

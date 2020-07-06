@@ -78,7 +78,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         String processorTag = randomAlphaOfLength(10);
 
-        GeoIpProcessor processor = factory.create(null, processorTag, config);
+        GeoIpProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
@@ -95,7 +95,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
 
-        GeoIpProcessor processor = factory.create(null, processorTag, config);
+        GeoIpProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
@@ -112,7 +112,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-Country.mmdb");
         String processorTag = randomAlphaOfLength(10);
 
-        GeoIpProcessor processor = factory.create(null, processorTag, config);
+        GeoIpProcessor processor = factory.create(null, processorTag, null, config);
 
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
@@ -130,7 +130,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "GeoLite2-ASN.mmdb");
         String processorTag = randomAlphaOfLength(10);
 
-        GeoIpProcessor processor = factory.create(null, processorTag, config);
+        GeoIpProcessor processor = factory.create(null, processorTag, null, config);
 
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo("_field"));
@@ -145,7 +145,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("target_field", "_field");
-        GeoIpProcessor processor = factory.create(null, null, config);
+        GeoIpProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
         assertFalse(processor.isIgnoreMissing());
@@ -156,7 +156,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-        GeoIpProcessor processor = factory.create(null, null, config);
+        GeoIpProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-Country"));
@@ -173,7 +173,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
         config.put("properties", Collections.singletonList(asnProperty));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + asnProperty +
             "]. valid values are [IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME]"));
     }
@@ -187,7 +187,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
         config.put("properties", Collections.singletonList(cityProperty));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[properties] illegal property value [" + cityProperty +
             "]. valid values are [IP, ASN, ORGANIZATION_NAME]"));
     }
@@ -198,7 +198,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "does-not-exist.mmdb");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(e.getMessage(), equalTo("[database_file] database file [does-not-exist.mmdb] doesn't exist"));
     }
 
@@ -220,7 +220,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("properties", fieldNames);
-        GeoIpProcessor processor = factory.create(null, null, config);
+        GeoIpProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
         assertFalse(processor.isIgnoreMissing());
@@ -232,14 +232,14 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config1 = new HashMap<>();
         config1.put("field", "_field");
         config1.put("properties", Collections.singletonList("invalid"));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config1));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
         assertThat(e.getMessage(), equalTo("[properties] illegal property value [invalid]. valid values are [IP, COUNTRY_ISO_CODE, " +
             "COUNTRY_NAME, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, TIMEZONE, LOCATION]"));
 
         Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "_field");
         config2.put("properties", "invalid");
-        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, config2));
+        e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config2));
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
     }
 
@@ -265,7 +265,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-City.mmdb");
-        final GeoIpProcessor city = factory.create(null, "_tag", config);
+        final GeoIpProcessor city = factory.create(null, "_tag", null, config);
 
         // these are lazy loaded until first use so we expect null here
         assertNull(databaseReaders.get("GeoLite2-City.mmdb").databaseReader.get());
@@ -276,7 +276,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-        final GeoIpProcessor country = factory.create(null, "_tag", config);
+        final GeoIpProcessor country = factory.create(null, "_tag", null, config);
 
         // these are lazy loaded until first use so we expect null here
         assertNull(databaseReaders.get("GeoLite2-Country.mmdb").databaseReader.get());
@@ -287,7 +287,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-ASN.mmdb");
-        final GeoIpProcessor asn = factory.create(null, "_tag", config);
+        final GeoIpProcessor asn = factory.create(null, "_tag", null, config);
 
         // these are lazy loaded until first use so we expect null here
         assertNull(databaseReaders.get("GeoLite2-ASN.mmdb").databaseReader.get());
@@ -322,7 +322,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoIP2-City.mmdb");
-        final GeoIpProcessor city = factory.create(null, "_tag", config);
+        final GeoIpProcessor city = factory.create(null, "_tag", null, config);
 
         // these are lazy loaded until first use so we expect null here
         assertNull(databaseReaders.get("GeoIP2-City.mmdb").databaseReader.get());

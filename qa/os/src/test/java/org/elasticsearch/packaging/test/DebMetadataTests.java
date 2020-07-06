@@ -37,6 +37,7 @@ public class DebMetadataTests extends PackagingTestCase {
         assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58730")
     public void test05CheckLintian() {
         String extraArgs = "";
         if (sh.run("lintian --help").stdout.contains("fail-on-warnings")) {

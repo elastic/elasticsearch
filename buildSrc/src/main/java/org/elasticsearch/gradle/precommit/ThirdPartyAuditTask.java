@@ -20,19 +20,19 @@ package org.elasticsearch.gradle.precommit;
 
 import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
-import org.elasticsearch.gradle.JdkJarHellCheck;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.Property;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -48,8 +48,6 @@ import org.gradle.process.ExecResult;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -77,6 +75,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         CliMain.EXIT_VIOLATION,
         CliMain.EXIT_UNSUPPORTED_JDK
     );
+    private static final String JDK_JAR_HELL_MAIN_CLASS = "org.elasticsearch.bootstrap.JdkJarHellCheck";
 
     private Set<String> missingClassExcludes = new TreeSet<>();
 
@@ -87,6 +86,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private File signatureFile;
 
     private String javaHome;
+
+    private FileCollection jdkJarHellClasspath;
 
     private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
 
@@ -129,6 +130,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
     @OutputFile
     public File getSuccessMarker() {
         return new File(getProject().getBuildDir(), "markers/" + getName());
+    }
+
+    // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jdk jar hell.
+    // We only care about the runtime classpath ABI here.
+    @CompileClasspath
+    public FileCollection getJdkJarHellClasspath() {
+        return jdkJarHellClasspath.filter(File::exists);
+    }
+
+    public void setJdkJarHellClasspath(FileCollection jdkJarHellClasspath) {
+        this.jdkJarHellClasspath = jdkJarHellClasspath;
     }
 
     public void ignoreMissingClasses(String... classesOrPackages) {
@@ -357,20 +369,13 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = getProject().javaexec(spec -> {
-            URL location = JdkJarHellCheck.class.getProtectionDomain().getCodeSource().getLocation();
-            if (location.getProtocol().equals("file") == false) {
-                throw new GradleException("Unexpected location for JdkJarHellCheck class: " + location);
-            }
-            try {
-                spec.classpath(
-                    location.toURI().getPath(),
-                    getRuntimeConfiguration(),
-                    getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-                );
-            } catch (URISyntaxException e) {
-                throw new AssertionError(e);
-            }
-            spec.setMain(JdkJarHellCheck.class.getName());
+            spec.classpath(
+                jdkJarHellClasspath,
+                getRuntimeConfiguration(),
+                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
+            );
+
+            spec.setMain(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
             if (javaHome != null) {
@@ -391,7 +396,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private Configuration getRuntimeConfiguration() {
         Configuration runtime = getProject().getConfigurations().findByName("runtimeClasspath");
         if (runtime == null) {
-            return getProject().getConfigurations().getByName("testCompile");
+            return getProject().getConfigurations().getByName("testCompileClasspath");
         }
         return runtime;
     }

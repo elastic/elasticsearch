@@ -68,6 +68,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType));
@@ -113,6 +114,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType));
@@ -156,6 +158,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType));
@@ -200,6 +203,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType));
@@ -236,6 +240,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(Math.PI);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType));
@@ -282,6 +287,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(5)
                 .minDocCount(2);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = searchAndReduce(
@@ -321,6 +327,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(5)
                 .offset(4);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType));
@@ -376,6 +383,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(interval)
                 .offset(offset);
+
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, rangeField("field", rangeType));

@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -54,8 +53,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                          SearchContext searchContext,
+    protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
                                           boolean collectsFromSingleBucket,
                                           Map<String, Object> metadata) throws IOException {
@@ -66,7 +64,7 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
             throw new AggregationExecutionException("Registry miss-match - expected BoxplotAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((BoxplotAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(), compression,
+        return ((BoxplotAggregatorSupplier) aggregatorSupplier).build(name, config.getValuesSource(), config.format(), compression,
             searchContext, parent, metadata);
     }
 }

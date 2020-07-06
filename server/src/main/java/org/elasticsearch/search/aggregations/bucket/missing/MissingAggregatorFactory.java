@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -51,13 +52,13 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     protected MissingAggregator createUnmapped(SearchContext searchContext,
                                                 Aggregator parent,
                                                 Map<String, Object> metadata) throws IOException {
-        return new MissingAggregator(name, factories, config, searchContext, parent, metadata);
+        return new MissingAggregator(name, factories, config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         final AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config, MissingAggregationBuilder.NAME);
@@ -66,7 +67,15 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
                 aggregatorSupplier.getClass().toString() + "]");
         }
 
-        return ((MissingAggregatorSupplier) aggregatorSupplier).build(name, factories, config, searchContext, parent, metadata);
+        return ((MissingAggregatorSupplier) aggregatorSupplier).build(
+            name,
+            factories,
+            config,
+            searchContext,
+            parent,
+            cardinality,
+            metadata
+        );
     }
 
 }

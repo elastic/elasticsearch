@@ -710,7 +710,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 File file = new File(in);
-                addFileDetails(file.name, file);
+                fileDetails.put(file.name, file);
             }
             if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
                 complete = in.readBoolean();

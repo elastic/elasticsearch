@@ -489,7 +489,8 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        final List<Map<String, Object>> mappings = collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry);
+        final List<Map<String, Object>> mappings =
+            collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.dataStreamName() != null);
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
@@ -509,10 +510,11 @@ public class MetadataCreateIndexService {
     public static List<Map<String, Object>> collectV2Mappings(final String requestMappings,
                                                               final ClusterState currentState,
                                                               final String templateName,
-                                                              final NamedXContentRegistry xContentRegistry) throws Exception {
+                                                              final NamedXContentRegistry xContentRegistry,
+                                                              final boolean createDataStream) throws Exception {
         List<Map<String, Object>> result = new ArrayList<>();
 
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName);
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, createDataStream);
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
             result.add(parsedTemplateMapping);

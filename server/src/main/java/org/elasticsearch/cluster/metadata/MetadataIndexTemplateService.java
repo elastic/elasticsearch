@@ -887,7 +887,9 @@ public class MetadataIndexTemplateService {
     /**
      * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName) {
+    public static List<CompressedXContent> collectMappings(final ClusterState state,
+                                                           final String templateName,
+                                                           final boolean createDataStream) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null : "attempted to resolve mappings for a template [" + templateName +
             "] that did not exist in the cluster state";
@@ -909,17 +911,19 @@ public class MetadataIndexTemplateService {
             .ifPresent(mappings::add);
 
         // Add the mapping of a data stream's timestamp field if available, since it has the highest precedence:
-        Optional.ofNullable(template.getDataStreamTemplate())
-            .map(ComposableIndexTemplate.DataStreamTemplate::getDataSteamMappingSnippet)
-            .map(mapping -> {
-                try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-                    builder.value(mapping);
-                    return new CompressedXContent(BytesReference.bytes(builder));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            })
-            .ifPresent(mappings::add);
+        if (createDataStream) {
+            Optional.ofNullable(template.getDataStreamTemplate())
+                .map(ComposableIndexTemplate.DataStreamTemplate::getDataSteamMappingSnippet)
+                .map(mapping -> {
+                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                        builder.value(mapping);
+                        return new CompressedXContent(BytesReference.bytes(builder));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .ifPresent(mappings::add);
+        }
         return Collections.unmodifiableList(mappings);
     }
 
@@ -1066,7 +1070,7 @@ public class MetadataIndexTemplateService {
                     xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
 
                 // Parse mappings to ensure they are valid after being composed
-                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName);
+                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, true);
                 try {
                     MapperService mapperService = tempIndexService.mapperService();
                     for (CompressedXContent mapping : mappings) {

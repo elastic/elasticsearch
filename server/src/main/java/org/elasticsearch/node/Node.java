@@ -440,10 +440,8 @@ public class Node implements Closeable {
             // collect engine factory providers from server and from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders =
-                    Stream.concat(
-                            indicesModule.getEngineFactories().stream(),
-                            enginePlugins.stream().map(plugin -> plugin::getEngineFactory))
-                    .collect(Collectors.toList());
+                    enginePlugins.stream().map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>)plugin::getEngineFactory)
+                            .collect(Collectors.toList());
 
 
             final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories =

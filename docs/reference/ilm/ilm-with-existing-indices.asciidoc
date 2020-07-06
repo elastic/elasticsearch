@@ -68,7 +68,7 @@ but a combined index needs to be retained until you are ready to delete the new 
 
 . Reduce the {ilm-init} poll interval to ensure that the index doesn't 
 grow too large while waiting for the rollover check.
-By default, {ilm-init} checks rollover conditions every 10 minutes. 
+By default, {ilm-init} checks to see what actions need to be taken every 10 minutes. 
 +
 --
 [source,console]

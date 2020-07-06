@@ -186,7 +186,7 @@ public class MetadataIndexTemplateService {
         }
 
         CompressedXContent mappings = template.template().mappings();
-        String stringMappings = mappings == null ? null : mappings.string();
+        String stringMappings = wrapMappingsIfNecessary(mappings == null ? null : mappings.string(), xContentRegistry);
 
         // We may need to normalize index settings, so do that also
         Settings finalSettings = template.template().settings();
@@ -222,17 +222,6 @@ public class MetadataIndexTemplateService {
                         + IndexMetadata.SETTING_INDEX_HIDDEN + "] setting: [" + String.join(",", globalTemplatesThatUseThisComponent)
                         + "]");
                 }
-            }
-        }
-
-        // Mappings in component templates don't include _doc, so update the mappings to include this single type
-        if (stringMappings != null) {
-            Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
-            if (parsedMappings.size() > 0) {
-                stringMappings = Strings.toString(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field(MapperService.SINGLE_MAPPING_NAME, parsedMappings)
-                    .endObject());
             }
         }
 
@@ -277,6 +266,35 @@ public class MetadataIndexTemplateService {
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
             .build();
+    }
+
+    @Nullable
+    private static String wrapMappingsIfNecessary(@Nullable String mappings, NamedXContentRegistry xContentRegistry) throws Exception {
+        // Mappings in templates don't have to include _doc, so update
+        // the mappings to include this single type if necessary
+
+        String stringMappings = mappings;
+        if (stringMappings != null) {
+            Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
+            if (parsedMappings.size() > 0) {
+                if (parsedMappings.size() == 1) {
+                    final String keyName = parsedMappings.keySet().iterator().next();
+                    // Check if it's already wrapped in `_doc`, only rewrap if needed
+                    if (MapperService.SINGLE_MAPPING_NAME.equals(keyName) == false) {
+                        stringMappings = Strings.toString(XContentFactory.jsonBuilder()
+                            .startObject()
+                            .field(MapperService.SINGLE_MAPPING_NAME, parsedMappings)
+                            .endObject());
+                    }
+                } else {
+                    stringMappings = Strings.toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field(MapperService.SINGLE_MAPPING_NAME, parsedMappings)
+                        .endObject());
+                }
+            }
+        }
+        return stringMappings;
     }
 
     /**
@@ -462,18 +480,8 @@ public class MetadataIndexTemplateService {
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
-            String stringMappings = mappings == null ? null : mappings.string();
+            String stringMappings = wrapMappingsIfNecessary(mappings == null ? null : mappings.string(), xContentRegistry);
 
-            // Mappings in index templates don't include _doc, so update the mappings to include this single type
-            if (stringMappings != null) {
-                Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
-                if (parsedMappings.size() > 0) {
-                    stringMappings = Strings.toString(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field(MapperService.SINGLE_MAPPING_NAME, parsedMappings)
-                        .endObject());
-                }
-            }
             final Template finalTemplate = new Template(finalSettings,
                 stringMappings == null ? null : new CompressedXContent(stringMappings), innerTemplate.aliases());
             finalIndexTemplate = new ComposableIndexTemplate(template.indexPatterns(), finalTemplate, template.composedOf(),

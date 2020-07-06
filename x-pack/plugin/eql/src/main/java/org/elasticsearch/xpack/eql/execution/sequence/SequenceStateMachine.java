@@ -10,6 +10,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -60,38 +61,37 @@ public class SequenceStateMachine {
         SequenceKey key = sequence.key();
 
         stageToKeys.keys(0).add(key);
-        SequenceFrame frame = keyToSequences.frame(0, key);
-        frame.add(sequence);
+        keyToSequences.add(0, sequence);
     }
 
     /**
      * Match the given hit (based on key and timestamp and potential tiebreaker) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
-    public boolean match(int stage, SequenceKey key, Ordinal ordinal, SearchHit hit) {
+    public void match(int stage, SequenceKey key, Ordinal ordinal, SearchHit hit) {
         int previousStage = stage - 1;
         // check key presence to avoid creating a collection
-        SequenceFrame frame = keyToSequences.frameIfPresent(previousStage, key);
-        if (frame == null || frame.isEmpty()) {
-            return false;
+        SequenceGroup group = keyToSequences.groupIfPresent(previousStage, key);
+        if (group == null || group.isEmpty()) {
+            return;
         }
-        Tuple<Sequence, Integer> before = frame.before(ordinal);
+        Tuple<Sequence, Integer> before = group.before(ordinal);
         if (before == null) {
-            return false;
+            return;
         }
         Sequence sequence = before.v1();
         // eliminate the match and all previous values from the frame
-        frame.trim(before.v2() + 1);
+        group.trim(before.v2() + 1);
         
         // check maxspan before continuing the sequence
-        if (maxSpanInMillis > 0 && (ordinal.timestamp - sequence.startTimestamp() >= maxSpanInMillis)) {
-            return false;
+        if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startTimestamp() >= maxSpanInMillis)) {
+            return;
         }
 
         sequence.putMatch(stage, hit, ordinal);
 
         // remove the frame and keys early (as the key space is large)
-        if (frame.isEmpty()) {
+        if (group.isEmpty()) {
             stageToKeys.keys(previousStage).remove(key);
         }
 
@@ -109,12 +109,15 @@ public class SequenceStateMachine {
             }
         } else {
             stageToKeys.keys(stage).add(key);
-            keyToSequences.frame(stage, key).add(sequence);
+            keyToSequences.add(stage, sequence);
         }
-        return true;
     }
 
     public boolean reachedLimit() {
         return limitReached;
+    }
+
+    public boolean hasCandidates(int stage) {
+        return stage < completionStage && stageToKeys.keys(stage).isEmpty() == false;
     }
 }

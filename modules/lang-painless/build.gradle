@@ -69,7 +69,7 @@ task apiJavadoc(type: Javadoc) {
 }
 
 task apiJavadocJar(type: Jar) {
-  classifier = 'apiJavadoc'
+  archiveClassifier = 'apiJavadoc'
   from apiJavadoc
 }
 

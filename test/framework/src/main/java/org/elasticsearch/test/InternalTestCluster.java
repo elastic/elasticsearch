@@ -394,7 +394,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(),
             RandomNumbers.randomIntBetween(random, 1, 5));
         builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATION_CHUNKS_SETTING.getKey(),
-            RandomNumbers.randomIntBetween(random, 1, 5));
+            RandomNumbers.randomIntBetween(random, 1, 4));
         if (mockPlugins.contains(RecoverySettingsChunkSizePlugin.class) && randomBoolean()) {
             builder.put(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING.getKey(),
                 new ByteSizeValue(RandomNumbers.randomIntBetween(random, 256, 10 * 1024 * 1024)));

@@ -66,6 +66,10 @@ setup:
 
 ---
 "Terms lookup":
+  - skip:
+      version: " - 7.99.99"
+      reason:  fixed in 8.0.0 (backporting to 7.9.0)
+
   - do:
       bulk:
         index: lookup

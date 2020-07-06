@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
   restApi {
-    includeCore '_common', 'bulk'
+    includeCore '_common', 'bulk', 'indices'
     includeXpack 'eql'
   }
 }

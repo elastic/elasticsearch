@@ -96,9 +96,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                         if (searchResponse.isRunning()) {
                                             try {
                                                 // store the final response on completion unless the submit is cancelled
-                                                searchTask.addCompletionListener(finalResponse ->
-                                                    onFinalResponse(searchTask, finalResponse, () -> {
-                                                    }));
+                                                searchTask.addCompletionListener(
+                                                    finalResponse -> onFinalResponse(searchTask, finalResponse, () -> {}));
                                             } finally {
                                                 submitListener.onResponse(searchResponse);
                                             }
@@ -110,11 +109,12 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                     @Override
                                     public void onFailure(Exception exc) {
                                         onFatalFailure(searchTask, exc, searchResponse.isRunning(),
-                                            "unable to store initial response", submitListener);
+                                            "fatal failure: unable to store initial response", submitListener);
                                     }
                                 });
                         } catch (Exception exc) {
-                            onFatalFailure(searchTask, exc, searchResponse.isRunning(), "generic error", submitListener);
+                            onFatalFailure(searchTask, exc, searchResponse.isRunning(),
+                                "fatal failure: generic error", submitListener);
                         }
                     } else {
                         // the task completed within the timeout so the response is sent back to the user
@@ -126,7 +126,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
                 @Override
                 public void onFailure(Exception exc) {
-                    submitListener.onFailure(exc);
+                    //this will only ever be called if there is an issue scheduling the thread that executes
+                    //the completion listener once the wait for completion timeout expires.
+                    onFatalFailure(searchTask, exc, true,
+                        "fatal failure: addCompletionListener", submitListener);
                 }
             }, request.getWaitForCompletionTimeout());
     }
@@ -149,7 +152,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     }
 
     private void onFatalFailure(AsyncSearchTask task, Exception error, boolean shouldCancel, String cancelReason,
-                                ActionListener<AsyncSearchResponse> listener) {
+                                ActionListener<AsyncSearchResponse> listener){
         if (shouldCancel && task.isCancelled() == false) {
             task.cancelTask(() -> {
                 try {
@@ -157,7 +160,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 } finally {
                     listener.onFailure(error);
                 }
-            }, "fatal failure: " + cancelReason);
+            }, cancelReason);
         } else {
             try {
                 task.addCompletionListener(finalResponse -> taskManager.unregister(task));
@@ -175,29 +178,24 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
                 resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                 exc -> {
-                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]", searchTask.getExecutionId()), exc);
+                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
+                        searchTask.getExecutionId().getEncoded()), exc);
                     unregisterTaskAndMoveOn(searchTask, nextAction);
                 }));
             return;
-        }
+       }
 
-        try {
-            store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
-                ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                                    exc -> {
-                                        Throwable cause = ExceptionsHelper.unwrapCause(exc);
-                                        if (cause instanceof DocumentMissingException == false &&
-                                                cause instanceof VersionConflictEngineException == false) {
-                                            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                                                searchTask.getExecutionId().getEncoded()), exc);
-                                        }
-                                        unregisterTaskAndMoveOn(searchTask, nextAction);
-                                    }));
-        } catch (Exception exc) {
-            logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", searchTask.getExecutionId().getEncoded()),
-                exc);
-            unregisterTaskAndMoveOn(searchTask, nextAction);
-        }
+        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+            ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
+                exc -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(exc);
+                    if (cause instanceof DocumentMissingException == false &&
+                        cause instanceof VersionConflictEngineException == false) {
+                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
+                            searchTask.getExecutionId().getEncoded()), exc);
+                    }
+                    unregisterTaskAndMoveOn(searchTask, nextAction);
+                }));
     }
 
     private void unregisterTaskAndMoveOn(SearchTask searchTask, Runnable nextAction) {

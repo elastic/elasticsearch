@@ -167,7 +167,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
 
     public void testSendUpdateMappingUsingAutoPutMappingAction() {
         DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_8_0_0))
+            .add(new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.V_7_9_0))
             .build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).nodes(nodes).build();
         ClusterService clusterService = mock(ClusterService.class);
@@ -186,7 +186,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).build();
         final Mapper.BuilderContext context = new Mapper.BuilderContext(indexSettings, new ContentPath());
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(context);
-        Mapping update = new Mapping(Version.V_8_0_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+        Mapping update = new Mapping(Version.V_7_9_0, rootObjectMapper, new MetadataFieldMapper[0], Map.of());
 
         mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());

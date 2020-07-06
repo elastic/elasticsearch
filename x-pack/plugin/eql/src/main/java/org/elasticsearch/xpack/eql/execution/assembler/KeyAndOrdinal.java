@@ -6,12 +6,12 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import org.elasticsearch.xpack.eql.execution.sequence.Ordinal;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 
 import java.util.Objects;
 
-class KeyAndOrdinal {
+public class KeyAndOrdinal {
     final SequenceKey key;
     final Ordinal ordinal;
 

@@ -245,7 +245,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (missing.isEmpty() == false) {
                         throw new SnapshotException(
-                            new Snapshot(repositoryName, snapshotId),"Indices don't have primary shards " + missing);
+                                new Snapshot(repositoryName, snapshotId), "Indices don't have primary shards " + missing);
                     }
                 }
                 newEntry = new SnapshotsInProgress.Entry(

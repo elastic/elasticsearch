@@ -403,9 +403,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
             }
         }, e -> {
             if (partial == false) {
-                final Throwable unwrapped =
-                    ExceptionsHelper.unwrap(e, SnapshotException.class);
-                assertThat(unwrapped, instanceOf(SnapshotException.class));
+                final SnapshotException unwrapped = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
+                assertNotNull(unwrapped);
                 assertThat(unwrapped.getMessage(), endsWith("Indices don't have primary shards [test]"));
                 snapshotNeverStarted.set(true);
             } else {

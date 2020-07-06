@@ -20,7 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -31,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -44,6 +44,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -54,10 +55,11 @@ public class BinaryFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "binary";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new BinaryFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -65,15 +67,23 @@ public class BinaryFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
+            hasDocValues = false;
             builder = this;
         }
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new BinaryFieldMapper(name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new BinaryFieldMapper(name, fieldType, new BinaryFieldType(buildFullName(context), hasDocValues, meta),
+                    multiFieldsBuilder.build(this, context), copyTo);
+        }
+
+        @Override
+        public Builder index(boolean index) {
+            if (index) {
+                throw new MapperParsingException("Binary field [" + name() + "] cannot be indexed");
+            }
+            return builder;
         }
     }
 
@@ -87,9 +97,15 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    static final class BinaryFieldType extends MappedFieldType {
+    public static final class BinaryFieldType extends MappedFieldType {
 
-        BinaryFieldType() {}
+        public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
+        }
+
+        public BinaryFieldType(String name) {
+            this(name, true, Collections.emptyMap());
+        }
 
         protected BinaryFieldType(BinaryFieldType ref) {
             super(ref);
@@ -151,14 +167,14 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    protected BinaryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    protected BinaryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                                MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
     }
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        if (!fieldType().stored() && !fieldType().hasDocValues()) {
+        if (!fieldType.stored() && !fieldType().hasDocValues()) {
             return;
         }
         byte[] value = context.parseExternalValue(byte[].class);
@@ -172,8 +188,8 @@ public class BinaryFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
-        if (fieldType().stored()) {
-            context.doc().add(new Field(fieldType().name(), value, fieldType()));
+        if (fieldType.stored()) {
+            context.doc().add(new StoredField(fieldType().name(), value));
         }
 
         if (fieldType().hasDocValues()) {
@@ -196,6 +212,16 @@ public class BinaryFieldMapper extends FieldMapper {
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
@@ -56,6 +57,15 @@ public class TreeInferenceModelTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
+    }
+
+    public void testCtorWithNullTargetType() {
+        TreeInferenceModel treeInferenceModel = new TreeInferenceModel(
+            Collections.emptyList(),
+            Collections.singletonList(new TreeInferenceModel.NodeBuilder().setLeafValue(new double[]{1.0}).setNumberSamples(100L)),
+            null,
+            Collections.emptyList());
+        assertThat(treeInferenceModel.targetType(), equalTo(TargetType.REGRESSION));
     }
 
     public void testSerializationFromEnsemble() throws Exception {
@@ -170,7 +180,7 @@ public class TreeInferenceModelTests extends ESTestCase {
         List<Double> expectedProbs = Arrays.asList(1.0, 0.0);
         List<String> expectedFields = Arrays.asList("dog", "cat");
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        List<ClassificationInferenceResults.TopClassEntry> probabilities =
+        List<TopClassEntry> probabilities =
             ((ClassificationInferenceResults)tree.infer(featureMap, new ClassificationConfig(2), Collections.emptyMap()))
                 .getTopClasses();
         for(int i = 0; i < expectedProbs.size(); i++) {

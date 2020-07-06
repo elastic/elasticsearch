@@ -77,7 +77,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             randomValues.add(new Tuple<>(randomFrom(enrichValues), randomAlphaOfLength(4)));
         }
 
-        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
+        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
         assertThat(result, notNullValue());
         assertThat(result.getPolicyName(), equalTo("majestic"));
         assertThat(result.getField(), equalTo("host"));
@@ -124,7 +124,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         }
         config.put("set_from", valuesConfig);
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
         assertThat(e.getMessage(), equalTo("no enrich index exists for policy with name [majestic]"));
     }
 
@@ -154,7 +154,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         }
         config.put("set_from", valuesConfig);
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[policy_name] required property is missing"));
     }
 
@@ -173,7 +173,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             config.put("ignore_missing", keyIgnoreMissing);
         }
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
         assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
     }
 
@@ -194,7 +194,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("field", "host");
         config.put("target_field", "entry");
 
-        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
+        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
         assertThat(result, notNullValue());
         assertThat(result.getPolicyName(), equalTo("majestic"));
         assertThat(result.getField(), equalTo("host"));
@@ -217,7 +217,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config1.put("policy_name", "majestic");
         config1.put("field", "host");
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config1));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config1));
         assertThat(e.getMessage(), equalTo("[target_field] required property is missing"));
     }
 
@@ -233,7 +233,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "entry");
         config.put("max_matches", randomBoolean() ? between(-2048, 0) : between(129, 2048));
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
         assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 128"));
     }
 

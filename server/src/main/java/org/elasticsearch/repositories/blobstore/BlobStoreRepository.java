@@ -97,6 +97,7 @@ import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -137,6 +138,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -252,6 +254,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ClusterService clusterService;
 
+    private final RecoverySettings recoverySettings;
+
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
@@ -289,14 +293,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final RepositoryMetadata metadata,
         final boolean compress,
         final NamedXContentRegistry namedXContentRegistry,
-        final ClusterService clusterService) {
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
         this.compress = compress;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;
         this.threadPool = clusterService.getClusterApplierService().threadPool();
         this.clusterService = clusterService;
+        this.recoverySettings = recoverySettings;
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
-        restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
+        restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = metadata.settings().getAsBoolean("readonly", false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
@@ -415,21 +421,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         if (bestEffortConsistency) {
-            long bestGenerationFromCS = RepositoryData.EMPTY_REPO_GEN;
-            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress != null) {
-                bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
-            }
-            final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && deletionsInProgress != null) {
-                bestGenerationFromCS = bestGeneration(deletionsInProgress.getEntries());
+            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
+                bestGenerationFromCS =
+                    bestGeneration(state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries());
             }
-            final RepositoryCleanupInProgress cleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN && cleanupInProgress != null) {
-                bestGenerationFromCS = bestGeneration(cleanupInProgress.entries());
+            if (bestGenerationFromCS == RepositoryData.EMPTY_REPO_GEN) {
+                bestGenerationFromCS =
+                    bestGeneration(state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).entries());
             }
             final long finalBestGen = Math.max(bestGenerationFromCS, metadata.generation());
             latestKnownRepoGen.updateAndGet(known -> Math.max(known, finalBestGen));
@@ -1040,6 +1043,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         executor.execute(ActionRunnable.supply(allMetaListener, () -> {
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
+                    new ArrayList<>(clusterMetadata.dataStreams().keySet()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
                 includeGlobalState, userMetadata);
             snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
@@ -1764,6 +1768,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
             } else {
+                for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesFromSegmentInfos) {
+                    indexTotalNumberOfFiles++;
+                    indexTotalFileSize += fileInfo.length();
+                }
                 indexCommitPointFiles = filesFromSegmentInfos;
             }
 
@@ -1991,16 +1999,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         });
     }
 
-    private static InputStream maybeRateLimit(InputStream stream, @Nullable RateLimiter rateLimiter, CounterMetric metric) {
-        return rateLimiter == null ? stream : new RateLimitingInputStream(stream, rateLimiter, metric::inc);
+    private static InputStream maybeRateLimit(InputStream stream, Supplier<RateLimiter> rateLimiterSupplier, CounterMetric metric) {
+        return new RateLimitingInputStream(stream, rateLimiterSupplier, metric::inc);
     }
 
     public InputStream maybeRateLimitRestores(InputStream stream) {
-        return maybeRateLimit(stream, restoreRateLimiter, restoreRateLimitingTimeInNanos);
+        return maybeRateLimit(maybeRateLimit(stream, () -> restoreRateLimiter, restoreRateLimitingTimeInNanos),
+            recoverySettings::rateLimiter, restoreRateLimitingTimeInNanos);
     }
 
     public InputStream maybeRateLimitSnapshots(InputStream stream) {
-        return maybeRateLimit(stream, snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
+        return maybeRateLimit(stream, () -> snapshotRateLimiter, snapshotRateLimitingTimeInNanos);
     }
 
     @Override

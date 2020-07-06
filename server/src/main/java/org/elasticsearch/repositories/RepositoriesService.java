@@ -476,36 +476,27 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * @return true if repository is currently in use by one of the running snapshots
      */
     private static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
-        SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE);
-        if (snapshots != null) {
-            for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-                if (repository.equals(snapshot.snapshot().getRepository())) {
-                    return true;
-                }
+        final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
+            if (repository.equals(snapshot.snapshot().getRepository())) {
+                return true;
             }
         }
-        SnapshotDeletionsInProgress deletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletionsInProgress != null) {
-            for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
-                if (entry.repository().equals(repository)) {
-                    return true;
-                }
+        for (SnapshotDeletionsInProgress.Entry entry :
+            clusterState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()) {
+            if (entry.repository().equals(repository)) {
+                return true;
             }
         }
-        final RepositoryCleanupInProgress repositoryCleanupInProgress = clusterState.custom(RepositoryCleanupInProgress.TYPE);
-        if (repositoryCleanupInProgress != null) {
-            for (RepositoryCleanupInProgress.Entry entry : repositoryCleanupInProgress.entries()) {
-                if (entry.repository().equals(repository)) {
-                    return true;
-                }
+        for (RepositoryCleanupInProgress.Entry entry :
+            clusterState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).entries()) {
+            if (entry.repository().equals(repository)) {
+                return true;
             }
         }
-        RestoreInProgress restoreInProgress = clusterState.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
-            for (RestoreInProgress.Entry entry: restoreInProgress) {
-                if (repository.equals(entry.snapshot().getRepository())) {
-                    return true;
-                }
+        for (RestoreInProgress.Entry entry : clusterState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
+            if (repository.equals(entry.snapshot().getRepository())) {
+                return true;
             }
         }
         return false;

@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -41,7 +42,7 @@ public class CrossValidationSplitterFactory {
 
     public CrossValidationSplitter create() {
         if (config.getAnalysis() instanceof Regression) {
-            return createRandomSplitter();
+            return createSingleClassSplitter((Regression) config.getAnalysis());
         }
         if (config.getAnalysis() instanceof Classification) {
             return createStratifiedSplitter((Classification) config.getAnalysis());
@@ -49,10 +50,23 @@ public class CrossValidationSplitterFactory {
         return (row, incrementTrainingDocs, incrementTestDocs) -> incrementTrainingDocs.run();
     }
 
-    private CrossValidationSplitter createRandomSplitter() {
-        Regression regression = (Regression) config.getAnalysis();
-        return new RandomCrossValidationSplitter(
-            fieldNames, regression.getDependentVariable(), regression.getTrainingPercent(), regression.getRandomizeSeed());
+    private CrossValidationSplitter createSingleClassSplitter(Regression regression) {
+        SearchRequestBuilder searchRequestBuilder = client.prepareSearch(config.getDest().getIndex())
+            .setSize(0)
+            .setAllowPartialSearchResults(false)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery(regression.getDependentVariable()));
+
+        try {
+            SearchResponse searchResponse = ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
+                searchRequestBuilder::get);
+            return new SingleClassReservoirCrossValidationSplitter(fieldNames, regression.getDependentVariable(),
+                regression.getTrainingPercent(), regression.getRandomizeSeed(), searchResponse.getHits().getTotalHits().value);
+        } catch (Exception e) {
+            ParameterizedMessage msg = new ParameterizedMessage("[{}] Error searching total number of training docs", config.getId());
+            LOGGER.error(msg, e);
+            throw new ElasticsearchException(msg.getFormattedMessage(), e);
+        }
     }
 
     private CrossValidationSplitter createStratifiedSplitter(Classification classification) {
@@ -69,12 +83,12 @@ public class CrossValidationSplitterFactory {
                 searchRequestBuilder::get);
             Aggregations aggs = searchResponse.getAggregations();
             Terms terms = aggs.get(aggName);
-            Map<String, Long> classCardinalities = new HashMap<>();
+            Map<String, Long> classCounts = new HashMap<>();
             for (Terms.Bucket bucket : terms.getBuckets()) {
-                classCardinalities.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
+                classCounts.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
             }
 
-            return new StratifiedCrossValidationSplitter(fieldNames, classification.getDependentVariable(), classCardinalities,
+            return new StratifiedCrossValidationSplitter(fieldNames, classification.getDependentVariable(), classCounts,
                 classification.getTrainingPercent(), classification.getRandomizeSeed());
         } catch (Exception e) {
             ParameterizedMessage msg = new ParameterizedMessage("[{}] Dependent variable terms search failed", config.getId());

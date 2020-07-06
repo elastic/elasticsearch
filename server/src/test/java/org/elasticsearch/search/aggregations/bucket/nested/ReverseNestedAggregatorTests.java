@@ -34,11 +34,9 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -98,9 +96,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
                         .field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-                        NumberFieldMapper.NumberType.LONG);
-                fieldType.setName(VALUE_FIELD_NAME);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
@@ -132,15 +128,13 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
-                                TypeFieldMapper.Defaults.FIELD_TYPE));
+                                TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         documents.add(document);
                         expectedNestedDocs++;
                     }
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                             IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(TypeFieldMapper.NAME, "test",
-                            TypeFieldMapper.Defaults.FIELD_TYPE));
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
                     document.add(SeqNoFieldMapper.SequenceIDFields.emptySeqID().primaryTerm);
@@ -162,9 +156,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 MaxAggregationBuilder maxAgg = new MaxAggregationBuilder(MAX_AGG_NAME)
                         .field(VALUE_FIELD_NAME);
                 reverseNestedBuilder.subAggregation(maxAgg);
-                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-                        NumberFieldMapper.NumberType.LONG);
-                fieldType.setName(VALUE_FIELD_NAME);
+                MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
                 Nested nested = search(newSearcher(indexReader, false, true),
                         new MatchAllDocsQuery(), nestedBuilder, fieldType);
@@ -187,9 +179,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         int numParentDocs = randomIntBetween(1, 20);
         int expectedParentDocs = 0;
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(
-            NumberFieldMapper.NumberType.LONG);
-        fieldType.setName(VALUE_FIELD_NAME);
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(VALUE_FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -205,14 +195,12 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                                 IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         document.add(new Field(TypeFieldMapper.NAME, "__" + NESTED_OBJECT,
-                                TypeFieldMapper.Defaults.FIELD_TYPE));
+                                TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
                         documents.add(document);
                     }
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)),
                             IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(TypeFieldMapper.NAME, "test",
-                            TypeFieldMapper.Defaults.FIELD_TYPE));
 
                     long value = randomNonNegativeLong() % 10000;
                     document.add(new SortedNumericDocValuesField(VALUE_FIELD_NAME, value));
@@ -246,12 +234,7 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    /**
-     * {@link NumericTermsAggregator} is the first complex bucking aggregation
-     * that stopped wrapping itself in {@link AggregatorFactory#asMultiBucketAggregator}
-     * so this tests that nested works properly inside of it.
-     */
-    public void testNestedUnderLongTerms() throws IOException {
+    public void testNestedUnderTerms() throws IOException {
         int numProducts = scaledRandomIntBetween(1, 100);
         int numResellers = scaledRandomIntBetween(1, 100);
 

@@ -188,50 +188,42 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertEquals("index [source] already exists",
             expectThrows(ResourceAlreadyExistsException.class, () ->
-                MetadataCreateIndexService.validateShrinkIndex(state, "target", Collections.emptySet(), "source", Settings.EMPTY)
+                MetadataCreateIndexService.validateShrinkIndex(state, "target", "source", Settings.EMPTY)
             ).getMessage());
 
         assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetadataCreateIndexService.validateShrinkIndex(state, "no_such_index", Collections.emptySet(), "target", Settings.EMPTY)
+                MetadataCreateIndexService.validateShrinkIndex(state, "no_such_index", "target", Settings.EMPTY)
             ).getMessage());
 
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).build();
         assertEquals("can't shrink an index with only one shard",
             expectThrows(IllegalArgumentException.class, () -> MetadataCreateIndexService.validateShrinkIndex(createClusterState("source",
-                1, 0, Settings.builder().put("index.blocks.write", true).build()), "source",
-                Collections.emptySet(), "target", targetSettings)).getMessage());
+                1, 0, Settings.builder().put("index.blocks.write", true).build()), "source", "target", targetSettings)).getMessage());
 
         assertEquals("the number of target shards [10] must be less that the number of source shards [5]",
             expectThrows(IllegalArgumentException.class, () -> MetadataCreateIndexService.validateShrinkIndex(createClusterState("source",
                 5, 0, Settings.builder().put("index.blocks.write", true).build()), "source",
-                Collections.emptySet(), "target", Settings.builder().put("index.number_of_shards", 10).build())).getMessage());
+                "target", Settings.builder().put("index.number_of_shards", 10).build())).getMessage());
 
 
         assertEquals("index source must be read-only to resize index. use \"index.blocks.write=true\"",
             expectThrows(IllegalStateException.class, () ->
                     MetadataCreateIndexService.validateShrinkIndex(
-                        createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY)
-                        , "source", Collections.emptySet(), "target", targetSettings)
+                        createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
+                        "source", "target", targetSettings)
             ).getMessage());
 
         assertEquals("index source must have all shards allocated on the same node to shrink index",
             expectThrows(IllegalStateException.class, () ->
-                MetadataCreateIndexService.validateShrinkIndex(state, "source", Collections.emptySet(), "target", targetSettings)
+                MetadataCreateIndexService.validateShrinkIndex(state, "source", "target", targetSettings)
 
             ).getMessage());
         assertEquals("the number of source shards [8] must be a multiple of [3]",
             expectThrows(IllegalArgumentException.class, () ->
                     MetadataCreateIndexService.validateShrinkIndex(createClusterState("source", 8, randomIntBetween(0, 10),
-                        Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
+                        Settings.builder().put("index.blocks.write", true).build()), "source", "target",
                         Settings.builder().put("index.number_of_shards", 3).build())
-            ).getMessage());
-
-        assertEquals("mappings are not allowed when resizing indices, all mappings are copied from the source index",
-            expectThrows(IllegalArgumentException.class, () -> {
-                MetadataCreateIndexService.validateShrinkIndex(state, "source", singleton("foo"),
-                    "target", targetSettings);
-                }
             ).getMessage());
 
         // create one that won't fail
@@ -251,7 +243,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         do {
             targetShards = randomIntBetween(1, numShards/2);
         } while (isShrinkable(numShards, targetShards) == false);
-        MetadataCreateIndexService.validateShrinkIndex(clusterState, "source", Collections.emptySet(), "target",
+        MetadataCreateIndexService.validateShrinkIndex(clusterState, "source", "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());
     }
 
@@ -263,17 +255,17 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertEquals("index [source] already exists",
             expectThrows(ResourceAlreadyExistsException.class, () ->
-                MetadataCreateIndexService.validateSplitIndex(state, "target", Collections.emptySet(), "source", targetSettings)
+                MetadataCreateIndexService.validateSplitIndex(state, "target", "source", targetSettings)
             ).getMessage());
 
         assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetadataCreateIndexService.validateSplitIndex(state, "no_such_index", Collections.emptySet(), "target", targetSettings)
+                MetadataCreateIndexService.validateSplitIndex(state, "no_such_index", "target", targetSettings)
             ).getMessage());
 
         assertEquals("the number of source shards [10] must be less that the number of target shards [5]",
             expectThrows(IllegalArgumentException.class, () -> MetadataCreateIndexService.validateSplitIndex(createClusterState("source",
-                10, 0, Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(),
+                10, 0, Settings.builder().put("index.blocks.write", true).build()), "source",
                 "target", Settings.builder().put("index.number_of_shards", 5).build())
             ).getMessage());
 
@@ -282,22 +274,15 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             expectThrows(IllegalStateException.class, () ->
                 MetadataCreateIndexService.validateSplitIndex(
                     createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY)
-                    , "source", Collections.emptySet(), "target", targetSettings)
+                    , "source", "target", targetSettings)
             ).getMessage());
 
 
         assertEquals("the number of source shards [3] must be a factor of [4]",
             expectThrows(IllegalArgumentException.class, () ->
                 MetadataCreateIndexService.validateSplitIndex(createClusterState("source", 3, randomIntBetween(0, 10),
-                    Settings.builder().put("index.blocks.write", true).build()), "source", Collections.emptySet(), "target",
+                    Settings.builder().put("index.blocks.write", true).build()), "source", "target",
                     Settings.builder().put("index.number_of_shards", 4).build())
-            ).getMessage());
-
-        assertEquals("mappings are not allowed when resizing indices, all mappings are copied from the source index",
-            expectThrows(IllegalArgumentException.class, () -> {
-                    MetadataCreateIndexService.validateSplitIndex(state, "source", singleton("foo"),
-                        "target", targetSettings);
-                }
             ).getMessage());
 
         int targetShards;
@@ -317,7 +302,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         routingTable = ESAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        MetadataCreateIndexService.validateSplitIndex(clusterState, "source", Collections.emptySet(), "target",
+        MetadataCreateIndexService.validateSplitIndex(clusterState, "source", "target",
             Settings.builder().put("index.number_of_shards", targetShards).build());
     }
 
@@ -463,7 +448,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                         .collect(Collectors.toSet());
         MetadataCreateIndexService.prepareResizeIndexSettings(
                 clusterState,
-                Collections.emptySet(),
                 indexSettingsBuilder,
                 clusterState.metadata().index(indexName).getIndex(),
                 "target",
@@ -633,7 +617,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
         request.settings(Settings.builder().put("request_setting", "value2").build());
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(), emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
 
         assertThat(aggregatedIndexSettings.get("template_setting"), equalTo("value1"));
@@ -671,7 +655,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             MetadataIndexTemplateService.resolveAliases(Collections.singletonList(templateMetadata)),
             Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, templateMetadata.settings(),
-            emptyMap(), null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
 
         assertThat(resolvedAliases.get(0).getSearchRouting(), equalTo("fromRequest"));
         assertThat(aggregatedIndexSettings.get("key1"), equalTo("requestValue"));
@@ -686,14 +670,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testDefaultSettings() {
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("1"));
     }
 
     public void testSettingsFromClusterState() {
-        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 15).build(), IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService());
 
@@ -718,8 +702,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .putAlias(AliasMetadata.builder("alias1").searchRouting("1").build())
         ));
         Settings aggregatedIndexSettings = aggregateIndexSettings(ClusterState.EMPTY_STATE, request,
-            MetadataIndexTemplateService.resolveSettings(templates), emptyMap(),
-            null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
+            MetadataIndexTemplateService.resolveSettings(templates), null, Settings.EMPTY,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
         List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
             Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext);
@@ -745,7 +729,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             createClusterState("sourceIndex", 1, 0,
                 Settings.builder().put("index.blocks.write", true).build());
 
-        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(), emptyMap(),
+        Settings aggregatedIndexSettings = aggregateIndexSettings(clusterState, request, templateMetadata.settings(),
             clusterState.metadata().index("sourceIndex"), Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService());
 
@@ -933,10 +917,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(targetRoutingNumberOfShards, is(6));
     }
 
+
     public void testSoftDeletesDisabledDeprecation() {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), false).build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Collections.emptyMap(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
         assertWarnings("Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
             + "Please do not specify value for setting [index.soft_deletes.enabled] of index [test].");
@@ -944,7 +929,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         if (randomBoolean()) {
             request.settings(Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
         }
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Collections.emptyMap(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
     }
 
@@ -957,138 +942,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         request.settings(settings.build());
-        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY, Collections.emptyMap(),
+        aggregateIndexSettings(ClusterState.EMPTY_STATE, request, Settings.EMPTY,
             null, Settings.EMPTY, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, randomShardLimitService());
         assertWarnings("Translog retention settings [index.translog.retention.age] "
             + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
-    }
-
-    @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
-    public void testMappingsMergingIsSmart() throws Exception {
-        Template ctt1 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"_source\":{\"enabled\": false},\"_meta\":{\"ct1\":{\"ver\": \"text\"}}," +
-                "\"properties\":{\"foo\":{\"type\":\"text\",\"ignore_above\":7,\"analyzer\":\"english\"}}}}"), null);
-        Template ctt2 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"_meta\":{\"ct1\":{\"ver\": \"keyword\"},\"ct2\":\"potato\"}," +
-                "\"properties\":{\"foo\":{\"type\":\"keyword\",\"ignore_above\":13}}}}"), null);
-
-        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
-
-        boolean shouldBeText = randomBoolean();
-        List<String> composedOf = shouldBeText ? Arrays.asList("ct2", "ct1") : Arrays.asList("ct1", "ct2");
-        logger.info("--> the {} analyzer should win ({})", shouldBeText ? "text" : "keyword", composedOf);
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, composedOf, null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("ct1", ct1)
-                .put("ct2", ct2)
-                .put("index-template", template)
-                .build())
-            .build();
-
-        Map<String, Map<String, Object>> resolved =
-            MetadataCreateIndexService.resolveV2Mappings("{\"_doc\":{\"_meta\":{\"ct2\":\"eggplant\"}," +
-                    "\"properties\":{\"bar\":{\"type\":\"text\"}}}}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
-
-        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
-        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(3));
-
-        Map<String, Object> nonProperties = new HashMap<>(innerResolved);
-        nonProperties.remove("properties");
-        Map<String, Object> expectedNonProperties = new HashMap<>();
-        expectedNonProperties.put("_source", Collections.singletonMap("enabled", false));
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("ct2", "eggplant");
-        if (shouldBeText) {
-            meta.put("ct1", Collections.singletonMap("ver", "text"));
-        } else {
-            meta.put("ct1", Collections.singletonMap("ver", "keyword"));
-        }
-        expectedNonProperties.put("_meta", meta);
-        assertThat(nonProperties, equalTo(expectedNonProperties));
-
-        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
-        assertThat(innerInnerResolved.size(), equalTo(2));
-        assertThat(innerInnerResolved.get("bar"), equalTo(Collections.singletonMap("type", "text")));
-        Map<String, Object> fooMappings = new HashMap<>();
-        if (shouldBeText) {
-            fooMappings.put("type", "text");
-            fooMappings.put("ignore_above", 7);
-            fooMappings.put("analyzer", "english");
-        } else {
-            fooMappings.put("type", "keyword");
-            fooMappings.put("ignore_above", 13);
-        }
-        assertThat(innerInnerResolved.get("foo"), equalTo(fooMappings));
-    }
-
-    @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/57393")
-    public void testMappingsMergingHandlesDots() throws Exception {
-        Template ctt1 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\": \"long\"}}}}}}"), null);
-        Template ctt2 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo.bar\":{\"type\": \"text\",\"analyzer\":\"english\"}}}}"), null);
-
-        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
-
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, Arrays.asList("ct2", "ct1"), null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("ct1", ct1)
-                .put("ct2", ct2)
-                .put("index-template", template)
-                .build())
-            .build();
-
-        Map<String, Map<String, Object>> resolved =
-            MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                "index-template", new NamedXContentRegistry(Collections.emptyList()));
-
-        assertThat("expected exactly one type but was: " + resolved, resolved.size(), equalTo(1));
-        Map<String, Object> innerResolved = (Map<String, Object>) resolved.get(MapperService.SINGLE_MAPPING_NAME);
-        assertThat("was: " + innerResolved, innerResolved.size(), equalTo(1));
-
-        Map<String, Object> innerInnerResolved = (Map<String, Object>) innerResolved.get("properties");
-        assertThat(innerInnerResolved.size(), equalTo(1));
-        assertThat(innerInnerResolved.get("foo"),
-            equalTo(Collections.singletonMap("properties", Collections.singletonMap("bar", Collections.singletonMap("type", "long")))));
-    }
-
-    public void testMappingsMergingThrowsOnConflictDots() throws Exception {
-        Template ctt1 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\": \"long\"}}}}}}"), null);
-        Template ctt2 = new Template(null,
-            new CompressedXContent("{\"_doc\":{\"properties\":{\"foo.bar\":{\"type\": \"text\",\"analyzer\":\"english\"}}}}"), null);
-
-        ComponentTemplate ct1 = new ComponentTemplate(ctt1, null, null);
-        ComponentTemplate ct2 = new ComponentTemplate(ctt2, null, null);
-
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("index"),
-            null, Arrays.asList("ct2", "ct1"), null, null, null, null);
-
-        ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
-                .put("ct1", ct1)
-                .put("ct2", ct2)
-                .put("index-template", template)
-                .build())
-            .build();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MetadataCreateIndexService.resolveV2Mappings("{}", state,
-                    "index-template", new NamedXContentRegistry(Collections.emptyList())));
-
-        assertThat(e.getMessage(), containsString("mapping fields [foo.bar] cannot be replaced during template composition"));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

@@ -21,12 +21,16 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -39,6 +43,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,6 +90,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+    }
+
+    @After
+    public void verifyNoLeakedListeners() throws Exception {
+        assertBusy(() -> {
+            for (SnapshotsService snapshotsService : internalCluster().getInstances(SnapshotsService.class)) {
+                assertTrue(snapshotsService.assertAllListenersResolved());
+            }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private String skipRepoConsistencyCheckReason;
@@ -183,21 +197,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished
                 ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-                SnapshotsInProgress snapshotsInProgress = stateResponse.getState().custom(SnapshotsInProgress.TYPE);
-                if (snapshotsInProgress == null) {
+                boolean found = false;
+                for (SnapshotsInProgress.Entry entry :
+                    stateResponse.getState().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
+                    final Snapshot curr = entry.snapshot();
+                    if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found == false) {
                     return snapshotInfos.get(0);
-                } else {
-                    boolean found = false;
-                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
-                        final Snapshot curr = entry.snapshot();
-                        if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (found == false) {
-                        return snapshotInfos.get(0);
-                    }
                 }
             }
             Thread.sleep(100);
@@ -230,6 +240,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
+    public static void blockDataNode(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                .repository(repository)).blockOnDataFiles(true);
+    }
+
     public static void blockAllDataNodes(String repository) {
         for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
@@ -260,11 +275,27 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Path location) {
-        logger.info("-->  creating repository");
+    protected void createRepository(String repoName, String type, Settings.Builder settings) {
+        logger.info("--> creating repository [{}] [{}]", repoName, type);
         assertAcked(client().admin().cluster().preparePutRepository(repoName)
-                .setType(type)
-                .setSettings(Settings.builder().put("location", location)));
+            .setType(type).setSettings(settings));
+    }
+
+    protected void createRepository(String repoName, String type, Path location) {
+        createRepository(repoName, type, Settings.builder().put("location", location));
+    }
+
+    protected void createRepository(String repoName, String type) {
+        Settings.Builder settings = Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean());
+        if (rarely()) {
+            settings = settings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
+        }
+        createRepository(repoName, type, settings);
+    }
+
+    protected static Settings.Builder indexSettingsNoReplicas(int shards) {
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
     }
 
     /**
@@ -303,5 +334,43 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), writeShardGens))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         return oldVersionSnapshot;
+    }
+
+    protected SnapshotInfo createFullSnapshot(String repoName, String snapshotName) {
+        logger.info("--> creating full snapshot [{}] in [{}]", snapshotName, repoName);
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+        return snapshotInfo;
+    }
+
+    protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {
+        createIndex(indexName);
+        ensureGreen();
+        indexRandomDocs(indexName, docCount);
+    }
+
+    protected void indexRandomDocs(String index, int numdocs) throws InterruptedException {
+        logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(index, "_doc").setId(Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh(index);
+        assertDocCount(index, numdocs);
+    }
+
+    protected long getCountForIndex(String indexName) {
+        return client().search(new SearchRequest(new SearchRequest(indexName).source(
+            new SearchSourceBuilder().size(0).trackTotalHits(true)))).actionGet().getHits().getTotalHits().value;
+    }
+
+    protected void assertDocCount(String index, long count) {
+        assertEquals(getCountForIndex(index), count);
     }
 }

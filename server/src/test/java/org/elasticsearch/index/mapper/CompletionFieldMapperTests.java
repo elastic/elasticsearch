@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -54,6 +56,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -79,8 +82,16 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
     }
 
     @Override
+    protected Set<String> unsupportedProperties() {
+        return org.elasticsearch.common.collect.Set.of("doc_values", "index");
+    }
+
+    @Override
     protected CompletionFieldMapper.Builder newBuilder() {
-        return new CompletionFieldMapper.Builder("completion");
+        CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder("completion");
+        builder.indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+        builder.searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+        return builder;
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -104,7 +115,7 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -137,7 +148,7 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -965,9 +976,8 @@ public class CompletionFieldMapperTests extends FieldMapperTestCase<CompletionFi
             .and(Matchers.instanceOf(SortedSetDocValuesField.class));
     }
 
-    private CombinableMatcher<IndexableField> keywordField(String value) {
-        return Matchers.both(hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))))
-            .and(hasProperty(IndexableField::fieldType, Matchers.instanceOf(KeywordFieldMapper.KeywordFieldType.class)));
+    private Matcher<IndexableField> keywordField(String value) {
+        return hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value)));
     }
 
     private <T, V> Matcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {

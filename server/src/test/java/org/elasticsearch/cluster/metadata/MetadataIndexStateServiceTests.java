@@ -413,7 +413,7 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             Index indexToDelete = cs.metadata().index(indicesToDelete.get(k)).getIndex();
             indicesToDeleteArray[k] = indexToDelete;
         }
-        MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null);
+        MetadataIndexStateService service = new MetadataIndexStateService(clusterService, null, null, null, null, null, null, null);
         CloseIndexClusterStateUpdateRequest request = new CloseIndexClusterStateUpdateRequest(0L).indices(indicesToDeleteArray);
         Exception e = expectThrows(IllegalArgumentException.class, () -> service.closeIndices(request, null));
         assertThat(e.getMessage(), CoreMatchers.containsString("cannot close the following data stream write indices [" +
@@ -463,7 +463,8 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
             new SnapshotsInProgress.Entry(snapshot, randomBoolean(), false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId(index, index)), randomNonNegativeLong(), randomLong(), shardsBuilder.build(),
                 SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
-        return ClusterState.builder(newState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(entry)).build();
+        return ClusterState.builder(newState).putCustom(
+                SnapshotsInProgress.TYPE, SnapshotsInProgress.of(Collections.singletonList(entry))).build();
     }
 
     private static ClusterState addIndex(final ClusterState currentState,

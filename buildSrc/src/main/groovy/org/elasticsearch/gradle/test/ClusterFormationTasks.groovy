@@ -222,7 +222,7 @@ class ClusterFormationTasks {
         if (distro.equals("oss")) {
             snapshotProject = "oss-" + snapshotProject
         }
-        
+
         BwcVersions.UnreleasedVersionInfo unreleasedInfo = null
 
         if (project.hasProperty('bwcVersions')) {
@@ -420,7 +420,11 @@ class ClusterFormationTasks {
             esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
         }
         // increase script compilation limit since tests can rapid-fire script compilations
-        esConfig['script.max_compilations_rate'] = '2048/1m'
+        if (node.nodeVersion.onOrAfter('7.9.0')) {
+            esConfig['script.disable_max_compilations_rate'] = 'true'
+        } else {
+            esConfig['script.max_compilations_rate'] = '2048/1m'
+        }
         // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
         // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
         // can retry on circuit breaking exceptions, we can revert again to the default configuration.

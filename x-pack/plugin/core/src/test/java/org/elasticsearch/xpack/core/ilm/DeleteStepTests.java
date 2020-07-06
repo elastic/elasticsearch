@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -148,7 +148,8 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        DataStream dataStream = new DataStream(dataStreamName, "timestamp",
+        DataStream dataStream =
+            new DataStream(dataStreamName, createTimestampField("@timestamp"),
             org.elasticsearch.common.collect.List.of(sourceIndexMetadata.getIndex()));
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(sourceIndexMetadata, true).put(dataStream).build()

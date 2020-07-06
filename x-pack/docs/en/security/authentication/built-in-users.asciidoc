@@ -8,7 +8,7 @@ authenticated until their passwords have been set. The `elastic` user can be
 used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 
 `elastic`:: A built-in <<built-in-roles,superuser>>.
-`kibana`:: The user Kibana uses to connect and communicate with {es}.
+`kibana_system`:: The user Kibana uses to connect and communicate with {es}.
 `logstash_system`:: The user Logstash uses when storing monitoring information in {es}.
 `beats_system`:: The user the Beats use when storing monitoring information in {es}.
 `apm_system`:: The user the APM server uses when storing monitoring information in {es}.

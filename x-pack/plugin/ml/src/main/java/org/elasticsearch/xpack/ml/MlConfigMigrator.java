@@ -166,7 +166,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        if (clusterState.metadata().hasIndex(AnomalyDetectorsIndex.configIndexName()) == false) {
+        if (clusterState.metadata().hasIndex(MlConfigIndex.indexName()) == false) {
             createConfigIndex(ActionListener.wrap(
                     response -> {
                         unMarkMigrationInProgress.onResponse(Boolean.FALSE);
@@ -424,7 +424,7 @@ public class MlConfigMigrator {
     }
 
     private IndexRequest indexRequest(ToXContentObject source, String documentId, ToXContent.Params params) {
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName()).id(documentId);
+        IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(documentId);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             indexRequest.source(source.toXContent(builder, params));
@@ -490,7 +490,7 @@ public class MlConfigMigrator {
 
     private void createConfigIndex(ActionListener<Boolean> listener) {
         logger.info("creating the .ml-config index");
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.configIndexName());
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(MlConfigIndex.indexName());
         try
         {
             createIndexRequest.settings(

@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
@@ -103,7 +104,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put("xpack.security.transport.ssl.enabled", true)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put("path.home", home)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false);
+            .put(nonMasterNode());
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
         addSSLSettingsForPEMFiles(
             nodeSettings,
@@ -143,7 +144,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
             .put("discovery.initial_state_timeout", "0s")
             .put("path.home", home)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false);
+            .put(nonMasterNode());
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, MockHttpTransport.TestPlugin.class);
         addSSLSettingsForPEMFiles(
             nodeSettings,

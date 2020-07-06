@@ -21,18 +21,15 @@ package org.elasticsearch.client.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -162,6 +159,16 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexAction;
+import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDanglingIndexRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
+import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
@@ -204,6 +211,10 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -340,6 +351,7 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -1169,6 +1181,36 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
+        public ActionFuture<ListDanglingIndicesResponse> listDanglingIndices(ListDanglingIndicesRequest request) {
+            return execute(ListDanglingIndicesAction.INSTANCE, request);
+        }
+
+        @Override
+        public void listDanglingIndices(ListDanglingIndicesRequest request, ActionListener<ListDanglingIndicesResponse> listener) {
+            execute(ListDanglingIndicesAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> importDanglingIndex(ImportDanglingIndexRequest request) {
+            return execute(ImportDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void importDanglingIndex(ImportDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(ImportDanglingIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> deleteDanglingIndex(DeleteDanglingIndexRequest request) {
+            return execute(DeleteDanglingIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteDanglingIndex(DeleteDanglingIndexRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(DeleteDanglingIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
         public GetStoredScriptRequestBuilder prepareGetStoredScript() {
             return new GetStoredScriptRequestBuilder(this, GetStoredScriptAction.INSTANCE);
         }
@@ -1399,6 +1441,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public void open(final OpenIndexRequest request, final ActionListener<OpenIndexResponse> listener) {
             execute(OpenIndexAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public AddIndexBlockRequestBuilder prepareAddBlock(APIBlock block, String... indices) {
+            return new AddIndexBlockRequestBuilder(this, AddIndexBlockAction.INSTANCE, block, indices);
+        }
+
+        @Override
+        public void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener) {
+            execute(AddIndexBlockAction.INSTANCE, request, listener);
         }
 
         @Override

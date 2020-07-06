@@ -27,6 +27,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -51,7 +52,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -250,7 +250,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         }
         assertMLAllowed(false);
 
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         // now that the license is invalid, the job should be closed and datafeed stopped:
         assertBusy(() -> {
@@ -781,7 +781,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     private static void assertMLAllowed(boolean expected) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            assertEquals(licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING), expected);
+            assertEquals(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING), expected);
         }
     }
 

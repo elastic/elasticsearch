@@ -65,7 +65,6 @@ public class MetadataRolloverService {
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-
     @Inject
     public MetadataRolloverService(ThreadPool threadPool,
                                    MetadataCreateIndexService createIndexService, MetadataIndexAliasesService indexAliasesService,
@@ -230,7 +229,7 @@ public class MetadataRolloverService {
         } else {
             return Collections.unmodifiableList(Arrays.asList(
                 new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
-                new AliasAction.Remove(oldIndex, alias)));
+                new AliasAction.Remove(oldIndex, alias, null)));
         }
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -102,6 +103,7 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
@@ -347,6 +349,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
+            TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND,
+            TransportReplicationAction.REPLICATION_RETRY_TIMEOUT,
             TransportSettings.HOST,
             TransportSettings.PUBLISH_HOST,
             TransportSettings.PUBLISH_HOST_PROFILE,
@@ -412,6 +416,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
+            ScriptService.SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_MAX_SIZE_IN_BYTES,
             ScriptService.TYPES_ALLOWED_SETTING,
@@ -466,12 +471,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.MAX_OPEN_SCROLL_CONTEXT,
             Node.WRITE_PORTS_FILE_SETTING,
             Node.NODE_NAME_SETTING,
-            Node.NODE_DATA_SETTING,
-            Node.NODE_MASTER_SETTING,
-            Node.NODE_INGEST_SETTING,
-            Node.NODE_REMOTE_CLUSTER_CLIENT,
             Node.NODE_ATTRIBUTES,
             Node.NODE_LOCAL_STORAGE_SETTING,
+            NodeRoleSettings.NODE_ROLES_SETTING,
             AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
             BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,
             ClusterName.CLUSTER_NAME_SETTING,

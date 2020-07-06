@@ -170,8 +170,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot")
             .field("does_not_exist").missing(0L);
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
@@ -188,9 +187,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     public void testUnsupportedType() {
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("not_a_number");
 
-        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setName("not_a_number");
-        fieldType.setHasDocValues(true);
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -198,7 +195,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             }, (Consumer<InternalBoxplot>) boxplot -> {
                 fail("Should have thrown exception");
             }, fieldType));
-        assertEquals(e.getMessage(), "Field [not_a_number] of type [keyword(indexed,tokenized)] " +
+        assertEquals(e.getMessage(), "Field [not_a_number] of type [keyword] " +
             "is not supported for aggregation [boxplot]");
     }
 
@@ -206,8 +203,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("number")
             .missing("not_a_number");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -226,8 +222,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot")
             .field("does_not_exist").missing("not_a_number");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         expectThrows(NumberFormatException.class,
             () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
@@ -246,8 +241,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         HistogramAggregationBuilder histogram = new HistogramAggregationBuilder("histo").field("number").interval(10).minDocCount(0)
             .subAggregation(new BoxplotAggregationBuilder("boxplot").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         testCase(histogram, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
@@ -287,8 +281,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("number")
             .format("0000.0");
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
@@ -314,8 +307,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global")
             .subAggregation(new BoxplotAggregationBuilder("boxplot").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         testCase(globalBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
@@ -339,8 +331,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalBoxplot> verify) throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("number");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }

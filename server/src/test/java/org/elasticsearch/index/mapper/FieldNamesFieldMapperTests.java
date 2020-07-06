@@ -26,7 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.junit.Before;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,22 +36,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFieldMapper.Builder> {
-
-    @Override
-    protected FieldNamesFieldMapper.Builder newBuilder() {
-        return new FieldNamesFieldMapper.Builder(null);
-    }
-
-    @Before
-    public void addModifiers() {
-        addBooleanModifier("enabled", true, FieldNamesFieldMapper.Builder::enabled);
-    }
-
-    @Override
-    protected boolean supportsDocValues() {
-        return false;
-    }
+public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
     private static SortedSet<String> extract(String path) {
         SortedSet<String> set = new TreeSet<>();
@@ -69,7 +54,7 @@ public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFi
         IndexableField[] fields = doc.rootDoc().getFields("_field_names");
         List<String> result = new ArrayList<>();
         for (IndexableField field : fields) {
-            if (field.fieldType() instanceof FieldNamesFieldMapper.FieldNamesFieldType) {
+            if (field.name().equals(FieldNamesFieldMapper.Defaults.NAME)) {
                 result.add(field.stringValue());
             }
         }
@@ -95,10 +80,11 @@ public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFi
             .parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
-        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType().indexOptions());
-        assertFalse(fieldNamesMapper.fieldType().tokenized());
-        assertFalse(fieldNamesMapper.fieldType().stored());
-        assertTrue(fieldNamesMapper.fieldType().omitNorms());
+
+        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType.indexOptions());
+        assertFalse(fieldNamesMapper.fieldType.tokenized());
+        assertFalse(fieldNamesMapper.fieldType.stored());
+        assertTrue(fieldNamesMapper.fieldType.omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
@@ -170,13 +156,13 @@ public class FieldNamesFieldMapperTests extends FieldMapperTestCase<FieldNamesFi
             .endObject().endObject());
         MapperService mapperService = createIndex("test").mapperService();
 
-        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
         assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
-        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapperEnabled
+            = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
         assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }

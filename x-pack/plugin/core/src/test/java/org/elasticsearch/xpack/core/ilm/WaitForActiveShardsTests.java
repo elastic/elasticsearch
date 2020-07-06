@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.UUID;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -166,7 +167,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
+                    .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+                        org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
                         rolledIndexMeta.getIndex()),
                         2L))
                     .put(originalIndexMeta, true)

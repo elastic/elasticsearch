@@ -738,6 +738,12 @@ The field that is added to incoming documents to contain the inference
 prediction. Defaults to `predicted_value`.
 end::inference-config-results-field[]
 
+tag::inference-config-results-field-processor[]
+The field that is added to incoming documents to contain the inference
+prediction. Defaults to the `results_field` value of the {dfanalytics-job} that was
+used to train the model, which defaults to `<dependent_variable>_prediction`.
+end::inference-config-results-field-processor[]
+
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by, 
 over, or partition fields that are used in the detector configuration. You might 
@@ -1107,6 +1113,10 @@ tag::partition-field-name[]
 The field used to segment the analysis. When you use this property, you have 
 completely independent baselines for each value of this field.
 end::partition-field-name[]
+
+tag::peak-model-bytes[]
+The peak number of bytes of memory ever used by the models.
+end::peak-model-bytes[]
 
 tag::per-partition-categorization[]
 Settings related to how categorization interacts with partition fields.

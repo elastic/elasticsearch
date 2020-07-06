@@ -235,14 +235,14 @@ PUT _index_template/template
   "template": {
     "mappings": {
       "properties": {
-        "@timestamp": {
+        "date": {
           "type": "date"
         }
       }
     }
   },
   "data_stream": {
-    "timestamp_field": "@timestamp"
+    "timestamp_field": "date"
   }
 }
 -----------------------------------

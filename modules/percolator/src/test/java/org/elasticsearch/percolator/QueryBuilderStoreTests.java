@@ -98,10 +98,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 .thenReturn(new BytesBinaryIndexFieldData(new Index("index", "uuid"), fieldMapper.name(), CoreValuesSourceType.BYTES));
             when(queryShardContext.fieldMapper(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
-                KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType();
-                ft.setName(fieldName);
-                ft.freeze();
-                return ft;
+                return new KeywordFieldMapper.KeywordFieldType(fieldName);
             });
             PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), queryShardContext);
 

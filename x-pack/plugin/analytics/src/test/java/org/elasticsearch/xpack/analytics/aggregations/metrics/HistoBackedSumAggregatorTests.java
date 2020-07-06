@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -107,7 +108,7 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalSum> verify) throws IOException {
-        testCase(sum("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType(FIELD_NAME));
+        testCase(sum("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
     }
 
     private BinaryDocValuesField getDocValue(String fieldName, double[] values) throws IOException {
@@ -148,9 +149,7 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
         return new SumAggregationBuilder("_name").field(fieldName);
     }
 
-    private MappedFieldType defaultFieldType(String fieldName) {
-        MappedFieldType fieldType = new HistogramFieldMapper.Builder("field").fieldType();
-        fieldType.setName("field");
-        return fieldType;
+    private MappedFieldType defaultFieldType() {
+        return new HistogramFieldMapper.HistogramFieldType(HistoBackedSumAggregatorTests.FIELD_NAME, true, Collections.emptyMap());
     }
 }

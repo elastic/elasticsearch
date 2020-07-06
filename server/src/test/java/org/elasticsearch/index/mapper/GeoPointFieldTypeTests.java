@@ -20,9 +20,11 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 
+import java.util.Map;
+
 public class GeoPointFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoPointFieldType();
+    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        return new GeoPointFieldType(name, true, true, meta);
     }
 }

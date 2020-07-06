@@ -11,7 +11,7 @@ https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Githu
 
 These images are free to use under the Elastic license. They contain open source
 and free commercial features and access to paid commercial features.
-{stack-ov}/license-management.html[Start a 30-day trial] to try out all of the
+{kibana-ref}/managing-licenses.html[Start a 30-day trial] to try out all of the
 paid commercial features. See the
 https://www.elastic.co/subscriptions[Subscriptions] page for information about
 Elastic license levels.

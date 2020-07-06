@@ -241,12 +241,16 @@ public class Archives {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
-        // requires the "expect" utility to be installed
         List<String> command = new ArrayList<>();
         command.add("sudo -E -u %s %s -p %s");
+
+        // requires the "expect" utility to be installed
+        // TODO: daemonization isn't working with expect versions prior to 5.45, but centos-6 has 5.45.1.15
+        // TODO: try using pty4j to make daemonization work
         if (daemonize) {
             command.add("-d");
         }
+
         String script = String.format(
             Locale.ROOT,
             "expect -c \"$(cat<<EXPECT\n"

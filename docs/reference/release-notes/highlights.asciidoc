@@ -1,29 +1,40 @@
 [[release-highlights]]
-= Release highlights
+== What's new in {minor-version}
 
-[partintro]
---
-This section summarizes the most important changes in each release. For the
-full list, see <<es-release-notes>> and <<breaking-changes>>.
+coming[{minor-version}]
 
-* <<release-highlights-7.8.0>>
-* <<release-highlights-7.7.0>>
-* <<release-highlights-7.6.0>>
-* <<release-highlights-7.5.0>>
-* <<release-highlights-7.4.0>>
-* <<release-highlights-7.3.0>>
-* <<release-highlights-7.2.0>>
-* <<release-highlights-7.1.0>>
-* <<release-highlights-7.0.0>>
+Here are the highlights of what's new and improved in {es} {minor-version}!
+ifeval::["{release-state}"!="unreleased"]
+For detailed information about this release, see the
+<<release-notes-{elasticsearch_version}, Release notes >> and
+<<breaking-changes-{minor-version}, Breaking changes>>.
+endif::[]
 
---
+// Add previous release to the list
+Other versions:
+{ref-bare}/7.8/release-highlights.html[7.8]
+| {ref-bare}/7.7/release-highlights.html[7.7]
+| {ref-bare}/7.6/release-highlights-7.6.0.html[7.6]
+| {ref-bare}/7.5/release-highlights-7.5.0.html[7.5]
+| {ref-bare}/7.4/release-highlights-7.4.0.html[7.4]
+| {ref-bare}/7.3/release-highlights-7.3.0.html[7.3]
+| {ref-bare}/7.2/release-highlights-7.2.0.html[7.2]
+| {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
+| {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
-include::highlights-7.8.0.asciidoc[]
-include::highlights-7.7.0.asciidoc[]
-include::highlights-7.6.0.asciidoc[]
-include::highlights-7.5.0.asciidoc[]
-include::highlights-7.4.0.asciidoc[]
-include::highlights-7.3.0.asciidoc[]
-include::highlights-7.2.0.asciidoc[]
-include::highlights-7.1.0.asciidoc[]
-include::highlights-7.0.0.asciidoc[]
+
+
+// Use the notable-highlights tag to mark entries that
+// should be featured in the Stack Installation and Upgrade Guide:
+// tag::notable-highlights[]
+// [discrete]
+// === Heading
+//
+// Description.
+// end::notable-highlights[]
+
+// Omit the notable highlights tag for entries that only need to appear in the ES ref:
+// [float]
+// === Heading
+//
+// Description.

@@ -37,7 +37,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,8 +72,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             long key = startingDate + (intervalMillis * i);
             buckets.add(i, new InternalAutoDateHistogram.Bucket(key, randomIntBetween(1, 100), format, aggregations));
         }
-        InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
-        BucketInfo bucketInfo = new BucketInfo(roundingInfos, roundingIndex, subAggregations);
+        BucketInfo bucketInfo = new BucketInfo(roundingInfos, roundingIndex, InternalAggregations.EMPTY);
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, metadata, 1);
     }
 
@@ -360,7 +358,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         ReduceTestBuilder bucket(String key, long docCount) {
             buckets.add(new InternalAutoDateHistogram.Bucket(
-                utcMillis(key), docCount, FORMAT, new InternalAggregations(emptyList())));
+                utcMillis(key), docCount, FORMAT, InternalAggregations.EMPTY));
             return this;
         }
 
@@ -376,7 +374,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             assertThat("rounding [" + whichRounding + "] should be in " + Arrays.toString(roundings), roundingIdx, greaterThan(-1));
             assertTrue(Arrays.toString(roundings[roundingIdx].innerIntervals) + " must contain " + innerInterval,
                     Arrays.binarySearch(roundings[roundingIdx].innerIntervals, innerInterval) >= 0);
-            BucketInfo bucketInfo = new BucketInfo(roundings, roundingIdx, new InternalAggregations(emptyList()));
+            BucketInfo bucketInfo = new BucketInfo(roundings, roundingIdx, InternalAggregations.EMPTY);
             results.add(new InternalAutoDateHistogram("test", new ArrayList<>(buckets), targetBuckets, bucketInfo,
                     FORMAT, emptyMap(), innerInterval));
             buckets.clear();

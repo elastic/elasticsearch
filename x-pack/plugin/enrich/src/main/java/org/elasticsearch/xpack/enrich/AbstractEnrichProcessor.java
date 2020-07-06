@@ -39,6 +39,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     protected AbstractEnrichProcessor(
         String tag,
+        String description,
         Client client,
         String policyName,
         TemplateScript.Factory field,
@@ -48,11 +49,23 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String matchField,
         int maxMatches
     ) {
-        this(tag, createSearchRunner(client), policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
+        this(
+            tag,
+            description,
+            createSearchRunner(client),
+            policyName,
+            field,
+            targetField,
+            ignoreMissing,
+            overrideEnabled,
+            matchField,
+            maxMatches
+        );
     }
 
     protected AbstractEnrichProcessor(
         String tag,
+        String description,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
         TemplateScript.Factory field,
@@ -62,7 +75,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String matchField,
         int maxMatches
     ) {
-        super(tag);
+        super(tag, description);
         this.policyName = policyName;
         this.searchRunner = searchRunner;
         this.field = field;

@@ -298,7 +298,7 @@ public class SamlRealmTests extends SamlTestCase {
     private void initializeRealms(Realm... realms) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
         for (Realm realm : realms) {
@@ -309,7 +309,7 @@ public class SamlRealmTests extends SamlTestCase {
     public SamlRealm buildRealm(RealmConfig config, UserRoleMapper roleMapper, SamlAuthenticator authenticator,
                                 SamlLogoutRequestHandler logoutHandler, EntityDescriptor idp, SpConfiguration sp) throws Exception {
         try {
-            return new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
+            return new SamlRealm(config, roleMapper, authenticator, logoutHandler, mock(SamlLogoutResponseHandler.class), () -> idp, sp);
         } catch (SettingsException e) {
             logger.info(new ParameterizedMessage("Settings are invalid:\n{}", config.settings().toDelimitedString('\n')), e);
             throw e;

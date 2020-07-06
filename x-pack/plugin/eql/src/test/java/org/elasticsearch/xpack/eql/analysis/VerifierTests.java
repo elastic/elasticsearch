@@ -36,7 +36,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier());
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier());
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -85,10 +85,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testMisspelledColumnWithMultipleOptions() {
         assertEquals("1:11: Unknown column [pib], did you mean any of [pid, ppid]?", error("foo where pib == 1"));
-    }
-
-    public void testPipesUnsupported() {
-        assertEquals("1:20: Pipes are not supported", errorParsing("process where true | head 6"));
     }
 
     public void testProcessRelationshipsUnsupported() {

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -54,7 +55,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            targetField,
+                null, targetField,
             "classification_model",
             ClassificationConfigUpdate.EMPTY_PARAMS,
             Collections.emptyMap());
@@ -83,7 +84,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "classification_model",
             classificationConfigUpdate,
             Collections.emptyMap());
@@ -92,9 +93,9 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
+        List<TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
             Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
@@ -102,7 +103,7 @@ public class InferenceProcessorTests extends ESTestCase {
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat((List<Map<?,?>>)document.getFieldValue("ml.my_processor.top_classes", List.class),
-            contains(classes.stream().map(ClassificationInferenceResults.TopClassEntry::asValueMap).toArray(Map[]::new)));
+            contains(classes.stream().map(TopClassEntry::asValueMap).toArray(Map[]::new)));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
         assertThat(document.getFieldValue("ml.my_processor.predicted_value", String.class), equalTo("foo"));
     }
@@ -113,7 +114,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "classification_model",
             classificationConfigUpdate,
             Collections.emptyMap());
@@ -122,9 +123,9 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
+        List<TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         List<FeatureImportance> featureInfluence = new ArrayList<>();
         featureInfluence.add(FeatureImportance.forRegression("feature_1", 1.13));
@@ -154,7 +155,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "classification_model",
             classificationConfigUpdate,
             Collections.emptyMap());
@@ -163,9 +164,9 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        List<ClassificationInferenceResults.TopClassEntry> classes = new ArrayList<>(2);
-        classes.add(new ClassificationInferenceResults.TopClassEntry("foo", 0.6, 0.6));
-        classes.add(new ClassificationInferenceResults.TopClassEntry("bar", 0.4, 0.4));
+        List<TopClassEntry> classes = new ArrayList<>(2);
+        classes.add(new TopClassEntry("foo", 0.6, 0.6));
+        classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
         InternalInferModelAction.Response response = new InternalInferModelAction.Response(
             Collections.singletonList(new ClassificationInferenceResults(1.0, "foo", classes, classificationConfig)),
@@ -173,7 +174,7 @@ public class InferenceProcessorTests extends ESTestCase {
         inferenceProcessor.mutateDocument(response, document);
 
         assertThat((List<Map<?,?>>)document.getFieldValue("ml.my_processor.tops", List.class),
-            contains(classes.stream().map(ClassificationInferenceResults.TopClassEntry::asValueMap).toArray(Map[]::new)));
+            contains(classes.stream().map(TopClassEntry::asValueMap).toArray(Map[]::new)));
         assertThat(document.getFieldValue("ml.my_processor.model_id", String.class), equalTo("classification_model"));
         assertThat(document.getFieldValue("ml.my_processor.result", String.class), equalTo("foo"));
     }
@@ -184,7 +185,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "regression_model",
             regressionConfigUpdate,
             Collections.emptyMap());
@@ -207,7 +208,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml.my_processor",
+                null, "ml.my_processor",
             "regression_model",
             regressionConfigUpdate,
             Collections.emptyMap());
@@ -239,7 +240,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor processor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "my_field",
+                null, "my_field",
             modelId,
             new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             Collections.emptyMap());
@@ -268,7 +269,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor processor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "my_field",
+                null, "my_field",
             modelId,
             new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             fieldMapping);
@@ -304,7 +305,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor processor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "my_field",
+                null, "my_field",
             modelId,
             new ClassificationConfigUpdate(topNClasses, null, null, null, null),
             fieldMapping);
@@ -332,7 +333,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            targetField,
+                null, targetField,
             "regression_model",
             RegressionConfigUpdate.EMPTY_PARAMS,
             Collections.emptyMap());
@@ -375,7 +376,7 @@ public class InferenceProcessorTests extends ESTestCase {
         InferenceProcessor inferenceProcessor = new InferenceProcessor(client,
             auditor,
             "my_processor",
-            "ml",
+                null, "ml",
             "regression_model",
             RegressionConfigUpdate.EMPTY_PARAMS,
             Collections.emptyMap());

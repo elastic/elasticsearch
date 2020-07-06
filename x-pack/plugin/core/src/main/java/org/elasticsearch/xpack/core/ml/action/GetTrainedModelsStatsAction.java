@@ -121,6 +121,10 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return pipelineCount;
             }
 
+            public InferenceStats getInferenceStats() {
+                return inferenceStats;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();

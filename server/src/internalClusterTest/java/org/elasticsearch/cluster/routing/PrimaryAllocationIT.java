@@ -51,7 +51,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -148,7 +147,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         NetworkDisruption partition = new NetworkDisruption(
             new TwoPartitions(Sets.newHashSet(master, replicaNode), Collections.singleton(primaryNode)),
-            new NetworkDisconnect());
+            NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
         logger.info("--> partitioning node with primary shard from rest of cluster");
         partition.startDisrupting();
@@ -508,9 +507,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(clusterService().state().metadata().index("test").getIndex(), 0);
         final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
         ensureGreen();
+        String timeout = randomFrom("0s", "1s", "2s");
         assertAcked(
             client(master).admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get());
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
+                .setPersistentSettings(Settings.builder().put("indices.replication.retry_timeout", timeout)).get());
         logger.info("--> Indexing with gap in seqno to ensure that some operations will be replayed in resync");
         long numDocs = scaledRandomIntBetween(5, 50);
         for (int i = 0; i < numDocs; i++) {
@@ -526,7 +527,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         }
         final Set<String> replicasSide1 = Sets.newHashSet(randomSubsetOf(between(1, numberOfReplicas - 1), replicaNodes));
         final Set<String> replicasSide2 = Sets.difference(replicaNodes, replicasSide1);
-        NetworkDisruption partition = new NetworkDisruption(new TwoPartitions(replicasSide1, replicasSide2), new NetworkDisconnect());
+        NetworkDisruption partition = new NetworkDisruption(new TwoPartitions(replicasSide1, replicasSide2), NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(partition);
         logger.info("--> isolating some replicas during primary-replica resync");
         partition.startDisrupting();

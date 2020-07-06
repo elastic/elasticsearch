@@ -15,7 +15,6 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
        - node.store.allow_mmap=false  
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
@@ -55,7 +54,6 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
        - node.store.allow_mmap=false  
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
@@ -95,7 +93,6 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
        - node.store.allow_mmap=false  
     volumes: 
        - ./build/oss-repo:/tmp/es-repo
@@ -120,7 +117,6 @@ services:
        - cluster.routing.allocation.disk.watermark.low=1b
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
-       - script.max_compilations_rate=2048/1m
        - node.store.allow_mmap=false  
     volumes: 
        - ./build/oss-repo:/tmp/es-repo

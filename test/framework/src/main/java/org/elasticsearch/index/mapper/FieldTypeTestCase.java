@@ -18,15 +18,13 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,49 +39,14 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
     public static final QueryShardContext MOCK_QSC_DISALLOW_EXPENSIVE = createMockQueryShardContext(false);
 
     /** Create a default constructed fieldtype */
-    protected abstract T createDefaultFieldType();
-
-    T createNamedDefaultFieldType() {
-        T fieldType = createDefaultFieldType();
-        fieldType.setName("foo");
-        return fieldType;
-    }
+    protected abstract T createDefaultFieldType(String name, Map<String, String> meta);
 
     @SuppressWarnings("unchecked")
     private final List<EqualsHashCodeTestUtils.MutateFunction<T>> modifiers = new ArrayList<>(Arrays.asList(
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setName(t.name() + "-mutated");
-            return (T) copy;
-        },
+        t -> createDefaultFieldType(t.name() + "-mutated", t.meta()),
         t -> {
             MappedFieldType copy = t.clone();
             copy.setBoost(t.boost() + 1);
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchAnalyzer();
-            if (a == null) {
-                copy.setSearchAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchQuoteAnalyzer();
-            if (a == null) {
-                copy.setSearchQuoteAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchQuoteAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            copy.setNullValue(new Object());
             return (T) copy;
         },
         t -> {
@@ -92,11 +55,9 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
             return (T) copy;
         },
         t -> {
-            MappedFieldType copy = t.clone();
             Map<String, String> meta = new HashMap<>(t.meta());
             meta.put("bogus", "bogus");
-            copy.setMeta(meta);
-            return (T) copy;
+            return createDefaultFieldType(t.name(), meta);
         }
     ));
 
@@ -115,14 +76,14 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
     }
 
     public void testClone() {
-        MappedFieldType fieldType = createNamedDefaultFieldType();
+        MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(fieldType, MappedFieldType::clone);
     }
 
     @SuppressWarnings("unchecked")
     public void testEquals() {
         for (EqualsHashCodeTestUtils.MutateFunction<T> modifier : modifiers) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createNamedDefaultFieldType(),
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createDefaultFieldType("foo", Collections.emptyMap()),
                 t -> (T) t.clone(), modifier);
         }
     }

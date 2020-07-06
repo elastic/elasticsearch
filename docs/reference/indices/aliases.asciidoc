@@ -93,8 +93,8 @@ If the `aliases` parameter is not specified,
 this parameter is required for the `add` or `remove` action.
 
 `aliases`::
-(String)
-Comma-separated list or wildcard expression of index alias names to
+(Array of strings)
+Array of index alias names to
 add, remove, or delete.
 +
 If the `alias` parameter is not specified,
@@ -112,6 +112,10 @@ If `true`, the alias will be excluded from wildcard expressions by default,
 unless overriden in the request using the `expand_wildcards` parameter,
 similar to <<index-hidden,hidden indices>>. This property must be set to the
 same value on all indices that share an alias. Defaults to `false`.
+
+`must_exist`::
+(Optional, boolean)
+If `true`, the alias to remove must exist. Defaults to `false`.
 
 `is_write_index`::
 (Optional, boolean)

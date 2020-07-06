@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
@@ -28,13 +29,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -52,6 +52,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -72,6 +73,13 @@ public class RangeFieldMapper extends FieldMapper {
 
     public static class Defaults {
         public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
+        public static final FieldType FIELD_TYPE = new FieldType();
+        static {
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.freeze();
+        }
+        public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
     }
 
     // this is private since it has a different default
@@ -82,15 +90,12 @@ public class RangeFieldMapper extends FieldMapper {
         private Boolean coerce;
         private Locale locale = Locale.ROOT;
         private String pattern;
+        private final RangeType type;
 
         public Builder(String name, RangeType type) {
-            super(name, new RangeFieldType(type), new RangeFieldType(type));
+            super(name, Defaults.FIELD_TYPE);
+            this.type = type;
             builder = this;
-        }
-
-        @Override
-        public RangeFieldType fieldType() {
-            return (RangeFieldType)fieldType;
         }
 
         public Builder coerce(boolean coerce) {
@@ -113,43 +118,36 @@ public class RangeFieldMapper extends FieldMapper {
             return this;
         }
 
-        @Override
-        public Builder nullValue(Object nullValue) {
-            throw new IllegalArgumentException("Field [" + name() + "] does not support null value.");
-        }
-
         public void locale(Locale locale) {
             this.locale = locale;
         }
 
-        @Override
-        protected void setupFieldType(BuilderContext context) {
-            super.setupFieldType(context);
-            DateFormatter formatter = fieldType().dateTimeFormatter;
-            if (fieldType().rangeType == RangeType.DATE) {
-                boolean hasPatternChanged = Strings.hasLength(builder.pattern) &&
-                    Objects.equals(builder.pattern, formatter.pattern()) == false;
-
-                if (hasPatternChanged || Objects.equals(builder.locale, formatter.locale()) == false) {
-                    DateFormatter dateTimeFormatter;
-                    if (Joda.isJodaPattern(context.indexCreatedVersion(), pattern)) {
-                        dateTimeFormatter = Joda.forPattern(pattern).withLocale(locale);
-                    } else {
-                        dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
-                    }
-                    fieldType().setDateTimeFormatter(dateTimeFormatter);
+        protected RangeFieldType setupFieldType(BuilderContext context) {
+            if (pattern != null) {
+                if (type != RangeType.DATE) {
+                    throw new IllegalArgumentException("field [" + name() + "] of type [range]"
+                        + " should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
                 }
-            } else if (pattern != null) {
-                throw new IllegalArgumentException("field [" + name() + "] of type [" + fieldType().rangeType
-                    + "] should not define a dateTimeFormatter unless it is a " + RangeType.DATE + " type");
+                DateFormatter dateTimeFormatter;
+                if (Joda.isJodaPattern(context.indexCreatedVersion(), pattern)) {
+                    dateTimeFormatter = Joda.forPattern(pattern).withLocale(locale);
+                } else {
+                    dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
+                }
+                return new RangeFieldType(buildFullName(context), indexed, hasDocValues,
+                    dateTimeFormatter, meta);
             }
+            if (type == RangeType.DATE) {
+                return new RangeFieldType(buildFullName(context), indexed, hasDocValues, Defaults.DATE_FORMATTER, meta);
+            }
+            return new RangeFieldType(buildFullName(context), type, indexed, hasDocValues, meta);
         }
 
         @Override
         public RangeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            return new RangeFieldMapper(name, fieldType, defaultFieldType, coerce(context),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new RangeFieldMapper(name, fieldType, setupFieldType(context), coerce(context),
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -190,27 +188,40 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     public static final class RangeFieldType extends MappedFieldType {
-        protected RangeType rangeType;
-        protected DateFormatter dateTimeFormatter;
-        protected DateMathParser dateMathParser;
+        protected final RangeType rangeType;
+        protected final DateFormatter dateTimeFormatter;
+        protected final DateMathParser dateMathParser;
 
-        RangeFieldType(RangeType type) {
-            super();
+        public RangeFieldType(String name, RangeType type, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            assert type != RangeType.DATE;
             this.rangeType = Objects.requireNonNull(type);
-            setTokenized(false);
-            setHasDocValues(true);
-            setOmitNorms(true);
-            if (rangeType == RangeType.DATE) {
-                setDateTimeFormatter(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
-            }
+            dateTimeFormatter = null;
+            dateMathParser = null;
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+        }
+
+        public RangeFieldType(String name, RangeType type) {
+            this(name, type, true, true, Collections.emptyMap());
+        }
+
+        public RangeFieldType(String name, boolean indexed, boolean hasDocValues, DateFormatter formatter, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.rangeType = RangeType.DATE;
+            this.dateTimeFormatter = Objects.requireNonNull(formatter);
+            this.dateMathParser = dateTimeFormatter.toDateMathParser();
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+        }
+
+        public RangeFieldType(String name, DateFormatter formatter) {
+            this(name, true, true, formatter, Collections.emptyMap());
         }
 
         RangeFieldType(RangeFieldType other) {
             super(other);
             this.rangeType = other.rangeType;
-            if (other.rangeType == RangeType.DATE && other.dateTimeFormatter() != null) {
-                setDateTimeFormatter(other.dateTimeFormatter());
-            }
+            this.dateTimeFormatter = other.dateTimeFormatter;
+            this.dateMathParser = other.dateMathParser;
         }
 
         public RangeType rangeType() { return rangeType; }
@@ -248,12 +259,6 @@ public class RangeFieldMapper extends FieldMapper {
 
         public DateFormatter dateTimeFormatter() {
             return dateTimeFormatter;
-        }
-
-        public void setDateTimeFormatter(DateFormatter dateTimeFormatter) {
-            checkIfFrozen();
-            this.dateTimeFormatter = dateTimeFormatter;
-            this.dateMathParser = dateTimeFormatter.toDateMathParser();
         }
 
         protected DateMathParser dateMathParser() {
@@ -311,13 +316,12 @@ public class RangeFieldMapper extends FieldMapper {
 
     private RangeFieldMapper(
         String simpleName,
-        MappedFieldType fieldType,
-        MappedFieldType defaultFieldType,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType,
         Explicit<Boolean> coerce,
-        Settings indexSettings,
         MultiFields multiFields,
         CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.coerce = coerce;
     }
 
@@ -328,7 +332,7 @@ public class RangeFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType.typeName();
+        return fieldType().typeName();
     }
 
     @Override
@@ -393,8 +397,8 @@ public class RangeFieldMapper extends FieldMapper {
                     + name() + "], expected an object but got " + parser.currentName());
             }
         }
-        boolean indexed = fieldType.indexOptions() != IndexOptions.NONE;
-        boolean docValued = fieldType.hasDocValues();
+        boolean docValued = fieldType().hasDocValues();
+        boolean indexed = fieldType().isSearchable();
         boolean stored = fieldType.stored();
         context.doc().addAll(fieldType().rangeType.createFields(context, name(), range, indexed, docValued, stored));
 

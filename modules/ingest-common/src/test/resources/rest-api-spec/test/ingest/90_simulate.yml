@@ -828,3 +828,35 @@ teardown:
 - match: { docs.0.processor_results.3.doc._ingest.on_failure_processor_tag: "gunna_fail_again" }
 
 
+---
+"Test simulate with provided pipeline definition with description in processors":
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "description": "processor_description",
+                    "field" : "field2",
+                    "value" : "_value"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 1 }
+  - match: { docs.0.processor_results.0.doc._source.field2: "_value" }

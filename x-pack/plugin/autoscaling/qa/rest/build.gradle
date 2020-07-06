@@ -6,7 +6,7 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('autoscaling'), configuration: 'runtime')
+  testImplementation project(xpackModule('autoscaling'))
 }
 
 restResources {

@@ -36,13 +36,13 @@ restResources {
 }
 
 dependencies {
-  compile project(':server')
-  compile project(':client:rest')
-  compile project(':modules:mapper-extras')
-  compile project(':modules:parent-join')
-  compile project(':modules:aggs-matrix-stats')
-  compile project(':modules:rank-eval')
-  compile project(':modules:lang-mustache')
+  api project(':server')
+  api project(':client:rest')
+  api project(':modules:mapper-extras')
+  api project(':modules:parent-join')
+  api project(':modules:aggs-matrix-stats')
+  api project(':modules:rank-eval')
+  api project(':modules:lang-mustache')
 
   testImplementation project(':client:test')
   testImplementation project(':test:framework')
@@ -60,14 +60,6 @@ dependencies {
 
 processTestResources {
   from(project(':client:rest-high-level').file('src/test/resources'))
-}
-
-dependencyLicenses {
-  // Don't check licenses for dependency that are part of the elasticsearch project
-  // But any other dependency should have its license/notice/sha1
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
-  }
 }
 
 tasks.named('forbiddenApisMain').configure {

@@ -108,7 +108,7 @@ public class IngestServiceTests extends ESTestCase {
     private static final IngestPlugin DUMMY_PLUGIN = new IngestPlugin() {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Collections.singletonMap("foo", (factories, tag, config) -> null);
+            return Collections.singletonMap("foo", (factories, tag, description, config) -> null);
         }
     };
 
@@ -357,19 +357,19 @@ public class IngestServiceTests extends ESTestCase {
         );
 
         Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put("complexSet", (factories, tag, config) -> {
+        processors.put("complexSet", (factories, tag, description, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
 
-            return new ConditionalProcessor(randomAlphaOfLength(10),
+            return new ConditionalProcessor(randomAlphaOfLength(10), null,
                 new Script(
                     ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                     scriptName, Collections.emptyMap()), scriptService,
-                new ConditionalProcessor(randomAlphaOfLength(10) + "-nested",
+                new ConditionalProcessor(randomAlphaOfLength(10) + "-nested", null,
                     new Script(
                         ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG,
                         scriptName, Collections.emptyMap()), scriptService,
-                    new FakeProcessor("complexSet", tag, (ingestDocument) -> ingestDocument.setFieldValue(field, value))));
+                    new FakeProcessor("complexSet", tag, description, (ingestDocument) -> ingestDocument.setFieldValue(field, value))));
         });
 
         IngestService ingestService = createWithProcessors(processors);
@@ -631,7 +631,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> new AbstractProcessor("mock") {
+            "mock", (factories, tag, description, config) -> new AbstractProcessor("mock", "description") {
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) {
                     throw new IllegalStateException("error");
@@ -670,7 +670,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteBulkPipelineDoesNotExist() {
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> mockCompoundProcessor()));
+            "mock", (factories, tag, description, config) -> mockCompoundProcessor()));
 
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
@@ -714,7 +714,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteSuccess() {
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> mockCompoundProcessor()));
+            "mock", (factories, tag, description, config) -> mockCompoundProcessor()));
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
@@ -754,7 +754,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testExecutePropagateAllMetadataUpdates() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> processor));
+            "mock", (factories, tag, description, config) -> processor));
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
@@ -809,7 +809,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testExecuteFailure() throws Exception {
         final CompoundProcessor processor = mockCompoundProcessor();
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> processor));
+            "mock", (factories, tag, description, config) -> processor));
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
@@ -854,7 +854,7 @@ public class IngestServiceTests extends ESTestCase {
         final CompoundProcessor compoundProcessor = new CompoundProcessor(
             false, Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> compoundProcessor));
+            "mock", (factories, tag, description, config) -> compoundProcessor));
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
@@ -883,7 +883,7 @@ public class IngestServiceTests extends ESTestCase {
             Collections.singletonList(processor),
             Collections.singletonList(new CompoundProcessor(false, processors, onFailureProcessors)));
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> compoundProcessor));
+            "mock", (factories, tag, description, config) -> compoundProcessor));
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
@@ -945,7 +945,7 @@ public class IngestServiceTests extends ESTestCase {
             return null;
         }).when(processor).execute(any(), any());
         IngestService ingestService = createWithProcessors(Collections.singletonMap(
-            "mock", (factories, tag, config) -> processor));
+            "mock", (factories, tag, description, config) -> processor));
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
             new BytesArray("{\"processors\": [{\"mock\" : {}}]}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
@@ -996,7 +996,7 @@ public class IngestServiceTests extends ESTestCase {
             return null;
         }).when(processor).execute(any(), any());
         Map<String, Processor.Factory> map = new HashMap<>(2);
-        map.put("mock", (factories, tag, config) -> processor);
+        map.put("mock", (factories, tag, description, config) -> processor);
 
         IngestService ingestService = createWithProcessors(map);
         PutPipelineRequest putRequest = new PutPipelineRequest("_id",
@@ -1041,8 +1041,8 @@ public class IngestServiceTests extends ESTestCase {
             return null;
         }).when(processorFailure).execute(any(IngestDocument.class), any());
         Map<String, Processor.Factory> map = new HashMap<>(2);
-        map.put("mock", (factories, tag, config) -> processor);
-        map.put("failure-mock", (factories, tag, config) -> processorFailure);
+        map.put("mock", (factories, tag, description, config) -> processor);
+        map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
         IngestService ingestService = createWithProcessors(map);
 
         final IngestStats initialStats = ingestService.stats();
@@ -1169,7 +1169,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testExecuteWithDrop() {
         Map<String, Processor.Factory> factories = new HashMap<>();
         factories.put("drop", new DropProcessor.Factory());
-        factories.put("mock", (processorFactories, tag, config) -> new Processor() {
+        factories.put("mock", (processorFactories, tag, description, config) -> new Processor() {
             @Override
             public IngestDocument execute(final IngestDocument ingestDocument) {
                 throw new AssertionError("Document should have been dropped but reached this processor");
@@ -1182,6 +1182,11 @@ public class IngestServiceTests extends ESTestCase {
 
             @Override
             public String getTag() {
+                return null;
+            }
+
+            @Override
+            public String getDescription() {
                 return null;
             }
         });
@@ -1218,9 +1223,9 @@ public class IngestServiceTests extends ESTestCase {
         IngestPlugin testPlugin = new IngestPlugin() {
             @Override
             public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-                return Collections.singletonMap("test", (factories, tag, config) -> {
+                return Collections.singletonMap("test", (factories, tag, description, config) -> {
                     assertThat(counter.compareAndSet(1, 2), is(true));
-                    return new FakeProcessor("test", tag, ingestDocument -> {});
+                    return new FakeProcessor("test", tag, description, ingestDocument -> {});
                 });
             }
         };
@@ -1247,7 +1252,7 @@ public class IngestServiceTests extends ESTestCase {
         AtomicReference<Object> reference = new AtomicReference<>();
         Consumer<IngestDocument> executor = doc -> reference.set(doc.getFieldValueAsBytes("data"));
         final IngestService ingestService = createWithProcessors(Collections.singletonMap("foo",
-            (factories, tag, config) -> new FakeProcessor("foo", tag, executor)));
+                (factories, tag, description, config) -> new FakeProcessor("foo", tag, description, executor)));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
@@ -1282,14 +1287,14 @@ public class IngestServiceTests extends ESTestCase {
 
     private static IngestService createWithProcessors() {
         Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put("set", (factories, tag, config) -> {
+        processors.put("set", (factories, tag, description, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
-            return new FakeProcessor("set", tag, (ingestDocument) ->ingestDocument.setFieldValue(field, value));
+            return new FakeProcessor("set", tag, description, (ingestDocument) ->ingestDocument.setFieldValue(field, value));
         });
-        processors.put("remove", (factories, tag, config) -> {
+        processors.put("remove", (factories, tag, description, config) -> {
             String field = (String) config.remove("field");
-            return new WrappingProcessorImpl("remove", tag, (ingestDocument -> ingestDocument.removeField(field))) {
+            return new WrappingProcessorImpl("remove", tag, description, (ingestDocument -> ingestDocument.removeField(field))) {
             };
         });
         return createWithProcessors(processors);

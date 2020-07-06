@@ -455,7 +455,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                     CcrRetentionLeases.asyncAddRetentionLease(
                                         params.getLeaderShardId(),
                                         retentionLeaseId,
-                                        followerGlobalCheckpoint.getAsLong(),
+                                        followerGlobalCheckpoint.getAsLong() + 1,
                                         remoteClient(params),
                                         wrappedListener);
                                 } catch (NoSuchRemoteClusterException rce) {
@@ -480,7 +480,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                 CcrRetentionLeases.asyncRenewRetentionLease(
                                         params.getLeaderShardId(),
                                         retentionLeaseId,
-                                        followerGlobalCheckpoint.getAsLong(),
+                                        followerGlobalCheckpoint.getAsLong() + 1,
                                         remoteClient(params),
                                         listener);
                             }

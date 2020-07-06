@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.support;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -250,18 +251,22 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void indexDocs(Logger logger, String index, long numDocs, long start, long end) {
+        indexDocs(logger, index, "type", numDocs, start, end);
+    }
+
+    public static void indexDocs(Logger logger, String index, String type, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            IndexRequest indexRequest = new IndexRequest(index, "type");
+            IndexRequest indexRequest = new IndexRequest(index, type);
             long timestamp = start + randomIntBetween(0, maxDelta);
             assert timestamp >= start && timestamp < end;
-            indexRequest.source("time", timestamp);
+            indexRequest.source("time", timestamp).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {

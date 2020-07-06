@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -38,6 +39,8 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class TransportRevertModelSnapshotAction extends TransportMasterNodeAction<RevertModelSnapshotAction.Request,
@@ -100,6 +103,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                 getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
                     ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
                     if (request.getDeleteInterveningResults()) {
+                        wrappedListener = wrapDeleteOldAnnotationsListener(wrappedListener, modelSnapshot, request.getJobId());
                         wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
                         wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
                     }
@@ -133,9 +137,40 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         }, errorHandler);
     }
 
+    private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldAnnotationsListener(
+            ActionListener<RevertModelSnapshotAction.Response> listener,
+            ModelSnapshot modelSnapshot,
+            String jobId) {
+
+        return ActionListener.wrap(response -> {
+            Date deleteAfter = modelSnapshot.getLatestResultTimeStamp();
+            logger.info("[{}] Removing intervening annotations after reverting model: deleting annotations after [{}]", jobId, deleteAfter);
+
+            JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
+            Set<String> eventsToDelete = new HashSet<>();
+            // Because the results based on the delayed data are being deleted, the fact that the data was originally delayed is not
+            // relevant
+            eventsToDelete.add(Annotation.Event.DELAYED_DATA.toString());
+            // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
+            eventsToDelete.add(Annotation.Event.MODEL_CHANGE.toString());
+            dataDeleter.deleteAnnotationsFromTime(deleteAfter.getTime() + 1, eventsToDelete, new ActionListener<Boolean>() {
+                @Override
+                public void onResponse(Boolean success) {
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        }, listener::onFailure);
+    }
+
     private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldDataListener(
             ActionListener<RevertModelSnapshotAction.Response> listener,
-            ModelSnapshot modelSnapshot, String jobId) {
+            ModelSnapshot modelSnapshot,
+            String jobId) {
 
         // If we need to delete buckets that occurred after the snapshot, we
         // wrap the listener with one that invokes the OldDataRemover on
@@ -161,8 +196,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
     private ActionListener<RevertModelSnapshotAction.Response> wrapRevertDataCountsListener(
             ActionListener<RevertModelSnapshotAction.Response> listener,
-            ModelSnapshot modelSnapshot, String jobId) {
-
+            ModelSnapshot modelSnapshot,
+            String jobId) {
 
         return ActionListener.wrap(response -> {
             jobResultsProvider.dataCounts(jobId, counts -> {

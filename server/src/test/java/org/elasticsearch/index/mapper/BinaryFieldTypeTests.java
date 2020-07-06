@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.index.mapper;
 
+import java.util.Map;
+
 public class BinaryFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new BinaryFieldMapper.BinaryFieldType();
+    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
+        return new BinaryFieldMapper.BinaryFieldType(name, true, meta);
     }
 }

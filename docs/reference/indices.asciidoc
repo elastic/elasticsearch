@@ -20,6 +20,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-rollover-index>>
 * <<freeze-index-api>>
 * <<unfreeze-index-api>>
+* <<indices-resolve-index-api>>
 
 
 [float]
@@ -57,11 +58,8 @@ index settings, aliases, mappings, and index templates.
 * <<indices-component-template>>
 * <<getting-component-templates>>
 * <<indices-template-exists>>
-
-[float]
-[[component-template-apis]]
-=== Component templates:
-* <<indices-component-template>>
+* <<indices-simulate-index>>
+* <<indices-simulate-template>>
 
 [float]
 [[monitoring]]
@@ -147,6 +145,10 @@ include::indices/rollover-index.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
 
+include::indices/simulate-index.asciidoc[]
+
+include::indices/simulate-template.asciidoc[]
+
 include::indices/split-index.asciidoc[]
 
 include::indices/synced-flush.asciidoc[]
@@ -158,3 +160,5 @@ include::indices/apis/unfreeze.asciidoc[]
 include::indices/aliases.asciidoc[]
 
 include::indices/update-settings.asciidoc[]
+
+include::indices/resolve.asciidoc[]

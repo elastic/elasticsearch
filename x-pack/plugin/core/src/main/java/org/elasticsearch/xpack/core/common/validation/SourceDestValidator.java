@@ -209,7 +209,7 @@ public final class SourceDestValidator {
                             state,
                             DEFAULT_INDICES_OPTIONS_FOR_VALIDATION,
                             true,
-                            resolvedSource.toArray(new String[0])
+                            resolvedSource.toArray(Strings.EMPTY_ARRAY)
                         )
                     )
                 );

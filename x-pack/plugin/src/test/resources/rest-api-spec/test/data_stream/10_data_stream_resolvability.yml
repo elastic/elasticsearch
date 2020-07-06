@@ -102,7 +102,9 @@
       index:
         index:  logs-foobar
         refresh: true
-        body:   { foo: bar }
+        body:
+          foo: bar
+          '@timestamp': '2020-12-12'
 
   - do:
       ilm.explain_lifecycle:
@@ -272,14 +274,14 @@
         index:   simple-data-stream1
         id:      1
         op_type: create
-        body:    { keys: [1,2,3] }
+        body:    { keys: [1,2,3], '@timestamp': '2020-12-12' }
 
   - do:
       index:
         index:   simple-data-stream1
         id:      2
         op_type: create
-        body:    { keys: [4,5,6] }
+        body:    { keys: [4,5,6], '@timestamp': '2020-12-12' }
 
   - do:
       indices.refresh:
@@ -331,6 +333,77 @@
   - length: { node_settings: 0 }
   - length: { index_settings: 0 }
   - length: { ml_settings: 0 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Verify data stream resolvability in async search":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { max: 2, '@timestamp': '2020-12-12' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { max: 1, '@timestamp': '2020-12-12' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:   { max: 3, '@timestamp': '2020-12-12' }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      async_search.submit:
+        index: simple-data-stream1
+        batched_reduce_size: 2
+        wait_for_completion_timeout: 10s
+        body:
+          query:
+            match_all: {}
+          aggs:
+            max:
+              max:
+                field: max
+          sort: max
+
+  - is_false: id
+  - match:  { is_partial:                   false }
+  - length: { response.hits.hits:               3 }
+  - match:  { response.hits.hits.0._source.max: 1 }
+  - match:  { response.aggregations.max.value:  3.0 }
 
   - do:
       indices.delete_data_stream:

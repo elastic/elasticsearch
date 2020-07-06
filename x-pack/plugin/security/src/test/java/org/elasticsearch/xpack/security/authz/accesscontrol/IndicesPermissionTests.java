@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -37,7 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -346,6 +349,51 @@ public class IndicesPermissionTests extends ESTestCase {
         authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
                 Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
         assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
+    }
+
+    public void testAuthorizationForBackingIndices() {
+        Metadata.Builder builder = Metadata.builder();
+        String dataStreamName = randomAlphaOfLength(6);
+        int numBackingIndices = randomIntBetween(1, 3);
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
+            backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNumber)));
+        }
+        DataStream ds = new DataStream(dataStreamName, createTimestampField("@timestamp"),
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        builder.put(ds);
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
+        Metadata metadata = builder.build();
+
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false,
+            dataStreamName);
+        Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(
+            SearchAction.NAME,
+            Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
+            lookup,
+            fieldPermissionsCache);
+
+        for (IndexMetadata im : backingIndices) {
+            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(true));
+        }
+    }
+
+    private static IndexMetadata createIndexMetadata(String name) {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("index.hidden", true);
+
+        IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)
+            .settings(settingsBuilder)
+            .state(IndexMetadata.State.OPEN)
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+
+        return indexBuilder.build();
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -105,6 +107,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
 public class ApiKeyService {
 
@@ -339,14 +342,26 @@ public class ApiKeyService {
         executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                 if (response.isExists()) {
                     final Map<String, Object> source = response.getSource();
-                    validateApiKeyCredentials(docId, source, credentials, clock, listener);
+                    validateApiKeyCredentials(docId, source, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                            listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }));
                 } else {
                     listener.onResponse(
                         AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
                 }
             },
-            e -> listener.onResponse(AuthenticationResult.unsuccessful(
-                "apikey authentication for id " + credentials.getId() + " encountered a failure", e))),
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                    listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                } else {
+                    listener.onResponse(AuthenticationResult.unsuccessful(
+                        "apikey authentication for id " + credentials.getId() + " encountered a failure",e));
+                }
+            }),
             client::get);
     }
 
@@ -479,23 +494,31 @@ public class ApiKeyService {
                         }, listener::onFailure),
                         threadPool.generic(), threadPool.getThreadContext());
                 } else {
-                    final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
-                    listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
-                    if (verified) {
-                        // move on
-                        validateApiKeyExpiration(source, credentials, clock, listener);
-                    } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                    }
+                    verifyKeyAgainstHash(apiKeyHash, credentials, ActionListener.wrap(
+                        verified -> {
+                            listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
+                            if (verified) {
+                                // move on
+                                validateApiKeyExpiration(source, credentials, clock, listener);
+                            } else {
+                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            }
+                        }, listener::onFailure
+                    ));
                 }
             } else {
-                final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
-                if (verified) {
-                    // move on
-                    validateApiKeyExpiration(source, credentials, clock, listener);
-                } else {
-                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                }
+                verifyKeyAgainstHash(apiKeyHash, credentials, ActionListener.wrap(
+                    verified -> {
+                        if (verified) {
+                            // move on
+                            validateApiKeyExpiration(source, credentials, clock, listener);
+                        } else {
+                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        }
+                    },
+                    listener::onFailure
+                ));
+
             }
         }
     }
@@ -564,14 +587,16 @@ public class ApiKeyService {
     }
 
     // Protected instance method so this can be mocked
-    protected boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
-        final char[] apiKeyHashChars = apiKeyHash.toCharArray();
-        try {
+    protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
+        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
             Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-            return hasher.verify(credentials.getKey(), apiKeyHashChars);
-        } finally {
-            Arrays.fill(apiKeyHashChars, (char) 0);
-        }
+            final char[] apiKeyHashChars = apiKeyHash.toCharArray();
+            try {
+                return hasher.verify(credentials.getKey(), apiKeyHashChars);
+            } finally {
+                Arrays.fill(apiKeyHashChars, (char) 0);
+            }
+        }));
     }
 
     private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {

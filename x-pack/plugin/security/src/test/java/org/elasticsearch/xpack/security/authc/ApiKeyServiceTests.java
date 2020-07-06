@@ -701,8 +701,10 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public static class Utils {
 
-        public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication authentication,
-                                                                Set<RoleDescriptor> userRoles, List<RoleDescriptor> keyRoles) throws Exception {
+        public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,
+                                                                Authentication authentication,
+                                                                Set<RoleDescriptor> userRoles,
+                                                                List<RoleDescriptor> keyRoles) throws Exception {
             XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", authentication,
                     userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
             Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();

@@ -362,6 +362,9 @@
           "model_bytes" : {
             "type" : "long"
           },
+          "peak_model_bytes" : {
+            "type" : "long"
+          },
           "result_type" : {
             "type" : "keyword"
           },

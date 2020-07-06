@@ -385,19 +385,21 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testCamelCaseDeprecation() {
         String[] deprecatedNames = new String[]{
-            "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime", "basicOrdinalDateTimeNoMillis",
-            "basicTime", "basicTimeNoMillis", "basicTTime", "basicTTimeNoMillis", "basicWeekDate", "basicWeekDateTime",
-            "basicWeekDateTimeNoMillis", "dateHour", "dateHourMinute", "dateHourMinuteSecond", "dateHourMinuteSecondFraction",
-            "dateHourMinuteSecondMillis", "dateOptionalTime", "dateTime", "dateTimeNoMillis", "hourMinute", "hourMinuteSecond",
-            "hourMinuteSecondFraction", "hourMinuteSecondMillis", "ordinalDate", "ordinalDateTime", "ordinalDateTimeNoMillis", "timeNoMillis",
+            "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime",
+            "basicOrdinalDateTimeNoMillis", "basicTime", "basicTimeNoMillis", "basicTTime", "basicTTimeNoMillis",
+            "basicWeekDate", "basicWeekDateTime", "basicWeekDateTimeNoMillis", "dateHour", "dateHourMinute",
+            "dateHourMinuteSecond", "dateHourMinuteSecondFraction", "dateHourMinuteSecondMillis", "dateOptionalTime",
+            "dateTime", "dateTimeNoMillis", "hourMinute", "hourMinuteSecond", "hourMinuteSecondFraction", "hourMinuteSecondMillis",
+            "ordinalDate", "ordinalDateTime", "ordinalDateTimeNoMillis", "timeNoMillis",
             "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis", "weekyear", "weekyearWeek", "weekyearWeekDay",
             "yearMonth", "yearMonthDay", "strictBasicWeekDate", "strictBasicWeekDateTime",
             "strictBasicWeekDateTimeNoMillis", "strictDate", "strictDateHour", "strictDateHourMinute", "strictDateHourMinuteSecond",
             "strictDateHourMinuteSecondFraction", "strictDateHourMinuteSecondMillis", "strictDateOptionalTime",
             "strictDateOptionalTimeNanos", "strictDateTime", "strictDateTimeNoMillis", "strictHour", "strictHourMinute",
             "strictHourMinuteSecond", "strictHourMinuteSecondFraction", "strictHourMinuteSecondMillis", "strictOrdinalDate",
-            "strictOrdinalDateTime", "strictOrdinalDateTimeNoMillis", "strictTime", "strictTimeNoMillis", "strictTTime", "strictTTimeNoMillis",
-            "strictWeekDate", "strictWeekDateTime", "strictWeekDateTimeNoMillis", "strictWeekyear", "strictWeekyearWeek",
+            "strictOrdinalDateTime", "strictOrdinalDateTimeNoMillis", "strictTime", "strictTimeNoMillis", "strictTTime",
+            "strictTTimeNoMillis", "strictWeekDate", "strictWeekDateTime", "strictWeekDateTimeNoMillis", "strictWeekyear",
+            "strictWeekyearWeek",
             "strictWeekyearWeekDay", "strictYear", "strictYearMonth", "strictYearMonthDay"
         };
         for (String name : deprecatedNames) {

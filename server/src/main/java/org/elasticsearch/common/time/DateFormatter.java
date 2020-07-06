@@ -151,6 +151,4 @@ public interface DateFormatter {
 
         return JavaDateFormatter.combined(input, formatters);
     }
-
-
 }

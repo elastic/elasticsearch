@@ -127,7 +127,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                         .map((p) -> (InternalAggregation) p)
                         .collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), movavg, formatter, metadata()));
-                    newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
+                    newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 }
 
                 if (predict > 0) {
@@ -158,7 +158,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                         .collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, metadata()));
 
-                    Bucket newBucket = factory.createBucket(newKey, bucket.getDocCount(), new InternalAggregations(aggs));
+                    Bucket newBucket = factory.createBucket(newKey, bucket.getDocCount(), InternalAggregations.from(aggs));
 
                     // Overwrite the existing bucket with the new version
                     newBuckets.set(lastValidPosition + i + 1, newBucket);
@@ -168,7 +168,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     aggs = new ArrayList<>();
                     aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, metadata()));
 
-                    Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(aggs));
+                    Bucket newBucket = factory.createBucket(newKey, 0, InternalAggregations.from(aggs));
 
                     // Since this is a new bucket, simply append it
                     newBuckets.add(newBucket);

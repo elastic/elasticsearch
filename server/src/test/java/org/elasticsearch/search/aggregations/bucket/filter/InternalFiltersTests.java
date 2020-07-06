@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,7 +133,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         InternalFilters dummy = createTestInstance();
         InternalFilters inner = createTestInstance();
 
-        InternalAggregations sub = new InternalAggregations(singletonList(inner));
+        InternalAggregations sub = InternalAggregations.from(Collections.singletonList(inner));
         InternalFilters test = createTestInstance("test", emptyMap(), sub);
         PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
             @Override

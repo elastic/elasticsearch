@@ -26,9 +26,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
 
 public class WildcardFieldAggregationTests extends AggregatorTestCase {
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
@@ -94,7 +94,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
                 indexStrings(iw, "b");
                 indexStrings(iw, "c");
             },
-            (Consumer<StringTerms>) result -> {
+            (StringTerms result) -> {
                 assertTrue(AggregationInspectionHelper.hasValue(result));
 
                 assertEquals(3, result.getBuckets().size());
@@ -125,7 +125,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
                 indexStrings(iw, "d");
                 indexStrings(iw, "c");
             },
-            (Consumer<InternalComposite>) result -> {
+            (InternalComposite result) -> {
                 assertTrue(AggregationInspectionHelper.hasValue(result));
 
                 assertEquals(3, result.getBuckets().size());
@@ -138,5 +138,27 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             },
             wildcardFieldType);
+    }
+
+    public void testCompositeTermsSearchAfter() throws IOException {
+
+        TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("terms_key").field(WILDCARD_FIELD_NAME);
+        CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder("name", Collections.singletonList(terms))
+            .aggregateAfter(Collections.singletonMap("terms_key", "a"));
+
+        testCase(aggregationBuilder, iwc, new MatchAllDocsQuery(), iw -> {
+            indexStrings(iw, "a");
+            indexStrings(iw, "c");
+            indexStrings(iw, "a");
+            indexStrings(iw, "d");
+            indexStrings(iw, "c");
+        }, (InternalComposite result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{terms_key=d}", result.afterKey().toString());
+            assertEquals("{terms_key=c}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{terms_key=d}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        }, wildcardFieldType);
     }
 }

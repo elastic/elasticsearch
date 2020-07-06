@@ -377,37 +377,11 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 ==== Supported configurations
 
-<<gateway-nodes-selection, Remote clusters>> shows which versions can talk
-to which other versions but there are at least three nodes involved The
-"coordinating node" receives your search request and sends it to a
-"gateway node" in each cluster. The "gateway nodes" in turn send your search
-request to "data nodes" that have a copy of the shards.
+<<gateway-nodes-selection, Generally>> a gateway node can search remote
+clusters that are one major version ahead or behind the gateway node's version.
+Gateways nodes can also search remote clusters that are being
+<<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
+"upgrade to" version are compatible with the gateway node.
 
-During a <<rolling-upgrades, rolling upgrade>> all three nodes could be running
-a different version of Elasticsearch! This is supported *but* it gets less
-testing than the more common scenarios where the remote cluster is on the same
-version. Everything should work either way, but don't tempt fate, ok?
-
-Here are some examples:
-
-[cols="^,^,^,^"]
-|====
-| Coordinating Node | Gateway Node | Data Node | Supported
-| 7.8.0             | 7.3.0        | 7.3.0     | Yes
-| 7.3.0             | 7.8.0        | 7.8.0     | Yes
-| 7.8.0             | 6.8.10       | 6.8.10    | Yes
-| 6.8.10            | 7.8.0        | 7.8.0     | Yes
-| 7.8.0             | 7.3.0        | 7.8.0     | During the upgrade
-| 7.8.0             | 7.8.0        | 7.3.0     | During the upgrade
-| 7.8.0             | 6.8.10       | 7.8.0     | During the upgrade
-| 7.8.0             | 7.8.0        | 6.8.10    | During the upgrade
-| 6.8.10            | 7.last       | 8.0.0     | No
-| 8.0.0             | 7.last       | 6.8.10    | No
-|====
-
-WARNING: "Chaining" major versions is not supported. An 8.0.0 coordinating node
-         can talk to a 7.last gateway node without any trouble. And a 7.last
-         gateway node can talk to a 6.8.10 data node. But playing
-         https://en.wikipedia.org/wiki/Chinese_whispers[telephone] across all
-         three nodes versions is not supported. We don't check for and forbid
-         it so it *may* work for some requests but it is totally untested.
+WARNING: Running multiple versions of {es} in the same cluster beyond the
+duration of an upgrade is not supported.

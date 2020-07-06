@@ -397,7 +397,7 @@ public final class InternalTestCluster extends TestCluster {
             RandomNumbers.randomIntBetween(random, 1, 5));
         if (mockPlugins.contains(RecoverySettingsChunkSizePlugin.class) && randomBoolean()) {
             builder.put(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING.getKey(),
-                RandomNumbers.randomIntBetween(random, 256, 10 * 1024 * 1024));
+                new ByteSizeValue(RandomNumbers.randomIntBetween(random, 256, 10 * 1024 * 1024)));
         }
         defaultSettings = builder.build();
         executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,

@@ -71,7 +71,8 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals("etf", request.eventCategoryField());
         assertEquals("imjf", request.implicitJoinKeyField());
         assertArrayEquals(new Object[]{12345678, "device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542"}, request.searchAfter());
-        assertEquals(101, request.fetchSize());
+        assertEquals(101, request.size());
+        assertEquals(1000, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.query());
         assertEquals(setIsCaseSensitive && isCaseSensitive, request.isCaseSensitive());
     }

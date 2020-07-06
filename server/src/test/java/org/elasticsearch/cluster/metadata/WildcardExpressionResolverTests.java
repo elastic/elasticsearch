@@ -37,7 +37,6 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
     public void testConvertWildcardsJustIndicesTests() {

@@ -24,12 +24,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -116,10 +116,11 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .fieldTimestamp(request.timestampField())
             .fieldTiebreaker(request.tiebreakerField())
             .implicitJoinKey(request.implicitJoinKeyField())
+            .size(request.size())
             .fetchSize(request.fetchSize());
 
-        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, request.fetchSize(),
-            includeFrozen, request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen,
+            request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);
         planExecutor.eql(cfg, request.query(), params, wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())),
             listener::onFailure));
     }

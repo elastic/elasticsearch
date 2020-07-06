@@ -336,7 +336,8 @@ public class ApiKeyService {
                 if (response.isExists()) {
                     final ApiKeyDoc apiKeyDoc;
                     try (XContentParser parser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
+                        NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                        response.getSourceAsBytesRef(), XContentType.JSON)) {
                         apiKeyDoc = ApiKeyDoc.fromXContent(parser);
                     }
                     validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, listener);

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -1051,7 +1052,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         if (version == Version.CURRENT) {
             when(apiKeyService.getApiKeyIdAndBytes(eq(authentication), anyBoolean())).thenReturn(
-                new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}")
+                new Tuple<>("keyId", new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"))
             );
         } else {
             doAnswer(invocationOnMock -> {
@@ -1108,9 +1109,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new RealmRef("_es_api_key", "_es_api_key", "node"), null, version, AuthenticationType.API_KEY, Collections.emptyMap());
         if (version == Version.CURRENT) {
             when(apiKeyService.getApiKeyIdAndBytes(eq(authentication), eq(false))).thenReturn(
-                new BytesArray("{\"a-role\": {\"cluster\": [\"all\"]}}"));
+                new Tuple<>("keyId", new BytesArray("{\"a-role\": {\"cluster\": [\"all\"]}}")));
             when(apiKeyService.getApiKeyIdAndBytes(eq(authentication), eq(true))).thenReturn(
-                new BytesArray("{\"scoped-role\": {\"cluster\": [\"manage_security\"]}}"));
+                new Tuple<>("keyId", new BytesArray("{\"scoped-role\": {\"cluster\": [\"manage_security\"]}}")));
         } else {
             doAnswer(invocationOnMock -> {
                 ActionListener<ApiKeyRoleDescriptors> listener = (ActionListener<ApiKeyRoleDescriptors>) invocationOnMock.getArguments()[1];
@@ -1242,12 +1243,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
+        final BytesArray roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
+        final BytesArray limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
         Authentication authentication = new Authentication(new User("test api key user", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, Map.of(
             API_KEY_ID_KEY, "key-id-1",
-            API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
-            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
+            API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes,
+            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes
         ));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
 
@@ -1256,15 +1259,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService, times(2)).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
-        verify(apiKeyService, times(2)).getRoleDescriptorsForApiKey(eq(authentication), anyBoolean());
+        verify(apiKeyService).parseRoleDescriptors("key-id-1", roleBytes);
+        verify(apiKeyService).parseRoleDescriptors("key-id-1", limitedByRoleBytes);
 
         // Different API key with the same roles should read from cache
         authentication = new Authentication(new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, Map.of(
             API_KEY_ID_KEY, "key-id-2",
-            API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
-            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
+            API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes,
+            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes
         ));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
@@ -1272,15 +1276,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService, times(2)).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
-        verify(apiKeyService, never()).getRoleDescriptorsForApiKey(eq(authentication), anyBoolean());
+        verify(apiKeyService, never()).parseRoleDescriptors(eq("key-id-2"), any(BytesReference.class));
 
         // Different API key with the same limitedBy role should read from cache, new role should be built
+        final BytesArray anotherRoleBytes = new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}");
         authentication = new Authentication(new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"), null,
             Version.CURRENT, AuthenticationType.API_KEY, Map.of(
             API_KEY_ID_KEY, "key-id-3",
-            API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}"),
-            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
+            API_KEY_ROLE_DESCRIPTORS_KEY, anotherRoleBytes,
+            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes
         ));
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
@@ -1288,7 +1293,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService).getApiKeyIdAndBytes(eq(authentication), eq(false));
-        verify(apiKeyService).getRoleDescriptorsForApiKey(eq(authentication), eq(false));
+        verify(apiKeyService).parseRoleDescriptors("key-id-3", anotherRoleBytes);
     }
 
     private CompositeRolesStore buildCompositeRolesStore(Settings settings,

@@ -699,11 +699,63 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
-    public static class RecoveryFilesDetails {
+    public static class RecoveryFilesDetails implements ToXContentFragment, Writeable {
         private final Map<String, File> fileDetails = new HashMap<>();
+        private boolean complete;
 
-        public File addFileDetails(String name, File file) {
-            return fileDetails.put(name, file);
+        RecoveryFilesDetails() {
+        }
+
+        RecoveryFilesDetails(StreamInput in) throws IOException {
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                File file = new File(in);
+                addFileDetails(file.name, file);
+            }
+            if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+                complete = in.readBoolean();
+            } else {
+                // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
+                // then it falls back on an estimate. There's only a very short window in which the file details are present but incomplete
+                // so this is a reasonable approximation, and the stats reported to the disk-based allocator don't hit this code path
+                // anyway since they always use IndexShard#getRecoveryState which is never transported over the wire.
+                complete = fileDetails.isEmpty() == false;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            final File[] files = values().toArray(new File[0]);
+            out.writeVInt(files.length);
+            for (File file : files) {
+                file.writeTo(out);
+            }
+            if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
+                out.writeBoolean(complete);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (params.paramAsBoolean("detailed", false)) {
+                builder.startArray(Fields.DETAILS);
+                for (File file : values()) {
+                    file.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+
+            return builder;
+        }
+
+        public void addFileDetails(String name, long length, boolean reused) {
+            addFileDetails(name, new File(name, length, reused));
+        }
+
+        public void addFileDetails(String name, File file) {
+            assert complete == false : "addFileDetail for [" + name + "] when file details are already complete";
+            File existing = fileDetails.put(name, file);
+            assert existing == null : "file [" + name + "] is already reported";
         }
 
         public void addRecoveredBytesToFile(String name, long bytes) {
@@ -713,6 +765,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public File get(String name) {
             return fileDetails.get(name);
+        }
+
+        public void setComplete() {
+            complete = true;
         }
 
         public int size() {
@@ -725,16 +781,20 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public void clear() {
             fileDetails.clear();
+            complete = false;
         }
 
         public Collection<File> values() {
             return fileDetails.values();
         }
+
+        public boolean complete() {
+            return complete;
+        }
     }
 
     public static class Index extends Timer implements ToXContentFragment, Writeable {
-        private final RecoveryFilesDetails fileDetails = new RecoveryFilesDetails();
-        private boolean fileDetailsComplete;
+        private final RecoveryFilesDetails fileDetails;
 
         public static final long UNKNOWN = -1L;
 
@@ -742,24 +802,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private long targetThrottleTimeInNanos = UNKNOWN;
 
         public Index() {
+            this.fileDetails = new RecoveryFilesDetails();
         }
 
         public Index(StreamInput in) throws IOException {
             super(in);
-            int size = in.readVInt();
-            for (int i = 0; i < size; i++) {
-                File file = new File(in);
-                fileDetails.addFileDetails(file.name, file);
-            }
-            if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                fileDetailsComplete = in.readBoolean();
-            } else {
-                // This flag is used by disk-based allocation to decide whether the remaining bytes measurement is accurate or not; if not
-                // then it falls back on an estimate. There's only a very short window in which the file details are present but incomplete
-                // so this is a reasonable approximation, and the stats reported to the disk-based allocator don't hit this code path
-                // anyway since they always use IndexShard#getRecoveryState which is never transported over the wire.
-                fileDetailsComplete = fileDetails.isEmpty() == false;
-            }
+            fileDetails = new RecoveryFilesDetails(in);
             sourceThrottlingInNanos = in.readLong();
             targetThrottleTimeInNanos = in.readLong();
         }
@@ -767,14 +815,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public synchronized void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            final File[] files = fileDetails.values().toArray(new File[0]);
-            out.writeVInt(files.length);
-            for (File file : files) {
-                file.writeTo(out);
-            }
-            if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-                out.writeBoolean(fileDetailsComplete);
-            }
+            fileDetails.writeTo(out);
             out.writeLong(sourceThrottlingInNanos);
             out.writeLong(targetThrottleTimeInNanos);
         }
@@ -786,20 +827,16 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public synchronized void reset() {
             super.reset();
             fileDetails.clear();
-            fileDetailsComplete = false;
             sourceThrottlingInNanos = UNKNOWN;
             targetThrottleTimeInNanos = UNKNOWN;
         }
 
         public synchronized void addFileDetail(String name, long length, boolean reused) {
-            assert fileDetailsComplete == false : "addFileDetail for [" + name + "] when file details are already complete";
-            File file = new File(name, length, reused);
-            File existing = fileDetails.addFileDetails(name, file);
-            assert existing == null : "file [" + name + "] is already reported";
+            fileDetails.addFileDetails(name, length, reused);
         }
 
         public synchronized void setFileDetailsComplete() {
-            fileDetailsComplete = true;
+            fileDetails.setComplete();
         }
 
         public synchronized void addRecoveredBytesToFile(String name, long bytes) {
@@ -928,7 +965,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          * {@code -1} if the full set of files to recover is not yet known
          */
         public synchronized long bytesStillToRecover() {
-            if (fileDetailsComplete == false) {
+            if (fileDetails.complete() == false) {
                 return -1L;
             }
             long total = 0L;
@@ -998,13 +1035,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             builder.field(Fields.REUSED, reusedFileCount());
             builder.field(Fields.RECOVERED, recoveredFileCount());
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
-            if (params.paramAsBoolean("detailed", false)) {
-                builder.startArray(Fields.DETAILS);
-                for (File file : fileDetails.values()) {
-                    file.toXContent(builder, params);
-                }
-                builder.endArray();
-            }
+            fileDetails.toXContent(builder, params);
             builder.endObject();
             builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
             builder.humanReadableField(Fields.SOURCE_THROTTLE_TIME_IN_MILLIS, Fields.SOURCE_THROTTLE_TIME, sourceThrottling());

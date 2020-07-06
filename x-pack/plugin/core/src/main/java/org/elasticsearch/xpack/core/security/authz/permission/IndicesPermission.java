@@ -210,7 +210,7 @@ public final class IndicesPermission {
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
     public Map<String, IndicesAccessControl.IndexAccessControl> authorize(String action, Set<String> requestedIndicesOrAliases,
-                                                                          Map<String, IndexAbstraction> allAliasesAndIndices,
+                                                                          Map<String, IndexAbstraction> lookup,
                                                                           FieldPermissionsCache fieldPermissionsCache) {
         // now... every index that is associated with the request, must be granted
         // by at least one indices permission group
@@ -221,7 +221,7 @@ public final class IndicesPermission {
         for (String indexOrAlias : requestedIndicesOrAliases) {
             boolean granted = false;
             Set<String> concreteIndices = new HashSet<>();
-            IndexAbstraction indexAbstraction = allAliasesAndIndices.get(indexOrAlias);
+            IndexAbstraction indexAbstraction = lookup.get(indexOrAlias);
             if (indexAbstraction != null) {
                 for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
                     concreteIndices.add(indexMetadata.getIndex().getName());
@@ -232,6 +232,14 @@ public final class IndicesPermission {
                 if (group.checkIndex(indexOrAlias) &&
                         (group.checkAction(action) || (authorizeMappingUpdateBwcSpecialCase(group, action) &&
                                 (indexAbstraction == null || indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)))) {
+//=======
+//                // check for privilege granted directly on the requested index/alias
+//                if (group.check(action, indexOrAlias) ||
+//                    // check for privilege granted on parent data stream if a backing index
+//                    (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
+//                        indexAbstraction.getParentDataStream() != null &&
+//                        group.check(action, indexAbstraction.getParentDataStream().getName()))) {
+//>>>>>>> master
                     granted = true;
                     for (String index : concreteIndices) {
                         Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());

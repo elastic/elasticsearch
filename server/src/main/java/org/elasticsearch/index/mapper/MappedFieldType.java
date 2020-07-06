@@ -65,8 +65,6 @@ public abstract class MappedFieldType {
     private final TextSearchInfo textSearchInfo;
     private float boost;
     private NamedAnalyzer indexAnalyzer;
-    private NamedAnalyzer searchAnalyzer;
-    private NamedAnalyzer searchQuoteAnalyzer;
     private boolean eagerGlobalOrdinals;
     private Map<String, String> meta;
 
@@ -76,8 +74,6 @@ public abstract class MappedFieldType {
         this.isIndexed = ref.isIndexed;
         this.docValues = ref.hasDocValues();
         this.indexAnalyzer = ref.indexAnalyzer();
-        this.searchAnalyzer = ref.searchAnalyzer();
-        this.searchQuoteAnalyzer = ref.searchQuoteAnalyzer;
         this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
         this.meta = ref.meta;
         this.textSearchInfo = ref.textSearchInfo;
@@ -119,15 +115,13 @@ public abstract class MappedFieldType {
             docValues == fieldType.docValues &&
             Objects.equals(name, fieldType.name) &&
             Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
-            Objects.equals(searchAnalyzer, fieldType.searchAnalyzer) &&
-            Objects.equals(searchQuoteAnalyzer(), fieldType.searchQuoteAnalyzer()) &&
             Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
             Objects.equals(meta, fieldType.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, boost, docValues, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer,
+        return Objects.hash(name, boost, docValues, indexAnalyzer,
             eagerGlobalOrdinals, meta);
     }
 
@@ -163,22 +157,6 @@ public abstract class MappedFieldType {
 
     public void setIndexAnalyzer(NamedAnalyzer analyzer) {
         this.indexAnalyzer = analyzer;
-    }
-
-    public NamedAnalyzer searchAnalyzer() {
-        return searchAnalyzer;
-    }
-
-    public void setSearchAnalyzer(NamedAnalyzer analyzer) {
-        this.searchAnalyzer = analyzer;
-    }
-
-    public NamedAnalyzer searchQuoteAnalyzer() {
-        return searchQuoteAnalyzer == null ? searchAnalyzer : searchQuoteAnalyzer;
-    }
-
-    public void setSearchQuoteAnalyzer(NamedAnalyzer analyzer) {
-        this.searchQuoteAnalyzer = analyzer;
     }
 
     /** Given a value that comes from the stored fields API, convert it to the

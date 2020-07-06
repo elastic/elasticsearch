@@ -31,6 +31,7 @@ import org.elasticsearch.painless.ir.MemberFieldStoreNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
@@ -63,6 +64,11 @@ public class ERegex extends AExpression {
 
     public String getFlags() {
         return flags;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitRegex(this, input);
     }
 
     @Override

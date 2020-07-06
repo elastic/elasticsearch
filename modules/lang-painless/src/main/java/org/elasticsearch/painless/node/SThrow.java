@@ -23,6 +23,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
@@ -47,6 +48,11 @@ public class SThrow extends AStatement {
 
     public AExpression getExpressionNode() {
         return expressionNode;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitThrow(this, input);
     }
 
     @Override

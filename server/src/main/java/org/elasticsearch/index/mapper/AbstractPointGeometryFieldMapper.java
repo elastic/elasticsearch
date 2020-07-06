@@ -131,6 +131,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     @Override
+    public final boolean parsesArrayValue() {
+        return true;
+    }
+
+    @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         AbstractPointGeometryFieldMapper gpfm = (AbstractPointGeometryFieldMapper)other;
         // TODO make this un-updateable

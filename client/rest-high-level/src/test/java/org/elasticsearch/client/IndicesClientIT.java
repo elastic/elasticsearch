@@ -1612,8 +1612,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(dataStream.getIndices(), hasSize(1));
 
         DataStreamsStatsRequest dataStreamsStatsRequest = new DataStreamsStatsRequest();
-        DataStreamsStatsResponse dataStreamsStatsResponse = execute(dataStreamsStatsRequest, indices::getDataStreamsStats,
-            indices::getDataStreamsStatsAsync);
+        DataStreamsStatsResponse dataStreamsStatsResponse = execute(dataStreamsStatsRequest, indices::dataStreamsStats,
+            indices::dataStreamsStatsAsync);
         int dataStreamsCount = dataStreamsStatsResponse.getDataStreamCount();
         assertThat(dataStreamsCount, equalTo(1));
         int backingIndices = dataStreamsStatsResponse.getBackingIndices();

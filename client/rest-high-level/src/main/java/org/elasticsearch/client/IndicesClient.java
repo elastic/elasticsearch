@@ -272,7 +272,7 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public DataStreamsStatsResponse getDataStreamsStats(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options)
+    public DataStreamsStatsResponse dataStreamsStats(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options)
         throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
             options, DataStreamsStatsResponse::fromXContent, emptySet());
@@ -289,8 +289,8 @@ public final class IndicesClient {
      * @param listener                the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getDataStreamsStatsAsync(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options,
-                                                ActionListener<DataStreamsStatsResponse> listener) {
+    public Cancellable dataStreamsStatsAsync(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options,
+                                             ActionListener<DataStreamsStatsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
             options, DataStreamsStatsResponse::fromXContent, listener, emptySet());
     }

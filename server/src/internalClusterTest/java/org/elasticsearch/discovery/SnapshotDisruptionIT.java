@@ -165,10 +165,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         createRandomIndex(idxName);
 
-        createRepository("test-repo", "fs", Settings.builder()
-            .put("location", randomRepoPath())
-            .put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
+        createRepository("test-repo", "fs");
 
         final String masterNode1 = internalCluster().getMasterName();
 
@@ -248,7 +245,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         index(idxName, "type", JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
 
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         final String masterNode = internalCluster().getMasterName();
 
@@ -304,7 +301,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         final String indexName = "index-one";
         createIndex(indexName);
@@ -363,8 +360,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRandomIndex(String idxName) throws InterruptedException {
-        assertAcked(prepareCreate(idxName, 0, Settings.builder().put("number_of_shards", between(1, 20))
-            .put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(idxName, 0, indexSettingsNoReplicas(between(1, 5))));
         logger.info("--> indexing some data");
         final int numdocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];

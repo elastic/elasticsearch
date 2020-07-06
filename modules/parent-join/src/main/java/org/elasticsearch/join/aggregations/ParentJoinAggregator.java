@@ -71,6 +71,10 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                                     long maxOrd,
                                     CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
+        /*
+         * We have to use MANY to work around
+         * https://github.com/elastic/elasticsearch/issues/59097
+         */
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {

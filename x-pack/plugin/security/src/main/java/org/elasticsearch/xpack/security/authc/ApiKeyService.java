@@ -227,7 +227,6 @@ public class ApiKeyService {
         try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
             request.getRoleDescriptors(), version)) {
 
-
             final IndexRequest indexRequest =
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
@@ -375,6 +374,9 @@ public class ApiKeyService {
     }
 
     /**
+     * This method is kept for BWC and should only be used for authentication objects created before v7.9.0.
+     * For authentication of newer versions, use {@link #getApiKeyIdAndRoleBytes}
+     *
      * The current request has been authenticated by an API key and this method enables the
      * retrieval of role descriptors that are associated with the api key
      */
@@ -382,6 +384,8 @@ public class ApiKeyService {
         if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
+        assert authentication.getVersion()
+            .before(Version.V_7_9_0) : "This method only applies to authentication objects created before v7.9.0";
 
         final Map<String, Object> metadata = authentication.getMetadata();
         final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
@@ -404,6 +408,7 @@ public class ApiKeyService {
         if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
+        
         final Map<String, Object> metadata = authentication.getMetadata();
         return new Tuple<>(
             (String) metadata.get(API_KEY_ID_KEY),

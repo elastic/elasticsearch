@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRank;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevSamp;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.VarSamp;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
@@ -143,8 +145,10 @@ public class SqlFunctionRegistry extends FunctionRegistry {
                 def(PercentileRank.class, PercentileRank::new, "PERCENTILE_RANK"),
                 def(Skewness.class, Skewness::new, "SKEWNESS"),
                 def(StddevPop.class, StddevPop::new, "STDDEV_POP"),
+                def(StddevSamp.class, StddevSamp::new, "STDDEV_SAMP"),
                 def(SumOfSquares.class, SumOfSquares::new, "SUM_OF_SQUARES"),
-                def(VarPop.class, VarPop::new, "VAR_POP")
+                def(VarPop.class, VarPop::new, "VAR_POP"),
+                def(VarSamp.class, VarSamp::new, "VAR_SAMP")
                 },
         // histogram
             new FunctionDefinition[] {

@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,11 +34,12 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         boolean ignoreMissing,
         String matchField,
         int maxMatches,
-        ShapeRelation shapeRelation
+        ShapeRelation shapeRelation,
+        ShapeBuilder.Orientation orientation
     ) {
         super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
-        parser = new GeometryParser(true, true, true);
+        parser = new GeometryParser(orientation.getAsBoolean(), true, true);
     }
 
     /** used in tests **/
@@ -52,12 +54,12 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         boolean ignoreMissing,
         String matchField,
         int maxMatches,
-        ShapeRelation shapeRelation
+        ShapeRelation shapeRelation,
+        ShapeBuilder.Orientation orientation
     ) {
         super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
-        // TODO: What to do with orientation?
-        parser = new GeometryParser(true, true, true);
+        parser = new GeometryParser(orientation.getAsBoolean(), true, true);
     }
 
     @Override

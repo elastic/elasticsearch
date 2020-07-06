@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
@@ -205,9 +206,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static final class JoinFieldType extends StringFieldType {
         public JoinFieldType(String name, Map<String, String> meta) {
-            super(name, true, true, meta);
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         protected JoinFieldType(JoinFieldType ref) {

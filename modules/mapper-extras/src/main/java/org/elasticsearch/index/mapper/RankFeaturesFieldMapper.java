@@ -76,9 +76,8 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
         public RankFeaturesFieldType(String name, Map<String, String> meta) {
-            super(name, false, false, meta);
+            super(name, false, false, TextSearchInfo.NONE, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         protected RankFeaturesFieldType(RankFeaturesFieldType ref) {

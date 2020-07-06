@@ -21,19 +21,25 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.symbol.SemanticScope.LambdaScope;
-import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.ReferenceNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.LambdaScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,16 +98,22 @@ public class ELambda extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitLambda(this, input);
+    }
+
+    @Override
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: lambda not used"));
         }
 
         ScriptScope scriptScope = semanticScope.getScriptScope();
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
 
         String name;
         Class<?> returnType;
@@ -110,12 +122,12 @@ public class ELambda extends AExpression {
         int maxLoopCounter;
 
         Output output = new Output();
+        Class<?> valueType;
 
         List<Class<?>> typeParameters;
         PainlessMethod interfaceMethod;
         // inspect the target first, set interface method if we know it.
-        if (input.expected == null) {
-            interfaceMethod = null;
+        if (targetType == null) {
             // we don't know anything: treat as def
             returnType = def.class;
             // don't infer any types, replace any null types with def
@@ -133,18 +145,17 @@ public class ELambda extends AExpression {
                     typeParameters.add(typeParameter);
                 }
             }
-
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = scriptScope.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(input.expected);
+            interfaceMethod = scriptScope.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(targetType.getTargetType());
             if (interfaceMethod == null) {
                 throw createError(new IllegalArgumentException("Cannot pass lambda to " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "], not a functional interface"));
+                        "[" + targetType.getTargetCanonicalTypeName() + "], not a functional interface"));
             }
             // check arity before we manipulate parameters
             if (interfaceMethod.typeParameters.size() != canonicalTypeNameParameters.size())
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.javaMethod.getName() +
-                        "] in [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]");
+                        "] in [" + targetType.getTargetCanonicalTypeName() + "]");
             // for method invocation, its allowed to ignore the return value
             if (interfaceMethod.returnType == void.class) {
                 returnType = def.class;
@@ -180,11 +191,10 @@ public class ELambda extends AExpression {
         if (blockNode.getStatementNodes().isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
-        AStatement.Input blockInput = new AStatement.Input();
-        blockInput.lastSource = true;
-        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope, blockInput);
+        semanticScope.setCondition(blockNode, LastSource.class);
+        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope);
 
-        if (blockOutput.methodEscape == false) {
+        if (semanticScope.getCondition(blockNode, MethodEscape.class) == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
 
@@ -208,8 +218,8 @@ public class ELambda extends AExpression {
         ReferenceNode referenceNode;
 
         // setup method reference to synthetic method
-        if (input.expected == null) {
-            output.actual = String.class;
+        if (targetType == null) {
+            valueType = String.class;
             String defReferenceEncoding = "Sthis." + name + "," + captures.size();
 
             DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
@@ -217,13 +227,15 @@ public class ELambda extends AExpression {
             referenceNode = defInterfaceReferenceNode;
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
-                    getLocation(), input.expected, "this", name, captures.size());
-            output.actual = input.expected;
+                    getLocation(), targetType.getTargetType(), "this", name, captures.size());
+            valueType = targetType.getTargetType();
 
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
             typedInterfaceReferenceNode.setReference(ref);
             referenceNode = typedInterfaceReferenceNode;
         }
+
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         FunctionNode functionNode = new FunctionNode();
         functionNode.setBlockNode((BlockNode)blockOutput.statementNode);
@@ -240,7 +252,7 @@ public class ELambda extends AExpression {
         classNode.addFunctionNode(functionNode);
 
         referenceNode.setLocation(getLocation());
-        referenceNode.setExpressionType(output.actual);
+        referenceNode.setExpressionType(valueType);
 
         for (Variable capture : captures) {
             referenceNode.addCapture(capture.getName());

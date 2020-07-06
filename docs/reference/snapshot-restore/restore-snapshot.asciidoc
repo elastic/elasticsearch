@@ -33,7 +33,7 @@ By default, all indices in the snapshot are restored, and the cluster state is
 *not* restored. It's possible to select indices that should be restored as well
 as to allow the global cluster state from being restored by using `indices` and
 `include_global_state` options in the restore request body. The list of indices
-supports <<multi-index,multi index syntax>>. The `rename_pattern`
+supports <<multi-index,multi-target syntax>>. The `rename_pattern`
 and `rename_replacement` options can be also used to rename indices on restore
 using regular expression that supports referencing the original text as
 explained

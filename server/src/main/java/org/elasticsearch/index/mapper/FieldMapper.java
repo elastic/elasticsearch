@@ -32,8 +32,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +68,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected NamedAnalyzer indexAnalyzer;
         protected NamedAnalyzer searchAnalyzer;
         protected NamedAnalyzer searchQuoteAnalyzer;
-        protected SimilarityProvider similarity;
 
         protected Builder(String name, FieldType fieldType) {
             super(name);
@@ -156,11 +153,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public T searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
             this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-            return builder;
-        }
-
-        public T similarity(SimilarityProvider similarity) {
-            this.similarity = similarity;
             return builder;
         }
 
@@ -374,10 +366,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         } else if (mappedFieldType.indexAnalyzer().name().equals(otherm.indexAnalyzer().name()) == false) {
             conflicts.add("mapper [" + name() + "] has different [analyzer]");
         }
-
-        if (Objects.equals(mappedFieldType.similarity(), otherm.similarity()) == false) {
-            conflicts.add("mapper [" + name() + "] has different [similarity]");
-        }
     }
 
     /**
@@ -423,12 +411,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             builder.field("store", fieldType.stored());
         }
 
-        if (fieldType().similarity() != null) {
-            builder.field("similarity", fieldType().similarity().name());
-        } else if (includeDefaults) {
-            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
-        }
-
         multiFields.toXContent(builder, params);
         copyTo.toXContent(builder, params);
 
@@ -447,15 +429,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
         } else {
             boolean hasDefaultIndexAnalyzer = fieldType().indexAnalyzer().name().equals("default");
-            final String searchAnalyzerName = fieldType().searchAnalyzer().name();
+            final String searchAnalyzerName = fieldType().getTextSearchInfo().getSearchAnalyzer() == null
+                ? "default" : fieldType().getTextSearchInfo().getSearchAnalyzer().name();
+            final String searchQuoteAnalyzerName = fieldType().getTextSearchInfo().getSearchQuoteAnalyzer() == null
+                ? searchAnalyzerName : fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name();
             boolean hasDifferentSearchAnalyzer = searchAnalyzerName.equals(fieldType().indexAnalyzer().name()) == false;
-            boolean hasDifferentSearchQuoteAnalyzer = searchAnalyzerName.equals(fieldType().searchQuoteAnalyzer().name()) == false;
+            boolean hasDifferentSearchQuoteAnalyzer
+                = Objects.equals(searchAnalyzerName, searchQuoteAnalyzerName) == false;
             if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
                 if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                     builder.field("search_analyzer", searchAnalyzerName);
                     if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
-                        builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
+                        builder.field("search_quote_analyzer", searchQuoteAnalyzerName);
                     }
                 }
             }

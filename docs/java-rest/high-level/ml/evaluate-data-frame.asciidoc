@@ -68,7 +68,9 @@ include-tagged::{doc-tests-file}[{api}-evaluation-regression]
 <3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) value for the example.
 <4> The remaining parameters are the metrics to be calculated based on the two fields described above
 <5> https://en.wikipedia.org/wiki/Mean_squared_error[Mean squared error]
-<6> https://en.wikipedia.org/wiki/Coefficient_of_determination[R squared]
+<6> Mean squared logarithmic error
+<7> https://en.wikipedia.org/wiki/Huber_loss#Pseudo-Huber_loss_function[Pseudo Huber loss]
+<8> https://en.wikipedia.org/wiki/Coefficient_of_determination[R squared]
 
 include::../execution.asciidoc[]
 
@@ -123,5 +125,9 @@ include-tagged::{doc-tests-file}[{api}-results-regression]
 
 <1> Fetching mean squared error metric by name
 <2> Fetching the actual mean squared error value
-<3> Fetching R squared metric by name
-<4> Fetching the actual R squared value
+<3> Fetching mean squared logarithmic error metric by name
+<4> Fetching the actual mean squared logarithmic error value
+<5> Fetching pseudo Huber loss metric by name
+<6> Fetching the actual pseudo Huber loss value
+<7> Fetching R squared metric by name
+<8> Fetching the actual R squared value

@@ -126,8 +126,8 @@
 ---
 "Cannot freeze write index for data stream":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backporting"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:

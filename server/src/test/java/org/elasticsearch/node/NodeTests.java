@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -155,7 +156,7 @@ public class NodeTests extends ESTestCase {
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
-                .put(Node.NODE_DATA_SETTING.getKey(), true);
+                .put(dataNode());
     }
 
     public void testCloseOnOutstandingTask() throws Exception {

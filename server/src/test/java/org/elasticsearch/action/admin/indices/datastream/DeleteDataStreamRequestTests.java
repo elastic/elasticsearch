@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -97,7 +99,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
         ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
             otherIndices);
-        SnapshotsInProgress snapshotsInProgress = new SnapshotsInProgress(List.of(
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.of(List.of(
             createEntry(dataStreamName, "repo1", false),
             createEntry(dataStreamName2, "repo2", true)));
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
@@ -112,7 +114,8 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
         return new SnapshotsInProgress.Entry(new Snapshot(repo, new SnapshotId("", "")), false, partial,
-            SnapshotsInProgress.State.STARTED, Collections.emptyList(), List.of(dataStreamName), 0, 1, null, null, null, null);
+            SnapshotsInProgress.State.STARTED, Collections.emptyList(), List.of(dataStreamName), 0, 1,
+            ImmutableOpenMap.of(), null, null, null);
     }
 
     public void testDeleteNonexistentDataStream() {
@@ -160,7 +163,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dsTuple.v1(), "@timestamp",
+            DataStream ds = new DataStream(dsTuple.v1(), createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
             builder.put(ds);
         }

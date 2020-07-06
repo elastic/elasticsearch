@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,7 +41,7 @@ public class RestoreServiceTests extends ESTestCase {
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -63,7 +64,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
@@ -86,7 +87,7 @@ public class RestoreServiceTests extends ESTestCase {
         String renamedBackingIndexName = DataStream.getDefaultBackingIndexName(renamedDataStreamName, 1);
         List<Index> indices = Collections.singletonList(new Index(backingIndexName, "uuid"));
 
-        DataStream dataStream = new DataStream(dataStreamName, "@timestamp", indices);
+        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
 
         Metadata.Builder metadata = mock(Metadata.Builder.class);
         IndexMetadata indexMetadata = mock(IndexMetadata.class);

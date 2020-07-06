@@ -1,5 +1,8 @@
 [[analysis-lang-analyzer]]
-=== Language Analyzers
+=== Language analyzers
+++++
+<titleabbrev>Language</titleabbrev>
+++++
 
 A set of analyzers aimed at analyzing specific language text. The
 following types are supported:

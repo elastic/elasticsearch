@@ -12,7 +12,9 @@ import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.AucRoc;
@@ -96,6 +98,12 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 new ParseField(registeredMetricName(Regression.NAME, MeanSquaredError.NAME)),
                 MeanSquaredError::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
+                new ParseField(registeredMetricName(Regression.NAME, MeanSquaredLogarithmicError.NAME)),
+                MeanSquaredLogarithmicError::fromXContent),
+            new NamedXContentRegistry.Entry(EvaluationMetric.class,
+                new ParseField(registeredMetricName(Regression.NAME, Huber.NAME)),
+                Huber::fromXContent),
+            new NamedXContentRegistry.Entry(EvaluationMetric.class,
                 new ParseField(registeredMetricName(Regression.NAME, RSquared.NAME)),
                 RSquared::fromXContent)
         );
@@ -145,6 +153,12 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
                 registeredMetricName(Regression.NAME, MeanSquaredError.NAME),
                 MeanSquaredError::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
+                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicError.NAME),
+                MeanSquaredLogarithmicError::new),
+            new NamedWriteableRegistry.Entry(EvaluationMetric.class,
+                registeredMetricName(Regression.NAME, Huber.NAME),
+                Huber::new),
+            new NamedWriteableRegistry.Entry(EvaluationMetric.class,
                 registeredMetricName(Regression.NAME, RSquared.NAME),
                 RSquared::new),
 
@@ -175,6 +189,12 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(Regression.NAME, MeanSquaredError.NAME),
                 MeanSquaredError.Result::new),
+            new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
+                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicError.NAME),
+                MeanSquaredLogarithmicError.Result::new),
+            new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
+                registeredMetricName(Regression.NAME, Huber.NAME),
+                Huber.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(Regression.NAME, RSquared.NAME),
                 RSquared.Result::new)

@@ -53,7 +53,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        return new DataStream(dataStreamName, createTimestampField(randomAlphaOfLength(10)), indices, generation);
+        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
     }
 
     @Override

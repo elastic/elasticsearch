@@ -27,7 +27,7 @@
           template:
             mappings:
               properties:
-                '@timestamp2':
+                '@timestamp':
                   type: date
           data_stream:
             timestamp_field: '@timestamp'

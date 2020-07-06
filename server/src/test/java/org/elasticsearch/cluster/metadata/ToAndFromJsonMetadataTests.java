@@ -103,7 +103,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 .put(idx1, false)
                 .put(idx2, false)
                 .put(new DataStream("data-stream1", createTimestampField("@timestamp"), List.of(idx1.getIndex())))
-                .put(new DataStream("data-stream2", createTimestampField("@timestamp2"), List.of(idx2.getIndex())))
+                .put(new DataStream("data-stream2", createTimestampField("@timestamp"), List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

@@ -40,18 +40,15 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
-import org.elasticsearch.xpack.transform.transforms.pivot.CompositeBucketsChangeCollector.FieldCollector;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -218,45 +215,11 @@ public class Pivot implements Function {
 
     @Override
     public ChangeCollector buildChangeCollector(String synchronizationField) {
-        Map<String, FieldCollector> fieldCollectors = new HashMap<>();
-
-        for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            switch (entry.getValue().getType()) {
-                case TERMS:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.TermsFieldCollector(entry.getValue().getField(), entry.getKey())
-                    );
-                    break;
-                case HISTOGRAM:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.HistogramFieldCollector(entry.getValue().getField(), entry.getKey())
-                    );
-                    break;
-                case DATE_HISTOGRAM:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.DateHistogramFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            ((DateHistogramGroupSource) entry.getValue()).getRounding(),
-                            entry.getKey().equals(synchronizationField)
-                        )
-                    );
-                    break;
-                case GEOTILE_GRID:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.GeoTileFieldCollector(entry.getValue().getField(), entry.getKey())
-                    );
-                    break;
-                default:
-                    throw new IllegalArgumentException("unknown type");
-            }
-        }
-
-        return new CompositeBucketsChangeCollector(createCompositeAggregationSources(config, true), fieldCollectors);
+        return CompositeBucketsChangeCollector.buildChangeCollector(
+            createCompositeAggregationSources(config, true),
+            config.getGroupConfig().getGroups(),
+            synchronizationField
+        );
     }
 
     @Override

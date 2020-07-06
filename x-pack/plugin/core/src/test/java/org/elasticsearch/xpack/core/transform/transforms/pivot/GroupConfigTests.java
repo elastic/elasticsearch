@@ -40,7 +40,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource groupBy;
+                SingleGroupSource groupBy = null;
                 Type type = randomFrom(SingleGroupSource.Type.values());
                 switch (type) {
                 case TERMS:
@@ -53,10 +53,11 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
                     groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
                     break;
                 case GEOTILE_GRID:
-                default:
                     groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
+                    break;
+                default:
+                    fail("unknown group source type");
                 }
-
                 source.put(targetFieldName, Collections.singletonMap(type.value(), getSource(groupBy)));
                 groups.put(targetFieldName, groupBy);
             }

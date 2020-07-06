@@ -122,8 +122,20 @@ public interface Function {
         ActionListener<List<Map<String, Object>>> listener
     );
 
+    /**
+     * Get the search query for querying for initial (first checkpoint) progress
+     *
+     * @param searchSourceBuilder a searchsource builder instance
+     * @return the searchSource, expanded with the relevant parts
+     */
     SearchSourceBuilder buildSearchQueryForInitialProgress(SearchSourceBuilder searchSourceBuilder);
 
+    /**
+     * Process the search response from progress search call and return progress information.
+     *
+     * @param response the search response
+     * @param progressListener listener that takes the progress information as call back
+     */
     void getInitialProgressFromResponse(SearchResponse response, ActionListener<TransformProgress> progressListener);
 
     /**

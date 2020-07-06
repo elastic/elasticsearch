@@ -23,11 +23,15 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -39,7 +43,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     private final CompositeAggregationBuilder compositeAggregation;
     private Map<String, Object> afterKey = null;
 
-    public interface FieldCollector {
+    interface FieldCollector {
         boolean collectChanges(Collection<? extends Bucket> buckets);
 
         AggregationBuilder aggregateChanges();
@@ -49,7 +53,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         void clear();
     }
 
-    public static class TermsFieldCollector implements FieldCollector {
+    static class TermsFieldCollector implements FieldCollector {
 
         private final String sourceFieldName;
         private final String targetFieldName;
@@ -94,7 +98,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
     }
 
-    public static class DateHistogramFieldCollector implements FieldCollector {
+    static class DateHistogramFieldCollector implements FieldCollector {
 
         private final String sourceFieldName;
         private final String targetFieldName;
@@ -140,7 +144,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
     }
 
-    public static class HistogramFieldCollector implements FieldCollector {
+    static class HistogramFieldCollector implements FieldCollector {
 
         private final String sourceFieldName;
         private final String targetFieldName;
@@ -169,7 +173,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
     }
 
-    public static class GeoTileFieldCollector implements FieldCollector {
+    static class GeoTileFieldCollector implements FieldCollector {
 
         private final String sourceFieldName;
         private final String targetFieldName;
@@ -291,6 +295,56 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     @Override
     public Map<String, Object> getBucketPosition() {
         return afterKey;
+    }
+
+    public static ChangeCollector buildChangeCollector(
+        CompositeAggregationBuilder compositeAggregationBuilder,
+        Map<String, SingleGroupSource> groups,
+        String synchronizationField
+    ) {
+        Map<String, FieldCollector> fieldCollectors = createFieldCollectors(groups, synchronizationField);
+        return new CompositeBucketsChangeCollector(compositeAggregationBuilder, fieldCollectors);
+    }
+
+    static Map<String, FieldCollector> createFieldCollectors(Map<String, SingleGroupSource> groups, String synchronizationField) {
+        Map<String, FieldCollector> fieldCollectors = new HashMap<>();
+
+        for (Entry<String, SingleGroupSource> entry : groups.entrySet()) {
+            switch (entry.getValue().getType()) {
+                case TERMS:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.TermsFieldCollector(entry.getValue().getField(), entry.getKey())
+                    );
+                    break;
+                case HISTOGRAM:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.HistogramFieldCollector(entry.getValue().getField(), entry.getKey())
+                    );
+                    break;
+                case DATE_HISTOGRAM:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.DateHistogramFieldCollector(
+                            entry.getValue().getField(),
+                            entry.getKey(),
+                            ((DateHistogramGroupSource) entry.getValue()).getRounding(),
+                            entry.getKey().equals(synchronizationField)
+                        )
+                    );
+                    break;
+                case GEOTILE_GRID:
+                    fieldCollectors.put(
+                        entry.getKey(),
+                        new CompositeBucketsChangeCollector.GeoTileFieldCollector(entry.getValue().getField(), entry.getKey())
+                    );
+                    break;
+                default:
+                    throw new IllegalArgumentException("unknown type");
+            }
+        }
+        return fieldCollectors;
     }
 
 }

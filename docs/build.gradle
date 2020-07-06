@@ -1400,3 +1400,30 @@ buildRestTests.setups['setup-repository'] = '''
           settings:
             location: buildDir/cluster/shared/repo
 '''
+
+// Dummy sec_logs data used by EQL search
+buildRestTests.setups['sec_logs'] = '''
+  - do:
+        indices.create:
+          index: sec_logs
+          body:
+            settings:
+              number_of_shards: 5
+              number_of_routing_shards: 5
+  - do:
+        bulk:
+          index: sec_logs
+          refresh: true
+          body: |
+#sec_logs_data#
+'''
+/* Load the actual events only if we're going to use them. */
+File secLogsFile = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
+buildRestTests.inputs.file(secLogsFile)
+buildRestTests.doFirst {
+  String events = secLogsFile.getText('UTF-8')
+  // Indent like a yaml test needs
+  events = events.replaceAll('(?m)^', '            ')
+  buildRestTests.setups['sec_logs'] =
+    buildRestTests.setups['sec_logs'].replace('#sec_logs_data#', events)
+}

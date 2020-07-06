@@ -24,6 +24,11 @@ esplugin {
   classname 'org.elasticsearch.geo.GeoPlugin'
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'search'
+  }
+}
 artifacts {
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

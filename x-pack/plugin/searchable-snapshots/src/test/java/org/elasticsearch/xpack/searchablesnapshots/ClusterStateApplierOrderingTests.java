@@ -35,10 +35,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 2)
+@ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsIntegTestCase {
 
     public void testRepositoriesServiceClusterStateApplierIsCalledBeforeIndicesClusterStateService() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNodes(2);
         final String fsRepoName = "fsrepo";
         final String indexName = "test-index";
         final String restoredIndexName = "restored-index";

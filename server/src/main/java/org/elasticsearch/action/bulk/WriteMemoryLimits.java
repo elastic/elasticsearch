@@ -71,15 +71,15 @@ public class WriteMemoryLimits {
     }
 
     public Releasable markReplicaWriteStarted(long bytes, boolean forceExecution) {
-        long currentWriteLimits = this.writeLimits;
+        long currentReplicaWriteLimits = (long) (this.writeLimits * 1.5);
         long replicaWriteBytes = this.replicaWriteBytes.getAndAdd(bytes);
-        if (forceExecution == false && replicaWriteBytes > currentWriteLimits) {
+        if (forceExecution == false && replicaWriteBytes > currentReplicaWriteLimits) {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
             this.replicaWriteBytes.getAndAdd(-bytes);
             throw new EsRejectedExecutionException("rejected execution of replica write operation [" +
                 "replica_write_bytes=" + replicaBytesWithoutOperation + ", " +
                 "current_replica_operation_bytes=" + bytes + ", " +
-                "max_replica_write_bytes=" + currentWriteLimits + "]", false);
+                "max_replica_write_bytes=" + currentReplicaWriteLimits + "]", false);
         }
         return () -> this.replicaWriteBytes.getAndAdd(-bytes);
     }

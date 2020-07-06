@@ -1,20 +1,7 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
  */
 
 package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
@@ -37,10 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 
 import java.io.IOException;
@@ -188,7 +172,6 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
 
     /**
      * Test that sub-aggregations are not supported
-     * @throws Exception
      */
     public void testSubAggs() throws Exception {
         try (Directory dir = newDirectory();
@@ -234,17 +217,6 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return List.of(new AnalyticsPlugin());
-    }
-
-    @Override
-    protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        // Note: this is the same list as Core, plus Analytics
-        return List.of(
-            CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.DATE,
-            AnalyticsValuesSourceType.HISTOGRAM
-        );
     }
 
     @Override

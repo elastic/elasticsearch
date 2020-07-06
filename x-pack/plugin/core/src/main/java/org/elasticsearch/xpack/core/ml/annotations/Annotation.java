@@ -104,18 +104,8 @@ public class Annotation implements ToXContentObject, Writeable {
         STRICT_PARSER.declareField(Builder::setModifiedTime,
             p -> TimeUtils.parseTimeField(p, MODIFIED_TIME.getPreferredName()), MODIFIED_TIME, ObjectParser.ValueType.VALUE);
         STRICT_PARSER.declareString(Builder::setModifiedUsername, MODIFIED_USERNAME);
-        STRICT_PARSER.declareField(Builder::setType, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Type.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, TYPE, ObjectParser.ValueType.STRING);
-        STRICT_PARSER.declareField(Builder::setEvent, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Event.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, EVENT, ObjectParser.ValueType.STRING);
+        STRICT_PARSER.declareString(Builder::setType, Type::fromString, TYPE);
+        STRICT_PARSER.declareString(Builder::setEvent, Event::fromString, EVENT);
         STRICT_PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
         STRICT_PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME);
         STRICT_PARSER.declareString(Builder::setPartitionFieldValue, PARTITION_FIELD_VALUE);

@@ -43,7 +43,7 @@
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
-      catch: bad_request
+      catch: missing
       indices.delete:
         index: logs-foobar
 

@@ -129,11 +129,11 @@ class BlockingQueryBuilder extends AbstractQueryBuilder<BlockingQueryBuilder> {
      *  is called.
      */
     static class QueryLatch implements Closeable {
-        private volatile CountDownLatch countDownLatch;
         private final Set<Integer> failedShards = new HashSet<>();
+        private volatile CountDownLatch countDownLatch;
         private int numShardFailures;
 
-        QueryLatch(int numShardFailures) {
+        private QueryLatch(int numShardFailures) {
             this.countDownLatch = new CountDownLatch(1);
             this.numShardFailures = numShardFailures;
         }

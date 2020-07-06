@@ -400,6 +400,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     private static final FieldType INDEXED_KEYWORD = new FieldType();
     static {
         INDEXED_KEYWORD.setTokenized(false);
+        INDEXED_KEYWORD.setOmitNorms(true);
         INDEXED_KEYWORD.setIndexOptions(IndexOptions.DOCS);
         INDEXED_KEYWORD.freeze();
     }

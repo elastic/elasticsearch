@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
@@ -652,6 +653,29 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stateIndexSearchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 
+    public void testUpdateAnalytics() throws Exception {
+        initialize("update_analytics_description");
+
+        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null, new Classification(KEYWORD_FIELD));
+        putAnalytics(config);
+        assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(nullValue()));
+
+        updateAnalytics(new DataFrameAnalyticsConfigUpdate.Builder(jobId).setDescription("updated-description-1").build());
+        assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(equalTo("updated-description-1")));
+
+        // Noop update
+        updateAnalytics(new DataFrameAnalyticsConfigUpdate.Builder(jobId).build());
+        assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(equalTo("updated-description-1")));
+
+        updateAnalytics(new DataFrameAnalyticsConfigUpdate.Builder(jobId).setDescription("updated-description-2").build());
+        assertThat(getOnlyElement(getAnalytics(jobId)).getDescription(), is(equalTo("updated-description-2")));
+    }
+
+    private static <T> T getOnlyElement(List<T> list) {
+        assertThat(list, hasSize(1));
+        return list.get(0);
+    }
+
     private void initialize(String jobId) {
         initialize(jobId, false);
     }
@@ -719,6 +743,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {
             List<Object> source = List.of(
+                "time", "2020-12-12",
                 BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                 NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
                 DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
@@ -749,6 +774,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             if (NESTED_FIELD.equals(dependentVariable) == false) {
                 source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
+            source.addAll(List.of("time", "2020-12-12"));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }

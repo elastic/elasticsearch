@@ -1,5 +1,8 @@
 [[analysis-keyword-analyzer]]
-=== Keyword Analyzer
+=== Keyword analyzer
+++++
+<titleabbrev>Keyword</titleabbrev>
+++++
 
 The `keyword` analyzer is a ``noop'' analyzer which returns the entire input
 string as a single token.

@@ -21,19 +21,29 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
 
 public class NullSafeSubNode extends UnaryNode {
 
+    /* ---- begin visitor ---- */
+
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitNullSafeSub(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         Label end = new Label();
         methodWriter.dup();
         methodWriter.ifNull(end);
-        getChildNode().write(classWriter, methodWriter, scopeTable);
+        getChildNode().write(classWriter, methodWriter, writeScope);
         methodWriter.mark(end);
     }
 }

@@ -37,8 +37,8 @@ PUT /sec_logs/_bulk?refresh
 [TIP]
 =====
 You also can set up {beats-ref}/getting-started.html[{beats}], such as
-{auditbeat-ref}/auditbeat-getting-started.html[{auditbeat}] or
-{winlogbeat-ref}/winlogbeat-getting-started.html[{winlogbeat}], to automatically
+{auditbeat-ref}/auditbeat-installation-configuration.html[{auditbeat}] or
+{winlogbeat-ref}/winlogbeat-installation-configuration.html[{winlogbeat}], to automatically
 send and index your event data in {es}. See
 {beats-ref}/getting-started.html[Getting started with {beats}].
 =====
@@ -58,6 +58,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 Because the `sec_log` index follows the ECS, you don't need to specify the
 required <<eql-required-fields,event category or timestamp>> fields. The request
@@ -98,7 +99,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
+        },      
         "sort": [
           1607252645000
         ]
@@ -169,6 +170,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.events\.\*fields/]
 
 The API returns the following response. Matching events in
 the `hits.sequences.events` property are sorted by
@@ -216,11 +218,6 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
             },
-            "fields": {
-              "@timestamp": [
-                "1607339228000"
-              ]
-            },
             "sort": [
               1607339228000
             ]
@@ -243,11 +240,6 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339229000"
-              ]
             },
             "sort": [
               1607339229000
@@ -293,6 +285,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event.
@@ -341,11 +334,6 @@ contains the shared `agent.id` value for each matching event.
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
             },
-            "fields": {
-              "@timestamp": [
-                "1607339228000"
-              ]
-            },
             "sort": [
               1607339228000
             ]
@@ -368,11 +356,6 @@ contains the shared `agent.id` value for each matching event.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "fields": {
-              "@timestamp": [
-                "1607339229000"
-              ]
             },
             "sort": [
               1607339229000
@@ -465,6 +448,7 @@ GET /sec_logs/_eql/search
   """
 }
 ----
+// TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
 The API returns the following response. Note the `sort` property of each
 matching event contains an array of two items:
@@ -511,8 +495,8 @@ tiebreaker for events with the same timestamp.
         "sort": [
           1607252645000,                                <1>
           "edwCRnyD"                                    <2>
-        ]
-      },
+          ]
+        },
             {
         "_index": "sec_logs",
         "_id": "3",
@@ -613,7 +597,6 @@ API returns a response that includes:
 * An `is_partial` value of `true`, indicating the response does not contain
   complete search results.
 * An `is_running` value of `true`, indicating the search is async and ongoing.
-* Partial search results, if available, in the `hits` property.
 
 The async search continues to run in the background without blocking
 other requests.
@@ -670,8 +653,9 @@ async EQL search API>> to check the progress of an ongoing async search.
 
 The get async EQL search API also accepts a `wait_for_completion_timeout` query
 parameter. Set the `wait_for_completion_timeout` parameter to a duration you'd
-like to wait for complete search results. If the search does not finish during
-this period, partial search results, if available, are returned.
+like to wait for complete search results. If the request does not complete
+during this period, the response returns an `is_partial` value of `true` and no
+search results.
 
 [%collapsible]
 .*Example*

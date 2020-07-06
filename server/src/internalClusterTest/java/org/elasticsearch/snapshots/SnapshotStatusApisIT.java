@@ -29,7 +29,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -50,7 +49,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testStatusApiConsistency() {
         Client client = client();
 
-        createRepository("test-repo", "fs", randomRepoPath());
+        createRepository("test-repo", "fs");
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -158,7 +157,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testGetSnapshotsWithoutIndices() {
-        createRepository("test-repo", "fs", randomRepoPath());
+        createRepository("test-repo", "fs");
 
         logger.info("--> snapshot");
         final SnapshotInfo snapshotInfo =
@@ -199,7 +198,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         index(indexTwo, "_doc", "some_doc_id", "foo", "bar");
 
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         blockDataNode(repoName, dataNodeOne);
 
@@ -279,9 +278,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static Settings singleShardOneNode(String node) {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", node).build();
+        return indexSettingsNoReplicas(1).put("index.routing.allocation.include._name", node).build();
     }
 }

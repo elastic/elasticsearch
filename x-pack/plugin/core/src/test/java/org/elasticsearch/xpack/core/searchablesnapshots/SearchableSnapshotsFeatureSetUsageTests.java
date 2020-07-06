@@ -15,29 +15,24 @@ public class SearchableSnapshotsFeatureSetUsageTests extends AbstractWireSeriali
     @Override
     protected SearchableSnapshotFeatureSetUsage createTestInstance() {
         boolean available = randomBoolean();
-        boolean enabled = randomBoolean();
-        return new SearchableSnapshotFeatureSetUsage(available, enabled, randomIntBetween(0, 100000));
+        return new SearchableSnapshotFeatureSetUsage(available, randomIntBetween(0, 100000));
     }
 
     @Override
     protected SearchableSnapshotFeatureSetUsage mutateInstance(SearchableSnapshotFeatureSetUsage instance) throws IOException {
         boolean available = instance.available();
-        boolean enabled = instance.enabled();
         int numSearchableSnapshotIndices = instance.getNumberOfSearchableSnapshotIndices();
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
             case 0:
                 available = available == false;
                 break;
             case 1:
-                enabled = enabled == false;
-                break;
-            case 2:
                 numSearchableSnapshotIndices = randomValueOtherThan(numSearchableSnapshotIndices, () -> randomIntBetween(0, 100000));
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new SearchableSnapshotFeatureSetUsage(available, enabled, numSearchableSnapshotIndices);
+        return new SearchableSnapshotFeatureSetUsage(available, numSearchableSnapshotIndices);
     }
 
     @Override

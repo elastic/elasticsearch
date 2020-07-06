@@ -64,7 +64,6 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
             new XPackUsageFeatureResponse(
                 new SearchableSnapshotFeatureSetUsage(
                     licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS),
-                    true,
                     numSnapIndices
                 )
             )

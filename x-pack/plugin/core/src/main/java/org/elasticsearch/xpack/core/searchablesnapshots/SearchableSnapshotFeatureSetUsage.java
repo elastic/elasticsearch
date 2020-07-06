@@ -37,9 +37,9 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeVInt(numberOfSearchableSnapshotIndices);
     }
 
-    public SearchableSnapshotFeatureSetUsage(boolean available, boolean enabled,
+    public SearchableSnapshotFeatureSetUsage(boolean available,
                                              int numberOfSearchableSnapshotIndices) {
-        super(XPackField.SEARCHABLE_SNAPSHOTS, available, enabled);
+        super(XPackField.SEARCHABLE_SNAPSHOTS, available, true);
         this.numberOfSearchableSnapshotIndices = numberOfSearchableSnapshotIndices;
     }
 

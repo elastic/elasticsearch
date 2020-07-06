@@ -60,7 +60,7 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    private final boolean forceExecutionOnPrimary;
+    private final boolean forceExecution;
     private final WriteMemoryLimits writeMemoryLimits;
     private final String executor;
 
@@ -74,13 +74,13 @@ public abstract class TransportWriteAction<
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+        this.forceExecution = forceExecutionOnPrimary;
         this.writeMemoryLimits = writeMemoryLimits;
     }
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecutionOnPrimary);
+        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecution);
     }
 
     @Override
@@ -90,7 +90,7 @@ public abstract class TransportWriteAction<
         if (rerouteWasLocal) {
             return () -> {};
         } else {
-            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecutionOnPrimary);
+            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecution);
         }
     }
 
@@ -100,7 +100,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return writeMemoryLimits.markReplicaWriteStarted(replicaOperationSize(request));
+        return writeMemoryLimits.markReplicaWriteStarted(replicaOperationSize(request), forceExecution);
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
@@ -156,7 +156,7 @@ public abstract class TransportWriteAction<
 
             @Override
             public boolean isForceExecution() {
-                return forceExecutionOnPrimary;
+                return forceExecution;
             }
         });
     }

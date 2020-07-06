@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,6 +38,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,6 +53,15 @@ import static org.hamcrest.Matchers.instanceOf;
 public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
     public static final String INDEX_NAME = "test";
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            // Need at least two threads because we are going to block one
+            .put("thread_pool.write.queue_size", -1)
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -322,6 +333,44 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
             assertEquals(0, coordinatingWriteLimits.getWriteBytes());
             assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+        } finally {
+            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), (String) null);
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        }
+    }
+
+    public void testWritesWillSucceedIfBelowThreshold() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        ensureGreen(INDEX_NAME);
+
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String replicaName = primaryReplicaNodeNames.v2();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
+        try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
+            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), "1MB");
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+
+            // The write limits is set to 1MB. We will send up to 800KB to stay below that threshold.
+            int thresholdToStopSending = 800 * 1024;
+
+            ArrayList<ActionFuture<IndexResponse>> responses = new ArrayList<>();
+            int totalRequestSize = 0;
+            while (totalRequestSize < thresholdToStopSending) {
+                IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                    .source(Collections.singletonMap("key", randomAlphaOfLength(500)));
+                totalRequestSize += request.ramBytesUsed();
+                responses.add(client(coordinatingOnlyNode).index(request));
+            }
+
+            replicaRelease.close();
+
+            // Would throw exception if one of the operations was rejected
+            responses.forEach(ActionFuture::actionGet);
         } finally {
             Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), (String) null);
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();

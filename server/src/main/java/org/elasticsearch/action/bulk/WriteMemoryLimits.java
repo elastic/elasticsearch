@@ -48,11 +48,11 @@ public class WriteMemoryLimits {
     }
 
     public Releasable markWriteOperationStarted(long bytes, boolean forceExecution) {
+        long currentWriteLimits = this.writeLimits;
         long writeBytes = this.writeBytes.addAndGet(bytes);
         long replicaWriteBytes = this.replicaWriteBytes.get();
         long totalBytes = writeBytes + replicaWriteBytes;
-        long localWriteLimits = this.writeLimits;
-        if (forceExecution == false && totalBytes > localWriteLimits) {
+        if (forceExecution == false && totalBytes > currentWriteLimits) {
             long bytesWithoutOperation = writeBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.writeBytes.getAndAdd(-bytes);
@@ -61,7 +61,7 @@ public class WriteMemoryLimits {
                 "replica_write_bytes=" + replicaWriteBytes + ", " +
                 "total_write_bytes=" + totalBytesWithoutOperation + ", " +
                 "current_operation_bytes=" + bytes + ", " +
-                "max_write_bytes=" + localWriteLimits + "]", false);
+                "max_write_bytes=" + currentWriteLimits + "]", false);
         }
         return () -> this.writeBytes.getAndAdd(-bytes);
     }
@@ -70,9 +70,18 @@ public class WriteMemoryLimits {
         return writeBytes.get();
     }
 
-    public Releasable markReplicaWriteStarted(long bytes) {
-        replicaWriteBytes.getAndAdd(bytes);
-        return () -> replicaWriteBytes.getAndAdd(-bytes);
+    public Releasable markReplicaWriteStarted(long bytes, boolean forceExecution) {
+        long currentWriteLimits = this.writeLimits;
+        long replicaWriteBytes = this.replicaWriteBytes.getAndAdd(bytes);
+        if (forceExecution == false && replicaWriteBytes > currentWriteLimits) {
+            long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
+            this.replicaWriteBytes.getAndAdd(-bytes);
+            throw new EsRejectedExecutionException("rejected execution of replica write operation [" +
+                "replica_write_bytes=" + replicaBytesWithoutOperation + ", " +
+                "current_replica_operation_bytes=" + bytes + ", " +
+                "max_replica_write_bytes=" + currentWriteLimits + "]", false);
+        }
+        return () -> this.replicaWriteBytes.getAndAdd(-bytes);
     }
 
     public long getReplicaWriteBytes() {

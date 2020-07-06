@@ -93,18 +93,6 @@ public final class BlobStoreTestUtil {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
-    private static final byte[] SINK = new byte[1024];
-
-    public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
-        try (InputStream input = container.readBlob(blobName)) {
-            // Drain input stream fully to avoid warnings from SDKs like S3 that don't like closing streams mid-way
-            while (input.read(SINK) >= 0);
-            return true;
-        } catch (NoSuchFileException e) {
-            return false;
-        }
-    }
-
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
      * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata

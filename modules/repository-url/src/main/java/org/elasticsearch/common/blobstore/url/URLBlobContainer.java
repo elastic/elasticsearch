@@ -73,6 +73,14 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
+    public boolean blobExists(String blobName) {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    /**
+     * This operation is not supported by URLBlobContainer
+     */
+    @Override
     public Map<String, BlobMetadata> listBlobs() throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }

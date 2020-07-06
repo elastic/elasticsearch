@@ -123,6 +123,8 @@ The following parameters are accepted by `geo_point` fields:
 
     If `true`, malformed geo-points are ignored. If `false` (default),
     malformed geo-points throw an exception and reject the whole document.
+    A geo-point is considered malformed if its latitude is outside the range 
+    -90 <= latitude <= 90, or if its longitude is outside the range -180 <= longitude <= 180.
 
 `ignore_z_value`::
 

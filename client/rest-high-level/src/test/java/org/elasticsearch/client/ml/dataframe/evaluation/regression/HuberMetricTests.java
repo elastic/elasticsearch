@@ -25,29 +25,25 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class PseudoHuberMetricResultTests extends AbstractXContentTestCase<PseudoHuberMetric.Result> {
+public class HuberMetricTests extends AbstractXContentTestCase<HuberMetric> {
 
-    public static PseudoHuberMetric.Result randomResult() {
-        return new PseudoHuberMetric.Result(randomDouble());
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
     @Override
-    protected PseudoHuberMetric.Result createTestInstance() {
-        return randomResult();
+    protected HuberMetric createTestInstance() {
+        return new HuberMetric(randomBoolean() ? randomDouble() : null);
     }
 
     @Override
-    protected PseudoHuberMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return PseudoHuberMetric.Result.fromXContent(parser);
+    protected HuberMetric doParseInstance(XContentParser parser) throws IOException {
+        return HuberMetric.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 }

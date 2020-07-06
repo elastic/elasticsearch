@@ -903,30 +903,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Creates a shard for the specified shard routing and starts recovery.
          *
          * @param shardRouting           the shard routing
-         * @param recoveryState          the recovery state
-         * @param recoveryTargetService  recovery service for the target
-         * @param recoveryListener       a callback when recovery changes state (finishes or fails)
-         * @param repositoriesService    service responsible for snapshot/restore
-         * @param onShardFailure         a callback when this shard fails
-         * @param globalCheckpointSyncer a callback when this shard syncs the global checkpoint
-         * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
-         * @return a new shard
-         * @throws IOException if an I/O exception occurs when creating the shard
-         */
-        T createShard(
-                ShardRouting shardRouting,
-                RecoveryState recoveryState,
-                PeerRecoveryTargetService recoveryTargetService,
-                PeerRecoveryTargetService.RecoveryListener recoveryListener,
-                RepositoriesService repositoriesService,
-                Consumer<IndexShard.ShardFailure> onShardFailure,
-                Consumer<ShardId> globalCheckpointSyncer,
-                RetentionLeaseSyncer retentionLeaseSyncer) throws IOException;
-
-        /**
-         * Creates a shard for the specified shard routing and starts recovery.
-         *
-         * @param shardRouting           the shard routing
          * @param recoveryTargetService  recovery service for the target
          * @param recoveryListener       a callback when recovery changes state (finishes or fails)
          * @param repositoriesService    service responsible for snapshot/restore

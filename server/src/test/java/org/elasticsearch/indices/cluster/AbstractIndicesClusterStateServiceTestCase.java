@@ -239,29 +239,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 final RetentionLeaseSyncer retentionLeaseSyncer,
                 final DiscoveryNode targetNode,
                 final DiscoveryNode sourceNode) throws IOException {
-            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
-
-            return createShard(shardRouting,
-                recoveryState,
-                recoveryTargetService,
-                recoveryListener,
-                repositoriesService,
-                onShardFailure,
-                globalCheckpointSyncer,
-                retentionLeaseSyncer);
-        }
-
-        @Override
-        public MockIndexShard createShard(
-                final ShardRouting shardRouting,
-                final RecoveryState recoveryState,
-                final PeerRecoveryTargetService recoveryTargetService,
-                final PeerRecoveryTargetService.RecoveryListener recoveryListener,
-                final RepositoriesService repositoriesService,
-                final Consumer<IndexShard.ShardFailure> onShardFailure,
-                final Consumer<ShardId> globalCheckpointSyncer,
-                final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
             failRandomly();
+            RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
             indexShard.recoveryState = recoveryState;

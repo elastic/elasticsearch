@@ -756,32 +756,11 @@ public class IndicesService extends AbstractLifecycleComponent
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode) throws IOException {
-        IndexService indexService = indexService(shardRouting.index());
-        RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-
-        return createShard(shardRouting,
-            recoveryState,
-            recoveryTargetService,
-            recoveryListener,
-            repositoriesService,
-            onShardFailure,
-            globalCheckpointSyncer,
-            retentionLeaseSyncer);
-    }
-
-    @Override
-    public IndexShard createShard(
-            final ShardRouting shardRouting,
-            final RecoveryState recoveryState,
-            final PeerRecoveryTargetService recoveryTargetService,
-            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
-            final RepositoriesService repositoriesService,
-            final Consumer<IndexShard.ShardFailure> onShardFailure,
-            final Consumer<ShardId> globalCheckpointSyncer,
-            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
+        assert indexService != null;
+        RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,

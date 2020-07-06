@@ -60,14 +60,12 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -103,7 +101,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-slow");
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
@@ -127,7 +125,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         createIndex("foo");
         ensureGreen();
@@ -192,8 +190,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
         final String blockedRepoName = "test-repo-blocked";
         final String otherRepoName = "test-repo";
-        createRepository(blockedRepoName, "mock", randomRepoPath());
-        createRepository(otherRepoName, "fs", randomRepoPath());
+        createRepository(blockedRepoName, "mock");
+        createRepository(otherRepoName, "fs");
         createIndex("foo");
         ensureGreen();
         createIndexWithContent("index-slow");
@@ -218,8 +216,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = startDataNodeWithLargeSnapshotPool();
         final String blockedRepoName = "test-repo-blocked";
         final String otherRepoName = "test-repo";
-        createRepository(blockedRepoName, "mock", randomRepoPath());
-        createRepository(otherRepoName, "fs", randomRepoPath());
+        createRepository(blockedRepoName, "mock");
+        createRepository(otherRepoName, "fs");
         createIndexWithContent("test-index");
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
@@ -239,8 +237,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = startDataNodeWithLargeSnapshotPool();
         final String blockedRepoName = "test-repo-blocked";
         final String otherRepoName = "test-repo";
-        createRepository(blockedRepoName, "mock", randomRepoPath());
-        createRepository(otherRepoName, "fs", randomRepoPath());
+        createRepository(blockedRepoName, "mock");
+        createRepository(otherRepoName, "fs");
         createIndexWithContent("test-index");
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture =
@@ -259,8 +257,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
         final String blockedRepoName = "test-repo-blocked";
         final String otherRepoName = "test-repo";
-        createRepository(blockedRepoName, "mock", randomRepoPath());
-        createRepository(otherRepoName, "fs", randomRepoPath());
+        createRepository(blockedRepoName, "mock");
+        createRepository(otherRepoName, "fs");
         createIndexWithContent("test-index");
 
         createFullSnapshot( blockedRepoName, "blocked-snapshot");
@@ -282,7 +280,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         ensureGreen();
         createIndexWithContent("index-test");
@@ -307,7 +305,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         final String firstIndex = "index-one";
         createIndexWithContent(firstIndex);
 
@@ -356,7 +354,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-one");
 
         final String firstSnapshot = "snapshot-one";
@@ -415,7 +413,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         final String firstIndex = "index-one";
         createIndexWithContent(firstIndex);
@@ -494,7 +492,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         final String testIndex = "index-one";
         createIndex(testIndex, Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
@@ -522,7 +520,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
@@ -551,7 +549,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
@@ -577,7 +575,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNodes(3);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
@@ -598,12 +596,13 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
         final String masterNode = internalCluster().getMasterName();
-        NetworkDisruption networkDisruption = disconnectMasterDisruption();
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
 
         blockNodeOnAnyFiles(repoName, masterNode);
         ActionFuture<AcknowledgedResponse> firstDeleteFuture = client(masterNode).admin().cluster()
@@ -635,12 +634,13 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(2, 5));
 
         final String masterNode = internalCluster().getMasterName();
-        NetworkDisruption networkDisruption = disconnectMasterDisruption();
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
 
         blockMasterFromFinalizingSnapshotOnIndexFile(repoName);
         final ActionFuture<CreateSnapshotResponse> firstFailedSnapshotFuture =
@@ -746,7 +746,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotFour = startFullSnapshotFromNonMasterClient(repoName, "snapshot-four");
         awaitNSnapshotsInProgress(2);
 
-        final NetworkDisruption networkDisruption = disconnectMasterDisruption();
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         ensureStableCluster(3, dataNode);
         unblockNode(repoName, masterNode);
@@ -770,7 +771,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().getMasterName();
 
         final String blockedRepoName = "repo-blocked";
-        createRepository(blockedRepoName, "mock", randomRepoPath());
+        createRepository(blockedRepoName, "mock");
         createNSnapshots(blockedRepoName, randomIntBetween(1, 5));
         blockNodeOnAnyFiles(blockedRepoName, masterNode);
         final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteFromNonMasterClient(blockedRepoName, "*");
@@ -800,7 +801,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(1, 5));
 
@@ -819,13 +820,11 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         final String repoName = "test-repo";
-        createRepository(repoName, "fs", randomRepoPath());
+        createRepository(repoName, "fs");
 
         final String testIndex = "test-idx";
         // Create index on two nodes and make sure each node has a primary by setting no replicas
-        assertAcked(prepareCreate(testIndex, 2, Settings.builder()
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(SETTING_NUMBER_OF_SHARDS, between(2, 10))));
+        assertAcked(prepareCreate(testIndex, 2, indexSettingsNoReplicas(between(2, 10))));
 
         ensureGreen(testIndex);
 
@@ -866,7 +865,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-test");
         final List<String> snapshots = createNSnapshots(repoName, 2);
         final String snapshotOne = snapshots.get(0);
@@ -890,7 +889,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNodes(3);
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-test");
 
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(2, 5));
@@ -913,7 +912,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-test");
         createNSnapshots(repoName, randomIntBetween(1, 5));
         final String snapshotName = "snap-name";
@@ -931,7 +930,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-test");
         createNSnapshots(repoName, randomIntBetween(1, 5));
 
@@ -957,9 +956,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-test");
-        final NetworkDisruption networkDisruption = disconnectMasterDisruption();
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
 
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(2, 5));
         final String masterName = internalCluster().getMasterName();
@@ -993,8 +993,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = startDataNodeWithLargeSnapshotPool();
         final String blockedRepoName = "test-repo-blocked-1";
         final String otherBlockedRepoName = "test-repo-blocked-2";
-        createRepository(blockedRepoName, "mock", randomRepoPath());
-        createRepository(otherBlockedRepoName, "mock", randomRepoPath());
+        createRepository(blockedRepoName, "mock");
+        createRepository(otherBlockedRepoName, "mock");
         createIndexWithContent("test-index");
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture1 =
@@ -1028,8 +1028,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = startDataNodeWithLargeSnapshotPool();
         final String blockedRepoName = "test-repo-blocked-1";
         final String otherBlockedRepoName = "test-repo-blocked-2";
-        createRepository(blockedRepoName, "mock", randomRepoPath());
-        createRepository(otherBlockedRepoName, "mock", randomRepoPath());
+        createRepository(blockedRepoName, "mock");
+        createRepository(otherBlockedRepoName, "mock");
         createIndexWithContent("test-index");
 
         final ActionFuture<CreateSnapshotResponse> createSlowFuture1 =
@@ -1056,7 +1056,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String otherRepoName = "other-test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "mock", repoPath);
-        createRepository(otherRepoName, "mock", randomRepoPath());
+        createRepository(otherRepoName, "mock");
         createIndexWithContent("index-one");
         createNSnapshots(repoName, randomIntBetween(2, 5));
         final int countOtherRepo = randomIntBetween(2, 5);
@@ -1089,7 +1089,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String masterName = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
         createIndexWithContent("index-test");
 
         final int limitToTest = randomIntBetween(1, 3);
@@ -1220,15 +1220,14 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private static final Settings LARGE_SNAPSHOT_POOL_SETTINGS = Settings.builder()
         .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
 
-    private static final Settings SINGLE_SHARD_NO_REPLICA =
-            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();
+    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
 
     private void createIndexWithContent(String indexName) {
         createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
     }
 
     private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {
-        createIndexWithContent(indexName, Settings.builder().put(SINGLE_SHARD_NO_REPLICA)
+        createIndexWithContent(indexName, indexSettingsNoReplicas(1)
                 .put("index.routing.allocation.include._name", nodeInclude)
                 .put("index.routing.allocation.exclude._name", nodeExclude).build());
     }
@@ -1306,17 +1305,5 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> fut = startFullSnapshot(repoName, snapshotName);
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
         return fut;
-    }
-
-    private static NetworkDisruption disconnectMasterDisruption() {
-        final String masterNode = internalCluster().getMasterName();
-        NetworkDisruption networkDisruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(
-                        Collections.singleton(masterNode),
-                        Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
-                                .collect(Collectors.toSet())),
-                new NetworkDisruption.NetworkDisconnect());
-        internalCluster().setDisruptionScheme(networkDisruption);
-        return networkDisruption;
     }
 }

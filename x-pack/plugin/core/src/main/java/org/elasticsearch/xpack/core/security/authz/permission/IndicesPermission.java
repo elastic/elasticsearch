@@ -10,6 +10,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -299,7 +300,7 @@ public final class IndicesPermission {
     }
 
     private static boolean authorizeMappingUpdateBwcSpecialCase(Group group, String action) {
-        return action.equals(PutMappingAction.NAME) ||
+        return (action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME)) &&
                 (group.privilege().name().containsAll(IndexPrivilege.CREATE_DOC.name()) ||
                         group.privilege().name().containsAll(IndexPrivilege.CREATE.name()) ||
                         group.privilege().name().containsAll(IndexPrivilege.INDEX.name()) ||

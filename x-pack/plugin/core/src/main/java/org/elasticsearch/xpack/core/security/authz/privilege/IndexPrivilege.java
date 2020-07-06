@@ -48,12 +48,11 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns("internal:transport/proxy/indices:data/read/*",
             ClusterSearchShardsAction.NAME);
-    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
-            AutoPutMappingAction.NAME);
+    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
     private static final Automaton CREATE_DOC_AUTOMATON = patterns("indices:data/write/index", "indices:data/write/index[*",
-        "indices:data/write/index:op_type/create", "indices:data/write/bulk*", AutoPutMappingAction.NAME);
+        "indices:data/write/index:op_type/create", "indices:data/write/bulk*");
     private static final Automaton INDEX_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
-        "indices:data/write/update*", AutoPutMappingAction.NAME);
+        "indices:data/write/update*");
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");

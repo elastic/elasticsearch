@@ -32,7 +32,6 @@ import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.SecurityTestsUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
@@ -91,6 +90,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
+import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1046,7 +1046,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        final Authentication authentication = SecurityTestsUtils.createApiKeyAuthentication(apiKeyService, createAuthentication(),
+        final Authentication authentication = createApiKeyAuthentication(apiKeyService, createAuthentication(),
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)), null);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -1091,7 +1091,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
 
-        final Authentication authentication = SecurityTestsUtils.createApiKeyAuthentication(apiKeyService, createAuthentication(),
+        final Authentication authentication = createApiKeyAuthentication(apiKeyService, createAuthentication(),
                 Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
                 Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[]{"monitor"}, null, null)));
 

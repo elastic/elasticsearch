@@ -230,9 +230,9 @@ public class ApiKeyService {
     }
 
     /**
-     * public for testing
+     * package-private for testing
      */
-    public XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
+    XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
                                         Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
                                         Version version) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -505,8 +505,8 @@ public class ApiKeyService {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
     }
 
-    // public for testing
-    public void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+    // package-private for testing
+    void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
                                   ActionListener<AuthenticationResult> listener) {
         final Long expirationEpochMilli = (Long) source.get("expiration_time");
         if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {

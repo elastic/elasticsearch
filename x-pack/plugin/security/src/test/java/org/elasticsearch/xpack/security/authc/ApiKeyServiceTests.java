@@ -58,7 +58,9 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -600,6 +602,21 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Authentication authentication = new Authentication(
             new User("user"), authenticatedBy, lookedUpBy);
         assertEquals("looked_up_by_type", ApiKeyService.getCreatorRealmType(authentication));
+    }
+
+    public static class Utils {
+
+        public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication authentication,
+                                                                Set<RoleDescriptor> userRoles, List<RoleDescriptor> keyRoles) throws Exception {
+            XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", authentication,
+                    userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
+            Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();
+            PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
+            apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id",
+                            new SecureString("pass".toCharArray())),
+                    Clock.systemUTC(), authenticationResultFuture);
+            return apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
+        }
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings) {

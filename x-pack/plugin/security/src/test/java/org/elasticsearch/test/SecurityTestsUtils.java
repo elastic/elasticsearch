@@ -7,27 +7,9 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.hamcrest.Matcher;
-
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.apache.lucene.util.LuceneTestCase.expectThrows;
 import static org.elasticsearch.xpack.core.security.test.SecurityAssertions.assertContainsWWWAuthenticateHeader;
@@ -81,17 +63,6 @@ public class SecurityTestsUtils {
                                                            Matcher<String> messageMatcher) {
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, throwingRunnable);
         assertAuthorizationException(securityException, messageMatcher);
-    }
-
-    public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService, Authentication authentication,
-                                                            Set<RoleDescriptor> userRoles, List<RoleDescriptor> keyRoles) throws Exception {
-        XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", authentication,
-                userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
-        Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();
-        PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
-        apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id", new SecureString("pass".toCharArray())),
-                Clock.systemUTC(), authenticationResultFuture);
-        return apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
     }
 
     private static void assertAuthorizationException(Throwable throwable, Matcher<String> messageMatcher) {

@@ -259,6 +259,7 @@ copyModule(processSystemdOutputs, project(':modules:systemd'))
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'elasticsearch.jdk-download'
+  apply plugin: 'elasticsearch.repositories'
 
   // Setup all required JDKs
   project.jdks {
@@ -278,6 +279,35 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
+  configurations {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+      create(it) {
+        canBeConsumed = false
+        canBeResolved = true
+        attributes {
+          attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+          attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+          attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+
+        }
+      }
+    }
+  }
+
+  repositories {
+
+  }
+  dependencies {
+    libs project(':server')
+    libs project(path: ':libs:elasticsearch-plugin-classloader', configuration: 'archives')
+    libs project(path: ':distribution:tools:java-version-checker', configuration: 'archives')
+    libs project(path: ':distribution:tools:launchers', configuration: 'archives')
+
+    libsPluginCli project(':distribution:tools:plugin-cli')
+    libsKeystoreCli project(path: ':distribution:tools:keystore-cli', configuration: 'archives')
+    libsSecurityCli project(':x-pack:plugin:security:cli')
+  }
+
   project.ext {
 
     /*****************************************************************************
@@ -286,22 +316,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libFiles = { oss ->
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
-        from { project(':server').jar }
-        from { project(':server').configurations.runtimeClasspath }
-        from { project(':libs:elasticsearch-plugin-classloader').jar }
-        from { project(':distribution:tools:java-version-checker').jar }
-        from { project(':distribution:tools:launchers').jar }
+        from(configurations.libs)
         into('tools/plugin-cli') {
-          from { project(':distribution:tools:plugin-cli').jar }
-          from { project(':distribution:tools:plugin-cli').configurations.runtimeClasspath }
+          from(configurations.libsPluginCli)
         }
         into('tools/keystore-cli') {
-          from { project(':distribution:tools:keystore-cli').jar }
+          from(configurations.libsKeystoreCli)
         }
         if (oss == false) {
           into('tools/security-cli') {
-            from { project(':x-pack:plugin:security:cli').jar }
-            from { project(':x-pack:plugin:security:cli').configurations.runtimeClasspath }
+            from(configurations.libsSecurityCli)
           }
         }
       }
@@ -499,62 +523,62 @@ subprojects {
     String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
     Map<String, Object> expansions = [
-      'project.name': project.name,
-      'project.version': version,
+      'project.name'          : project.name,
+      'project.version'       : version,
 
-      'path.conf': [
+      'path.conf'             : [
         'deb': '/etc/elasticsearch',
         'rpm': '/etc/elasticsearch',
         'def': '"$ES_HOME"/config'
       ],
-      'path.data': [
+      'path.data'             : [
         'deb': packagingPathData,
         'rpm': packagingPathData,
         'def': '#path.data: /path/to/data'
       ],
-      'path.env': [
+      'path.env'              : [
         'deb': '/etc/default/elasticsearch',
         'rpm': '/etc/sysconfig/elasticsearch',
         /* There isn't one of these files for tar or zip but its important to
           make an empty string here so the script can properly skip it. */
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
       ],
-      'source.path.env': [
+      'source.path.env'       : [
         'deb': 'source /etc/default/elasticsearch',
         'rpm': 'source /etc/sysconfig/elasticsearch',
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
       ],
-      'path.logs': [
+      'path.logs'             : [
         'deb': packagingPathLogs,
         'rpm': packagingPathLogs,
         'def': '#path.logs: /path/to/logs'
       ],
-      'loggc': [
+      'loggc'                 : [
         'deb': packagingLoggc,
         'rpm': packagingLoggc,
         'def': 'logs/gc.log'
       ],
 
-      'heap.min': defaultHeapSize,
-      'heap.max': defaultHeapSize,
+      'heap.min'              : defaultHeapSize,
+      'heap.max'              : defaultHeapSize,
 
-      'heap.dump.path': [
+      'heap.dump.path'        : [
         'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
         'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
         'def': "-XX:HeapDumpPath=data"
       ],
 
-      'error.file': [
+      'error.file'            : [
         'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
         'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
-      'stopping.timeout': [
+      'stopping.timeout'      : [
         'rpm': 86400,
       ],
 
-      'scripts.footer': [
+      'scripts.footer'        : [
         /* Debian needs exit 0 on these scripts so we add it here and preserve
           the pretty footer. */
         'deb': "exit 0\n${footer}",
@@ -565,22 +589,22 @@ subprojects {
         'def': oss ? 'oss' : 'default'
       ],
 
-      'es.distribution.type': [
+      'es.distribution.type'  : [
         'deb': 'deb',
         'rpm': 'rpm',
         'tar': 'tar',
         'zip': 'zip'
       ],
 
-      'es.bundled_jdk': [
+      'es.bundled_jdk'        : [
         'def': jdk ? 'true' : 'false'
       ],
 
-      'license.name': [
+      'license.name'          : [
         'deb': oss ? 'ASL-2.0' : 'Elastic-License'
       ],
 
-      'license.text': [
+      'license.text'          : [
         'deb': licenseText,
       ],
     ]
@@ -612,14 +636,14 @@ subprojects {
 }
 
 ['archives:windows-zip', 'archives:oss-windows-zip',
-  'archives:darwin-tar', 'archives:oss-darwin-tar',
-  'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
-  'archives:linux-tar', 'archives:oss-linux-tar',
-  'archives:integ-test-zip',
-  'packages:rpm', 'packages:deb',
-  'packages:aarch64-rpm', 'packages:aarch64-deb',
-  'packages:oss-rpm', 'packages:oss-deb',
-  'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
+ 'archives:darwin-tar', 'archives:oss-darwin-tar',
+ 'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
+ 'archives:linux-tar', 'archives:oss-linux-tar',
+ 'archives:integ-test-zip',
+ 'packages:rpm', 'packages:deb',
+ 'packages:aarch64-rpm', 'packages:aarch64-deb',
+ 'packages:oss-rpm', 'packages:oss-deb',
+ 'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

@@ -514,7 +514,8 @@ public class MetadataCreateIndexService {
                                                               final boolean createDataStream) throws Exception {
         List<Map<String, Object>> result = new ArrayList<>();
 
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, createDataStream);
+        List<CompressedXContent> templateMappings =
+            MetadataIndexTemplateService.collectMappings(currentState, templateName, createDataStream);
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
             result.add(parsedTemplateMapping);

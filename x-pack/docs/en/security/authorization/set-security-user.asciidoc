@@ -12,7 +12,7 @@ role query for document level security. This is a situation where the
 <<ingest-node-set-security-user-processor,set security user processor>> ingest processor can help.
 
 NOTE: Document level security doesn't apply to write APIs. You must use unique
-ids for each user that uses the same index, otherwise they might overwrite other
+ids for each user that uses the same data stream or index, otherwise they might overwrite other
 users' documents. The ingest processor just adds properties for the current
 authenticated user to the documents that are being indexed.
 

@@ -48,8 +48,8 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRetryPostingSnapshotStatusMessages() throws Exception {
-        String masterNode = internalCluster().startMasterOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
 
         createRepository("test-repo", "mock");
 
@@ -70,8 +70,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             .get().getSnapshots("test-repo").get(0).snapshotId();
 
         logger.info("--> start disrupting cluster");
-        final NetworkDisruption networkDisruption = new NetworkDisruption(new NetworkDisruption.TwoPartitions(masterNode, dataNode),
-            NetworkDisruption.NetworkDelay.random(random()));
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.NetworkDelay.random(random()));
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 

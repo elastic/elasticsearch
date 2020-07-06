@@ -33,6 +33,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -72,7 +73,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         Aggregator parent,
         SubAggCollectionMode subAggCollectMode,
         IncludeExclude.LongFilter longFilter,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     )
         throws IOException {
@@ -80,7 +81,7 @@ public class NumericTermsAggregator extends TermsAggregator {
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
         this.valuesSource = valuesSource;
         this.longFilter = longFilter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override
@@ -476,9 +477,9 @@ public class NumericTermsAggregator extends TermsAggregator {
         SignificantLongTermsResults(
             SignificanceLookup significanceLookup,
             SignificanceHeuristic significanceHeuristic,
-            boolean collectsFromSingleBucket
+            CardinalityUpperBound cardinality
         ) {
-            backgroundFrequencies = significanceLookup.longLookup(context.bigArrays(), collectsFromSingleBucket);
+            backgroundFrequencies = significanceLookup.longLookup(context.bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
             subsetSizes = context.bigArrays().newLongArray(1, true);

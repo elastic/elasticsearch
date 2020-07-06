@@ -330,12 +330,6 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
 
   group = "org.elasticsearch.distribution.integ-test-zip"
 
-  restResources {
-    restTests {
-      includeCore '*'
-    }
-  }
-
   integTest {
     dependsOn assemble
   }

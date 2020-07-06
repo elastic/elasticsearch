@@ -26,6 +26,7 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -41,6 +42,8 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -54,7 +57,7 @@ public class CopyRestApiTask extends DefaultTask {
     private static final String REST_API_PREFIX = "rest-api-spec/api";
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
-
+    String sourceSetName;
     Configuration coreConfig;
     Configuration xpackConfig;
 
@@ -79,6 +82,11 @@ public class CopyRestApiTask extends DefaultTask {
     @Input
     public ListProperty<String> getIncludeXpack() {
         return includeXpack;
+    }
+
+    @Input
+    String getSourceSetName() {
+        return sourceSetName;
     }
 
     @SkipWhenEmpty
@@ -109,7 +117,12 @@ public class CopyRestApiTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_API_PREFIX);
+        return new File(
+            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+                .getOutput()
+                .getResourcesDir(),
+            REST_API_PREFIX
+        );
     }
 
     @TaskAction
@@ -131,7 +144,8 @@ public class CopyRestApiTask extends DefaultTask {
             );
             project.copy(c -> {
                 c.from(project.zipTree(coreConfig.getSingleFile()));
-                c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
+                // this ends up as the same dir as outputDir
+                c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                 if (includeCore.get().isEmpty()) {
                     c.include(REST_API_PREFIX + "/**");
                 } else {
@@ -178,31 +192,33 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     private File getTestSourceResourceDir() {
-        SourceSet testSources = getTestSourceSet();
-        if (testSources == null) {
+        Optional<SourceSet> testSourceSet = getSourceSet();
+        if (testSourceSet.isPresent()) {
+            SourceSet testSources = testSourceSet.get();
+            Set<File> resourceDir = testSources.getResources()
+                .getSrcDirs()
+                .stream()
+                .filter(f -> f.isDirectory() && f.getParentFile().getName().equals("test") && f.getName().equals("resources"))
+                .collect(Collectors.toSet());
+            assert resourceDir.size() <= 1;
+            if (resourceDir.size() == 0) {
+                return null;
+            }
+            return resourceDir.iterator().next();
+        } else {
             return null;
         }
-        Set<File> resourceDir = testSources.getResources()
-            .getSrcDirs()
-            .stream()
-            .filter(f -> f.isDirectory() && f.getParentFile().getName().equals("test") && f.getName().equals("resources"))
-            .collect(Collectors.toSet());
-        assert resourceDir.size() <= 1;
-        if (resourceDir.size() == 0) {
-            return null;
-        }
-        return resourceDir.iterator().next();
     }
 
     private File getTestOutputResourceDir() {
-        SourceSet testSources = getTestSourceSet();
-        if (testSources == null) {
-            return null;
-        }
-        return testSources.getOutput().getResourcesDir();
+        Optional<SourceSet> testSourceSet = getSourceSet();
+        return testSourceSet.map(sourceSet -> sourceSet.getOutput().getResourcesDir()).orElse(null);
     }
 
-    private SourceSet getTestSourceSet() {
-        return GradleUtils.getJavaSourceSets(getProject()).findByName("test");
+    private Optional<SourceSet> getSourceSet() {
+        Project project = getProject();
+        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+            ? Optional.empty()
+            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
     }
 }

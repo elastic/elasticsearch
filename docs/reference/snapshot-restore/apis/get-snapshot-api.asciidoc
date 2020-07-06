@@ -83,7 +83,7 @@ The following request returns information for `snapshot_2` in the `my_repository
 
 [source,console]
 ----
-GET _snapshot/my_repository/snapshot_2
+GET /_snapshot/my_repository/snapshot_2
 ----
 
 The API returns the following response:

@@ -125,6 +125,15 @@ public final class SecurityMocks {
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
     }
 
+    public static void mockGetRequestException(Client client, Exception e) {
+        when(client.prepareGet(anyString(), anyString(), anyString())).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
+        doAnswer(inv -> {
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) inv.getArguments()[1];
+            listener.onFailure(e);
+            return null;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+    }
+
     public static void mockIndexRequest(Client client, String indexAliasName, Consumer<IndexRequest> consumer) {
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();

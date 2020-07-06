@@ -59,7 +59,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private final String targetFieldName;
         private final Set<String> changedTerms;
 
-        public TermsFieldCollector(final String sourceFieldName, final String targetFieldName) {
+        TermsFieldCollector(final String sourceFieldName, final String targetFieldName) {
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
             this.changedTerms = new HashSet<>();
@@ -105,7 +105,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private final boolean isSynchronizationField;
         private final Rounding.Prepared rounding;
 
-        public DateHistogramFieldCollector(
+        DateHistogramFieldCollector(
             final String sourceFieldName,
             final String targetFieldName,
             final Rounding.Prepared rounding,
@@ -149,7 +149,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private final String sourceFieldName;
         private final String targetFieldName;
 
-        public HistogramFieldCollector(final String sourceFieldName, final String targetFieldName) {
+        HistogramFieldCollector(final String sourceFieldName, final String targetFieldName) {
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
         }
@@ -179,7 +179,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         private final String targetFieldName;
         private final Set<String> changedBuckets;
 
-        public GeoTileFieldCollector(final String sourceFieldName, final String targetFieldName) {
+        GeoTileFieldCollector(final String sourceFieldName, final String targetFieldName) {
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
             this.changedBuckets = new HashSet<>();

@@ -188,7 +188,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(null, new AsyncRecoveryTarget(target, recoveryExecutor),
-            threadPool, request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 5));
+            threadPool, request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 5), between(1, 5));
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
         handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
         sendFilesFuture.actionGet();
@@ -249,7 +249,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
-            threadPool, request, fileChunkSizeInBytes, between(1, 10));
+            threadPool, request, fileChunkSizeInBytes, between(1, 10), between(1, 10));
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(operations, Collections.emptyList()),
             randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
@@ -289,7 +289,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
-            threadPool, request, fileChunkSizeInBytes, between(1, 10));
+            threadPool, request, fileChunkSizeInBytes, between(1, 10), between(1, 10));
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         final long startingSeqNo = randomLongBetween(0, ops.size() - 1L);
         final long endingSeqNo = randomLongBetween(startingSeqNo, ops.size() - 1L);
@@ -343,7 +343,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         List<Translog.Operation> skipOperations = randomSubsetOf(operations);
         Translog.Snapshot snapshot = newTranslogSnapshot(operations, skipOperations);
         RecoverySourceHandler handler = new RecoverySourceHandler(shard, new AsyncRecoveryTarget(target, recoveryExecutor),
-            threadPool, getStartRecoveryRequest(), between(1, 10 * 1024), between(1, 5));
+            threadPool, getStartRecoveryRequest(), between(1, 10 * 1024), between(1, 5), between(1, 5));
         handler.phase2(startingSeqNo, endingSeqNo, snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases,
             mappingVersion, sendFuture);
         RecoverySourceHandler.SendSnapshotResult sendSnapshotResult = sendFuture.actionGet();
@@ -418,7 +418,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(null, new AsyncRecoveryTarget(target, recoveryExecutor), threadPool,
-            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8)) {
+            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 8), between(1, 8)) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -475,7 +475,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
         };
         RecoverySourceHandler handler = new RecoverySourceHandler(null, new AsyncRecoveryTarget(target, recoveryExecutor), threadPool,
-            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 10)) {
+            request, Math.toIntExact(recoverySettings.getChunkSize().getBytes()), between(1, 10), between(1, 4)) {
             @Override
             protected void failEngine(IOException cause) {
                 assertFalse(failedEngine.get());
@@ -529,7 +529,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 threadPool,
                 request,
                 Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
-                between(1, 8)) {
+                between(1, 8), between(1, 8)) {
 
             @Override
             void phase1(IndexCommit snapshot, long startingSeqNo, IntSupplier translogOps, ActionListener<SendFileResult> listener) {
@@ -606,7 +606,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int maxConcurrentChunks = between(1, 8);
         final int chunkSize = between(1, 32);
         final RecoverySourceHandler handler = new RecoverySourceHandler(shard, recoveryTarget, threadPool, getStartRecoveryRequest(),
-            chunkSize, maxConcurrentChunks);
+            chunkSize, maxConcurrentChunks, between(1, 10));
         Store store = newStore(createTempDir(), false);
         List<StoreFileMetadata> files = generateFiles(store, between(1, 10), () -> between(1, chunkSize * 20));
         int totalChunks = files.stream().mapToInt(md -> ((int) md.length() + chunkSize - 1) / chunkSize).sum();
@@ -664,7 +664,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final int maxConcurrentChunks = between(1, 4);
         final int chunkSize = between(1, 16);
         final RecoverySourceHandler handler = new RecoverySourceHandler(null, new AsyncRecoveryTarget(recoveryTarget, recoveryExecutor),
-            threadPool, getStartRecoveryRequest(), chunkSize, maxConcurrentChunks);
+            threadPool, getStartRecoveryRequest(), chunkSize, maxConcurrentChunks, between(1, 5));
         Store store = newStore(createTempDir(), false);
         List<StoreFileMetadata> files = generateFiles(store, between(1, 10), () -> between(1, chunkSize * 20));
         int totalChunks = files.stream().mapToInt(md -> ((int) md.length() + chunkSize - 1) / chunkSize).sum();
@@ -745,7 +745,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         };
         final StartRecoveryRequest startRecoveryRequest = getStartRecoveryRequest();
         final RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard, recoveryTarget, threadPool, startRecoveryRequest, between(1, 16), between(1, 4)) {
+            shard, recoveryTarget, threadPool, startRecoveryRequest, between(1, 16), between(1, 4), between(1, 4)) {
             @Override
             void createRetentionLease(long startingSeqNo, ActionListener<RetentionLease> listener) {
                 final String leaseId = ReplicationTracker.getPeerRecoveryRetentionLeaseId(startRecoveryRequest.targetNode().getId());
@@ -774,7 +774,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
         RecoverySourceHandler handler = new RecoverySourceHandler(
-            shard, new TestRecoveryTargetHandler(), threadPool, getStartRecoveryRequest(), between(1, 16), between(1, 4));
+            shard, new TestRecoveryTargetHandler(), threadPool, getStartRecoveryRequest(), between(1, 16), between(1, 4), between(1, 4));
 
         String syncId = UUIDs.randomBase64UUID();
         int numDocs = between(0, 1000);

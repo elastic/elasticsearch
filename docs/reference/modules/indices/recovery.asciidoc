@@ -48,3 +48,11 @@ sent in parallel for each recovery. Defaults to `2`.
 +
 You can increase the value of this setting when the recovery of a single shard
 is not reaching the traffic limit set by `indices.recovery.max_bytes_per_sec`.
+
+`indices.recovery.max_concurrent_operation_chunks`::
+(<<cluster-update-settings,Dynamic>>, Expert) Number of operation chunk requests
+sent in parallel for each recovery. Defaults to `1`.
++
+Increasing the value of this setting with care as it can cause recoveries to consume
+more and compete for CPU with indexing and search activities.
+

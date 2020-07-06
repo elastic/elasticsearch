@@ -113,13 +113,15 @@ public class RecoverySourceHandler {
     private final int chunkSizeInBytes;
     private final RecoveryTargetHandler recoveryTarget;
     private final int maxConcurrentFileChunks;
+    private final int maxConcurrentOperationChunks;
     private final ThreadPool threadPool;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
 
     public RecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, ThreadPool threadPool,
-                                 StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks) {
+                                 StartRecoveryRequest request, int fileChunkSizeInBytes, int maxConcurrentFileChunks,
+                                 int maxConcurrentOperationChunks) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.threadPool = threadPool;
@@ -128,6 +130,7 @@ public class RecoverySourceHandler {
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
+        this.maxConcurrentOperationChunks = maxConcurrentOperationChunks;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -706,7 +709,7 @@ public class RecoverySourceHandler {
         OperationBatchSender(long startingSeqNo, long endingSeqNo, Translog.Snapshot snapshot, long maxSeenAutoIdTimestamp,
                              long maxSeqNoOfUpdatesOrDeletes, RetentionLeases retentionLeases, long mappingVersion,
                              ActionListener<Void> listener) {
-            super(logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, List.of(snapshot));
+            super(logger, threadPool.getThreadContext(), listener, maxConcurrentOperationChunks, List.of(snapshot));
             this.startingSeqNo = startingSeqNo;
             this.endingSeqNo = endingSeqNo;
             this.snapshot = snapshot;

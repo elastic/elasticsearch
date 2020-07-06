@@ -123,7 +123,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     }
 
     private final String[] keys;
-    private Weight[] filters;
+    private final Weight[] filters;
     private final int totalNumKeys;
     private final int totalNumIntersections;
     private final String separator;

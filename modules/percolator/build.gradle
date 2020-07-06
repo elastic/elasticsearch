@@ -17,6 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Percolator module adds capability to index queries and query these queries by specifying documents'

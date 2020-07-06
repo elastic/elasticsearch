@@ -93,7 +93,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
 
         // Create a URL repository using the file://{path.repo} URL
         Request createFileRepositoryRequest = new Request("PUT", "/_snapshot/repository-file");
-        createFileRepositoryRequest.setEntity(buildRepositorySettings(URLRepository.TYPE,
+        createFileRepositoryRequest.setEntity(buildRepositorySettings("url",
                 Settings.builder().put("url", pathRepoUri.toString()).build()));
         Response createFileRepositoryResponse = client().performRequest(createFileRepositoryRequest);
         assertThat(createFileRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
@@ -106,7 +106,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
                 InetAddress inetAddress = InetAddress.getByName(new URL(allowedUrl).getHost());
                 if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress()) {
                     Request createUrlRepositoryRequest = new Request("PUT", "/_snapshot/repository-url");
-                    createUrlRepositoryRequest.setEntity(buildRepositorySettings(URLRepository.TYPE,
+                    createUrlRepositoryRequest.setEntity(buildRepositorySettings("url",
                             Settings.builder().put("url", allowedUrl).build()));
                     Response createUrlRepositoryResponse = client().performRequest(createUrlRepositoryRequest);
                     assertThat(createUrlRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));

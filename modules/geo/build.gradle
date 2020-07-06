@@ -17,6 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Placeholder plugin for geospatial features in ES. only registers geo_shape field mapper for now'
@@ -24,5 +25,5 @@ esplugin {
 }
 
 artifacts {
-  restTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }

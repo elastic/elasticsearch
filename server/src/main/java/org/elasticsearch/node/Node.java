@@ -437,7 +437,7 @@ public class Node implements Closeable {
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry, bigArrays, clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis);
 
-            // collect engine factory providers from server and from plugins
+            // collect engine factory providers from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders =
                     enginePlugins.stream().map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>)plugin::getEngineFactory)

@@ -113,13 +113,13 @@ public enum FormatNames {
     STRICT_YEAR_MONTH_DAY("strictYearMonthDay", "strict_year_month_day");
 
     private static final Set<String> ALL_NAMES = Arrays.stream(values())
-                                                       .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
-                                                       .collect(Collectors.toSet());
+        .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
+        .collect(Collectors.toSet());
 
     private static final Set<String> DEPRECATED_CAMEL_CASE_NAMES = EnumSet.complementOf(EnumSet.of(ISO8601, DATE, HOUR, TIME,
-                                                                            YEAR, EPOCH_SECOND, EPOCH_MILLIS)).stream()
-                                                                          .map(n -> n.camelCaseName)
-                                                                          .collect(Collectors.toSet());
+        YEAR, EPOCH_SECOND, EPOCH_MILLIS)).stream()
+        .map(n -> n.camelCaseName)
+        .collect(Collectors.toSet());
     private final String camelCaseName;
     private final String snakeCaseName;
 
@@ -127,8 +127,8 @@ public enum FormatNames {
     // If LogManager.getLogger is called before logging config is loaded
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
-    private static final LazyInitializable<DeprecationLogger,RuntimeException> deprecationLogger
-        = new LazyInitializable(()->new DeprecationLogger(LogManager.getLogger(FormatNames.class)));
+    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
+        = new LazyInitializable(() -> new DeprecationLogger(LogManager.getLogger(FormatNames.class)));
 
     FormatNames(String camelCaseName, String snakeCaseName) {
         this.camelCaseName = camelCaseName;
@@ -139,9 +139,9 @@ public enum FormatNames {
         return ALL_NAMES.contains(format);
     }
 
-    public static FormatNames forName(String format){
-        for (FormatNames name : values()){
-            if(name.matches(format)){
+    public static FormatNames forName(String format) {
+        for (FormatNames name : values()) {
+            if (name.matches(format)) {
                 return name;
             }
         }
@@ -150,19 +150,21 @@ public enum FormatNames {
 
 
     public boolean matches(String format) {
-        deprecate(format);
-        return format.equals(camelCaseName) || format.equals(snakeCaseName);
+        if (format.equals(camelCaseName) || format.equals(snakeCaseName)) {
+            deprecate(format);
+            return true;
+        }
+        return false;
     }
 
     private void deprecate(String format) {
-        if(format.equals(camelCaseName) && DEPRECATED_CAMEL_CASE_NAMES.contains(format)){
+        if (DEPRECATED_CAMEL_CASE_NAMES.contains(format)) {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             deprecationLogger.getOrCompute()
                 .deprecatedAndMaybeLog("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
         }
     }
-
 
     public String getSnakeCaseName() {
         return snakeCaseName;

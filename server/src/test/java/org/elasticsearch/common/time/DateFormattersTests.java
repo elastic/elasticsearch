@@ -383,40 +383,40 @@ public class DateFormattersTests extends ESTestCase {
         }
     }
 
-    public void testCamelCaseDeprecation(){
+    public void testCamelCaseDeprecation() {
         String[] deprecatedNames = new String[]{
-            "basicDate","basicDateTime","basicDateTimeNoMillis","basicOrdinalDate","basicOrdinalDateTime","basicOrdinalDateTimeNoMillis",
-            "basicTime","basicTimeNoMillis","basicTTime","basicTTimeNoMillis","basicWeekDate","basicWeekDateTime",
-            "basicWeekDateTimeNoMillis","dateHour","dateHourMinute","dateHourMinuteSecond","dateHourMinuteSecondFraction",
-            "dateHourMinuteSecondMillis","dateOptionalTime","dateTime","dateTimeNoMillis","hourMinute","hourMinuteSecond",
-            "hourMinuteSecondFraction","hourMinuteSecondMillis","ordinalDate","ordinalDateTime","ordinalDateTimeNoMillis","timeNoMillis",
-            "tTime","tTimeNoMillis","weekDate","weekDateTime","weekDateTimeNoMillis","weekyear","weekyearWeek","weekyearWeekDay",
-            "yearMonth","yearMonthDay","strictBasicWeekDate","strictBasicWeekDateTime",
-            "strictBasicWeekDateTimeNoMillis","strictDate","strictDateHour","strictDateHourMinute","strictDateHourMinuteSecond",
-            "strictDateHourMinuteSecondFraction","strictDateHourMinuteSecondMillis","strictDateOptionalTime",
-            "strictDateOptionalTimeNanos","strictDateTime","strictDateTimeNoMillis","strictHour","strictHourMinute",
-            "strictHourMinuteSecond","strictHourMinuteSecondFraction","strictHourMinuteSecondMillis","strictOrdinalDate",
-            "strictOrdinalDateTime","strictOrdinalDateTimeNoMillis","strictTime","strictTimeNoMillis","strictTTime","strictTTimeNoMillis",
-            "strictWeekDate","strictWeekDateTime","strictWeekDateTimeNoMillis","strictWeekyear","strictWeekyearWeek",
-            "strictWeekyearWeekDay","strictYear","strictYearMonth","strictYearMonthDay"
+            "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime", "basicOrdinalDateTimeNoMillis",
+            "basicTime", "basicTimeNoMillis", "basicTTime", "basicTTimeNoMillis", "basicWeekDate", "basicWeekDateTime",
+            "basicWeekDateTimeNoMillis", "dateHour", "dateHourMinute", "dateHourMinuteSecond", "dateHourMinuteSecondFraction",
+            "dateHourMinuteSecondMillis", "dateOptionalTime", "dateTime", "dateTimeNoMillis", "hourMinute", "hourMinuteSecond",
+            "hourMinuteSecondFraction", "hourMinuteSecondMillis", "ordinalDate", "ordinalDateTime", "ordinalDateTimeNoMillis", "timeNoMillis",
+            "tTime", "tTimeNoMillis", "weekDate", "weekDateTime", "weekDateTimeNoMillis", "weekyear", "weekyearWeek", "weekyearWeekDay",
+            "yearMonth", "yearMonthDay", "strictBasicWeekDate", "strictBasicWeekDateTime",
+            "strictBasicWeekDateTimeNoMillis", "strictDate", "strictDateHour", "strictDateHourMinute", "strictDateHourMinuteSecond",
+            "strictDateHourMinuteSecondFraction", "strictDateHourMinuteSecondMillis", "strictDateOptionalTime",
+            "strictDateOptionalTimeNanos", "strictDateTime", "strictDateTimeNoMillis", "strictHour", "strictHourMinute",
+            "strictHourMinuteSecond", "strictHourMinuteSecondFraction", "strictHourMinuteSecondMillis", "strictOrdinalDate",
+            "strictOrdinalDateTime", "strictOrdinalDateTimeNoMillis", "strictTime", "strictTimeNoMillis", "strictTTime", "strictTTimeNoMillis",
+            "strictWeekDate", "strictWeekDateTime", "strictWeekDateTimeNoMillis", "strictWeekyear", "strictWeekyearWeek",
+            "strictWeekyearWeekDay", "strictYear", "strictYearMonth", "strictYearMonthDay"
         };
         for (String name : deprecatedNames) {
             DateFormatter dateFormatter = DateFormatter.forPattern(name);
             String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
             assertThat(dateFormatter.pattern(), equalTo(name));
 
-            assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. Use snake case name "
-                + snakeCaseName + " instead.");
+            assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
+                "Use snake case name " + snakeCaseName + " instead.");
         }
 
         for (String name : deprecatedNames) {
-            if(name.equals("strictDateOptionalTimeNanos") == false){
-            DateFormatter dateFormatter = Joda.forPattern(name);
-            String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-            assertThat(dateFormatter.pattern(), equalTo(name));
+            if (name.equals("strictDateOptionalTimeNanos") == false) {
+                DateFormatter dateFormatter = Joda.forPattern(name);
+                String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
+                assertThat(dateFormatter.pattern(), equalTo(name));
 
-            assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. Use snake case name "
-                + snakeCaseName + " instead.");
+                assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
+                    "Use snake case name " + snakeCaseName + " instead.");
             }
         }
     }

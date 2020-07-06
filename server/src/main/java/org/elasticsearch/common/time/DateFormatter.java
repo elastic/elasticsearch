@@ -161,6 +161,4 @@ public interface DateFormatter {
         }
         return patterns;
     }
-
-
 }

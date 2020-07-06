@@ -27,10 +27,10 @@ index:
     Similar to `index.blocks.read_only`, but also allows deleting the index to
     make more resources available. The <<disk-based-shard-allocation,disk-based shard
     allocator>> may add and remove this block automatically.
-
++
 Deleting documents from an index to release resources - rather than deleting the index itself - can increase the index size over time. When `index.blocks.read_only_allow_delete` is set to `true`, deleting documents is not permitted. However, deleting the index itself releases the read-only index block and makes resources available almost immediately.
-
-IMPORTANT: {es} adds and removes the read-only index block automatically when the disk utilization falls below the high watermark, controlled by <<cluster-routing-flood_stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
++
+IMPORTANT: {es} adds and removes the read-only index block automatically when the disk utilization falls below the high watermark, controlled by <<cluster-routing-flood-stage,cluster.routing.allocation.disk.watermark.flood_stage>>.
 
 `index.blocks.read`::
 
@@ -45,6 +45,26 @@ IMPORTANT: {es} adds and removes the read-only index block automatically when th
 `index.blocks.metadata`::
 
     Set to `true` to disable index metadata reads and writes.
+
+`index.blocks.read_only_allow_delete`::
+
+    Similar to `index.blocks.read_only`, but also allows deleting the index to
+    make more resources available. The <<disk-based-shard-allocation,disk-based shard
+    allocator>> adds and removes this block automatically.
+
+Deleting documents from an index - rather than deleting the index itself - can
+in fact increase the index size. When you are running out of disk space
+`index.blocks.read_only_allow_delete` is set to `true`, preventing you from
+consuming more disk space by deleting some documents. However, this block does
+permit you to delete the index itself since this does not require any extra
+disk space. When you delete an index the data is removed from disk almost
+immediately, freeing the space it consumes.
+
+IMPORTANT: {es} adds the read-only-allow-delete index block automatically when
+disk utilisation exceeds the <<cluster-routing-flood-stage,flood-stage
+watermark>> and removes it again when disk utilisation is below the
+<<cluster-routing-watermark-high,high watermark>>. You should not apply this
+block yourself.
 
 [discrete]
 [[add-index-block]]
@@ -94,11 +114,6 @@ Disable read operations.
 `read_only`::
 Disable write operations and metadata changes.
 
-`read_only_allow_delete`::
-Disable write operations and metadata changes.
-Document deletion is disabled.
-However, index deletion is still allowed.
-
 `write`::
 Disable write operations. However, metadata changes are still allowed.
 ====
@@ -143,4 +158,3 @@ The API returns following response:
     } ]
 }
 --------------------------------------------------
-

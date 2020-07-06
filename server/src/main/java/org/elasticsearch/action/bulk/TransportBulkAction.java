@@ -162,7 +162,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         long indexingBytes = bulkRequest.ramBytesUsed();
-        final Releasable releasable = writeMemoryLimits.markCoordinatingOperationStarted(indexingBytes);
+        final Releasable releasable = writeMemoryLimits.markWriteOperationStarted(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             doInternalExecute(task, bulkRequest, releasingListener);
@@ -319,6 +319,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             writeRequest.ifSeqNo() == UNASSIGNED_SEQ_NO) {
             throw new IllegalArgumentException("index request with op_type=index and no if_primary_term and if_seq_no set " +
                 "targeting backing indices is disallowed, target corresponding data stream [" + dataStream.getName() + "] instead");
+        }
+    }
+
+    static void prohibitCustomRoutingOnDataStream(DocWriteRequest<?> writeRequest, Metadata metadata) {
+        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
+        if (indexAbstraction == null) {
+            return;
+        }
+        if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+            return;
+        }
+
+        if (writeRequest.routing() != null) {
+            IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) indexAbstraction;
+            throw new IllegalArgumentException("index request targeting data stream [" + dataStream.getName() + "] specifies a custom " +
+                "routing. target the backing indices directly or remove the custom routing.");
         }
     }
 
@@ -506,6 +522,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case CREATE:
                         case INDEX:
                             prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
+                            prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
                             MappingMetadata mappingMd = indexMetadata.mapping();
@@ -704,7 +721,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             Index concreteIndex = indices.get(request.index());
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request, includeDataStreams);
+                concreteIndex = indexNameExpressionResolver.concreteWriteIndex(state, request.indicesOptions(), request.indices()[0],
+                    false, includeDataStreams);
                 indices.put(request.index(), concreteIndex);
             }
             return concreteIndex;

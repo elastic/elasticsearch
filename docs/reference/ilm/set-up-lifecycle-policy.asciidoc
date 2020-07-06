@@ -10,11 +10,13 @@ To configure a lifecycle policy for <<index-rollover, rolling indices>>,
 you create the policy and add it to the <<indices-templates, index template>>.
 
 To use a policy to manage an index that doesn't roll over,
-you can specify a lifecycle policy when you create it.
+you can specify a lifecycle policy when you create the index,
+or apply a policy directly to an existing index.
 
 {ilm-init} policies are stored in the global cluster state and can be included in snapshots
 by setting `include_global_state` to `true` when you <<snapshots-take-snapshot, take the snapshot>>. 
-When the snapshot is restored, all of the policies in the global state are restored and any local policies with the same names are overwritten.
+When the snapshot is restored, all of the policies in the global state are restored and 
+any local policies with the same names are overwritten.
 
 IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
 the necessary policies and configuration changes are applied automatically. 
@@ -25,12 +27,19 @@ bootstrap an initial index.
 [[ilm-create-policy]]
 === Create lifecycle policy
 
-You use the <<ilm-put-lifecycle,create policy API>> to define a new lifecycle policy. 
-For example, the following request creates `my_policy`, a
-policy that defines a hot and and delete phase.
-When the index reaches 25GB, it rolls over directly to the delete phase.
-The index is deleted 30 days after rollover.
+To create lifecycle policies through {kib} Management
+go to Management and click **Index Lifecycle Policies**.
 
+[role="screenshot"]
+image:images/ilm/create-policy.png[]
+
+You specify the lifecycle phases for the policy and the actions to perform in each phase.
+
+The <<ilm-put-lifecycle, put policy>> API is invoked to add the policy to the {es} cluster.
+
+.API example
+[%collapsible]
+====
 [source,console]
 ------------------------
 PUT _ilm/policy/my_policy
@@ -57,6 +66,7 @@ PUT _ilm/policy/my_policy
 
 <1> Roll over the index when it reaches 25GB in size
 <2> Delete the index 30 days after rollover
+====
 
 [discrete]
 [[apply-policy-template]]
@@ -64,11 +74,19 @@ PUT _ilm/policy/my_policy
 
 To use a policy that triggers the rollover action, 
 you need to configure the policy in the index template used to create each new index.
- 
-In addition to specifying the name of the policy in the `index.lifecycle.name` setting, 
-you specify a `index.lifecycle.rollover_alias` for referencing
-the indices managed by this policy. 
+You specify the name of the policy and the alias used to reference the rolling indices.
 
+To use the Create template wizard to create a template from {kib} Management,
+go to Management, click **Index Management** and select the **Index Templates** view.
+
+[role="screenshot"]
+image:images/ilm/create-template-wizard.png[]
+
+The wizard invokes the <<indices-put-template,put template API>> to add templates to a cluster.
+
+.API example
+[%collapsible]
+====
 [source,console]
 -----------------------
 PUT _template/my_template
@@ -86,7 +104,7 @@ PUT _template/my_template
 <1> Use this template for all new indices whose names begin with `test-`
 <2> Apply `my_policy` to new indices created with this template
 <3> Define an index alias for referencing indices managed by `my_policy`
-
+====
 //////////////////////////
 
 [source,console]
@@ -101,8 +119,14 @@ DELETE /_template/my_template
 [[create-initial-index]]
 ==== Create an initial managed index
 
-You need to manually create the first index managed by a policy that uses the rollover action
-and designate it as the write index.
+When you set up policies for your own rolling indices, you need to manually create the first index 
+managed by a policy and designate it as the write index.
+
+IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
+the necessary policies and configuration changes are applied automatically. 
+You can modify the default policies, but you do not need to explicitly configure a policy or
+bootstrap an initial index.
+
 The name of the index must match the pattern defined in the index template and end with a number.
 This number is incremented to generate the name of indices created by the rollover action.
 
@@ -133,10 +157,20 @@ index exceeds 25GB.
 [[apply-policy-manually]]
 === Apply lifecycle policy manually
 
-When you create an index, you can apply a lifecycle policy 
-by specifying the `index.lifecycle.name` setting.
-This causes {ilm-init} to immediately start managing the index.
+You can specify a policy when you create an index or
+apply a policy to an existing index through {kib} Management or
+the <<indices-update-settings, update settings API>>. 
+When you apply a policy, {ilm-init} immediately starts managing the index.
 
+IMPORTANT: Do not manually apply a policy that uses the rollover action.
+Policies that use rollover must be applied by the <<apply-policy-template, index template>>. 
+Otherwise, the policy is not carried forward when the rollover action creates a new index.
+
+The `index.lifecycle.name` setting specifies an index's policy.
+
+.API example
+[%collapsible]
+====
 [source,console]
 -----------------------
 PUT test-index
@@ -144,14 +178,12 @@ PUT test-index
   "settings": {
     "number_of_shards": 1,
     "number_of_replicas": 1,
-    "index.lifecycle.name": "my_policy"
+    "index.lifecycle.name": "my_policy" <1>
   }
 }
 -----------------------
-
-IMPORTANT: Do not manually apply a policy that uses the rollover action.
-Policies that use rollover must be applied by the <<apply-policy-template, index template>>. 
-Otherwise, the policy is not carried forward when the rollover action creates a new index.
+<1> Sets the lifecycle policy for the index.
+====
 
 [discrete]
 [[apply-policy-multiple]]

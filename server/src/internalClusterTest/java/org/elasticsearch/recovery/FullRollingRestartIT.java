@@ -40,6 +40,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Date;
 import java.util.List;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
@@ -93,7 +94,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
         for (int i = 2000; i < 3000; i++) {
             client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
-                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).put("@timestamp", new Date()).map()).execute().actionGet();
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
@@ -102,7 +103,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
         for (int i = 3000; i < 4000; i++) {
             client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
-                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+                .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).put("@timestamp", new Date()).map()).execute().actionGet();
         }
 
         logger.info("--> now start adding nodes");
@@ -124,7 +125,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 4000L);
             assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
@@ -142,7 +143,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 4000L);
             assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
 
@@ -161,7 +162,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 4000L);
             assertHitCount(client().prepareSearch().setIndices("ds").setSize(0).setQuery(matchAllQuery()).get(), 2000L);
         }
     }

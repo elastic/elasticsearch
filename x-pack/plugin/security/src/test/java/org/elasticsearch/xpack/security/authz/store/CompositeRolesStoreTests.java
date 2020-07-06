@@ -1050,7 +1050,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new RealmRef("_es_api_key", "_es_api_key", "node"), null, version, AuthenticationType.API_KEY, Collections.emptyMap());
 
         if (version == Version.CURRENT) {
-            when(apiKeyService.getRoleDescriptorsBytesForApiKey(eq(authentication), anyBoolean())).thenReturn(
+            when(apiKeyService.getApiKeyIdAndBytes(eq(authentication), anyBoolean())).thenReturn(
                 new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}")
             );
         } else {
@@ -1067,7 +1067,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         if (version == Version.CURRENT) {
-            verify(apiKeyService, times(2)).getRoleDescriptorsBytesForApiKey(eq(authentication), anyBoolean());
+            verify(apiKeyService, times(2)).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
         } else {
             verify(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
         }
@@ -1107,9 +1107,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Authentication authentication = new Authentication(new User("test api key user", "api_key"),
             new RealmRef("_es_api_key", "_es_api_key", "node"), null, version, AuthenticationType.API_KEY, Collections.emptyMap());
         if (version == Version.CURRENT) {
-            when(apiKeyService.getRoleDescriptorsBytesForApiKey(eq(authentication), eq(false))).thenReturn(
+            when(apiKeyService.getApiKeyIdAndBytes(eq(authentication), eq(false))).thenReturn(
                 new BytesArray("{\"a-role\": {\"cluster\": [\"all\"]}}"));
-            when(apiKeyService.getRoleDescriptorsBytesForApiKey(eq(authentication), eq(true))).thenReturn(
+            when(apiKeyService.getApiKeyIdAndBytes(eq(authentication), eq(true))).thenReturn(
                 new BytesArray("{\"scoped-role\": {\"cluster\": [\"manage_security\"]}}"));
         } else {
             doAnswer(invocationOnMock -> {
@@ -1128,8 +1128,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, mock(Authentication.class)), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         if (version == Version.CURRENT) {
-            verify(apiKeyService).getRoleDescriptorsBytesForApiKey(eq(authentication), eq(false));
-            verify(apiKeyService).getRoleDescriptorsBytesForApiKey(eq(authentication), eq(true));
+            verify(apiKeyService).getApiKeyIdAndBytes(eq(authentication), eq(false));
+            verify(apiKeyService).getApiKeyIdAndBytes(eq(authentication), eq(true));
         } else {
             verify(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
         }
@@ -1249,13 +1249,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         ));
-        doCallRealMethod().when(apiKeyService).getRoleDescriptorsBytesForApiKey(eq(authentication), anyBoolean());
+        doCallRealMethod().when(apiKeyService).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verify(apiKeyService, times(2)).getRoleDescriptorsBytesForApiKey(eq(authentication), anyBoolean());
+        verify(apiKeyService, times(2)).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
         verify(apiKeyService, times(2)).getRoleDescriptorsForApiKey(eq(authentication), anyBoolean());
 
         // Different API key with the same roles should read from cache
@@ -1266,12 +1266,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
             API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         ));
-        doCallRealMethod().when(apiKeyService).getRoleDescriptorsBytesForApiKey(eq(authentication), anyBoolean());
+        doCallRealMethod().when(apiKeyService).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verify(apiKeyService, times(2)).getRoleDescriptorsBytesForApiKey(eq(authentication), anyBoolean());
+        verify(apiKeyService, times(2)).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
         verify(apiKeyService, never()).getRoleDescriptorsForApiKey(eq(authentication), anyBoolean());
 
         // Different API key with the same limitedBy role should read from cache, new role should be built
@@ -1282,12 +1282,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
             API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}"),
             API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         ));
-        doCallRealMethod().when(apiKeyService).getRoleDescriptorsBytesForApiKey(eq(authentication), anyBoolean());
+        doCallRealMethod().when(apiKeyService).getApiKeyIdAndBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
-        verify(apiKeyService).getRoleDescriptorsBytesForApiKey(eq(authentication), eq(false));
+        verify(apiKeyService).getApiKeyIdAndBytes(eq(authentication), eq(false));
         verify(apiKeyService).getRoleDescriptorsForApiKey(eq(authentication), eq(false));
     }
 

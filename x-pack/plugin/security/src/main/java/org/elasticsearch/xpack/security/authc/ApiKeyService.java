@@ -37,6 +37,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -375,18 +376,14 @@ public class ApiKeyService {
         }
     }
 
-    public BytesReference getRoleDescriptorsBytesForApiKey(Authentication authentication, boolean limitedBy) {
+    public Tuple<String, BytesReference> getApiKeyIdAndBytes(Authentication authentication, boolean limitedBy) {
         if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
         final Map<String, Object> metadata = authentication.getMetadata();
-        return (BytesReference) metadata.get(limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY);
-    }
-
-    public List<RoleDescriptor> getRoleDescriptorsForApiKey(Authentication authentication, boolean limitedBy) {
-        final BytesReference bytesReference = getRoleDescriptorsBytesForApiKey(authentication, limitedBy);
-        final String apiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
-        return parseRoleDescriptors(apiKeyId, bytesReference);
+        return new Tuple<>(
+            (String) metadata.get(API_KEY_ID_KEY),
+            (BytesReference) metadata.get(limitedBy ? API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : API_KEY_ROLE_DESCRIPTORS_KEY));
     }
 
     public static class ApiKeyRoleDescriptors {
@@ -435,7 +432,7 @@ public class ApiKeyService {
             }).collect(Collectors.toList());
     }
 
-    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
+    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -445,7 +442,8 @@ public class ApiKeyService {
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
                 new ApiKeyLoggingDeprecationHandler(deprecationLogger, apiKeyId),
-                bytesReference)) {
+                bytesReference,
+                XContentType.JSON)) {
             parser.nextToken(); // skip outer start object
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 parser.nextToken(); // role name
@@ -1023,7 +1021,7 @@ public class ApiKeyService {
             this.version = version;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
             this.limitedByRoleDescriptorsBytes = limitedByRoleDescriptorsBytes;
-            this.creator = XContentHelper.convertToMap(creator, false).v2();
+            this.creator = XContentHelper.convertToMap(creator, false, XContentType.JSON).v2();
         }
 
         static ApiKeyDoc fromXContent(XContentParser parser) {

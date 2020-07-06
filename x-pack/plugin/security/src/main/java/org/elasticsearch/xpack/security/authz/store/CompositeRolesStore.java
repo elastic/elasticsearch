@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -239,7 +241,7 @@ public class CompositeRolesStore {
                     },
                     roleActionListener::onFailure
                 ));
-            } else {
+            } else {  // TODO: the else branch is for bwc and can be deleted in 9.0
                 apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
                     final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
                     if (descriptors == null) {
@@ -319,15 +321,15 @@ public class CompositeRolesStore {
     }
 
     private void getOrBuildRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
-        final BytesReference roleDescriptorsBytes = apiKeyService.getRoleDescriptorsBytesForApiKey(authentication, limitedBy);
-        MessageDigest digest = MessageDigests.sha256();
-        digest.update(BytesReference.toBytes(roleDescriptorsBytes));
+        final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndBytes(authentication, limitedBy);
+        final MessageDigest digest = MessageDigests.sha256();
+        digest.update(BytesReference.toBytes(apiKeyIdAndBytes.v2()));
         final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest());
         final RoleKey roleKey = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), limitedBy ? "apikey_limited_role" : "apikey_role");
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
-            final List<RoleDescriptor> roleDescriptors = apiKeyService.getRoleDescriptorsForApiKey(authentication, limitedBy);
+            final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(apiKeyIdAndBytes.v1(), apiKeyIdAndBytes.v2());
             buildThenMaybeCacheRole(roleKey, roleDescriptors, Collections.emptySet(),
                 true, invalidationCounter, roleActionListener);
         } else {

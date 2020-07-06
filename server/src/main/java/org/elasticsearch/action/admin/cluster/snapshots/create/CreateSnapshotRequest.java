@@ -271,6 +271,10 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
 
     /**
      * Returns true if indices with unavailable shards should be be partially snapshotted.

@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -81,9 +80,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(1);
 
-        createRepository(repoName, "mock", Settings.builder()
-            .put("location", randomRepoPath()).put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
+        createRepository(repoName, "mock");
 
         logger.info("-->  snapshot");
         client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
@@ -112,8 +109,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         internalCluster().startNodes(Settings.EMPTY);
 
         final String repoName = "test-repo";
-        createRepository(repoName, "fs", Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
+        createRepository(repoName, "fs");
 
         logger.info("--> create three snapshots");
         for (int i = 0; i < 3; ++i) {

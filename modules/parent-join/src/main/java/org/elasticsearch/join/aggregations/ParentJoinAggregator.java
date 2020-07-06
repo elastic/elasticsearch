@@ -71,7 +71,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                                     long maxOrd,
                                     CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, CardinalityUpperBound.ONE, metadata);
+        super(name, factories, context, parent, cardinality, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
             throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +

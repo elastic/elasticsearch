@@ -82,22 +82,11 @@ public final class MlIndexAndAlias {
                                                       String alias,
                                                       ActionListener<Boolean> finalListener) {
 
-        // If the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
-        ActionListener<Boolean> waitForShardsListener = ActionListener.wrap(
+        // If both the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
+        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
             created -> {
                 if (created) {
-                    ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(alias)
-                        .waitForNoRelocatingShards(true)
-                        .waitForNoInitializingShards(true);
-                    executeAsyncWithOrigin(
-                        client.threadPool().getThreadContext(),
-                        ML_ORIGIN,
-                        healthRequest,
-                        ActionListener.<ClusterHealthResponse>wrap(
-                            response -> finalListener.onResponse(response.isTimedOut() == false),
-                            finalListener::onFailure),
-                        (request, listener) -> client.admin().cluster().health(request, listener)
-                    );
+                    waitForShardsReady(client, alias, finalListener);
                 } else {
                     finalListener.onResponse(false);
                 }
@@ -117,7 +106,7 @@ public final class MlIndexAndAlias {
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardsListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
                 return;
             }
             logger.error(
@@ -125,7 +114,7 @@ public final class MlIndexAndAlias {
                 indexPattern, alias, indexPointedByCurrentWriteAlias.get());
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardsListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
                 return;
             }
             if (indexPointedByCurrentWriteAlias.get().getIndex().getName().equals(legacyIndexWithoutSuffix)) {
@@ -135,7 +124,7 @@ public final class MlIndexAndAlias {
                     alias,
                     false,
                     ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, waitForShardsListener),
+                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener),
                         finalListener::onFailure)
                 );
                 return;
@@ -153,6 +142,22 @@ public final class MlIndexAndAlias {
         }
         // If the alias is set, there is nothing more to do.
         finalListener.onResponse(false);
+    }
+
+    private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(index)
+            .waitForYellowStatus()
+            .waitForNoRelocatingShards(true)
+            .waitForNoInitializingShards(true);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            healthRequest,
+            ActionListener.<ClusterHealthResponse>wrap(
+                response -> listener.onResponse(response.isTimedOut() == false),
+                listener::onFailure),
+            client.admin().cluster()::health
+        );
     }
 
     private static void createFirstConcreteIndex(Client client,

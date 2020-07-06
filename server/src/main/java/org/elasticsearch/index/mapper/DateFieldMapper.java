@@ -644,4 +644,12 @@ public final class DateFieldMapper extends FieldMapper {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
     }
+
+    public Explicit<Boolean> getIgnoreMalformed() {
+        return ignoreMalformed;
+    }
+
+    public Long getNullValue() {
+        return nullValue;
+    }
 }

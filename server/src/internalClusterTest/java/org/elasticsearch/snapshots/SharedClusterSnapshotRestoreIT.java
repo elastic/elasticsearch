@@ -2442,7 +2442,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             client.prepareIndex(dataStream, "_doc")
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
-                .setSource(Collections.singletonMap("k", "v"))
+                .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
                 .execute().actionGet();
         }
         refresh();

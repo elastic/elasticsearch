@@ -97,7 +97,7 @@ public class ScriptServiceTests extends ESTestCase {
             }
 
             @Override
-            StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(String id) {
                 //mock the script that gets retrieved from an index
                 return new StoredScriptSource("test", "1+1", Collections.emptyMap());
             }

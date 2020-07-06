@@ -1,0 +1,165 @@
+[role="xpack"]
+
+[[example-using-index-lifecycle-policy]]
+=== Tutorial: Manage {filebeat} time-based indices
+++++
+<titleabbrev>Manage {filebeat} time-based indices</titleabbrev>
+++++
+
+With {ilm} ({ilm-init}), you can create policies that perform actions automatically 
+on indices as they age and grow. {ilm-init} policies help you to manage
+performance, resilience, and retention of your data during its lifecycle. This tutorial shows
+you how to use {kib}’s *Index Lifecycle Policies* to modify and create {ilm-init}
+policies. You can learn more about all of the actions, benefits, and lifecycle
+phases in the <<overview-index-lifecycle-management, {ilm-init} overview>>.
+
+
+[discrete]
+[[example-using-index-lifecycle-policy-scenario]]
+==== Scenario
+
+You’re tasked with sending syslog files to an {es} cluster. This
+log data has the following data retention guidelines:
+
+* Keep logs on hot data nodes for 30 days
+* Roll over to a new index if the size reaches 50GB
+* After 30 days:
+** Move the logs to warm data nodes
+** Set <<glossary-replica-shard, replica shards>> to 1
+** <<indices-forcemerge, Force merge>> multiple index segments to free up the space used by deleted documents
+* Delete logs after 90 days
+
+
+[discrete]
+[[example-using-index-lifecycle-policy-prerequisites]]
+==== Prerequisites
+
+To complete this tutorial, you'll need:
+
+* An {es} cluster with hot and warm nodes configured for shard allocation
+awareness. 
+
+** {ess}: 
+Choose the {cloud}/ec-getting-started-templates-hot-warm.html[hot-warm architecture] deployment template.
+
+** Self-managed cluster: 
+Add node attributes as described for {ref}/shard-allocation-filtering.html[shard allocation filtering].
++
+For example, you can set this in your `elasticsearch.yml` for each data node:
++
+[source,yaml]
+--------------------------------------------------------------------------------
+node.attr.data: "warm"
+--------------------------------------------------------------------------------
+
+* A server with {filebeat} installed and configured to send logs to the `elasticsearch`
+output as described in {filebeat-ref}/filebeat-getting-started.html[Getting Started with {filebeat}].
+
+[discrete]
+[[example-using-index-lifecycle-policy-view-fb-ilm-policy]]
+==== View the {filebeat} {ilm-init} policy
+
+{filebeat} includes a default {ilm-init} policy that enables rollover. {ilm-init}
+is enabled automatically if you’re using the default `filebeat.yml` and index template.
+
+To view the default policy in {kib}:
+
+. Go to Management and select *Index Lifecycle Policies*.
+. Search for _filebeat_
+. Select the _filebeat-version_ policy.
+
+This policy initiates the rollover action when the index size reaches 50GB or
+becomes 30 days old.
+
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-hotphaserollover-default.png["Default policy"]
+
+
+[discrete]
+==== Modify the policy
+
+The default policy is enough to prevent the creation of many tiny daily indices.
+You can modify the policy to meet more complex requirements.
+
+. Activate the warm phase.
++
+--
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-modify-default-warm-phase-rollover.png["Modify to add warm phase"]
+
+.. Set one of the following options to control when the index moves to the warm phase:
+
+*** Provide a value for *Timing for warm phase*. Setting this to *15* keeps the
+indices on hot nodes for a range of  15-45 days, depending on when the initial
+rollover occurred.
+
+*** Enable *Move to warm phase on rollover*. The index might move to the warm phase
+more quickly than intended if it reaches the *Maximum index size* before the
+the *Maximum age*.
+
+.. In the *Select a node attribute to control shard allocation* dropdown, select
+*data:warm(2)* to migrate shards to warm data nodes.
+
+.. Change *Number of replicas* to *1*.
+
+.. Enable *Force merge data* and set *Number of segments* to *1*.
+
+NOTE:  When rollover is enabled in the hot phase, action timing in the other phases
+is based on the rollover date.
+--
+
+. Activate the delete phase and set *Timing for delete phase* to *90* days.
++
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-delete-rollover.png["Add a delete phase"]
+
+[discrete]
+==== Create a custom policy
+
+If meeting a specific retention time period is most important, you can create a
+custom policy.  For this option, you use {filebeat} daily indices without
+rollover.
+
+To create a custom policy:
+
+. Go to Management and select *Index Lifecycle Policies*.
+. Click *Create policy*.
+. Activate the warm phase and configure it as follows:
++
+--
+**Timing for warm phase**: 30 days from index creation
+
+**Node attribute**: `data:warm`
+
+**Number of replicas**: 1
+
+**Force merge data**: enable
+
+**Number of segments**: 1
+
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-custom-policy.png["Modify the custom policy to add a warm phase"]
+--
+
+. Activate the delete phase and set the timing to 90 days.
++
+[role="screenshot"]
+image::images/ilm/tutorial-ilm-delete-phase-creation.png["Delete phase"]
+
+To configure the index to use the new policy:
+
+. Go to Management and select *Index Lifecycle Policies*.
+. Find your {ilm-init} policy and click its *Actions* link.
+. Choose *Add policy to index template*.
+. Select your {filebeat} index template name from the *Index template* list. For example, `filebeat-7.5.x`.
+. Click *Add Policy* to save the changes.
++
+NOTE: If you initially used the default {filebeat} {ilm-init} policy, you will
+see a notice that the template already has a policy associated with it. Confirm
+that you want to overwrite that configuration.
+
+When you change the policy associated with the index template, the active
+index will continue to use the policy it was associated with at index creation
+unless you manually update it. The next new index will use the updated policy.
+For more reasons that your {ilm-init} policy changes might be delayed, see
+<<update-lifecycle-policy, Update Lifecycle Policy>>.

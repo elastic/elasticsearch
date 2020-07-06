@@ -1,0 +1,100 @@
+"Verify rank eval with data streams":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [logs-*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:   logs-foobar
+        id:      doc1
+        op_type: create
+        body:    { "text": "berlin", "@timestamp": "2020-01-01" }
+
+  - do:
+      index:
+        index:   logs-foobar
+        id:      doc2
+        op_type: create
+        body:    { "text": "amsterdam", "@timestamp": "2020-01-01" }
+
+  # rollover data stream to split documents across multiple backing indices
+  - do:
+      indices.rollover:
+        alias: "logs-foobar"
+
+  - match: { old_index: .ds-logs-foobar-000001 }
+  - match: { new_index: .ds-logs-foobar-000002 }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  - do:
+      index:
+        index:   logs-foobar
+        id:      doc3
+        op_type: create
+        body:    { "text": "amsterdam", "@timestamp": "2020-01-01" }
+
+  - do:
+      index:
+        index:   logs-foobar
+        id:      doc4
+        op_type: create
+        body:    { "text": "something about amsterdam and berlin", "@timestamp": "2020-01-01" }
+
+  - do:
+      indices.refresh:
+        index: logs-foobar
+
+  - do:
+      rank_eval:
+        index: logs-foobar
+        search_type: query_then_fetch
+        body: {
+          "requests" : [
+          {
+            "id": "amsterdam_query",
+            "request": { "query": { "match" : {"text" : "amsterdam" }}},
+            "ratings": [
+            {"_index": ".ds-logs-foobar-000001", "_id": "doc1", "rating": 0},
+            {"_index": ".ds-logs-foobar-000001", "_id": "doc2", "rating": 1},
+            {"_index": ".ds-logs-foobar-000002", "_id": "doc3", "rating": 1}]
+          },
+          {
+            "id" : "berlin_query",
+            "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+            "ratings": [{"_index": ".ds-logs-foobar-000001", "_id": "doc1", "rating": 1}]
+          }
+          ],
+          "metric" : { "precision": { "ignore_unlabeled" : true }}
+        }
+
+  - match: { metric_score: 1}
+  - match: { details.amsterdam_query.metric_score: 1.0}
+  - length: { details.amsterdam_query.hits: 3}
+  - match: { details.berlin_query.metric_score: 1.0}
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged

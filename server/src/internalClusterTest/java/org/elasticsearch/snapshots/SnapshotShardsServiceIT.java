@@ -54,9 +54,9 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "mock");
 
         final int shards = between(1, 10);
-        assertAcked(prepareCreate("test-index", 0, indexSettingsZeroReplicas(shards)));
+        assertAcked(prepareCreate("test-index", 0, indexSettingsNoReplicas(shards)));
         ensureGreen();
-        indexSomeData("test-index", scaledRandomIntBetween(50, 100));
+        indexRandomDocs("test-index", scaledRandomIntBetween(50, 100));
 
         logger.info("--> blocking repository");
         String blockedNode = blockNodeWithIndex("test-repo", "test-index");

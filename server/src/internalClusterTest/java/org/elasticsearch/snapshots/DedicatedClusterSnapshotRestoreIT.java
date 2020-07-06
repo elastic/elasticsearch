@@ -368,10 +368,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> start 2 nodes");
         Client client = client();
 
-        assertAcked(prepareCreate("test-idx", 2, indexSettingsZeroReplicas(2)));
+        assertAcked(prepareCreate("test-idx", 2, indexSettingsNoReplicas(2)));
         ensureGreen();
 
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
         final Path repoPath = randomRepoPath();
         createRepository("test-repo", "mock",
             Settings.builder().put("location", repoPath).put("random", randomAlphaOfLength(10))
@@ -408,10 +408,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         nodes.add(internalCluster().startNode());
         Client client = client();
 
-        assertAcked(prepareCreate("test-idx", 2, indexSettingsZeroReplicas(2)));
+        assertAcked(prepareCreate("test-idx", 2, indexSettingsNoReplicas(2)));
         ensureGreen();
 
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
 
         Path repo = randomRepoPath();
         createRepository("test-repo", "mock",
@@ -473,10 +473,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         cluster().wipeIndices("_all");
 
         logger.info("--> create an index that will have some unallocated shards");
-        assertAcked(prepareCreate("test-idx-some", 2, indexSettingsZeroReplicas(6)));
+        assertAcked(prepareCreate("test-idx-some", 2, indexSettingsNoReplicas(6)));
         ensureGreen();
 
-        indexSomeData("test-idx-some", 100);
+        indexRandomDocs("test-idx-some", 100);
 
         logger.info("--> shutdown one of the nodes");
         internalCluster().stopRandomDataNode();
@@ -485,17 +485,17 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             equalTo(false));
 
         logger.info("--> create an index that will have all allocated shards");
-        assertAcked(prepareCreate("test-idx-all", 1, indexSettingsZeroReplicas(6)));
+        assertAcked(prepareCreate("test-idx-all", 1, indexSettingsNoReplicas(6)));
         ensureGreen("test-idx-all");
 
         logger.info("--> create an index that will be closed");
-        assertAcked(prepareCreate("test-idx-closed", 1, indexSettingsZeroReplicas(4)));
-        indexSomeData("test-idx-all", 100);
-        indexSomeData("test-idx-closed", 100);
+        assertAcked(prepareCreate("test-idx-closed", 1, indexSettingsNoReplicas(4)));
+        indexRandomDocs("test-idx-all", 100);
+        indexRandomDocs("test-idx-closed", 100);
         assertAcked(client().admin().indices().prepareClose("test-idx-closed"));
 
         logger.info("--> create an index that will have no allocated shards");
-        assertAcked(prepareCreate("test-idx-none", 1, indexSettingsZeroReplicas(6)
+        assertAcked(prepareCreate("test-idx-none", 1, indexSettingsNoReplicas(6)
                 .put("index.routing.allocation.include.tag", "nowhere")).setWaitForActiveShards(ActiveShardCount.NONE).get());
         assertTrue(indexExists("test-idx-none"));
 
@@ -616,10 +616,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int numberOfShards = 6;
         logger.info("--> create an index that will have some unallocated shards");
-        assertAcked(prepareCreate("test-idx", 2, indexSettingsZeroReplicas(numberOfShards)));
+        assertAcked(prepareCreate("test-idx", 2, indexSettingsNoReplicas(numberOfShards)));
         ensureGreen();
 
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
 
         logger.info("--> start snapshot");
         assertThat(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setIndices("test-idx")
@@ -744,10 +744,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository("test-repo", "fs", repoPath);
         maybeInitWithOldSnapshotVersion("test-repo", repoPath);
 
-        assertAcked(prepareCreate("test-idx", 0, indexSettingsZeroReplicas(between(1, 20))));
+        assertAcked(prepareCreate("test-idx", 0, indexSettingsNoReplicas(between(1, 20))));
         ensureGreen();
 
-        indexSomeData("test-idx", randomIntBetween(10, 100));
+        indexRandomDocs("test-idx", randomIntBetween(10, 100));
 
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
@@ -786,10 +786,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository("test-repo", "mock", repoPath);
         maybeInitWithOldSnapshotVersion("test-repo", repoPath);
 
-        assertAcked(prepareCreate("test-idx", 0, indexSettingsZeroReplicas(between(1, 20))));
+        assertAcked(prepareCreate("test-idx", 0, indexSettingsNoReplicas(between(1, 20))));
         ensureGreen();
 
-        indexSomeData("test-idx", randomIntBetween(10, 100));
+        indexRandomDocs("test-idx", randomIntBetween(10, 100));
 
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
@@ -836,10 +836,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository("test-repo", "mock", repoPath);
         maybeInitWithOldSnapshotVersion("test-repo", repoPath);
 
-        assertAcked(prepareCreate("test-idx", 0, indexSettingsZeroReplicas(6)));
+        assertAcked(prepareCreate("test-idx", 0, indexSettingsNoReplicas(6)));
         ensureGreen();
 
-        indexSomeData("test-idx", randomIntBetween(50, 100));
+        indexRandomDocs("test-idx", randomIntBetween(50, 100));
 
         logger.info("-->  stopping random data node, which should cause shards to go missing");
         internalCluster().stopRandomDataNode();
@@ -896,9 +896,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         createRepository(repo, "fs");
 
-        assertAcked(prepareCreate(sourceIdx, 0, indexSettingsZeroReplicas(between(2, 10))));
+        assertAcked(prepareCreate(sourceIdx, 0, indexSettingsNoReplicas(between(2, 10))));
         ensureGreen();
-        indexSomeData(sourceIdx, randomIntBetween(10, 100));
+        indexRandomDocs(sourceIdx, randomIntBetween(10, 100));
 
         logger.info("--> shrink the index");
         assertAcked(client.admin().indices().prepareUpdateSettings(sourceIdx)
@@ -1110,9 +1110,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository("test-repo", "mock", repoPath);
         maybeInitWithOldSnapshotVersion("test-repo", repoPath);
 
-        assertAcked(prepareCreate("test-idx", 0, indexSettingsZeroReplicas(5)));
+        assertAcked(prepareCreate("test-idx", 0, indexSettingsNoReplicas(5)));
         ensureGreen();
-        indexSomeData("test-idx", randomIntBetween(50, 100));
+        indexRandomDocs("test-idx", randomIntBetween(50, 100));
 
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
         logger.info("-->  snapshot");
@@ -1149,9 +1149,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         createRepository("test-repo", "mock", repoPath);
         maybeInitWithOldSnapshotVersion("test-repo", repoPath);
 
-        assertAcked(prepareCreate("test-idx", 0, indexSettingsZeroReplicas(2)));
+        assertAcked(prepareCreate("test-idx", 0, indexSettingsNoReplicas(2)));
         ensureGreen();
-        indexSomeData("test-idx", randomIntBetween(50, 100));
+        indexRandomDocs("test-idx", randomIntBetween(50, 100));
 
         blockAllDataNodes("test-repo");
         logger.info("-->  snapshot");
@@ -1186,7 +1186,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         final String indexName = "index-retention-leases";
         final int shardCount = randomIntBetween(1, 5);
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(indexSettingsZeroReplicas(shardCount)));
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(indexSettingsNoReplicas(shardCount)));
         final ShardId shardId = new ShardId(resolveIndex(indexName), randomIntBetween(0, shardCount - 1));
 
         final int snapshotDocCount = iterations(10, 1000);

@@ -166,9 +166,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
 
         createRepository("test-repo", "fs");
-        createIndexWithSomeData("test-idx-1", 100);
-        createIndexWithSomeData("test-idx-2", 100);
-        createIndexWithSomeData("test-idx-3", 100);
+        createIndexWithRandomDocs("test-idx-1", 100);
+        createIndexWithRandomDocs("test-idx-2", 100);
+        createIndexWithRandomDocs("test-idx-3", 100);
 
         ActionFuture<FlushResponse> flushResponseFuture = null;
         if (randomBoolean()) {
@@ -683,7 +683,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             assertNotNull(getStoredScriptResponse.getSource());
         }
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot without global state but with indices");
         createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-no-global-state-with-index")
@@ -738,7 +738,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                 .put("random_control_io_exception_rate", 0.2))
                 .setVerify(false));
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         try {
@@ -784,7 +784,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             Settings.builder().put("location", randomRepoPath())
                 .put("random", randomAlphaOfLength(10)).put("random_data_file_io_exception_rate", 0.3));
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -846,7 +846,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         final NumShards numShards = getNumShards("test-idx");
 
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -896,7 +896,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createRepository("test-repo", "fs", repositoryLocation);
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster()
@@ -991,7 +991,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // index some documents
         final int nbDocs = scaledRandomIntBetween(10, 100);
-        indexSomeData(indexName, nbDocs);
+        indexRandomDocs(indexName, nbDocs);
 
         // create a snapshot
         final NumShards numShards = getNumShards(indexName);
@@ -1072,7 +1072,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Client client = client();
         createRepository("test-repo", "fs", repositoryLocation);
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -1218,7 +1218,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> create an index and index some documents");
         final String indexName = "test-idx";
-        createIndexWithSomeData(indexName, 10);
+        createIndexWithRandomDocs(indexName, 10);
 
         for (int repoIndex = 0; repoIndex < randomIntBetween(2, 5); repoIndex++) {
             final String repoName = "repo" + repoIndex;
@@ -1532,8 +1532,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .addAlias("test-idx-3", "alias-3", false)
         );
 
-        indexSomeData("test-idx-1", 100);
-        indexSomeData("test-idx-2", 100);
+        indexRandomDocs("test-idx-1", 100);
+        indexRandomDocs("test-idx-2", 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -1641,7 +1641,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
         assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_replicas", 0)));
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
 
         // Pick one node and block it
         String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
@@ -1694,7 +1694,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
         assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_replicas", 0)));
 
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
 
         // Pick one node and block it
         String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
@@ -1761,7 +1761,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         Path repositoryLocation = randomRepoPath();
         createRepository("test-repo", "fs", repositoryLocation);
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -1817,7 +1817,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 throttleRestore && (throttleRestoreViaRecoverySettings == false) ? "10k" : "0")
             .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "10k" : "0"));
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -1868,7 +1868,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .put("location", randomRepoPath()).put("compress", randomBoolean())
             .put("chunk_size", 100, ByteSizeUnit.BYTES));
 
-        createIndexWithSomeData("test-idx", 100);
+        createIndexWithRandomDocs("test-idx", 100);
 
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -1912,7 +1912,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
         assertAcked(prepareCreate("test-idx", 2, Settings.builder().put("number_of_replicas", 0)));
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
 
         // Pick one node and block it
         String blockedNode = blockNodeWithIndex("test-repo", "test-idx");
@@ -2017,10 +2017,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createRepository("test-repo", "fs");
 
         // Create index on two nodes and make sure each node has a primary by setting no replicas
-        assertAcked(prepareCreate("test-idx", 2, indexSettingsZeroReplicas(between(2, 10))));
+        assertAcked(prepareCreate("test-idx", 2, indexSettingsNoReplicas(between(2, 10))));
 
         ensureGreen("test-idx");
-        indexSomeData("test-idx", 100);
+        indexRandomDocs("test-idx", 100);
 
         logger.info("--> start relocations");
         allowNodes("test-idx", 1);
@@ -2047,9 +2047,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         // Create index on two nodes and make sure each node has a primary by setting no replicas
         final String indexName = "test-idx";
-        assertAcked(prepareCreate(indexName, 2, indexSettingsZeroReplicas(between(2, 10))));
+        assertAcked(prepareCreate(indexName, 2, indexSettingsNoReplicas(between(2, 10))));
         ensureGreen(indexName);
-        indexSomeData(indexName, 100);
+        indexRandomDocs(indexName, 100);
 
         logger.info("--> start relocations");
         allowNodes(indexName, 1);
@@ -2084,7 +2084,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(prepareCreate("test").setSettings(indexSettings));
         ensureGreen();
 
-        indexSomeData("test", randomIntBetween(10, 100));
+        indexRandomDocs("test", randomIntBetween(10, 100));
         assertNoFailures(client().admin().indices().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).get());
 
         CreateSnapshotResponse createSnapshotResponseFirst = client.admin().cluster().prepareCreateSnapshot("test-repo", "test")
@@ -2389,9 +2389,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .put("location", randomRepoPath()).put("compress", randomBoolean())
             .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
             .put("block_on_data", true));
-        createIndexWithSomeData("test-idx-1", 100);
-        createIndexWithSomeData("test-idx-2", 100);
-        createIndexWithSomeData("test-idx-3", 100);
+        createIndexWithRandomDocs("test-idx-1", 100);
+        createIndexWithRandomDocs("test-idx-2", 100);
+        createIndexWithRandomDocs("test-idx-3", 100);
 
         logger.info("--> snapshot");
         ActionFuture<CreateSnapshotResponse> future = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -2434,8 +2434,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createRepository("test-repo", "mock");
 
-        createIndexWithSomeData("test-idx-1", 100);
-        createIndexWithSomeData("test-idx-2", 100);
+        createIndexWithRandomDocs("test-idx-1", 100);
+        createIndexWithRandomDocs("test-idx-2", 100);
 
         logger.info("--> snapshot");
         assertThat(client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
@@ -2487,7 +2487,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> creating index");
         final String indexName = "test-idx";
         assertAcked(prepareCreate(indexName).setWaitForActiveShards(ActiveShardCount.ALL));
-        indexSomeData(indexName, 100);
+        indexRandomDocs(indexName, 100);
 
         logger.info("--> take snapshots");
         final String snapshotName = "test-snap";
@@ -2668,7 +2668,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (int i = 0; i < nbIndices; i++) {
             String indexName = "test-idx-" + i;
 
-            assertAcked(prepareCreate(indexName).setSettings(indexSettingsZeroReplicas(Math.min(2, numberOfShards()))));
+            assertAcked(prepareCreate(indexName).setSettings(indexSettingsNoReplicas(Math.min(2, numberOfShards()))));
 
             int nbDocs = randomIntBetween(1, 10);
             nbDocsPerIndex.put(indexName, nbDocs);
@@ -2737,7 +2737,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final int nDocs = randomIntBetween(1, 10);
 
         logger.info("-->  creating index [{}] with [{}] documents in it", indexName, nDocs);
-        assertAcked(prepareCreate(indexName).setSettings(indexSettingsZeroReplicas(1)));
+        assertAcked(prepareCreate(indexName).setSettings(indexSettingsNoReplicas(1)));
 
         final IndexRequestBuilder[] documents = new IndexRequestBuilder[nDocs];
         for (int j = 0; j < nDocs; j++) {
@@ -2810,7 +2810,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         createRepository(repositoryName, "fs");
         logger.info("--> creating an index and indexing documents");
-        createIndexWithSomeData(indexName, 10);
+        createIndexWithRandomDocs(indexName, 10);
 
         logger.info("--> take first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -2885,7 +2885,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
         assertAcked(prepareCreate(indexName, 1, Settings.builder().put("number_of_replicas", 0)));
         ensureGreen();
-        indexSomeData(indexName, 10);
+        indexRandomDocs(indexName, 10);
 
         // make sure we return only the in-progress snapshot when taking the first snapshot on a clean repository
         // take initial snapshot with a block, making sure we only get 1 in-progress snapshot returned
@@ -3011,7 +3011,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertAcked(prepareCreate(index, 1,
             Settings.builder().put("number_of_shards", numPrimaries).put("number_of_replicas", numReplicas)));
 
-        indexSomeData(index, 100);
+        indexRandomDocs(index, 100);
 
         createRepository(repo, "mock", Settings.builder()
             .put("location", randomRepoPath()).put("random", randomAlphaOfLength(10)).put("wait_after_unblock", 200));
@@ -3063,10 +3063,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             // the less the number of shards, the less control files we have, so we are giving a higher probability of
             // triggering an IOException toward the end when writing the pending-index-* files, which are the files
             // that caused problems with writing subsequent snapshots if they happened to be lingering in the repository
-            indexSettingsZeroReplicas(1)));
+            indexSettingsNoReplicas(1)));
         ensureGreen();
         final int numDocs = randomIntBetween(1, 5);
-        indexSomeData("test-idx", numDocs);
+        indexRandomDocs("test-idx", numDocs);
 
         logger.info("--> snapshot with potential I/O failures");
         try {
@@ -3111,13 +3111,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setSettings(Settings.builder().put("location", repoPath)));
 
         logger.info("--> creating good index");
-        assertAcked(prepareCreate("test-idx-good").setSettings(indexSettingsZeroReplicas(1)));
+        assertAcked(prepareCreate("test-idx-good").setSettings(indexSettingsNoReplicas(1)));
         ensureGreen();
-        indexSomeData("test-idx-good", randomIntBetween(1, 5));
+        indexRandomDocs("test-idx-good", randomIntBetween(1, 5));
         logger.info("--> creating bad index");
         assertAcked(prepareCreate("test-idx-bad")
             .setWaitForActiveShards(ActiveShardCount.NONE)
-            .setSettings(indexSettingsZeroReplicas(1)
+            .setSettings(indexSettingsNoReplicas(1)
                 // set shard allocation to none so the primary cannot be
                 // allocated - simulates a "bad" index that fails to snapshot
                 .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
@@ -3173,7 +3173,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> creating random number of indices");
         final int numIndices = randomIntBetween(1, 10);
         for (int i = 0; i < numIndices; i++) {
-            assertAcked(prepareCreate("test-idx-" + i).setSettings(indexSettingsZeroReplicas(1)));
+            assertAcked(prepareCreate("test-idx-" + i).setSettings(indexSettingsNoReplicas(1)));
         }
 
         logger.info("--> creating random number of snapshots");
@@ -3247,7 +3247,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createRepository(repositoryName, "fs");
         logger.info("--> creating an index and indexing documents");
         final String dataNode = internalCluster().getDataNodeInstance(ClusterService.class).localNode().getName();
-        final Settings settings = indexSettingsZeroReplicas(1).put("index.routing.allocation.include._name", dataNode).build();
+        final Settings settings = indexSettingsNoReplicas(1).put("index.routing.allocation.include._name", dataNode).build();
         createIndex(indexName, settings);
         ensureGreen();
         for (int i = 0; i < 5; i++) {
@@ -3412,7 +3412,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     public void testRestoreIncreasesPrimaryTerms() {
         final String indexName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettingsZeroReplicas(2).build());
+        createIndex(indexName, indexSettingsNoReplicas(2).build());
         ensureGreen(indexName);
 
         if (randomBoolean()) {
@@ -3462,7 +3462,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
 
         final int docCount = initialShardCount * randomIntBetween(1, 10);
-        indexSomeData(indexName, docCount);
+        indexRandomDocs(indexName, docCount);
 
         createRepository(repoName, "fs", absolutePath);
 
@@ -3478,7 +3478,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
 
         final int newDocCount = newShardCount * randomIntBetween(1, 10);
-        indexSomeData(indexName, newDocCount);
+        indexRandomDocs(indexName, newDocCount);
 
         logger.info("--> snapshot with [{}] shards", newShardCount);
         final SnapshotInfo snapshot2 = createFullSnapshot(repoName, "snap-2");
@@ -3556,15 +3556,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createRepository(repoName, "fs");
 
         logger.info("--> creating indices");
-        createIndex(normalIndex, indexSettingsZeroReplicas(randomIntBetween(1,3)).build());
-        createIndex(hiddenIndex, indexSettingsZeroReplicas(randomIntBetween(1,3)).put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
+        createIndex(normalIndex, indexSettingsNoReplicas(randomIntBetween(1,3)).build());
+        createIndex(hiddenIndex, indexSettingsNoReplicas(randomIntBetween(1,3)).put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
         createIndex(dottedHiddenIndex,
-            indexSettingsZeroReplicas(randomIntBetween(1,3)).put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
+            indexSettingsNoReplicas(randomIntBetween(1,3)).put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
         ensureGreen();
 
-        indexSomeData(normalIndex, 100);
-        indexSomeData(hiddenIndex, 100);
-        indexSomeData(dottedHiddenIndex, 100);
+        indexRandomDocs(normalIndex, 100);
+        indexRandomDocs(hiddenIndex, 100);
+        indexRandomDocs(dottedHiddenIndex, 100);
 
         logger.info("--> taking a snapshot");
         final String snapName = "test-snap";

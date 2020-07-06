@@ -287,7 +287,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         createRepository(repoName, type, settings);
     }
 
-    protected static Settings.Builder indexSettingsZeroReplicas(int shards) {
+    protected static Settings.Builder indexSettingsNoReplicas(int shards) {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
     }
@@ -341,13 +341,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return snapshotInfo;
     }
 
-    protected void createIndexWithSomeData(String indexName, int docCount) throws InterruptedException {
+    protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {
         createIndex(indexName);
         ensureGreen();
-        indexSomeData(indexName, docCount);
+        indexRandomDocs(indexName, docCount);
     }
 
-    protected void indexSomeData(String index, int numdocs) throws InterruptedException {
+    protected void indexRandomDocs(String index, int numdocs) throws InterruptedException {
         logger.info("--> indexing [{}] documents into [{}]", numdocs, index);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
         for (int i = 0; i < builders.length; i++) {

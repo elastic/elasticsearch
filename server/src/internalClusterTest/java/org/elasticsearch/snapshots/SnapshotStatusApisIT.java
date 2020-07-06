@@ -281,6 +281,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static Settings singleShardOneNode(String node) {
-        return indexSettingsZeroReplicas(1).put("index.routing.allocation.include._name", node).build();
+        return indexSettingsNoReplicas(1).put("index.routing.allocation.include._name", node).build();
     }
 }

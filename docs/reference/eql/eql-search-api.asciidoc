@@ -231,7 +231,7 @@ return.
 For <<eql-sequences,sequence queries>>, the maximum number of matching sequences
 to return.
 +
-Defaults to `50`. This value must be greater than `0`.
+Defaults to `10`. This value must be greater than `0`.
 
 [[eql-search-api-tiebreaker-field]]
 `tiebreaker_field`::

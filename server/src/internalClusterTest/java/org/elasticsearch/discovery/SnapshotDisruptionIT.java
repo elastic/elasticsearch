@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
@@ -110,7 +109,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         NetworkDisruption networkDisruption =
             new NetworkDisruption(new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode1), otherNodes),
-                new NetworkDisruption.NetworkUnresponsive());
+                NetworkDisruption.UNRESPONSIVE);
         internalCluster().setDisruptionScheme(networkDisruption);
 
         ClusterService clusterService = internalCluster().clusterService(masterNode1);
@@ -160,8 +159,8 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
     public void testDisruptionAfterFinalization() throws Exception {
         final String idxName = "test";
-        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
-        final String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startMasterOnlyNodes(3);
+        internalCluster().startDataOnlyNode();
         ensureStableCluster(4);
 
         createRandomIndex(idxName);
@@ -172,13 +171,8 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
             .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES));
 
         final String masterNode1 = internalCluster().getMasterName();
-        Set<String> otherNodes = new HashSet<>(allMasterEligibleNodes);
-        otherNodes.remove(masterNode1);
-        otherNodes.add(dataNode);
 
-        NetworkDisruption networkDisruption =
-            new NetworkDisruption(new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode1), otherNodes),
-                new NetworkDisruption.NetworkUnresponsive());
+        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.UNRESPONSIVE);
         internalCluster().setDisruptionScheme(networkDisruption);
 
         ClusterService clusterService = internalCluster().clusterService(masterNode1);
@@ -248,7 +242,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
     public void testDisruptionAfterShardFinalization() throws Exception {
         final String idxName = "test";
         internalCluster().startMasterOnlyNodes(1);
-        final String dataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
         createIndex(idxName);
         index(idxName, "type", JsonXContent.contentBuilder().startObject().field("foo", "bar").endObject());
@@ -267,9 +261,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         waitForBlockOnAnyDataNode(repoName, TimeValue.timeValueSeconds(10L));
 
-        NetworkDisruption networkDisruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode), Collections.singleton(dataNode)),
-                new NetworkDisruption.NetworkDisconnect());
+        NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -326,12 +318,7 @@ public class SnapshotDisruptionIT extends AbstractSnapshotIntegTestCase {
 
         waitForBlock(dataNode, repoName, TimeValue.timeValueSeconds(30L));
 
-        final String masterNode = internalCluster().getMasterName();
-        final NetworkDisruption networkDisruption = new NetworkDisruption(
-                new NetworkDisruption.TwoPartitions(Collections.singleton(masterNode),
-                        Arrays.stream(internalCluster().getNodeNames()).filter(name -> masterNode.equals(name) == false)
-                                .collect(Collectors.toSet())),
-                new NetworkDisruption.NetworkDisconnect());
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         ensureStableCluster(3, dataNode);

@@ -22,6 +22,7 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
  */
 
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [

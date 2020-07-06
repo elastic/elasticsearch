@@ -746,7 +746,7 @@ public class IndexNameExpressionResolver {
                         expressions.isEmpty() ? "_all" : expressions.get(0), options.expandWildcardsHidden()));
                     return new ArrayList<>(resolvedIncludingDataStreams);
                 }
-                return resolveEmptyOrTrivialWildcard(options, metadata);
+                return resolvedExpressions;
             }
 
             Set<String> result = innerResolve(context, expressions, options, metadata);

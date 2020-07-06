@@ -223,7 +223,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(firstBackingIndexMetadata, true)
             .put(secondBackingIndexMetadata, true)
             .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
-                List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
+                org.elasticsearch.common.collect.List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 

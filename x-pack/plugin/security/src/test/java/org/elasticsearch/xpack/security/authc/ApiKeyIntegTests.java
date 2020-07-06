@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -872,7 +873,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
         // Fill the whole queue for the crypto thread pool
         final int queueSize = 1000;
-        IntStream.range(0, queueSize).forEach(i -> executorService.submit(() -> {}));
+        try {
+            IntStream.range(0, queueSize).forEach(i -> executorService.submit(() -> {}));
+        } catch (EsRejectedExecutionException e) {
+        }
         readyLatch.await();
 
         try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {

@@ -749,17 +749,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         public void addFileDetails(String name, long length, boolean reused) {
-            addFileDetails(name, new File(name, length, reused));
-        }
-
-        public void addFileDetails(String name, File file) {
             assert complete == false : "addFileDetail for [" + name + "] when file details are already complete";
-            File existing = fileDetails.put(name, file);
+            File existing = fileDetails.put(name, new File(name, length, reused));
             assert existing == null : "file [" + name + "] is already reported";
         }
 
         public void addRecoveredBytesToFile(String name, long bytes) {
             File file = fileDetails.get(name);
+            assert file != null : "file [" + name + "] hasn't been reported";
             file.addRecoveredBytes(bytes);
         }
 
@@ -788,7 +785,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             return fileDetails.values();
         }
 
-        public boolean complete() {
+        public boolean isComplete() {
             return complete;
         }
     }
@@ -965,7 +962,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
          * {@code -1} if the full set of files to recover is not yet known
          */
         public synchronized long bytesStillToRecover() {
-            if (fileDetails.complete() == false) {
+            if (fileDetails.isComplete() == false) {
                 return -1L;
             }
             long total = 0L;

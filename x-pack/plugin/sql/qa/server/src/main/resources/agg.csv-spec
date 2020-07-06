@@ -1160,7 +1160,7 @@ GROUP BY gender ORDER BY gender;
 ;
 
 extendedStatsAggregateFunctionsWithScalars
-schema::stddev_pop:d|sum_of_squares:d|var_pop:d|gender:s
+schema::stddev_pop:d|stddev_samp:d|sum_of_squares:d|var_pop:d|var_samp:d|gender:s
 SELECT STDDEV_POP(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "stddev_pop",
 STDDEV_SAMP(CASE WHEN (salary / 2) > 10000 THEN (salary + 12345) * 1.2 ELSE (salary - 12345) * 2.7 END) AS "stddev_samp",
 SUM_OF_SQUARES(CASE WHEN (salary - 20) > 50000 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "sum_of_squares",
@@ -1177,7 +1177,7 @@ GROUP BY gender ORDER BY gender;
 ;
 
 extendedStatsAggregateFunctionsWithScalarAndSameArg
-schema::stddev_pop:d|sum_of_squares:d|var_pop:d|gender:s
+schema::stddev_pop:d|stddev_samp:d|sum_of_squares:d|var_pop:d|var_samp:d|gender:s
 SELECT STDDEV_POP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "stddev_pop",
 STDDEV_SAMP(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "stddev_samp",
 SUM_OF_SQUARES(CASE WHEN (salary - 20) % 1000 > 200 THEN (salary * 1.2) - 1234 ELSE (salary - 20) * 0.93 END) AS "sum_of_squares",

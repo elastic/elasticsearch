@@ -1553,9 +1553,8 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, SKEWNESS(salary) AS s FROM emp;
 aggStddevPop
 // tag::aggStddevPop
 SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_POP(salary) AS stddev FROM emp;
-       FROM emp;
 
-      min      |      max      |      stddev      
+      min      |      max      |      stddev
 ---------------+---------------+------------------
 25324          |74999          |13765.125502787832
 // end::aggStddevPop
@@ -1575,7 +1574,6 @@ SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, STDDEV_POP(salary /
 aggStddevSamp
 // tag::aggStddevSamp
 SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_SAMP(salary) AS stddev FROM emp;
-       FROM emp;
 
       min      |      max      |      stddev
 ---------------+---------------+------------------
@@ -1650,7 +1648,7 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, VAR_SAMP(salary) AS varsamp FROM 
 ;
 
 aggVarSampScalars
-schema::min:d|max:d|varpop:d
+schema::min:d|max:d|varsamp:d
 // tag::aggVarSampScalars
 SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, VAR_SAMP(salary / 24.0) AS varsamp FROM emp;
 

@@ -28,6 +28,7 @@ import java.nio.file.Paths
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'

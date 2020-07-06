@@ -3097,34 +3097,21 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals(SnapshotState.SUCCESS, getSnapshotsResponse.getSnapshots("test-repo-2").get(0).state());
     }
 
-    public void testSnapshotStatusOnFailedIndex() throws Exception {
-        createRepository("test-repo", "fs");
-
+    public void testSnapshotStatusOnFailedSnapshot() throws Exception {
+        String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final String snapshot = "test-snap-1";
+        addBwCFailedSnapshot(repoName, snapshot);
 
         logger.info("--> creating good index");
         assertAcked(prepareCreate("test-idx-good").setSettings(indexSettingsNoReplicas(1)));
         ensureGreen();
         indexRandomDocs("test-idx-good", randomIntBetween(1, 5));
 
-        final SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster()
-            .prepareSnapshotStatus("test-repo")
-            .setSnapshots("test-snap1")
-            .get();
+        final SnapshotsStatusResponse snapshotsStatusResponse =
+                client().admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshot).get();
         assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
         assertEquals(State.FAILED, snapshotsStatusResponse.getSnapshots().get(0).getState());
-
-        // verify a FAILED status is returned instead of a 500 status code
-        // see https://github.com/elastic/elasticsearch/issues/23716
-        SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
-        assertEquals(State.FAILED, snapshotStatus.getState());
-        for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getShards()) {
-            assertEquals(SnapshotIndexShardStage.FAILURE, shardStatus.getStage());
-            if (shardStatus.getIndex().equals("test-idx-good")) {
-                assertEquals("skipped", shardStatus.getFailure());
-            } else {
-                assertEquals("primary shard is not allocated", shardStatus.getFailure());
-            }
-        }
     }
 
     public void testGetSnapshotsFromIndexBlobOnly() throws Exception {

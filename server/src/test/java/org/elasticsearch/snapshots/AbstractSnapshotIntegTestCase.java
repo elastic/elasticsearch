@@ -24,10 +24,14 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,6 +45,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -56,12 +61,10 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
@@ -365,5 +368,29 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void assertDocCount(String index, long count) {
         assertEquals(getCountForIndex(index), count);
+    }
+
+    /**
+     * Adds a snapshot in state {@link SnapshotState#FAILED} to the given repository.
+     *
+     * @param repoName     repository to add snapshot to
+     * @param snapshotName name for the new failed snapshot
+     */
+    protected void addBwCFailedSnapshot(String repoName, String snapshotName) throws Exception {
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+        assertNotNull(repositoriesMetadata);
+        final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);
+        assertNotNull(initialRepoMetadata);
+        assertThat("We can only manually insert a snapshot into a repository that does not have a generation tracked in the CS",
+                initialRepoMetadata.generation(), is(RepositoryData.UNKNOWN_REPO_GEN));
+        final Repository repo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
+        logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
+        final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
+                Collections.emptyList(), Collections.emptyList(), SnapshotState.FAILED, SnapshotsService.OLD_SNAPSHOT_FORMAT);
+        PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
+                ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
+                SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
     }
 }

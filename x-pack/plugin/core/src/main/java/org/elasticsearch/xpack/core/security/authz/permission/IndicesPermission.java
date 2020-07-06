@@ -229,17 +229,13 @@ public final class IndicesPermission {
             }
 
             for (Group group : groups) {
-                if (group.checkIndex(indexOrAlias) &&
-                        (group.checkAction(action) || (authorizeMappingUpdateBwcSpecialCase(group, action) &&
-                                (indexAbstraction == null || indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)))) {
-//=======
-//                // check for privilege granted directly on the requested index/alias
-//                if (group.check(action, indexOrAlias) ||
-//                    // check for privilege granted on parent data stream if a backing index
-//                    (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
-//                        indexAbstraction.getParentDataStream() != null &&
-//                        group.check(action, indexAbstraction.getParentDataStream().getName()))) {
-//>>>>>>> master
+                boolean indexCheck = group.checkIndex(indexOrAlias) ||
+                        (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
+                                indexAbstraction.getParentDataStream() != null &&
+                                group.checkIndex(indexAbstraction.getParentDataStream().getName()));
+                boolean actionCheck = group.checkAction(action) || (authorizeMappingUpdateBwcSpecialCase(group, action) &&
+                                (indexAbstraction == null || indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM));
+                if (indexCheck && actionCheck) {
                     granted = true;
                     for (String index : concreteIndices) {
                         Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());

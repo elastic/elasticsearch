@@ -377,7 +377,7 @@ public class ApiKeyService {
         }
     }
 
-    public Tuple<String, BytesReference> getApiKeyIdAndBytes(Authentication authentication, boolean limitedBy) {
+    public Tuple<String, BytesReference> getApiKeyIdAndRoleBytes(Authentication authentication, boolean limitedBy) {
         if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }

@@ -332,7 +332,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                                                        int failedShards, List<DataStreamShardStats> dataStreamShardStats,
                                                        List<DefaultShardOperationFailedException> shardFailures,
                                                        ClusterState clusterState) {
-            Map<String, AggregatedStats> dataStreamsStats = new HashMap<>();
+            Map<String, AggregatedStats> aggregatedDataStreamsStats = new HashMap<>();
             Set<String> allBackingIndices = new HashSet<>();
             long totalStoreSizeBytes = 0L;
 
@@ -348,13 +348,13 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 allBackingIndices.add(indexName);
 
                 // Aggregate data stream stats
-                AggregatedStats stats = dataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
+                AggregatedStats stats = aggregatedDataStreamsStats.computeIfAbsent(dataStream.getName(), s -> new AggregatedStats());
                 stats.storageBytes += shardStat.getStoreStats().sizeInBytes();
                 stats.maxTimestamp = Math.max(stats.maxTimestamp, shardStat.getMaxTimestamp());
                 stats.backingIndices.add(indexName);
             }
 
-            DataStreamStats[] dataStreamStats = dataStreamsStats.entrySet().stream()
+            DataStreamStats[] dataStreamStats = aggregatedDataStreamsStats.entrySet().stream()
                 .map(entry -> new DataStreamStats(
                     entry.getKey(),
                     entry.getValue().backingIndices.size(),
@@ -367,7 +367,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 successfulShards,
                 failedShards,
                 shardFailures,
-                dataStreamsStats.size(),
+                aggregatedDataStreamsStats.size(),
                 allBackingIndices.size(),
                 new ByteSizeValue(totalStoreSizeBytes),
                 dataStreamStats

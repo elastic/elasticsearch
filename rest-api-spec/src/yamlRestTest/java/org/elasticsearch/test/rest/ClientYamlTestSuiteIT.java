@@ -25,8 +25,8 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
-public class IntegTestZipClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-    public IntegTestZipClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
+public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+    public ClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

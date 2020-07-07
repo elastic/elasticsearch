@@ -97,6 +97,16 @@ PUT /logs/_create/2?refresh=wait_for
 GET /.ds-logs-000003/_doc/2
 ----
 // TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+
+DELETE /_index_template/*
+----
+// TEST[continued]
+////
 ====
 
 [[index-alias-privileges]]

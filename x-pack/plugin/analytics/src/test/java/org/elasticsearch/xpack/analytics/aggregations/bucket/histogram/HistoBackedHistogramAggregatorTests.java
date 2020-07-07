@@ -188,7 +188,7 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                IllegalStateException e = expectThrows(IllegalStateException.class,
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, defaultFieldType(FIELD_NAME))
                 );
 

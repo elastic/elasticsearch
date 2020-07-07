@@ -12,6 +12,7 @@ import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregator;
@@ -39,17 +40,17 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata) throws IOException {
         super(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            valuesSourceConfig.format(), context, parent, collectsFromSingleBucket, metadata);
+            valuesSourceConfig.format(), context, parent, cardinalityUpperBound, metadata);
 
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
 
         // Sub aggregations are not allowed when running histogram agg over histograms
         if (subAggregators().length > 0) {
-            throw new IllegalStateException("Histogram aggregation on histogram fields does not support sub-aggregations");
+            throw new IllegalArgumentException("Histogram aggregation on histogram fields does not support sub-aggregations");
         }
     }
 

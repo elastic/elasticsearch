@@ -328,8 +328,8 @@ teardown:
 ---
 "Test clear privileges cache":
   - skip:
-      version: " - 7.99.99"
-      reason:  "backport pending https://github.com/elastic/elasticsearch/pull/55836"
+      version: " - 7.8.99"
+      reason:  "application privileges cache is available since 7.9.0"
 
   - do:
       security.clear_cached_privileges:

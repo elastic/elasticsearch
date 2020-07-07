@@ -159,6 +159,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /**
      * The mapping source definition.
      */

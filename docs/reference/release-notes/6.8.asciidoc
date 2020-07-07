@@ -1,3 +1,16 @@
+[[release-notes-6.8.11]]
+== {es} version 6.8.11
+
+coming::[6.8.11]
+
+[float]
+=== Bug fixes
+
+Machine Learning::
+* Better interrupt handling during named pipe connection {ml-pull}1311[#1311]
+* Trap potential cause of SIGFPE {ml-pull}1351[#1351] (issue: {ml-issue}1348[#1348])
+
+
 [[release-notes-6.8.10]]
 == {es} version 6.8.10
 

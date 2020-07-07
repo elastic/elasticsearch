@@ -48,6 +48,8 @@ public final class IndicesPermission {
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
+    private static final Set<String> privilegeNameSetBwcAllowMappingUpdate = Set.of("create", "create_doc", "index", "write");
+
     private final ConcurrentMap<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final Group[] groups;
@@ -219,42 +221,60 @@ public final class IndicesPermission {
         Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>();
         Map<String, Boolean> grantedBuilder = new HashMap<>();
 
+        final boolean isMappingUpdateAction = action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
+
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            boolean granted = false;
-            Set<String> concreteIndices = new HashSet<>();
-            IndexAbstraction indexAbstraction = lookup.get(indexOrAlias);
+            final boolean isBackingIndex;
+            final boolean isDataStream;
+            final Set<String> concreteIndices = new HashSet<>();
+            final IndexAbstraction indexAbstraction = lookup.get(indexOrAlias);
             if (indexAbstraction != null) {
                 for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
                     concreteIndices.add(indexMetadata.getIndex().getName());
                 }
+                isBackingIndex = indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
+                        indexAbstraction.getParentDataStream() != null;
+                isDataStream = indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
+            } else {
+                isBackingIndex = isDataStream = false;
             }
 
+            boolean granted = false;
+            boolean bwcGrantMappingUpdate = false;
+
             for (Group group : groups) {
-                boolean indexCheck = group.checkIndex(indexOrAlias) ||
-                        (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.CONCRETE_INDEX &&
-                                indexAbstraction.getParentDataStream() != null &&
-                                group.checkIndex(indexAbstraction.getParentDataStream().getName()));
-                boolean actionCheck = group.checkAction(action) || (authorizeMappingUpdateBwcSpecialCase(group, action) &&
-                                (indexAbstraction == null || indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM));
-                if (indexCheck && actionCheck) {
-                    granted = true;
-                    for (String index : concreteIndices) {
-                        Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
-                        fieldPermissionsByIndex.put(indexOrAlias, fieldPermissions);
-                        fieldPermissions.add(group.getFieldPermissions());
-                        DocumentLevelPermissions permissions =
-                                roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
-                        roleQueriesByIndex.putIfAbsent(indexOrAlias, permissions);
-                        if (group.hasQuery()) {
-                            permissions.addAll(group.getQuery());
-                        } else {
-                            // if more than one permission matches for a concrete index here and if
-                            // a single permission doesn't have a role query then DLS will not be
-                            // applied even when other permissions do have a role query
-                            permissions.setAllowAll(true);
+                final boolean indexCheck = group.checkIndex(indexOrAlias) ||
+                        (isBackingIndex && group.checkIndex(indexAbstraction.getParentDataStream().getName()));
+                if (indexCheck) {
+                    boolean actionCheck = group.checkAction(action);
+                    boolean bwcMappingActionCheck = isMappingUpdateAction && false == isDataStream &&
+                            group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains);
+                    if (actionCheck || bwcMappingActionCheck) {
+                        for (String index : concreteIndices) {
+                            Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
+                            fieldPermissionsByIndex.put(indexOrAlias, fieldPermissions);
+                            fieldPermissions.add(group.getFieldPermissions());
+                            DocumentLevelPermissions permissions =
+                                    roleQueriesByIndex.computeIfAbsent(index, (k) -> new DocumentLevelPermissions());
+                            roleQueriesByIndex.putIfAbsent(indexOrAlias, permissions);
+                            if (group.hasQuery()) {
+                                permissions.addAll(group.getQuery());
+                            } else {
+                                // if more than one permission matches for a concrete index here and if
+                                // a single permission doesn't have a role query then DLS will not be
+                                // applied even when other permissions do have a role query
+                                permissions.setAllowAll(true);
+                            }
                         }
                     }
+                    granted |= actionCheck;
+                    bwcGrantMappingUpdate |= bwcMappingActionCheck;
                 }
+            }
+
+            if (false == granted && bwcGrantMappingUpdate) {
+                granted = true;
+                // log
             }
 
             if (concreteIndices.isEmpty()) {

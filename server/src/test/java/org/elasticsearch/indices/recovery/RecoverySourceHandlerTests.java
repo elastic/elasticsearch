@@ -933,7 +933,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             if (randomBoolean()) {
                 op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
             } else if (randomBoolean()) {
-                op = new Translog.Delete("id", new Term("_id", "id"), seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
             } else {
                 op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
             }

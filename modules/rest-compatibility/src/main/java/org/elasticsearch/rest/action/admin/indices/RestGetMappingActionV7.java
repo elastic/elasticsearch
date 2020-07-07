@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -35,8 +33,7 @@ import static org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV
 import static org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class RestGetMappingActionV7 extends RestGetMappingAction {
-    private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetMappingActionV7.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
         + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 

@@ -55,7 +55,8 @@ public class MatchAssertionTests extends ESTestCase  {
 
     public void testNullInMap2() {
         XContentLocation xContentLocation = new XContentLocation(0, 0);
-        MatchAssertion matchAssertion = new MatchAssertion(xContentLocation, "test_index.mappings.test_type.text.mapping.text.type", "type");
+        MatchAssertion matchAssertion =
+            new MatchAssertion(xContentLocation, "test_index.mappings.test_type.text.mapping.text.type", "type");
         matchAssertion.doAssert(singletonMap("a", null), matchAssertion.getExpectedValue());
         AssertionError e = expectThrows(AssertionError.class, () ->
             matchAssertion.doAssert(emptyMap(), matchAssertion.getExpectedValue()));

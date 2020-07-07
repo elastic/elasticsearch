@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -32,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetFieldMappingActionV7 extends RestGetFieldMappingAction {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetFieldMappingAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetFieldMappingActionV7.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get "
         + "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 

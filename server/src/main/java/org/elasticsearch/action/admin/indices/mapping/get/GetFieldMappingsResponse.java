@@ -33,8 +33,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 
 import java.io.IOException;
 import java.io.InputStream;

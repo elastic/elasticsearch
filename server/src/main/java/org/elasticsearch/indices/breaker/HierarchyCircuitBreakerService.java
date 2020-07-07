@@ -386,6 +386,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         private long blackHole;
         private final Object lock = new Object();
+        private final long maxHeap;
 
         G1OverLimitStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
                             LongSupplier timeSupplier, long minimumInterval) {
@@ -400,6 +401,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             } else {
                 this.g1RegionSize = g1RegionSize;
             }
+            maxHeap = jvmInfo.getMem().getHeapMax().getBytes();
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
@@ -422,7 +424,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         @Override
         public MemoryUsage overLimit(MemoryUsage memoryUsed) {
-            long maxHeap = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
             boolean leader;
             synchronized (lock) {
                 leader = timeSupplier.getAsLong() >= lastCheckTime + minimumInterval;

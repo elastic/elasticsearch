@@ -290,19 +290,17 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                     bucketOrd += 1;
                 }
                 moveLastCluster(bucketOrd);
-                updateAvgBucketDistanceIfModified(bucketOrd);
+                // We've added a new bucket so update the average distance between the buckets
+                updateAvgBucketDistance();
             } else {
                 addToCluster(bucketOrd, val);
                 collectExistingBucket(sub, doc, bucketOrd);
-                updateAvgBucketDistanceIfModified(bucketOrd);
+                if (bucketOrd == 0 || bucketOrd == numClusters - 1) {
+                    // Only update average distance if the centroid of one of the end buckets is modifed.
+                    updateAvgBucketDistance();
+                }
             }
             return this;
-        }
-
-        private void updateAvgBucketDistanceIfModified(int modifiedBucketOrd) {
-            if (modifiedBucketOrd == 0 || modifiedBucketOrd == numClusters - 1) {
-                updateAvgBucketDistance();
-            }
         }
 
         private void updateAvgBucketDistance() {

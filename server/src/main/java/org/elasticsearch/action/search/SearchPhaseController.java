@@ -805,6 +805,7 @@ public final class SearchPhaseController {
         private final AtomicInteger shardResultConsumeCount;
         private final CountDownLatch finalReduce = new CountDownLatch(1);
         private final List<PartialReduceResult> remainningResults;
+        private int parallelBuffSize = 512;
 
         /**
          * Creates a new {@link QueryPhaseParallelResultConsumer}
@@ -868,7 +869,7 @@ public final class SearchPhaseController {
                 PartialReduceResult partialReduceResult = new PartialReduceResult(partialResultAggs, partialResultTopDocs);
                 putInQueue(partialReduceResult);
                 // check to start parallel reduce task
-                if (intermediateReducedResultsQueue.size() > 1) {
+                if (intermediateReducedResultsQueue.size() > parallelBuffSize) {
                     reduceExecutor.execute(new PartialReduceTask());
                 }
                 if (numShards == 1) {
@@ -901,7 +902,7 @@ public final class SearchPhaseController {
             }
         }
 
-        private void drainToIntermediateResultQueue() {
+        private void drainFromIntermediateResultQueue() {
             intermediateReducedResultsQueue.drainTo(remainningResults);
         }
 
@@ -916,7 +917,7 @@ public final class SearchPhaseController {
         @Override
         public ReducedQueryPhase reduce() {
             waitForAllParallelsDone();
-            drainToIntermediateResultQueue();
+            drainFromIntermediateResultQueue();
             logger.trace("aggs final reduction [{}] max [{}]", remainningResults.stream().mapToLong(PartialReduceResult::ramUsed).sum(), aggsMaxSize);
             ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), getRemainingAggs(), getRemainingTopDocs(),
                 topDocsStats, numReducePhases.get(), false, aggReduceContextBuilder, performFinalReduce);
@@ -924,6 +925,10 @@ public final class SearchPhaseController {
                 reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             remainningResults.clear();
             return reducePhase;
+        }
+
+        public void setParallelBuffSize(int parallelBuffSize) {
+            this.parallelBuffSize = parallelBuffSize;
         }
 
         public int getNumReducePhases() {
@@ -972,19 +977,27 @@ public final class SearchPhaseController {
                      * fetch results, this may cause to some tasks misread the queue size before starting to reduce,
                      * so we synced this block for checking queue size to fetches
                      */
-                    if (intermediateReducedResultsQueue.size() < 2) {
+                    if (intermediateReducedResultsQueue.size() < parallelBuffSize) {
+                        //  not enough results to reduce
                         endTask();
-                        return; //  no sufficient results to reduce
-                    }
-                    if (intermediateReducedResultsQueue.size() == 2) {
-                        fetches = 2;
+                        return;
                     } else {
-                        fetches = 3;
-                    }
-                    for (int i = 0; i < fetches; i++) {
-                        PartialReduceResult fetchOne = intermediateReducedResultsQueue.remove();
-                        aggsFetches.add(fetchOne.aggs);
-                        topDocsFetches.add(fetchOne.topDocs);
+                        // enough results to reduce
+                        if (parallelBuffSize == 2) {
+                            // avoid 2 + 1 reduction cause more reduce times than 3 reduction
+                            if (intermediateReducedResultsQueue.size() == 2) {
+                                fetches = 2;
+                            } else {
+                                fetches = 3;
+                            }
+                        } else {
+                            fetches = parallelBuffSize;
+                        }
+                        for (int i = 0; i < fetches; i++) {
+                            PartialReduceResult fetchOne = intermediateReducedResultsQueue.remove();
+                            aggsFetches.add(fetchOne.aggs);
+                            topDocsFetches.add(fetchOne.topDocs);
+                        }
                     }
                 }
                 numReducePhases.incrementAndGet();

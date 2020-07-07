@@ -96,6 +96,9 @@ public class SearchReduceBenchmarkParallel {
         @Param({"100000"})
         int cardinality;
 
+        @Param({"1024", "512", "256", "128", "64", "32", "16", "8", "4", "2"})
+        int buffSize;
+
         List<InternalAggregations> aggsList;
 
         @Setup
@@ -136,6 +139,10 @@ public class SearchReduceBenchmarkParallel {
         public int size() {
             return aggsList.size();
         }
+
+        public int getBuffSize() {
+            return buffSize;
+        }
     }
 
     @Benchmark
@@ -165,6 +172,7 @@ public class SearchReduceBenchmarkParallel {
                     BigArrays.NON_RECYCLING_INSTANCE, null, b -> {}, PipelineAggregator.PipelineTree.EMPTY);
             }
         }, true, threadPool);
+        consumer.setParallelBuffSize(termsList.getBuffSize());
         for (int i = 0; i < shards.size(); i++) {
             consumer.consumeResult(shards.get(i));
         }

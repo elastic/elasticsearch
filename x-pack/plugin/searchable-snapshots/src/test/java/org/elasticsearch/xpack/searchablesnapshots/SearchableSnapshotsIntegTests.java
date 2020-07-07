@@ -751,7 +751,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final String leakyNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .put(CacheService.DELETE_ON_EVICTION_SETTING.getKey(), false)
                 .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(1L, ByteSizeUnit.GB))
                 .build()
         );

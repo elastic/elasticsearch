@@ -24,7 +24,6 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -45,7 +44,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class, PrivateSettingsPlugin.class);
+        return List.of(SearchableSnapshots.class, LocalStateCompositeXPackPlugin.class);
     }
 
     @Override
@@ -71,12 +70,5 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
             );
         }
         return builder.build();
-    }
-
-    public static class PrivateSettingsPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(CacheService.DELETE_ON_EVICTION_SETTING);
-        }
     }
 }

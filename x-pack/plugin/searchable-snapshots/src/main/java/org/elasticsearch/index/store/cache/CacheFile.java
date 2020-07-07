@@ -55,7 +55,6 @@ public class CacheFile {
     private final SparseFileTracker tracker;
     private final String description;
     private final Path file;
-    private final boolean deleteOnEviction; // only false in tests
 
     private volatile Set<EvictionListener> listeners;
     private volatile boolean evicted;
@@ -63,8 +62,7 @@ public class CacheFile {
     @Nullable // if evicted, or there are no listeners
     private volatile FileChannel channel;
 
-    public CacheFile(String description, long length, Path file, boolean deleteOnEviction) {
-        this.deleteOnEviction = deleteOnEviction;
+    public CacheFile(String description, long length, Path file) {
         this.tracker = new SparseFileTracker(file.toString(), length);
         this.description = Objects.requireNonNull(description);
         this.file = Objects.requireNonNull(file);
@@ -170,12 +168,10 @@ public class CacheFile {
         assert evictionLock.isHeldByCurrentThread();
         assert listeners.isEmpty();
         assert channel == null;
-        if (deleteOnEviction) {
-            try {
-                Files.deleteIfExists(file);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -225,7 +221,7 @@ public class CacheFile {
             assert listeners != null;
             if (listeners.isEmpty()) {
                 assert channel == null;
-                assert evicted == false || refCounter.refCount() != 0 || Files.notExists(file) || deleteOnEviction == false;
+                assert evicted == false || refCounter.refCount() != 0 || Files.notExists(file);
             } else {
                 assert channel != null;
                 assert refCounter.refCount() > 0;

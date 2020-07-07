@@ -48,25 +48,16 @@ public class CacheService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    // Deliberately unregistered, we only use this in tests
-    public static final Setting<Boolean> DELETE_ON_EVICTION_SETTING = Setting.boolSetting(
-        SETTINGS_PREFIX + "delete_on_eviction",
-        true,
-        Setting.Property.NodeScope
-    );
-
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
     private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
-    private final boolean deleteOnEviction;
 
     public CacheService(final Runnable cacheCleaner, final Settings settings) {
         this(
             cacheCleaner,
             SNAPSHOT_CACHE_SIZE_SETTING.get(settings),
-            SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings),
-            DELETE_ON_EVICTION_SETTING.get(settings)
+            SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings)
         );
     }
 
@@ -74,13 +65,11 @@ public class CacheService extends AbstractLifecycleComponent {
     public CacheService(
         final Runnable cacheCleaner,
         final ByteSizeValue cacheSize,
-        final ByteSizeValue rangeSize,
-        boolean deleteOnEviction
+        final ByteSizeValue rangeSize
     ) {
         this.cacheSize = Objects.requireNonNull(cacheSize);
         this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
         this.rangeSize = Objects.requireNonNull(rangeSize);
-        this.deleteOnEviction = deleteOnEviction;
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
@@ -139,7 +128,7 @@ public class CacheService extends AbstractLifecycleComponent {
             final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(key.toString(), fileLength, path, deleteOnEviction);
+            return new CacheFile(key.toString(), fileLength, path);
         });
     }
 

@@ -43,7 +43,7 @@ public final class TestUtils {
             randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
         );
-        return new CacheService(TestUtils::noOpCacheCleaner, cacheSize, randomCacheRangeSize(random), true);
+        return new CacheService(TestUtils::noOpCacheCleaner, cacheSize, randomCacheRangeSize(random));
     }
 
     public static ByteSizeValue randomCacheRangeSize(final Random random) {

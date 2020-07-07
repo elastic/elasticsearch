@@ -19,6 +19,8 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
+apply plugin: 'elasticsearch.rest-resources'
+
 esplugin {
   description 'Ingest processor that uses lookup geo data based on IP adresses using the MaxMind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'

@@ -61,17 +61,18 @@ public abstract class AggregatorBase extends Aggregator {
      * @param factories             The factories for all the sub-aggregators under this aggregator
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
+     * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
     protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+            CardinalityUpperBound subAggregatorCardinality, Map<String, Object> metadata) throws IOException {
         this.name = name;
         this.metadata = metadata;
         this.parent = parent;
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
-        this.subAggregators = factories.createSubAggregators(context, this);
+        this.subAggregators = factories.createSubAggregators(context, this, subAggregatorCardinality);
         context.addReleasable(this);
         final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)

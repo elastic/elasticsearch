@@ -565,3 +565,125 @@ sequence by pid with maxspan=2h
     [process where process_name == "*" ] 
     [file where file_path == "*"]
 ;
+
+//
+// Pipes
+//
+
+
+security where event_id == 4624
+| tail 10
+;
+
+process where true | head 6;
+process where bad_field == null | head 5;
+
+process where not (exit_code > -1)
+  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)
+| head 10
+;
+
+
+process where not (exit_code > -1) | head 7;
+
+process where not (-1 < exit_code) | head 7;
+
+
+file where true
+| tail 3;
+
+sequence
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+
+sequence
+  [file where opcode=0] by unique_pid
+  [file where opcode=0] by unique_pid
+| head 1;
+
+
+sequence with maxspan=1d
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=1h
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=1m
+  [file where event_subtype_full == "file_create_event"] by file_path
+  [process where opcode == 1] by process_path
+  [process where opcode == 2] by process_path
+  [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence with maxspan=10s
+   [file where event_subtype_full == "file_create_event"] by file_path
+   [process where opcode == 1] by process_path
+   [process where opcode == 2] by process_path
+   [file where event_subtype_full == "file_delete_event"] by file_path
+| head 4
+| tail 2;
+
+sequence
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+until [process where opcode=5000] by unique_ppid
+| head 1;
+
+sequence
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+until [process where opcode=1] by unique_ppid
+| head 1;
+
+join
+  [file where opcode=0 and file_name="*.exe"] by unique_pid
+  [file where opcode=2 and file_name="*.exe"] by unique_pid
+until [process where opcode=1] by unique_ppid
+| head 1;
+
+sequence by user_name
+  [file where opcode=0] by file_path
+  [process where opcode=1] by process_path
+  [process where opcode=2] by process_path
+  [file where opcode=2] by file_path
+| tail 1;
+
+sequence by user_name
+  [file where opcode=0] by pid,file_path
+  [file where opcode=2] by pid,file_path
+until [process where opcode=5] by ppid,process_path
+| head 2;
+
+sequence by pid
+  [file where opcode=0] by file_path
+  [process where opcode=1] by process_path
+  [process where opcode=2] by process_path
+  [file where opcode=2] by file_path
+| tail 1;
+
+join by user_name
+  [file where true] by pid,file_path
+  [process where true] by ppid,process_path
+| head 2;
+
+process where fake_field != "*"
+| head 4;
+
+process where not (fake_field == "*")
+| head 4;

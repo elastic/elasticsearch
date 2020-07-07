@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -34,7 +33,6 @@ import java.io.ByteArrayInputStream;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.is;
 
@@ -82,12 +80,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(1);
 
-        logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository(repoName)
-            .setType("mock").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository(repoName, "mock");
 
         logger.info("-->  snapshot");
         client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
@@ -116,11 +109,7 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         internalCluster().startNodes(Settings.EMPTY);
 
         final String repoName = "test-repo";
-        logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder()
-            .put("location", randomRepoPath())
-            .put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+        createRepository(repoName, "fs");
 
         logger.info("--> create three snapshots");
         for (int i = 0; i < 3; ++i) {

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +64,7 @@ public class CustomHighlighter implements Highlighter {
     }
 
     @Override
-    public boolean canHighlight(FieldType fieldType) {
+    public boolean canHighlight(MappedFieldType fieldType) {
         return true;
     }
 

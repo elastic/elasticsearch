@@ -38,7 +38,7 @@ public class RestIndexActionV7 {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestIndexAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexActionV7.class);
 
     private static void logDeprecationMessage() {
         deprecationLogger.deprecate("index_with_types", TYPES_DEPRECATION_MESSAGE);

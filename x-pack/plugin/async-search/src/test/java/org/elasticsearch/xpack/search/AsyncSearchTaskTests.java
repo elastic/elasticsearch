@@ -6,16 +6,26 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchShard;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -33,16 +43,26 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class AsyncSearchTaskTests extends ESTestCase {
     private ThreadPool threadPool;
+    private boolean throwOnSchedule = false;
 
     @Before
     public void beforeTest() {
-        threadPool = new TestThreadPool(getTestName());
+        threadPool = new TestThreadPool(getTestName()) {
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+                if (throwOnSchedule) {
+                    throw new RuntimeException();
+                }
+                return super.schedule(command, delay, executor);
+            }
+        };
     }
 
     @After
@@ -51,13 +71,13 @@ public class AsyncSearchTaskTests extends ESTestCase {
     }
 
     private AsyncSearchTask createAsyncSearchTask() {
-        return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> false, TimeValue.timeValueHours(1),
+        return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
     }
 
     public void testWaitForInit() throws InterruptedException {
-        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> false, TimeValue.timeValueHours(1),
+        AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
             new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);
@@ -120,6 +140,90 @@ public class AsyncSearchTaskTests extends ESTestCase {
         assertFalse(latch.await(numThreads*2, TimeUnit.MILLISECONDS));
         task.getSearchProgressActionListener().onFailure(new Exception("boom"));
         latch.await();
+    }
+
+    public void testGetResponseFailureDuringReduction() throws InterruptedException {
+        AsyncSearchTask task = createAsyncSearchTask();
+        task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
+            SearchResponse.Clusters.EMPTY, false);
+        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true), 1, 1,
+            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
+        //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
+        //causing an exception when executing getResponse as part of the completion listener callback
+        DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
+            .asSerialized(InternalAggregations::readFrom, new NamedWriteableRegistry(Collections.emptyList()));
+        task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
+            serializedAggs, 1);
+        AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        task.addCompletionListener(new ActionListener<>() {
+            @Override
+            public void onResponse(AsyncSearchResponse asyncSearchResponse) {
+                assertTrue(response.compareAndSet(null, asyncSearchResponse));
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("onFailure should not be called");
+            }
+        }, TimeValue.timeValueMillis(10L));
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+        assertNotNull(response.get().getSearchResponse());
+        assertEquals(0, response.get().getSearchResponse().getTotalShards());
+        assertEquals(0, response.get().getSearchResponse().getSuccessfulShards());
+        assertEquals(0, response.get().getSearchResponse().getFailedShards());
+        assertThat(response.get().getFailure(), instanceOf(ElasticsearchException.class));
+        assertEquals("Async search: error while reducing partial results", response.get().getFailure().getMessage());
+        assertThat(response.get().getFailure().getCause(), instanceOf(IllegalArgumentException.class));
+        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() + "]",
+            response.get().getFailure().getCause().getMessage());
+    }
+
+    public void testWithFailureAndGetResponseFailureDuringReduction() throws InterruptedException {
+        AsyncSearchTask task = createAsyncSearchTask();
+        task.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
+            SearchResponse.Clusters.EMPTY, false);
+        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(new StringTerms("name", BucketOrder.key(true), 1, 1,
+            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 1, Collections.emptyList(), 0)));
+        //providing an empty named writeable registry will make the expansion fail, hence the delayed reduction will fail too
+        //causing an exception when executing getResponse as part of the completion listener callback
+        DelayableWriteable.Serialized<InternalAggregations> serializedAggs = DelayableWriteable.referencing(aggs)
+            .asSerialized(InternalAggregations::readFrom    , new NamedWriteableRegistry(Collections.emptyList()));
+        task.getSearchProgressActionListener().onPartialReduce(Collections.emptyList(), new TotalHits(0, TotalHits.Relation.EQUAL_TO),
+            serializedAggs, 1);
+        task.getSearchProgressActionListener().onFailure(new CircuitBreakingException("boom", CircuitBreaker.Durability.TRANSIENT));
+        AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        task.addCompletionListener(new ActionListener<>() {
+            @Override
+            public void onResponse(AsyncSearchResponse asyncSearchResponse) {
+                assertTrue(response.compareAndSet(null, asyncSearchResponse));
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("onFailure should not be called");
+            }
+        }, TimeValue.timeValueMillis(10L));
+        assertTrue(latch.await(1, TimeUnit.SECONDS));
+        AsyncSearchResponse asyncSearchResponse = response.get();
+        assertNotNull(response.get().getSearchResponse());
+        assertEquals(0, response.get().getSearchResponse().getTotalShards());
+        assertEquals(0, response.get().getSearchResponse().getSuccessfulShards());
+        assertEquals(0, response.get().getSearchResponse().getFailedShards());
+        Exception failure = asyncSearchResponse.getFailure();
+        assertThat(failure, instanceOf(ElasticsearchException.class));
+        assertEquals("Async search: error while reducing partial results", failure.getMessage());
+        assertThat(failure.getCause(), instanceOf(IllegalArgumentException.class));
+        assertEquals("Unknown NamedWriteable category [" + InternalAggregation.class.getName() +
+            "]", failure.getCause().getMessage());
+        assertEquals(1, failure.getSuppressed().length);
+        assertThat(failure.getSuppressed()[0], instanceOf(ElasticsearchException.class));
+        assertEquals("error while executing search", failure.getSuppressed()[0].getMessage());
+        assertThat(failure.getSuppressed()[0].getCause(), instanceOf(CircuitBreakingException.class));
+        assertEquals("boom", failure.getSuppressed()[0].getCause().getMessage());
     }
 
     public void testWaitForCompletion() throws InterruptedException {
@@ -214,6 +318,75 @@ public class AsyncSearchTaskTests extends ESTestCase {
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
         ((AsyncSearchTask.Listener)task.getProgressListener()).onFailure(new IOException("boum"));
         assertCompletionListeners(task, totalShards, totalShards, numSkippedShards, numShards, true);
+    }
+
+    public void testFatalFailureWithNoCause() throws InterruptedException {
+        AsyncSearchTask task = createAsyncSearchTask();
+        AsyncSearchTask.Listener listener = task.getSearchProgressActionListener();
+        int numShards = randomIntBetween(0, 10);
+        List<SearchShard> shards = new ArrayList<>();
+        for (int i = 0; i < numShards; i++) {
+            shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+        }
+        List<SearchShard> skippedShards = new ArrayList<>();
+        int numSkippedShards = randomIntBetween(0, 10);
+        for (int i = 0; i < numSkippedShards; i++) {
+            skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
+        }
+        int totalShards = numShards + numSkippedShards;
+        task.getSearchProgressActionListener().onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false);
+
+        listener.onFailure(new SearchPhaseExecutionException("fetch", "boum", ShardSearchFailure.EMPTY_ARRAY));
+        assertCompletionListeners(task, totalShards, 0, numSkippedShards, 0, true);
+    }
+
+    public void testAddCompletionListenerScheduleErrorWaitForInitListener() throws InterruptedException {
+        throwOnSchedule = true;
+        AsyncSearchTask asyncSearchTask = createAsyncSearchTask();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        //onListShards has not been executed, then addCompletionListener has to wait for the
+        // onListShards call and is executed as init listener
+        asyncSearchTask.addCompletionListener(new ActionListener<>() {
+            @Override
+            public void onResponse(AsyncSearchResponse asyncSearchResponse) {
+                throw new AssertionError("onResponse should not be called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(failure.compareAndSet(null, e));
+                latch.countDown();
+            }
+        }, TimeValue.timeValueMillis(500L));
+        asyncSearchTask.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
+            SearchResponse.Clusters.EMPTY, false);
+        assertTrue(latch.await(1000, TimeUnit.SECONDS));
+        assertThat(failure.get(), instanceOf(RuntimeException.class));
+    }
+
+    public void testAddCompletionListenerScheduleErrorInitListenerExecutedImmediately() throws InterruptedException {
+        throwOnSchedule = true;
+        AsyncSearchTask asyncSearchTask = createAsyncSearchTask();
+        asyncSearchTask.getSearchProgressActionListener().onListShards(Collections.emptyList(), Collections.emptyList(),
+            SearchResponse.Clusters.EMPTY, false);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        //onListShards has already been executed, then addCompletionListener is executed immediately
+        asyncSearchTask.addCompletionListener(new ActionListener<>() {
+            @Override
+            public void onResponse(AsyncSearchResponse asyncSearchResponse) {
+                throw new AssertionError("onResponse should not be called");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(failure.compareAndSet(null, e));
+                latch.countDown();
+            }
+        }, TimeValue.timeValueMillis(500L));
+        assertTrue(latch.await(1000, TimeUnit.SECONDS));
+        assertThat(failure.get(), instanceOf(RuntimeException.class));
     }
 
     private static SearchResponse newSearchResponse(int totalShards, int successfulShards, int skippedShards,

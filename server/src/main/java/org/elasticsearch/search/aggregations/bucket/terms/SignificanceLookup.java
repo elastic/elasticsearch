@@ -36,10 +36,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 
@@ -62,14 +64,17 @@ class SignificanceLookup {
     }
 
     private final QueryShardContext context;
-    private final ValuesSourceConfig config;
+    private final MappedFieldType fieldType;
+    private final DocValueFormat format;
     private final Query backgroundFilter;
     private final int supersetNumDocs;
     private TermsEnum termsEnum;
 
-    SignificanceLookup(QueryShardContext context, ValuesSourceConfig config, QueryBuilder backgroundFilter) throws IOException {
+    SignificanceLookup(QueryShardContext context, MappedFieldType fieldType, DocValueFormat format, QueryBuilder backgroundFilter)
+        throws IOException {
         this.context = context;
-        this.config = config;
+        this.fieldType = fieldType;
+        this.format = format;
         this.backgroundFilter = backgroundFilter == null ? null : backgroundFilter.toQuery(context);
         /*
          * We need to use a superset size that includes deleted docs or we
@@ -90,8 +95,8 @@ class SignificanceLookup {
     /**
      * Get the background frequency of a {@link BytesRef} term.
      */
-    BackgroundFrequencyForBytes bytesLookup(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-        if (collectsFromSingleBucket) {
+    BackgroundFrequencyForBytes bytesLookup(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+        if (cardinality == CardinalityUpperBound.ONE) {
             return new BackgroundFrequencyForBytes() {
                 @Override
                 public long freq(BytesRef term) throws IOException {
@@ -129,14 +134,14 @@ class SignificanceLookup {
      * Get the background frequency of a {@link BytesRef} term.
      */
     private long getBackgroundFrequency(BytesRef term) throws IOException {
-        return getBackgroundFrequency(config.fieldContext().fieldType().termQuery(config.format().format(term).toString(), context));
+        return getBackgroundFrequency(fieldType.termQuery(format.format(term).toString(), context));
     }
 
     /**
      * Get the background frequency of a {@code long} term.
      */
-    BackgroundFrequencyForLong longLookup(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-        if (collectsFromSingleBucket) {
+    BackgroundFrequencyForLong longLookup(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+        if (cardinality == CardinalityUpperBound.ONE) {
             return new BackgroundFrequencyForLong() {
                 @Override
                 public long freq(long term) throws IOException {
@@ -174,7 +179,7 @@ class SignificanceLookup {
      * Get the background frequency of a {@code long} term.
      */
     private long getBackgroundFrequency(long term) throws IOException {
-        return getBackgroundFrequency(config.fieldContext().fieldType().termQuery(config.format().format(term).toString(), context));
+        return getBackgroundFrequency(fieldType.termQuery(format.format(term).toString(), context));
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
@@ -201,7 +206,7 @@ class SignificanceLookup {
             return termsEnum;
         }
         IndexReader reader = context.getIndexReader();
-        termsEnum = new FilterableTermsEnum(reader, config.fieldContext().field(), PostingsEnum.NONE, backgroundFilter);
+        termsEnum = new FilterableTermsEnum(reader, fieldType.name(), PostingsEnum.NONE, backgroundFilter);
         return termsEnum;
     }
 

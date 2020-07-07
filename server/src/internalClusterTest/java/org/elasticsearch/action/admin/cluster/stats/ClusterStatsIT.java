@@ -30,7 +30,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.monitor.os.OsStats;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -38,10 +38,14 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -75,14 +79,27 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         for (int i = 0; i < numNodes; i++) {
             boolean isDataNode = randomBoolean();
-            boolean isMasterNode = randomBoolean();
             boolean isIngestNode = randomBoolean();
-            boolean isRemoteClusterClientNode = randomBoolean();
+            boolean isMasterNode = randomBoolean();
+            boolean isRemoteClusterClientNode = false;
+            final Set<DiscoveryNodeRole> roles = new HashSet<>();
+            if (isDataNode) {
+                roles.add(DiscoveryNodeRole.DATA_ROLE);
+            }
+            if (isIngestNode) {
+                roles.add(DiscoveryNodeRole.INGEST_ROLE);
+            }
+            if (isMasterNode) {
+                roles.add(DiscoveryNodeRole.MASTER_ROLE);
+            }
+            if (isRemoteClusterClientNode) {
+                roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+            }
             Settings settings = Settings.builder()
-                .put(Node.NODE_DATA_SETTING.getKey(), isDataNode)
-                .put(Node.NODE_MASTER_SETTING.getKey(), isMasterNode)
-                .put(Node.NODE_INGEST_SETTING.getKey(), isIngestNode)
-                .put(Node.NODE_REMOTE_CLUSTER_CLIENT.getKey(), isRemoteClusterClientNode)
+                .putList(
+                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                    roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
+                )
                 .build();
             internalCluster().startNode(settings);
             total++;
@@ -91,11 +108,11 @@ public class ClusterStatsIT extends ESIntegTestCase {
             if (isDataNode) {
                 incrementCountForRole(DiscoveryNodeRole.DATA_ROLE.roleName(), expectedCounts);
             }
-            if (isMasterNode) {
-                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
-            }
             if (isIngestNode) {
                 incrementCountForRole(DiscoveryNodeRole.INGEST_ROLE.roleName(), expectedCounts);
+            }
+            if (isMasterNode) {
+                incrementCountForRole(DiscoveryNodeRole.MASTER_ROLE.roleName(), expectedCounts);
             }
             if (isRemoteClusterClientNode) {
                 incrementCountForRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), expectedCounts);
@@ -233,5 +250,30 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+    }
+
+    public void testFieldTypes() {
+        internalCluster().startNode();
+        ensureGreen();
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
+        assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
+
+        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
+        client().admin().indices().prepareCreate("test2")
+            .setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
+                "\"eggplant\":{\"type\":\"integer\"}}}}}").get();
+        response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
+        Set<IndexFeatureStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        for (IndexFeatureStats stat : stats) {
+            if (stat.getName().equals("integer")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            } else if (stat.getName().equals("keyword")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(3));
+            } else if (stat.getName().equals("object")) {
+                assertThat(stat.getCount(), greaterThanOrEqualTo(1));
+            }
+        }
     }
 }

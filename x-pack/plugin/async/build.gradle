@@ -1,0 +1,29 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'x-pack-async'
+    description 'A module which handles common async operations'
+    classname 'org.elasticsearch.xpack.async.AsyncResultsIndexPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-async'
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+}
+
+dependencyLicenses {
+  ignoreSha 'x-pack-core'
+}
+
+integTest.enabled = false
+

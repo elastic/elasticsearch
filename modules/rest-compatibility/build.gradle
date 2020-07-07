@@ -23,8 +23,8 @@ esplugin {
 }
 
 dependencies {
-  compile project(':modules:lang-mustache')
-  compile project(':modules:reindex')
+  implementation project(':modules:lang-mustache')
+  implementation project(':modules:reindex')
 }
 
 integTest.enabled = false

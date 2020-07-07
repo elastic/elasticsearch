@@ -54,8 +54,10 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -351,6 +353,61 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
             List<?> list = (List<?>) value;
             assertEquals(0, list.size());
         }
+    }
+
+    public void testToXContentEmptyFields() throws IOException {
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("foo", new DocumentField("foo", Collections.emptyList()));
+        fields.put("bar", new DocumentField("bar", Collections.emptyList()));
+        SearchHit hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        {
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            // checks that the fields section is completely omitted in the rendering.
+            assertThat(originalBytes.utf8ToString(), not(containsString("fields")));
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertThat(parsed.getFields().size(), equalTo(0));
+        }
+
+        fields = new HashMap<>();
+        fields.put("foo", new DocumentField("foo", Collections.emptyList()));
+        fields.put("bar", new DocumentField("bar", Collections.singletonList("value")));
+        hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        {
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertThat(parsed.getFields().size(), equalTo(1));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo( Collections.singletonList("value")));
+        }
+
+        Map<String, DocumentField> metadata = new HashMap<>();
+        metadata.put("_routing", new DocumentField("_routing", Collections.emptyList()));
+        hit = new SearchHit(0, "_id", fields, Collections.emptyMap());
+        {
+            BytesReference originalBytes = toShuffledXContent(hit, XContentType.JSON, ToXContent.EMPTY_PARAMS, randomBoolean());
+            final SearchHit parsed;
+            try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+                parser.nextToken(); // jump to first START_OBJECT
+                parsed = SearchHit.fromXContent(parser);
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            }
+            assertThat(parsed.getFields().size(), equalTo(1));
+            assertThat(parsed.getFields().get("bar").getValues(), equalTo( Collections.singletonList("value")));
+            assertNull(parsed.getFields().get("_routing"));
+        }
+
     }
 
     static Explanation createExplanation(int depth) {

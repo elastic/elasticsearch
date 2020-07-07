@@ -122,6 +122,15 @@ public final class SecurityMocks {
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
     }
 
+    public static void mockGetRequestException(Client client, Exception e) {
+        when(client.prepareGet(anyString(), anyString())).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
+        doAnswer(inv -> {
+            ActionListener<GetResponse> listener = (ActionListener<GetResponse>) inv.getArguments()[1];
+            listener.onFailure(e);
+            return null;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+    }
+
     public static void mockIndexRequest(Client client, String indexAliasName, Consumer<IndexRequest> consumer) {
         doAnswer(inv -> {
             Assert.assertThat(inv.getArguments(), arrayWithSize(1));
@@ -152,7 +161,7 @@ public final class SecurityMocks {
         when(client.threadPool()).thenReturn(threadPool);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         final ClusterService clusterService = mock(ClusterService.class);
 
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());

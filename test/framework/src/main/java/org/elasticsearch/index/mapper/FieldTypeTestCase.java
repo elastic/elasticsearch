@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -49,26 +46,6 @@ public abstract class FieldTypeTestCase<T extends MappedFieldType> extends ESTes
         t -> {
             MappedFieldType copy = t.clone();
             copy.setBoost(t.boost() + 1);
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchAnalyzer();
-            if (a == null) {
-                copy.setSearchAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
-            return (T) copy;
-        },
-        t -> {
-            MappedFieldType copy = t.clone();
-            NamedAnalyzer a = t.searchQuoteAnalyzer();
-            if (a == null) {
-                copy.setSearchQuoteAnalyzer(new NamedAnalyzer("mutated", AnalyzerScope.INDEX, new StandardAnalyzer()));
-                return (T) copy;
-            }
-            copy.setSearchQuoteAnalyzer(new NamedAnalyzer(a.name() + "-mutated", a.scope(), a.analyzer()));
             return (T) copy;
         },
         t -> {

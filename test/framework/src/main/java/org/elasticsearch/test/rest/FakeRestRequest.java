@@ -257,4 +257,8 @@ public class FakeRestRequest extends RestRequest {
                 '}';
         }
     }
+
+    public static String requestToString(RestRequest restRequest) {
+        return "method=" + restRequest.method() + ",path=" + restRequest.rawPath();
+    }
 }

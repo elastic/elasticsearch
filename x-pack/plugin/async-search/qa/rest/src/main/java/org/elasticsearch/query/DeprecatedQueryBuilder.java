@@ -6,7 +6,6 @@
 
 package org.elasticsearch.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
@@ -22,7 +21,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 
 public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQueryBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger("Deprecated"));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("Deprecated");
 
     public static final String NAME = "deprecated";
 

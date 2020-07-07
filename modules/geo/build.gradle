@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'Placeholder plugin for geospatial features in ES. only registers geo_shape field mapper for now'

@@ -273,7 +273,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barfoo2"));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barfoo3"));
 
-        DeleteDataStreamAction.Request deleteDSReq = new DeleteDataStreamAction.Request("*");
+        DeleteDataStreamAction.Request deleteDSReq = new DeleteDataStreamAction.Request(new String[]{"*"});
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDSReq).actionGet();
         DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
         client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();

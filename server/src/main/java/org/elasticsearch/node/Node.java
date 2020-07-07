@@ -437,13 +437,11 @@ public class Node implements Closeable {
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry, bigArrays, clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis);
 
-            // collect engine factory providers from server and from plugins
+            // collect engine factory providers from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders =
-                    Stream.concat(
-                            indicesModule.getEngineFactories().stream(),
-                            enginePlugins.stream().map(plugin -> plugin::getEngineFactory))
-                    .collect(Collectors.toList());
+                    enginePlugins.stream().map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>)plugin::getEngineFactory)
+                            .collect(Collectors.toList());
 
 
             final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories =
@@ -452,6 +450,13 @@ public class Node implements Closeable {
                             .map(IndexStorePlugin::getDirectoryFactories)
                             .flatMap(m -> m.entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories =
+                pluginsService.filterPlugins(IndexStorePlugin.class)
+                    .stream()
+                    .map(IndexStorePlugin::getRecoveryStateFactories)
+                    .flatMap(m -> m.entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
@@ -470,7 +475,7 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
-                    searchModule.getValuesSourceRegistry());
+                    searchModule.getValuesSourceRegistry(), recoveryStateFactories);
 
             final AliasValidator aliasValidator = new AliasValidator();
 

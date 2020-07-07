@@ -101,7 +101,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     @After
     public void deleteAllComposableTemplates() {
-        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request("*");
+        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[]{"*"});
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
         DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
         client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
@@ -188,7 +188,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
         verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("metrics-*");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"metrics-*"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
         getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
@@ -310,7 +310,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs(dataStreamName, "@timestamp", numDocs2);
         verifyDocs(dataStreamName, numDocs + numDocs2, 1, 2);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(dataStreamName);
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
         getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
@@ -399,6 +399,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetIndex().addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareOpen(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().cluster().prepareSearchShards(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareShardStores(dataStreamName), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
         client().admin().indices().createDataStream(request).actionGet();
@@ -434,6 +435,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().cluster().prepareSearchShards(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareShardStores(wildcardExpression), false);
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
@@ -526,7 +528,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 3)));
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"logs-foobar"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
@@ -564,7 +566,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(rolloverResponse.isRolledOver());
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.event.properties.@timestamp");
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"logs-foobar"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
@@ -602,7 +604,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(rolloverResponse.isRolledOver());
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.@timestamp", expectedTimestampMapping);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"logs-foobar"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 

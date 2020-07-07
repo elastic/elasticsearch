@@ -8,12 +8,16 @@ package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.action.RequestDefaults;
+import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
+import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
@@ -25,6 +29,7 @@ import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -52,22 +57,14 @@ public class LogicalPlanTests extends ESTestCase {
         LogicalPlan fullQuery = parser.createStatement("any where process_name == 'net.exe'");
         Expression fullExpression = expr("process_name == 'net.exe'");
 
-        LogicalPlan filter = new Filter(Source.EMPTY, relation(), fullExpression);
-        Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
-        LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
-        assertEquals(sorted, fullQuery);
+        assertEquals(wrapFilter(fullExpression), fullQuery);
     }
 
     public void testEventQuery() {
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'");
         Expression fullExpression = expr("event.category == 'process' and process_name == 'net.exe'");
 
-        LogicalPlan filter = new Filter(Source.EMPTY, relation(), fullExpression);
-        Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
-        LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
-        LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
-        assertEquals(sorted, fullQuery);
+        assertEquals(wrapFilter(fullExpression), fullQuery);
     }
 
     public void testParameterizedEventQuery() {
@@ -75,14 +72,19 @@ public class LogicalPlanTests extends ESTestCase {
         LogicalPlan fullQuery = parser.createStatement("process where process_name == 'net.exe'", params);
         Expression fullExpression = expr("myCustomEvent == 'process' and process_name == 'net.exe'");
 
-        LogicalPlan filter = new Filter(Source.EMPTY, relation(), fullExpression);
+        assertEquals(wrapFilter(fullExpression), fullQuery);
+    }
+
+
+    private LogicalPlan wrapFilter(Expression exp) {
+        LogicalPlan filter = new Filter(Source.EMPTY, relation(), exp);
         Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
         LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
         LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
-        assertEquals(sorted, fullQuery);
+        LogicalPlan head = new Head(Source.EMPTY, new Literal(Source.EMPTY, RequestDefaults.SIZE, DataTypes.INTEGER), sorted);
+        return head;
     }
     
-
     public void testJoinPlan() {
         LogicalPlan plan = parser.createStatement(
                 "join by pid " +
@@ -93,9 +95,7 @@ public class LogicalPlanTests extends ESTestCase {
                 " " +
                 "until [process where event_subtype_full == \"termination_event\"]");
 
-        assertEquals(OrderBy.class, plan.getClass());
-        OrderBy ob = (OrderBy) plan;
-        plan = ob.child();
+        plan = defaultPipes(plan);
         assertEquals(Join.class, plan.getClass());
         Join join = (Join) plan;
         assertEquals(KeyedFilter.class, join.until().getClass());
@@ -124,9 +124,7 @@ public class LogicalPlanTests extends ESTestCase {
                 "    [process where process_name == \"*\" ] " +
                 "    [file where file_path == \"*\"]");
 
-        assertEquals(OrderBy.class, plan.getClass());
-        OrderBy ob = (OrderBy) plan;
-        plan = ob.child();
+        plan = defaultPipes(plan);
         assertEquals(Sequence.class, plan.getClass());
         Sequence seq = (Sequence) plan;
         assertEquals(KeyedFilter.class, seq.until().getClass());
@@ -145,6 +143,13 @@ public class LogicalPlanTests extends ESTestCase {
 
         TimeValue maxSpan = seq.maxSpan();
         assertEquals(new TimeValue(2, TimeUnit.SECONDS), maxSpan);
+    }
 
+
+    private LogicalPlan defaultPipes(LogicalPlan plan) {
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        assertTrue(plan instanceof OrderBy);
+        return ((OrderBy) plan).child();
     }
 }

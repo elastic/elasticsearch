@@ -95,7 +95,7 @@ public final class TimeSeriesRestDriver {
 
     public static void indexDocument(RestClient client, String indexAbstractionName, boolean refresh) throws IOException {
         Request indexRequest = new Request("POST", indexAbstractionName + "/_doc" + (refresh ? "?refresh" : ""));
-        indexRequest.setEntity(new StringEntity("{\"a\": \"test\"}", ContentType.APPLICATION_JSON));
+        indexRequest.setEntity(new StringEntity("{\"@timestamp\": \"2020-12-12\"}", ContentType.APPLICATION_JSON));
         Response response = client.performRequest(indexRequest);
         logger.info(response.getStatusLine());
     }

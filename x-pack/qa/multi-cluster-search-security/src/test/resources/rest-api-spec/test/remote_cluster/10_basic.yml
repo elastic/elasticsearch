@@ -28,6 +28,29 @@ setup:
                 }
               ]
             }
+
+  - do:
+      security.put_user:
+        username: "remote"
+        body:  >
+            {
+              "password": "s3krit",
+              "roles" : [ "remote_ccs" ]
+            }
+  - do:
+      security.put_role:
+        name: "remote_ccs"
+        body:  >
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                {
+                  "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
+                  "field_caps_index_3"],
+                  "privileges": ["read", "read_cross_cluster"]
+                }
+              ]
+            }
 ---
 "Index data and search on the remote cluster":
 

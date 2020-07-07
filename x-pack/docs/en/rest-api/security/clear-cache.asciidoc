@@ -25,8 +25,10 @@ There are realm settings that you can use to configure the user cache. For more
 information, see
 <<controlling-user-cache>>.
 
-To evict roles from the role cache, see the 
+To evict roles from the role cache, see the
 <<security-api-clear-role-cache,Clear roles cache API>>.
+To evict privileges from the privilege cache, see the
+<<security-api-clear-privilege-cache,Clear privileges cache API>>.
 
 [[security-api-clear-path-params]]
 ==== {api-path-parms-title}

@@ -113,7 +113,7 @@ public final class DataStream {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_TEMPLATE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ILM_POLICY_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ILM_POLICY_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {

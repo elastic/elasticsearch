@@ -13,6 +13,8 @@ setup:
               properties:
                 '@timestamp':
                   type: date
+            settings:
+              index.number_of_replicas: 0
           data_stream:
             timestamp_field: '@timestamp'
   - do:
@@ -54,11 +56,14 @@ setup:
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
+  - match: { data_streams.0.status: 'GREEN' }
+  - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.1.name: simple-data-stream2 }
   - match: { data_streams.1.timestamp_field.name: '@timestamp2' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.1.indices: 1 }
   - match: { data_streams.1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
+  - match: { data_streams.1.template: 'my-template2' }
 
   - do:
       index:

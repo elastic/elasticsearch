@@ -280,14 +280,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compilerArgs.add(targetCompatibilityVersion.getMajorVersion());
             });
         });
-
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
-            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile
-            // classpath
-            Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
-            Configuration apiConfig = project.getConfigurations().getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME);
-            shadowConfig.getDependencies().all(dependency -> apiConfig.getDependencies().add(dependency));
-        });
     }
 
     /**

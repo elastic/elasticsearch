@@ -45,11 +45,11 @@ if (!isEclipse) {
   }
 
   configurations {
-    java11Compile.extendsFrom(api)
+    java12Api.extendsFrom(api)
   }
 
   dependencies {
-    java11Compile sourceSets.main.output
+    java12Api sourceSets.main.output
   }
 
   compileJava11Java {
@@ -124,7 +124,7 @@ dependencies {
   api "org.elasticsearch:jna:${versions.jna}"
 
   if (!isEclipse) {
-    java11Compile sourceSets.main.output
+    java12Api sourceSets.main.output
   }
 
   testImplementation(project(":test:framework")) {

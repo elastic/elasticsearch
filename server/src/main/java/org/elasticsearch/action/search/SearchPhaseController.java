@@ -805,7 +805,7 @@ public final class SearchPhaseController {
         private final AtomicInteger shardResultConsumeCount;
         private final CountDownLatch finalReduce = new CountDownLatch(1);
         private final List<PartialReduceResult> remainningResults;
-        private int parallelBuffSize = 512;
+        private final int parallelBuffSize;
 
         /**
          * Creates a new {@link QueryPhaseParallelResultConsumer}
@@ -818,7 +818,7 @@ public final class SearchPhaseController {
                                          int numShards, boolean hasTopDocs, boolean hasAggs,
                                          int trackTotalHitsUpTo, int topNSize,
                                          InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
-                                         boolean performFinalReduce, ThreadPool threadPool) {
+                                         boolean performFinalReduce, ThreadPool threadPool, int buffSize) {
             super(numShards);
             this.namedWriteableRegistry = namedWriteableRegistry;
             if (hasAggs == false && hasTopDocs == false) {
@@ -841,6 +841,7 @@ public final class SearchPhaseController {
             this.runningParallelReduceCount = new AtomicInteger(0);
             this.shardResultConsumeCount = new AtomicInteger(0);
             this.remainningResults = new ArrayList<>();
+            this.parallelBuffSize = buffSize;
         }
 
         @Override
@@ -872,7 +873,7 @@ public final class SearchPhaseController {
                 if (intermediateReducedResultsQueue.size() > parallelBuffSize
                     || intermediateReducedResultsQueue.size() == numShards) {
                     // execute parallel reduce task when there are enough buff size results or all results have put in
-                    // queue and have not executed once
+                    // queue and parallel reduce task have not executed once
                     reduceExecutor.execute(new PartialReduceTask());
                 }
                 if (numShards == 1) {
@@ -928,10 +929,6 @@ public final class SearchPhaseController {
                 reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
             remainningResults.clear();
             return reducePhase;
-        }
-
-        public void setParallelBuffSize(int parallelBuffSize) {
-            this.parallelBuffSize = parallelBuffSize;
         }
 
         public int getNumReducePhases() {
@@ -1053,7 +1050,7 @@ public final class SearchPhaseController {
                 // execute parallel reduce instead of batched reduce
                 int topNSize = getTopDocsSize(request);
                 return new QueryPhaseParallelResultConsumer(namedWriteableRegistry, listener, this, numShards,
-                    hasTopDocs, hasAggs, trackTotalHitsUpTo, topNSize, aggReduceContextBuilder, request.isFinalReduce(), threadPool);
+                    hasTopDocs, hasAggs, trackTotalHitsUpTo, topNSize, aggReduceContextBuilder, request.isFinalReduce(), threadPool, request.getBatchedReduceSize());
             }
             if (request.getBatchedReduceSize() < numShards) {
                 int topNSize = getTopDocsSize(request);

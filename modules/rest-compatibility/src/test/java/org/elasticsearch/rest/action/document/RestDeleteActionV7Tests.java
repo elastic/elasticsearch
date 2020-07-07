@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 

@@ -370,8 +370,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     static LongSupplier createYoungGcCountSupplier() {
         List<GarbageCollectorMXBean> youngBeans =
-            ManagementFactory.getGarbageCollectorMXBeans().stream().filter(mxBean -> GcNames.getByGcName(mxBean.getName(),
-                mxBean.getName()).equals(GcNames.YOUNG)).collect(Collectors.toList());
+            ManagementFactory.getGarbageCollectorMXBeans().stream()
+                .filter(mxBean -> GcNames.getByGcName(mxBean.getName(), mxBean.getName()).equals(GcNames.YOUNG))
+                .collect(Collectors.toList());
         assert youngBeans.size() == 1;
         assert youngBeans.get(0).getCollectionCount() != -1 : "G1 must support getting collection count";
 

@@ -47,6 +47,26 @@ public class ProgressTrackerTests extends ESTestCase {
         assertThat(phases.stream().map(PhaseProgress::getProgressPercent).allMatch(p -> p == 0), is(true));
     }
 
+    public void testFromZeroes_GivenAnalysisWithoutInference() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Arrays.asList("a", "b"), false);
+
+        List<PhaseProgress> phaseProgresses = progressTracker.report();
+
+        assertThat(phaseProgresses.size(), equalTo(5));
+        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+    }
+
+    public void testFromZeroes_GivenAnalysisWithInference() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Arrays.asList("a", "b"), true);
+
+        List<PhaseProgress> phaseProgresses = progressTracker.report();
+
+        assertThat(phaseProgresses.size(), equalTo(6));
+        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results", "inference"));
+    }
+
     public void testUpdates() {
         ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("foo"), false);
 

@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
@@ -98,7 +99,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
+    protected Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
@@ -131,7 +132,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             name,
             factories,
             collectorSource,
-            a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
+            a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
             null,
             DocValueFormat.RAW,
             bucketCountThresholds,
@@ -140,7 +141,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             parent,
             SubAggCollectionMode.BREADTH_FIRST,
             false,
-            collectsFromSingleBucket,
+            cardinality,
             metadata
         );
     }

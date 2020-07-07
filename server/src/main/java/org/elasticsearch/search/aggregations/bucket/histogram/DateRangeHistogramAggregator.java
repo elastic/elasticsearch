@@ -32,6 +32,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -82,11 +83,11 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
 
-        super(name, factories, aggregationContext, parent, metadata);
+        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
         this.preparedRounding = preparedRounding;
         this.order = order;
@@ -102,7 +103,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 + "]");
         }
 
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override

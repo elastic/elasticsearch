@@ -137,7 +137,7 @@ public class IndexStorePluginTests extends ESTestCase {
         } else {
             assertThat(e, hasToString(matches(
                 "java.lang.IllegalStateException: Duplicate key " +
-                    "org.elasticsearch.plugins.IndexStorePluginTests$RecoveryFactory@[\\w\\d]+")));
+                    "org.elasticsearch.plugins.IndexStorePluginTests\\$RecoveryFactory@[\\w\\d]+")));
         }
     }
 }

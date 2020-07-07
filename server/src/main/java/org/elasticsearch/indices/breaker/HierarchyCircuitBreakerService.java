@@ -425,18 +425,21 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         @Override
         public MemoryUsage overLimit(MemoryUsage memoryUsed) {
             boolean leader;
+            int allocationIndex = 0;
+            long allocationDuration = 0;
             synchronized (lock) {
-                leader = timeSupplier.getAsLong() >= lastCheckTime + minimumInterval;
+                long begin = timeSupplier.getAsLong();
+                leader = begin >= lastCheckTime + minimumInterval;
                 overLimitTriggered(leader);
                 if (leader) {
                     logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
                     long localBlackHole = 0;
                     // number of allocations, corresponding to (approximately) number of free regions + 1
-                    long allocationCount = (maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1;
+                    int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
                     // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
                     int allocationSize = (int) (g1RegionSize >> 1);
                     long maxUsageObserved = memoryUsed.baseUsage;
-                    for (long i = 0; i < allocationCount; ++i) {
+                    for ( ; allocationIndex < allocationCount; ++allocationIndex) {
                         long current = currentMemoryUsageSupplier.getAsLong();
                         if (current >= maxUsageObserved) {
                             maxUsageObserved = current;
@@ -448,21 +451,27 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     }
 
                     blackHole += localBlackHole;
+                    long now = timeSupplier.getAsLong();
+                    this.lastCheckTime = now;
+
+                    allocationDuration = now - begin;
+
                     logger.trace("black hole [{}]", blackHole);
-                    this.lastCheckTime = timeSupplier.getAsLong();
                 }
             }
 
             final long current = currentMemoryUsageSupplier.getAsLong();
             if (current < memoryUsed.baseUsage) {
                 if (leader) {
-                    logger.info("GC did bring memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                    logger.info("GC did bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
+                        memoryUsed.baseUsage, current, allocationIndex, allocationDuration);
                 }
                 return new MemoryUsage(current, memoryUsed.totalUsage - memoryUsed.baseUsage + current,
                     memoryUsed.transientChildUsage, memoryUsed.permanentChildUsage);
             } else {
                 if (leader) {
-                    logger.info("GC did not bring memory usage down, before [{}], after [{}]", memoryUsed.baseUsage, current);
+                    logger.info("GC did not bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
+                        memoryUsed.baseUsage, current, allocationIndex, allocationDuration);
                 }
                 // prefer original measurement when reporting if heap usage was not brought down.
                 return memoryUsed;

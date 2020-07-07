@@ -108,6 +108,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
@@ -670,8 +671,17 @@ public class OpenIdConnectAuthenticator {
             } else if (value1 instanceof JSONObject) {
                 idToken.put(entry.getKey(), mergeObjects((JSONObject) value1, value2));
             } else if (value1.getClass().equals(value2.getClass()) == false) {
-                throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
-                    "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");
+                // A special handling for certain OPs that mix the usage of true and "true"
+                if (value1 instanceof Boolean && value2 instanceof String
+                    && ("true".equalsIgnoreCase((String)value2) || "false".equalsIgnoreCase((String)value2))) {
+                    idToken.put(entry.getKey(), (Boolean) value1 && Boolean.parseBoolean((String) value2));
+                } else if (value2 instanceof Boolean && value1 instanceof String
+                    && ("true".equalsIgnoreCase((String)value1) || "false".equalsIgnoreCase((String)value1))) {
+                    idToken.put(entry.getKey(), Boolean.parseBoolean((String) value1) && (Boolean) value2);
+                } else {
+                    throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
+                        "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");
+                }
             }
         }
         for (Map.Entry<String, Object> entry : userInfo.entrySet()) {

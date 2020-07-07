@@ -266,12 +266,12 @@ In many cases, malicious scripts are used to download other remote files. If
 this occurred, the attack progressed and might have succeeded.
 
 Use an <<eql-sequences,EQL sequence query>> to check for the following series of
-events:
+events, in order:
 
-* A `regsvr32.exe` process, which could have be used to register malicious
+. A `regsvr32.exe` process, which could have been used to register malicious
 scripts as `scrobj.dll`
-* An image load of the `scrobj.dll` file
-* Any network event, which could indicate the download of a remote file
+. An image load of the `scrobj.dll` file
+. Any network event, which could indicate the download of a remote file
 
 [source,console]
 ----

@@ -17,8 +17,8 @@ dev::[]
 [[eql-pipe-head]]
 === `head`
 
-Returns up to a specified number of events, starting with the earliest matching
-events. Works similarly to the
+Returns up to a specified number of events or sequences, starting with the
+earliest matches. Works similarly to the
 https://en.wikipedia.org/wiki/Head_(Unix)[Unix head command].
 
 [%collapsible]
@@ -44,15 +44,15 @@ head <max>
 
 `<max>`::
 (Required, integer)
-Maximum number of matching events to return.
+Maximum number of matching events or sequences to return.
 ====
 
 [discrete]
 [[eql-pipe-tail]]
 === `tail`
 
-Returns up to a specified number of events, starting with the most recent
-matching events. Works similarly to the
+Returns up to a specified number of events or sequences, starting with the most
+recent matches. Works similarly to the
 https://en.wikipedia.org/wiki/Tail_(Unix)[Unix tail command].
 
 [%collapsible]
@@ -78,5 +78,5 @@ tail <max>
 
 `<max>`::
 (Required, integer)
-Maximum number of matching events to return.
+Maximum number of matching events or sequences to return.
 ====

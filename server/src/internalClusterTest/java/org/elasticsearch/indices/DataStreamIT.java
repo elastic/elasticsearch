@@ -890,7 +890,8 @@ public class DataStreamIT extends ESIntegTestCase {
         });
     }
 
-    public static void putComposableIndexTemplate(String id, String timestampFieldName, java.util.List<String> patterns) throws IOException {
+    public static void putComposableIndexTemplate(String id, String timestampFieldName,
+                                                  java.util.List<String> patterns) throws IOException {
         String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
         putComposableIndexTemplate(id, timestampFieldName, mapping, patterns, null);
     }

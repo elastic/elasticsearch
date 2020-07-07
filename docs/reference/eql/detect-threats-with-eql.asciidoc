@@ -22,7 +22,7 @@ https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset
 includes events that imitate behaviors related to regsvr32 misuse, as documented
 by MITRE ATT&CK®.
 
-To get started, download and index the sample dataset:
+To get started, download and index the dataset:
 
 . Download the https://github.com/endgameinc/eqllib/blob/master/data/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`] dataset.
 
@@ -36,7 +36,7 @@ curl -H "Content-Type: application/json" -XPOST "localhost:9200/sec_logs/_bulk?p
 // NOTCONSOLE
 
 . Use the <<cat-indices,cat indices API>> to verify the dataset was indexed
-  successfully.
+successfully.
 
 [source,console]
 ----
@@ -64,7 +64,8 @@ using `regsvr32.exe`.
 The following <<eql-search-api,EQL search API>> request uses an EQL query to
 retrieve a count of events with a `process_name` of `regsvr32.exe`. The query
 starts with the <<eql-syntax-match-any-event-category,`any where` keywords>>,
-meaning query can match events of any <<eql-required-fields,event category>>.
+meaning the query can match events of any <<eql-required-fields,event
+category>>.
 
 [source,console]
 ----
@@ -79,13 +80,15 @@ GET /sec_logs/_eql/search?filter_path=-hits.events  <1>
 }
 ----
 // TEST[setup:sec_logs]
+
 <1> Uses the `?filter_path=-hits.events` query parameter to exclude the
-`hits.events` property from the response. This request is only intended to
-retrieve a count of events.
-<2> Matches events with a `process_name` of `regsvr32.exe`.
+`hits.events` property from the response. The `hits.events` property contains
+the document source for any matching events. This request is intended to
+retrieve a count of events only.
+<2> Uses an EQL query to match events with a `process_name` of `regsvr32.exe`.
 <3> Sets the event category field as `event_type`.
 <4> Sets the timestamp field as `timestamp`.
-<5> Returns up to 150 events or sequences matching the query.
+<5> Returns up to 150 events or sequences matching the EQL query.
 
 The request returns the following response, indicating that 143 events match the
 query.
@@ -116,7 +119,7 @@ false positives.
 
 To narrow down the results, check if the command line was used during any of
 these events. Append `and command_line > 0` to the previous EQL query. This
-should limit matching results to events that contain a `command_line` value.
+limits matching results to events that contain a `command_line` value.
 
 You'll also need to remove the `filter_path=-hits.events` query parameter. This
 lets you retrieve the document source for any matching events.
@@ -135,7 +138,7 @@ GET /sec_logs/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The query matches one event.  Based on the event's `command_line` value,
+The query matches one event. Based on the event's `command_line` value,
 `regsvr32.exe` was used to register a script as `scrobj.dll`. This fits known
 https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] behavior.
 
@@ -191,7 +194,7 @@ https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] behavior.
 
 You now know that `regsvr32.exe` was used to register
 a potentially malicious script as `scrob.dll`. Next, find any processes that
-load the `scrob.dll` file.
+later load the `scrob.dll` file.
 
 Modify the previous EQL query as follows:
 
@@ -214,7 +217,8 @@ GET /sec_logs/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The query matches an event, confirming that `scrobj.dll` was later loaded.
+The query matches an event, confirming that `scrobj.dll` was later loaded by
+`regsvr32.exe`.
 
 [source,console-result]
 ----
@@ -264,10 +268,10 @@ this occurred, the attack progressed and might have succeeded.
 Use an <<eql-sequences,EQL sequence query>> to check for the following series of
 events:
 
-* A `regsvr32.exe`  process. These processes
-can be used to load arbitrary scripts.
-* An image load of `scrobj.dll`
-* Any network event, which could indicate the download of a remote file.
+* A `regsvr32.exe` process, which could have be used to register malicious
+scripts as `scrobj.dll`
+* An image load of the `scrobj.dll` file
+* Any network event, which could indicate the download of a remote file
 
 [source,console]
 ----
@@ -285,7 +289,6 @@ GET /sec_logs/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-
 
 The request returns the following response with a matching sequence, indicating
 the attack likely succeeded.

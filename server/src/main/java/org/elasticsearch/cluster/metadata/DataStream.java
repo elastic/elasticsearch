@@ -206,6 +206,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final class TimestampField implements Writeable, ToXContentObject {
 
+        public static final String FIXED_TIMESTAMP_FIELD = "@timestamp";
+
         static ParseField NAME_FIELD = new ParseField("name");
 
         @SuppressWarnings("unchecked")
@@ -221,7 +223,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         private final String name;
 
         public TimestampField(String name) {
-            assert "@timestamp".equals(name) : "unexpected timestamp field [" + name + "]";
+            assert FIXED_TIMESTAMP_FIELD.equals(name) : "unexpected timestamp field [" + name + "]";
             this.name = name;
         }
 

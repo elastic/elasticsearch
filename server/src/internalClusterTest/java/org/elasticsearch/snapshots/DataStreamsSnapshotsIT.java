@@ -47,6 +47,7 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
@@ -295,6 +296,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
         assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertThat("we renamed the restored data stream to one that doesn't match any existing composable template",
+            ds.getDataStreams().get(0).getIndexTemplate(), is(nullValue()));
     }
 
     public void testDataStreamNotStoredWhenIndexRequested() throws Exception {

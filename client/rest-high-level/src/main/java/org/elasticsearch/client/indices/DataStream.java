@@ -37,12 +37,13 @@ public final class DataStream {
     private final List<String> indices;
     private final long generation;
     ClusterHealthStatus dataStreamStatus;
+    @Nullable
     String indexTemplate;
     @Nullable
     String ilmPolicyName;
 
     public DataStream(String name, String timeStampField, List<String> indices, long generation, ClusterHealthStatus dataStreamStatus,
-                      String indexTemplate, @Nullable String ilmPolicyName) {
+                      @Nullable String indexTemplate, @Nullable String ilmPolicyName) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
@@ -99,10 +100,7 @@ public final class DataStream {
             String statusStr = (String) args[4];
             ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
             String indexTemplate = (String) args[5];
-            String ilmPolicy = null;
-            if(args.length == 7) {
-                ilmPolicy = (String) args[6];
-            }
+            String ilmPolicy = (String) args[6];
             return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy);
         });
 
@@ -112,7 +110,7 @@ public final class DataStream {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_TEMPLATE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_TEMPLATE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ILM_POLICY_FIELD);
     }
 
@@ -125,14 +123,17 @@ public final class DataStream {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
-        return name.equals(that.name) &&
+        return generation == that.generation &&
+            name.equals(that.name) &&
             timeStampField.equals(that.timeStampField) &&
             indices.equals(that.indices) &&
-            generation == that.generation;
+            dataStreamStatus == that.dataStreamStatus &&
+            Objects.equals(indexTemplate, that.indexTemplate) &&
+            Objects.equals(ilmPolicyName, that.ilmPolicyName);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation);
+        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate, ilmPolicyName);
     }
 }

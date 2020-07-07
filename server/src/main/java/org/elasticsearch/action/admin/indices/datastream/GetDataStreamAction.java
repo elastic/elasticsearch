@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -115,10 +117,10 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
             DataStream dataStream;
             ClusterHealthStatus dataStreamStatus;
-            String indexTemplate;
+            @Nullable String indexTemplate;
             @Nullable String ilmPolicyName;
 
-            public DataStreamInfo(DataStream dataStream, ClusterHealthStatus dataStreamStatus, String indexTemplate,
+            public DataStreamInfo(DataStream dataStream, ClusterHealthStatus dataStreamStatus, @Nullable String indexTemplate,
                                   @Nullable String ilmPolicyName) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
@@ -127,7 +129,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             }
 
             public DataStreamInfo(StreamInput in) throws IOException {
-                this(new DataStream(in), ClusterHealthStatus.readFrom(in), in.readString(), in.readOptionalString());
+                this(new DataStream(in), ClusterHealthStatus.readFrom(in), in.readOptionalString(), in.readOptionalString());
             }
 
             public DataStream getDataStream() {
@@ -138,10 +140,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return dataStreamStatus;
             }
 
+            @Nullable
             public String getIndexTemplate() {
                 return indexTemplate;
             }
 
+            @Nullable
             public String getIlmPolicy() {
                 return ilmPolicyName;
             }
@@ -150,7 +154,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
                 dataStreamStatus.writeTo(out);
-                out.writeString(indexTemplate);
+                out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
             }
 
@@ -162,7 +166,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 builder.field(STATUS_FIELD.getPreferredName(), dataStreamStatus);
-                builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
+                if (indexTemplate != null) {
+                    builder.field(INDEX_TEMPLATE_FIELD.getPreferredName(), indexTemplate);
+                }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
                 }
@@ -177,7 +183,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 DataStreamInfo that = (DataStreamInfo) o;
                 return dataStream.equals(that.dataStream) &&
                     dataStreamStatus == that.dataStreamStatus &&
-                    indexTemplate.equals(that.indexTemplate) &&
+                    Objects.equals(indexTemplate, that.indexTemplate) &&
                     Objects.equals(ilmPolicyName, that.ilmPolicyName);
             }
 
@@ -234,6 +240,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
 
+        private static final Logger logger = LogManager.getLogger(TransportAction.class);
+
         @Inject
         public TransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
@@ -257,12 +265,16 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             List<Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
             for (DataStream dataStream : dataStreams) {
                 String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                String ilmPolicyName = settings.get("index.lifecycle.name");
-                // get health
+                String ilmPolicyName = null;
+                if (indexTemplate != null) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                    ilmPolicyName = settings.get("index.lifecycle.name");
+                } else {
+                    logger.warn("couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)" +
+                        "from a snapshot?", dataStream.getName());
+                }
                 ClusterStateHealth streamHealth = new ClusterStateHealth(state,
                     dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new));
-
                 dataStreamInfos.add(new Response.DataStreamInfo(dataStream, streamHealth.getStatus(), indexTemplate, ilmPolicyName));
             }
             listener.onResponse(new Response(dataStreamInfos));

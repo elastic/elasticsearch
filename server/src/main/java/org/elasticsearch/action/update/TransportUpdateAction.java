@@ -49,7 +49,7 @@ import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.AliasNotFoundException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -120,7 +120,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         if (request.isRequireAlias() && (clusterService.state().getMetadata().hasAlias(request.index()) == false)) {
-            throw new AliasNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]", request.index());
+            throw new IndexNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]", request.index());
         }
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {

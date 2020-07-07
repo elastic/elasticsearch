@@ -36,7 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AliasNotFoundException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
@@ -114,7 +114,7 @@ class ReindexValidator {
         }
         String target = destination.index();
         if (destination.isRequireAlias() && (false == clusterState.getMetadata().hasAlias(target))) {
-            throw new AliasNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]", target);
+            throw new IndexNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]", target);
         }
         if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
             /*

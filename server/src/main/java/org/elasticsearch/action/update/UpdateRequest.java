@@ -930,6 +930,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if (fetchSourceContext != null) {
             builder.field("_source", fetchSourceContext);
         }
+        if (requireAlias) {
+            builder.field(REQUIRE_ALIAS.getPreferredName(), requireAlias);
+        }
         builder.endObject();
         return builder;
     }

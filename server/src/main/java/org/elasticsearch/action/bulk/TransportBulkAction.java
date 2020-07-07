@@ -64,7 +64,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.AliasNotFoundException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -671,7 +670,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
             if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
-                Exception exception = new AliasNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]",
+                Exception exception = new IndexNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]",
                     request.index());
                 addFailure(request, idx, exception);
                 return true;

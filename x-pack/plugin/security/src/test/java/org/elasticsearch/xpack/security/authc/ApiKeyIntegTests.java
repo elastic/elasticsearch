@@ -836,10 +836,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertApiKeyNotCreated(client, "key-5");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59149")
     public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException, ExecutionException {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        assumeTrue("Skip test if the node has only a single thread", allocatedProcessors > 1);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
 
         final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
@@ -857,9 +858,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes().stream()
             .filter(nodeInfo -> nodeInfo.getNode().getName().equals(nodeName))
             .collect(Collectors.toList());
+        assertEquals(1, nodeInfos.size());
 
         final ExecutorService executorService = threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME);
-        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final int numberOfThreads = (allocatedProcessors + 1) / 2;
         final CountDownLatch blockingLatch = new CountDownLatch(1);
         final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads);

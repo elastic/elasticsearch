@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
@@ -73,6 +74,7 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
+            randomFrom(License.OperationMode.values()),
             modelStatsService);
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
@@ -102,6 +104,7 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
+            License.OperationMode.PLATINUM,
             modelStatsService);
         result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
@@ -144,6 +147,7 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
+            License.OperationMode.PLATINUM,
             modelStatsService);
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
@@ -199,6 +203,7 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             Collections.singletonMap("bar", "bar.keyword"),
             RegressionConfig.EMPTY_PARAMS,
+            License.OperationMode.PLATINUM,
             modelStatsService);
 
         Map<String, Object> fields = new HashMap<>() {{
@@ -226,6 +231,7 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             null,
             RegressionConfig.EMPTY_PARAMS,
+            License.OperationMode.PLATINUM,
             modelStatsService);
 
         Map<String, Object> fields = new HashMap<>() {{
@@ -256,6 +262,7 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             null,
             ClassificationConfig.EMPTY_PARAMS,
+            License.OperationMode.PLATINUM,
             modelStatsService
         );
         Map<String, Object> fields = new HashMap<>() {{

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -38,6 +39,7 @@ public class LocalModel {
     private volatile long persistenceQuotient = 100;
     private final LongAdder currentInferenceCount;
     private final InferenceConfig inferenceConfig;
+    private final License.OperationMode licenseLevel;
 
     public LocalModel(String modelId,
                       String nodeId,
@@ -45,6 +47,7 @@ public class LocalModel {
                       TrainedModelInput input,
                       Map<String, String> defaultFieldMap,
                       InferenceConfig modelInferenceConfig,
+                      License.OperationMode licenseLevel,
                       TrainedModelStatsService trainedModelStatsService) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
@@ -56,6 +59,7 @@ public class LocalModel {
         this.defaultFieldMap = defaultFieldMap == null ? null : new HashMap<>(defaultFieldMap);
         this.currentInferenceCount = new LongAdder();
         this.inferenceConfig = modelInferenceConfig;
+        this.licenseLevel = licenseLevel;
     }
 
     long ramBytesUsed() {
@@ -64,6 +68,10 @@ public class LocalModel {
 
     public String getModelId() {
         return modelId;
+    }
+
+    public License.OperationMode getLicenseLevel() {
+        return licenseLevel;
     }
 
     public InferenceStats getLatestStatsAndReset() {

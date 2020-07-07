@@ -10,15 +10,17 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -44,10 +46,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     static final String AGGREGATIONS_RESULTS_FIELD = "value";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<InferencePipelineAggregationBuilder,
-        Tuple<SetOnce<ModelLoadingService>, String>> PARSER = new ConstructingObjectParser<>(
-        NAME, false,
-        (args, context) -> new InferencePipelineAggregationBuilder(context.v2(), context.v1(), (Map<String, String>) args[0])
+    private static final ConstructingObjectParser<InferencePipelineAggregationBuilder, ParserSupplement> PARSER =
+        new ConstructingObjectParser<>(NAME, false,
+        (args, context) -> new InferencePipelineAggregationBuilder(context.name, context.modelLoadingService,
+            context.licenseState, (Map<String, String>) args[0])
     );
 
     static {
@@ -60,34 +62,52 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     private final Map<String, String> bucketPathMap;
     private String modelId;
     private InferenceConfigUpdate inferenceConfig;
+    private final XPackLicenseState licenseState;
     private final SetOnce<ModelLoadingService> modelLoadingService;
     /**
      * The model. Set to a non-null value during the rewrite phase.
      */
     private final Supplier<LocalModel> model;
 
+    private static class ParserSupplement {
+        final XPackLicenseState licenseState;
+        final SetOnce<ModelLoadingService> modelLoadingService;
+        final String name;
+
+        ParserSupplement(String name, XPackLicenseState licenseState, SetOnce<ModelLoadingService> modelLoadingService) {
+            this.name = name;
+            this.licenseState = licenseState;
+            this.modelLoadingService = modelLoadingService;
+        }
+    }
     public static InferencePipelineAggregationBuilder parse(SetOnce<ModelLoadingService> modelLoadingService,
+                                                            XPackLicenseState licenseState,
                                                             String pipelineAggregatorName,
                                                             XContentParser parser) {
-        Tuple<SetOnce<ModelLoadingService>, String> context = new Tuple<>(modelLoadingService, pipelineAggregatorName);
-        return PARSER.apply(parser, context);
+        return PARSER.apply(parser, new ParserSupplement(pipelineAggregatorName, licenseState, modelLoadingService));
     }
 
-    public InferencePipelineAggregationBuilder(String name, SetOnce<ModelLoadingService> modelLoadingService,
+    public InferencePipelineAggregationBuilder(String name,
+                                               SetOnce<ModelLoadingService> modelLoadingService,
+                                               XPackLicenseState licenseState,
                                                Map<String, String> bucketsPath) {
         super(name, NAME, new TreeMap<>(bucketsPath).values().toArray(new String[] {}));
         this.modelLoadingService = modelLoadingService;
         this.bucketPathMap = bucketsPath;
         this.model = null;
+        this.licenseState = licenseState;
     }
 
-    public InferencePipelineAggregationBuilder(StreamInput in, SetOnce<ModelLoadingService> modelLoadingService) throws IOException {
+    public InferencePipelineAggregationBuilder(StreamInput in,
+                                               XPackLicenseState licenseState,
+                                               SetOnce<ModelLoadingService> modelLoadingService) throws IOException {
         super(in, NAME);
         modelId = in.readString();
         bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         this.modelLoadingService = modelLoadingService;
         this.model = null;
+        this.licenseState = licenseState;
     }
 
     /**
@@ -98,7 +118,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         Map<String, String> bucketsPath,
         Supplier<LocalModel> model,
         String modelId,
-        InferenceConfigUpdate inferenceConfig
+        InferenceConfigUpdate inferenceConfig,
+        XPackLicenseState licenseState
     ) {
         super(name, NAME, new TreeMap<>(bucketsPath).values().toArray(new String[] {}));
         modelLoadingService = null;
@@ -113,6 +134,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
          */
         this.modelId = modelId;
         this.inferenceConfig = inferenceConfig;
+        this.licenseState = licenseState;
     }
 
     void setModelId(String modelId) {
@@ -160,7 +182,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     }
 
     @Override
-    public InferencePipelineAggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
+    public InferencePipelineAggregationBuilder rewrite(QueryRewriteContext context) {
         if (model != null) {
             return this;
         }
@@ -168,10 +190,17 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         context.registerAsyncAction((client, listener) -> {
             modelLoadingService.get().getModelForSearch(modelId, ActionListener.delegateFailure(listener, (delegate, model) -> {
                 loadedModel.set(model);
-                delegate.onResponse(null);
+
+                boolean isLicensed = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) ||
+                    licenseState.isAllowedByLicense(model.getLicenseLevel());
+                if (isLicensed) {
+                    delegate.onResponse(null);
+                } else {
+                    delegate.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
+                }
             }));
         });
-        return new InferencePipelineAggregationBuilder(name, bucketPathMap, loadedModel::get, modelId, inferenceConfig);
+        return new InferencePipelineAggregationBuilder(name, bucketPathMap, loadedModel::get, modelId, inferenceConfig, licenseState);
     }
 
     @Override

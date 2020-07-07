@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Objects;
 

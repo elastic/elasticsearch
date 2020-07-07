@@ -51,7 +51,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG_CASE_INSENSITIVE;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class OptimizerTests extends ESTestCase {
@@ -72,7 +72,7 @@ public class OptimizerTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier());
+        Analyzer analyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier());
         return optimizer.optimize(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution)));
     }
 
@@ -87,9 +87,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
 
@@ -110,9 +108,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
@@ -133,9 +129,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
@@ -159,9 +153,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
 
@@ -181,9 +173,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testWildcardEscapes() {
-        LogicalPlan plan = accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'");
-        assertTrue(plan instanceof OrderBy);
-        plan = ((OrderBy) plan).child();
+        LogicalPlan plan = defaultPipes(accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'"));
         assertTrue(plan instanceof Project);
         plan = ((Project) plan).child();
         assertTrue(plan instanceof Filter);
@@ -305,5 +295,12 @@ public class OptimizerTests extends ESTestCase {
         OrderBy orderBy = (OrderBy) plan.child();
         Order order = orderBy.order().get(0);
         assertEquals(direction, order.direction());
+    }
+
+    private LogicalPlan defaultPipes(LogicalPlan plan) {
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        assertTrue(plan instanceof OrderBy);
+        return ((OrderBy) plan).child();
     }
 }

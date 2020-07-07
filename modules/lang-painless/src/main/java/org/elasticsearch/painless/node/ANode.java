@@ -60,7 +60,7 @@ public abstract class ANode {
      * Callback to visit a user tree node.
      */
     public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        throw new UnsupportedOperationException("cannot visit node type [" + getClass().getCanonicalName() + "]");
+        throw new UnsupportedOperationException("cannot visit user node type [" + getClass().getCanonicalName() + "]");
     }
 
     /**

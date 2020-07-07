@@ -87,7 +87,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
         String[] indices;
         if (request.getConcreteIndex() == null) {
-            indices = indexNameExpressionResolver.concreteIndexNames(state, request, true);
+            indices = indexNameExpressionResolver.concreteIndexNames(state, request);
         } else {
             indices = new String[] {request.getConcreteIndex().getName()};
         }
@@ -99,7 +99,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = request.getConcreteIndex() == null ?
-                indexNameExpressionResolver.concreteIndices(state, request, true)
+                indexNameExpressionResolver.concreteIndices(state, request)
                 : new Index[] {request.getConcreteIndex()};
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {

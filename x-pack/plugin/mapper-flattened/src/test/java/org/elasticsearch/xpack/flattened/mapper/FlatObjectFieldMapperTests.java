@@ -496,13 +496,13 @@ public class FlatObjectFieldMapperTests extends FieldMapperTestCase<FlatObjectFi
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         RootFlatObjectFieldType rootFieldType = (RootFlatObjectFieldType) mapperService.fieldType("field");
-        assertThat(rootFieldType.searchAnalyzer().name(), equalTo("whitespace"));
-        assertTokenStreamContents(rootFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+        assertThat(rootFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertTokenStreamContents(rootFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
 
         KeyedFlatObjectFieldType keyedFieldType = (KeyedFlatObjectFieldType) mapperService.fieldType("field.key");
-        assertThat(keyedFieldType.searchAnalyzer().name(), equalTo("whitespace"));
-        assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+        assertThat(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
+        assertTokenStreamContents(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
     }
 

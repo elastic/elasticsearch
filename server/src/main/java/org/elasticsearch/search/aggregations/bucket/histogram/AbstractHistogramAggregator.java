@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
@@ -64,10 +65,10 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         DocValueFormat formatter,
         SearchContext context,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         if (interval <= 0) {
             throw new IllegalArgumentException("interval must be positive, got: " + interval);
         }
@@ -80,7 +81,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         this.minBound = minBound;
         this.maxBound = maxBound;
         this.formatter = formatter;
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinalityUpperBound);
     }
 
     @Override

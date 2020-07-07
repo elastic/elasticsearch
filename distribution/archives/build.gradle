@@ -145,7 +145,7 @@ tasks.register('buildOssNoJdkWindowsZip', Zip) {
 }
 
 Closure commonTarConfig = {
-  extension = 'tar.gz'
+  archiveExtension = 'tar.gz'
   compression = Compression.GZIP
   dirMode 0755
   fileMode 0644
@@ -329,12 +329,6 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   apply plugin: 'elasticsearch.rest-test'
 
   group = "org.elasticsearch.distribution.integ-test-zip"
-
-  restResources {
-    restTests {
-      includeCore '*'
-    }
-  }
 
   integTest {
     dependsOn assemble

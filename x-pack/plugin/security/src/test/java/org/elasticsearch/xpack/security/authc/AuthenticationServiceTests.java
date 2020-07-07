@@ -211,7 +211,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             new FixedExecutorBuilder(settings, THREAD_POOL_NAME, 1, 1000,
                 "xpack.security.authc.token.thread_pool", false),
             new FixedExecutorBuilder(Settings.EMPTY, SECURITY_CRYPTO_THREAD_POOL_NAME, 1, 1000,
-                "xpack.security.authc.api_key.thread_pool", false)
+                "xpack.security.crypto.thread_pool", false)
         );
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);

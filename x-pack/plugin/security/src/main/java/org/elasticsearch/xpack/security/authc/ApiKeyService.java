@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -246,7 +247,7 @@ public class ApiKeyService {
     }
 
     /**
-     * package protected for testing
+     * package-private for testing
      */
     XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
                                         Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
@@ -333,6 +334,16 @@ public class ApiKeyService {
         } else {
             listener.onResponse(AuthenticationResult.notHandled());
         }
+    }
+
+    public Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
+        if (false == authResult.isAuthenticated()) {
+            throw new IllegalArgumentException("API Key authn result must be successful");
+        }
+        final User user = authResult.getUser();
+        final RealmRef authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
+        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
+                authResult.getMetadata());
     }
 
     private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
@@ -573,7 +584,8 @@ public class ApiKeyService {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
     }
 
-    private void validateApiKeyExpiration(ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
+    // package-private for testing
+    void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
                                   ActionListener<AuthenticationResult> listener) {
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
             final String principal = Objects.requireNonNull((String) apiKeyDoc.creator.get("principal"));
@@ -662,12 +674,12 @@ public class ApiKeyService {
         }
     }
 
-    // package private class for testing
-    static final class ApiKeyCredentials implements Closeable {
+    // public class for testing
+    public static final class ApiKeyCredentials implements Closeable {
         private final String id;
         private final SecureString key;
 
-        ApiKeyCredentials(String id, SecureString key) {
+        public ApiKeyCredentials(String id, SecureString key) {
             this.id = id;
             this.key = key;
         }

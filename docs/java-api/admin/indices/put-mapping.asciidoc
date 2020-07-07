@@ -9,7 +9,7 @@ You can add mappings at index creation time:
 include-tagged::{client-tests}/IndicesDocumentationIT.java[index-with-mapping]
 --------------------------------------------------
 <1> <<java-admin-indices-create-index,Creates an index>> called `twitter`
-<2> Add a `_doc` type with a field called `message` that has the datatype `text`.
+<2> Add a `_doc` type with a field called `message` that has the data type `text`.
 
 There are several variants of the above `addMapping` method, some taking an
 `XContentBuilder` or a `Map` with the mapping definition as arguments. Make sure

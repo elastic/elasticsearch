@@ -1,5 +1,5 @@
 [[keyword]]
-=== Keyword datatype
+=== Keyword data type
 ++++
 <titleabbrev>Keyword</titleabbrev>
 ++++

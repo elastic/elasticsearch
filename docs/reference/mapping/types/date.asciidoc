@@ -1,10 +1,10 @@
 [[date]]
-=== Date datatype
+=== Date data type
 ++++
 <titleabbrev>Date</titleabbrev>
 ++++
 
-JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
+JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
 * a long number representing _milliseconds-since-the-epoch_.

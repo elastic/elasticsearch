@@ -572,7 +572,7 @@ tag::mappings[]
 specified, this mapping can include:
 
 * Field names
-* <<mapping-types,Field datatypes>>
+* <<mapping-types,Field data types>>
 * <<mapping-params,Mapping parameters>>
 
 See <<mapping>>.

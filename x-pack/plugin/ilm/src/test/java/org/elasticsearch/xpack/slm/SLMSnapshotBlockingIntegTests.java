@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -74,6 +75,11 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         internalCluster().startMasterOnlyNodes(2);
         dataNodeNames = internalCluster().startDataOnlyNodes(2);
         ensureGreen();
+    }
+
+    @After
+    public void awaitNoMoreRunningOps() throws Exception {
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }
 
     @Override
@@ -391,7 +397,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             });
         }
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }
 
     public void testSLMRetentionAfterRestore() throws Exception {

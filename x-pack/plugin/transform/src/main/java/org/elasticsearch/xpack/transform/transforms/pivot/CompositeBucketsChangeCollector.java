@@ -313,6 +313,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
     @Override
     public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+        // shortcut for only 1 element
+        if (fieldCollectors.size() == 1) {
+            return fieldCollectors.values().iterator().next().filterByChanges(lastCheckpointTimestamp, nextcheckpointTimestamp);
+        }
+
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
 
         for (FieldCollector fieldCollector : fieldCollectors.values()) {

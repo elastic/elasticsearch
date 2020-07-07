@@ -116,8 +116,8 @@ public class IndexNameExpressionResolver {
             indexExpressions = new String[]{"*"};
         }
 
-        Set<String> s = wildcardExpressionResolver.innerResolve(context, Arrays.asList(indexExpressions), options, state.metadata());
-        return ((s == null) ? List.<String>of() : s).stream()
+        List<String> dataStreams = wildcardExpressionResolver.resolve(context, Arrays.asList(indexExpressions));
+        return ((dataStreams == null) ? List.<String>of() : dataStreams).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)

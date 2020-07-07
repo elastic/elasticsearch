@@ -14,6 +14,7 @@ import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.SIZE;
 
 public class ParserParams {
 
@@ -22,6 +23,7 @@ public class ParserParams {
     private String fieldTimestamp = FIELD_TIMESTAMP;
     private String fieldTiebreaker = null;
     private String implicitJoinKey = FIELD_IMPLICIT_JOIN_KEY;
+    private int size = SIZE;
     private int fetchSize = FETCH_SIZE;
     private List<Object> queryParams = emptyList();
 
@@ -62,6 +64,15 @@ public class ParserParams {
 
     public ParserParams implicitJoinKey(String implicitJoinKey) {
         this.implicitJoinKey = implicitJoinKey;
+        return this;
+    }
+
+    public int size() {
+        return size;
+    }
+
+    public ParserParams size(int size) {
+        this.size = size;
         return this;
     }
 

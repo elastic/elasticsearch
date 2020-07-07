@@ -242,7 +242,7 @@ APIs are not be blocked and can run on any available node.
 
 `monitor.fs.health.slow_path_logging_threshold`::
 
-    (<<time-units, Time unit value>>) If a
+    (<<time-units, Time value>>) If a
     <<cluster-fault-detection-filesystem-health,filesystem health checks>>
     takes longer than this threshold then {es} logs a warning. Defaults to
     `5s`.

@@ -223,7 +223,9 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         private final String name;
 
         public TimestampField(String name) {
-            assert FIXED_TIMESTAMP_FIELD.equals(name) : "unexpected timestamp field [" + name + "]";
+            if (FIXED_TIMESTAMP_FIELD.equals(name) == false) {
+                throw new IllegalArgumentException("unexpected timestamp field [" + name + "]");
+            }
             this.name = name;
         }
 

@@ -81,7 +81,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
          *
          * @param lastCheckpointTimestamp the last(complete) checkpoint timestamp
          * @param nextcheckpointTimestamp the next(currently running) checkpoint timestamp.
-         * @return
+         * @return a querybuilder instance with added filters to narrow the search
          */
         QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
 

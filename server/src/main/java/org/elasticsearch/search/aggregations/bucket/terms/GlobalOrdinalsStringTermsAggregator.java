@@ -65,12 +65,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected final ResultStrategy<?, ?, ?> resultStrategy;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
-    // TODO: cache the acceptedglobalValues per aggregation definition.
-    // We can't cache this yet in ValuesSource, since ValuesSource is reused per field for aggs during the execution.
-    // If aggs with same field, but different include/exclude are defined, then the last defined one will override the
-    // first defined one.
-    // So currently for each instance of this aggregator the acceptedglobalValues will be computed, this is unnecessary
-    // especially if this agg is on a second layer or deeper.
     private final LongPredicate acceptedGlobalOrdinals;
     private final long valueCount;
     private final GlobalOrdLookupFunction lookupGlobalOrd;

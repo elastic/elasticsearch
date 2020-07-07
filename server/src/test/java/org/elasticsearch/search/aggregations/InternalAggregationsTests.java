@@ -63,7 +63,7 @@ public class InternalAggregationsTests extends ESTestCase {
     public void testNonFinalReduceTopLevelPipelineAggs()  {
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
             10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
-        List<InternalAggregations> aggs = singletonList(new InternalAggregations(Collections.singletonList(terms)));
+        List<InternalAggregations> aggs = singletonList(InternalAggregations.from(Collections.singletonList(terms)));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
         assertEquals(1, reducedAggs.getTopLevelPipelineAggregators().size());
         assertEquals(1, reducedAggs.aggregations.size());
@@ -73,7 +73,7 @@ public class InternalAggregationsTests extends ESTestCase {
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
             10, 1, Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
 
-        InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms));
+        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(aggs),
                 maxBucketReduceContext().forFinalReduction());
         assertEquals(0, reducedAggs.getTopLevelPipelineAggregators().size());
@@ -145,7 +145,7 @@ public class InternalAggregationsTests extends ESTestCase {
             aggregations.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
                 in.setVersion(version);
-                InternalAggregations deserialized = new InternalAggregations(in);
+                InternalAggregations deserialized = InternalAggregations.readFrom(in);
                 assertEquals(aggregations.aggregations, deserialized.aggregations);
                 if (iteration < 2) {
                     /*

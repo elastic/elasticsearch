@@ -65,6 +65,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -98,6 +99,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -498,10 +500,21 @@ public class MetadataCreateIndexService {
             request.mappings(), currentState, templateName, xContentRegistry);
 
         if (request.dataStreamName() != null) {
+            String timestampField;
             DataStream dataStream = currentState.metadata().dataStreams().get(request.dataStreamName());
             if (dataStream != null) {
+                // Data stream already exists and a new backing index gets added. For example during rollover.
+                timestampField = dataStream.getTimeStampField().getName();
+                // Use the timestamp field mapping as was recorded at the time the data stream was created
                 mappings.add(dataStream.getTimeStampField().getTimestampFieldMapping());
+            } else {
+                // The data stream doesn't yet exist and the first backing index gets created. Resolve ts field from template.
+                // (next time, the data stream instance does exist)
+                ComposableIndexTemplate template = currentState.metadata().templatesV2().get(templateName);
+                timestampField = template.getDataStreamTemplate().getTimestampField();
             }
+            // Add mapping for timestamp field mapper last, so that it can't be overwritten:
+            mappings.add(singletonMap("_doc", singletonMap(TimestampFieldMapper.NAME, singletonMap("path", timestampField))));
         }
 
         final Settings aggregatedIndexSettings =
@@ -529,7 +542,7 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName);
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
-            result.add(Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, parsedTemplateMapping));
+            result.add(singletonMap(MapperService.SINGLE_MAPPING_NAME, parsedTemplateMapping));
         }
 
         if (requestMappings.size() > 0) {
@@ -538,7 +551,7 @@ public class MetadataCreateIndexService {
 
             String type = entry.getKey();
             Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, entry.getValue());
-            result.add(Collections.singletonMap(type, parsedMappings));
+            result.add(singletonMap(type, parsedMappings));
         }
         return result;
     }
@@ -609,7 +622,7 @@ public class MetadataCreateIndexService {
                     assert type.equals(templateMapping.keySet().iterator().next()) :
                         type + " != " + templateMapping;
                     Map.Entry<String, Map<String, Object>> mappingEntry = mappings.entrySet().iterator().next();
-                    templateMapping = Collections.singletonMap(
+                    templateMapping = singletonMap(
                         mappingEntry.getKey(),                       // reuse type name from the mapping
                         templateMapping.values().iterator().next()); // but actual mappings from the template
                     XContentHelper.mergeDefaults(mappingEntry.getValue(), templateMapping);
@@ -620,7 +633,7 @@ public class MetadataCreateIndexService {
                     assert type.equals(templateMapping.keySet().iterator().next()) :
                         type + " != " + templateMapping;
                     Map<String, Object> mapping = mappings.get(MapperService.SINGLE_MAPPING_NAME);
-                    templateMapping = Collections.singletonMap(
+                    templateMapping = singletonMap(
                         MapperService.SINGLE_MAPPING_NAME,           // make template mapping typeless
                         templateMapping.values().iterator().next());
                     XContentHelper.mergeDefaults(mapping, templateMapping);

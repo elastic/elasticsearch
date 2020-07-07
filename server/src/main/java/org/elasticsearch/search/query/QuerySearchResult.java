@@ -319,7 +319,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         setTopDocs(readTopDocs(in));
         if (in.getVersion().before(Version.V_7_7_0)) {
             if (hasAggs = in.readBoolean()) {
-                aggregations = DelayableWriteable.referencing(new InternalAggregations(in));
+                aggregations = DelayableWriteable.referencing(InternalAggregations.readFrom(in));
             }
             if (in.getVersion().before(Version.V_7_2_0)) {
                 // The list of PipelineAggregators is sent by old versions. We don't need it anyway.
@@ -327,7 +327,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         } else {
             if (hasAggs = in.readBoolean()) {
-                aggregations = DelayableWriteable.delayed(InternalAggregations::new, in);
+                aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
             }
         }
         if (in.readBoolean()) {

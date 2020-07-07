@@ -140,6 +140,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.names = indices;
             return this;
         }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
     }
 
     public static class ResolvedIndexAbstraction {

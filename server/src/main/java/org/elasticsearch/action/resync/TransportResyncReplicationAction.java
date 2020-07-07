@@ -65,6 +65,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     }
 
     @Override
+    protected void doExecute(Task parentTask, ResyncReplicationRequest request, ActionListener<ResyncReplicationResponse> listener) {
+        assert false : "use TransportResyncReplicationAction#sync";
+    }
+
+    @Override
     protected ResyncReplicationResponse newResponseInstance(StreamInput in) throws IOException {
         return new ResyncReplicationResponse(in);
     }

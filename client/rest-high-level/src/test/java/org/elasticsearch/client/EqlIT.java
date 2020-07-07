@@ -103,7 +103,7 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
 
     public void testBasicSearch() throws Exception {
         EqlClient eql = highLevelClient().eql();
-        EqlSearchRequest request = new EqlSearchRequest("index", "process where true");
+        EqlSearchRequest request = new EqlSearchRequest("index", "process where true").size(RECORD_COUNT);
         assertResponse(execute(request, eql::search, eql::searchAsync), RECORD_COUNT);
     }
 
@@ -115,7 +115,7 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         EqlSearchRequest request = new EqlSearchRequest("index", "foo where pid > 0");
 
         // test with non-default event.category mapping
-        request.eventCategoryField("event_type");
+        request.eventCategoryField("event_type").size(RECORD_COUNT);
 
         EqlSearchResponse response = execute(request, eql::search, eql::searchAsync);
         assertResponse(response, RECORD_COUNT / DIVIDER);

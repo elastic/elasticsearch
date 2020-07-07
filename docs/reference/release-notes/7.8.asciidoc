@@ -1,3 +1,16 @@
+[[release-notes-7.8.1]]
+== {es} version 7.8.1
+
+coming::[7.8.1]
+
+[float]
+[[bug-7.8.1]]
+=== Bug fixes
+
+Machine Learning::
+* Better interrupt handling during named pipe connection {ml-pull}1311[#1311]
+* Trap potential cause of SIGFPE {ml-pull}1351[#1351] (issue: {ml-issue}1348[#1348])
+
 [[release-notes-7.8.0]]
 == {es} version 7.8.0
 

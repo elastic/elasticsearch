@@ -71,7 +71,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             client().prepareIndex("others", "other").setSource("rank", 4),
             client().prepareIndex("others", "other").setSource("rank", 5));
 
-        createRepository("repository", CountingMockRepositoryPlugin.TYPE, randomRepoPath());
+        createRepository("repository", CountingMockRepositoryPlugin.TYPE);
 
         // Creating a snapshot does not load any metadata
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("repository", "snap")

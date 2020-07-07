@@ -246,7 +246,7 @@ public class TestTranslog {
         try {
             final int version = TranslogHeader.readHeaderVersion(corruptedFile, channel, in);
             return version == TranslogHeader.VERSION_CHECKPOINTS;
-        } catch (IllegalStateException | TranslogCorruptedException e) {
+        } catch (IllegalStateException | TranslogCorruptedException | IOException e) {
             return false;
         }
     }

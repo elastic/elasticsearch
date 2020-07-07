@@ -133,10 +133,7 @@ public class IndexStorePluginTests extends ESTestCase {
             IllegalStateException.class, () -> new MockNode(settings, Arrays.asList(FooCustomRecoveryStore.class,
                                                                                     BarCustomRecoveryStore.class)));
         if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
-            assertThat(e, hasToString(matches(
-                "java.lang.IllegalStateException: Duplicate key recovery-type \\(attempted merging values " +
-                    "org.elasticsearch.plugins.IndexStorePluginTests\\$RecoveryFactory@[\\w\\d]+ " +
-                    "and org.elasticsearch.plugins.IndexStorePluginTests\\$RecoveryFactory@[\\w\\d]+\\)")));
+            assertThat(e.getMessage(), containsString("Duplicate key recovery-type"));
         } else {
             assertThat(e, hasToString(matches(
                 "java.lang.IllegalStateException: Duplicate key " +

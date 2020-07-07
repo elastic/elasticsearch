@@ -112,7 +112,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
-        this(settings, customBreakers, clusterSettings, createDoubleCheckStrategy());
+        this(settings, customBreakers, clusterSettings, createOverLimitStrategy());
     }
 
     HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings,
@@ -361,7 +361,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 breakerSettings.getName());
     }
 
-    private static OverLimitStrategy createDoubleCheckStrategy() {
+    private static OverLimitStrategy createOverLimitStrategy() {
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.

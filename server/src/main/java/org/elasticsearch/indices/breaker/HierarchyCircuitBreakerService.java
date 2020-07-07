@@ -32,8 +32,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
@@ -112,7 +114,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         this(settings, customBreakers, clusterSettings,
             // hardcode interval, do not want any tuning of it outside code changes.
-            createDoubleCheckStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage, System::currentTimeMillis, 5000));
+            createDoubleCheckStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage, createYoungGcCountSupplier(),
+                System::currentTimeMillis, 5000));
     }
 
     HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings,
@@ -362,13 +365,30 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     private static OverLimitStrategy createDoubleCheckStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
-                                                               LongSupplier timeSupplier, long minimumInterval) {
+                                                               LongSupplier gcCountSupplier,
+                                                               LongSupplier timeSupplier,long minimumInterval) {
         if (jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
             && Boolean.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled", "true"))) {
-            return new G1OverLimitStrategy(jvmInfo, currentMemoryUsageSupplier, timeSupplier, minimumInterval);
+            return new G1OverLimitStrategy(jvmInfo, currentMemoryUsageSupplier, gcCountSupplier,
+                timeSupplier, minimumInterval);
         } else {
             return memoryUsed -> memoryUsed;
+        }
+    }
+
+    static LongSupplier createYoungGcCountSupplier() {
+        List<GarbageCollectorMXBean> youngBeans =
+            ManagementFactory.getGarbageCollectorMXBeans().stream().filter(mxBean -> GcNames.getByGcName(mxBean.getName(),
+                mxBean.getName()).equals(GcNames.YOUNG)).collect(Collectors.toList());
+        assert youngBeans.size() == 1;
+        assert youngBeans.get(0).getCollectionCount() != -1 : "G1 must support getting collection count";
+
+        if (youngBeans.size() == 1) {
+            return youngBeans.get(0)::getCollectionCount;
+        } else {
+            logger.warn("Unable to find young generation collector, G1 over limit strategy might be impacted [{}]", youngBeans);
+            return () -> -1;
         }
     }
 
@@ -379,6 +399,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     static class G1OverLimitStrategy implements OverLimitStrategy {
         private final long g1RegionSize;
         private final LongSupplier currentMemoryUsageSupplier;
+        private final LongSupplier gcCountSupplier;
         private final LongSupplier timeSupplier;
 
         private long lastCheckTime = Long.MIN_VALUE;
@@ -389,9 +410,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         private final long maxHeap;
 
         G1OverLimitStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
+                            LongSupplier gcCountSupplier,
                             LongSupplier timeSupplier, long minimumInterval) {
             assert minimumInterval > 0;
             this.currentMemoryUsageSupplier = currentMemoryUsageSupplier;
+            this.gcCountSupplier = gcCountSupplier;
             this.timeSupplier = timeSupplier;
             this.minimumInterval = minimumInterval;
             long g1RegionSize = jvmInfo.getG1RegionSize();
@@ -402,6 +425,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 this.g1RegionSize = g1RegionSize;
             }
             maxHeap = jvmInfo.getMem().getHeapMax().getBytes();
+
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
@@ -432,6 +456,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 leader = begin >= lastCheckTime + minimumInterval;
                 overLimitTriggered(leader);
                 if (leader) {
+                    long initialCollectionCount = gcCountSupplier.getAsLong();
                     logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
                     long localBlackHole = 0;
                     // number of allocations, corresponding to (approximately) number of free regions + 1
@@ -445,6 +470,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                             maxUsageObserved = current;
                         } else {
                             // we observed a memory drop, so some GC must have occurred
+                            break;
+                        }
+                        if (initialCollectionCount != gcCountSupplier.getAsLong()) {
                             break;
                         }
                         localBlackHole += new byte[allocationSize].hashCode();

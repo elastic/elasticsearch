@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -305,7 +306,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage,
-                time::get, interval) {
+                HierarchyCircuitBreakerService.createYoungGcCountSupplier(), time::get, interval) {
 
                 @Override
                 void overLimitTriggered(boolean leader) {
@@ -417,16 +418,15 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             equalTo(JvmInfo.jvmInfo().getG1RegionSize()));
     }
 
-    public void testG1OverLimitStrategy() {
+    public void testG1OverLimitStrategyBreakOnMemory() {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
         AtomicLong memoryUsage = new AtomicLong();
-        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
-            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get,
-            time::get, interval) {
 
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get, () -> 0, time::get, interval) {
             @Override
             void overLimitTriggered(boolean leader) {
                 if (leader) {
@@ -463,13 +463,49 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         assertThat(leaderTriggerCount.get(), equalTo(2));
     }
 
+    public void testG1OverLimitStrategyBreakOnGcCount() {
+        AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
+        AtomicInteger leaderTriggerCount = new AtomicInteger();
+        AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
+        long interval = randomLongBetween(1, 1000);
+        AtomicLong memoryUsageCounter = new AtomicLong();
+        AtomicLong gcCounter = new AtomicLong();
+        LongSupplier memoryUsageSupplier = () -> {
+            memoryUsageCounter.incrementAndGet();
+            return randomLongBetween(100, 110);
+        };
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(),
+                memoryUsageSupplier,
+                gcCounter::incrementAndGet,
+                time::get, interval) {
+
+                @Override
+                void overLimitTriggered(boolean leader) {
+                    if (leader) {
+                        leaderTriggerCount.incrementAndGet();
+                    } else {
+                        nonLeaderTriggerCount.incrementAndGet();
+                    }
+                }
+            };
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(100, randomLongBetween(100, 110),
+            randomLongBetween(0, 50),
+            randomLongBetween(0, 50));
+
+        assertThat(strategy.overLimit(input), sameInstance(input));
+        assertThat(leaderTriggerCount.get(), equalTo(1));
+        assertThat(gcCounter.get(), equalTo(2L));
+        assertThat(memoryUsageCounter.get(), equalTo(2L)); // 1 before gc count break and 1 to get resulting memory usage.
+    }
+
     public void testG1OverLimitStrategyThrottling() throws InterruptedException, BrokenBarrierException, TimeoutException {
         AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
         AtomicInteger leaderTriggerCount = new AtomicInteger();
         long interval = randomLongBetween(1, 1000);
         AtomicLong memoryUsage = new AtomicLong();
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
-            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get,
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get, () -> 0,
                 time::get, interval) {
 
                 @Override

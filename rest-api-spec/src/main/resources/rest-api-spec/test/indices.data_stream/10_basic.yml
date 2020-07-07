@@ -162,7 +162,7 @@ setup:
   - do:
       indices.get_data_stream:
         name: nonexistent*
-  - match: { $body: [] }
+  - match: { data_streams: [] }
 
   - do:
       indices.delete_data_stream:

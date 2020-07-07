@@ -45,11 +45,11 @@ if (!isEclipse) {
   }
 
   configurations {
-    java11Compile.extendsFrom(api)
+    java11Implementation.extendsFrom(api)
   }
 
   dependencies {
-    java11Compile sourceSets.main.output
+    java11Implementation sourceSets.main.output
   }
 
   compileJava11Java {
@@ -122,11 +122,7 @@ dependencies {
 
   // repackaged jna with native bits linked against all elastic supported platforms
   api "org.elasticsearch:jna:${versions.jna}"
-
-  if (!isEclipse) {
-    java11Compile sourceSets.main.output
-  }
-
+  
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'

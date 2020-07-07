@@ -112,10 +112,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
-        this(settings, customBreakers, clusterSettings,
-            // hardcode interval, do not want any tuning of it outside code changes.
-            createDoubleCheckStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage, createYoungGcCountSupplier(),
-                System::currentTimeMillis, 5000));
+        this(settings, customBreakers, clusterSettings, createDoubleCheckStrategy());
     }
 
     HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings,
@@ -364,14 +361,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 breakerSettings.getName());
     }
 
-    private static OverLimitStrategy createDoubleCheckStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
-                                                               LongSupplier gcCountSupplier,
-                                                               LongSupplier timeSupplier,long minimumInterval) {
+    private static OverLimitStrategy createDoubleCheckStrategy() {
+        JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
             && Boolean.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled", "true"))) {
-            return new G1OverLimitStrategy(jvmInfo, currentMemoryUsageSupplier, gcCountSupplier,
-                timeSupplier, minimumInterval);
+            // hardcode interval, do not want any tuning of it outside code changes.
+            return new G1OverLimitStrategy(jvmInfo, HierarchyCircuitBreakerService::realMemoryUsage, createYoungGcCountSupplier(),
+                System::currentTimeMillis, 5000);
         } else {
             return memoryUsed -> memoryUsed;
         }

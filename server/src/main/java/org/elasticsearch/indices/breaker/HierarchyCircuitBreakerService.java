@@ -470,12 +470,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     }
 
                     blackHole += localBlackHole;
+                    logger.trace("black hole [{}]", blackHole);
+
                     long now = timeSupplier.getAsLong();
                     this.lastCheckTime = now;
-
                     allocationDuration = now - begin;
-
-                    logger.trace("black hole [{}]", blackHole);
                 }
             }
 

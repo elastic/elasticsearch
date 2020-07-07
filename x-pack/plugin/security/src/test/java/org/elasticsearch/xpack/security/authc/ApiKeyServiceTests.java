@@ -770,6 +770,13 @@ public class ApiKeyServiceTests extends ESTestCase {
                     Clock.systemUTC(), authenticationResultFuture);
             return apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
         }
+
+        public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,
+                                                                Authentication authentication) throws Exception {
+            return createApiKeyAuthentication(apiKeyService, authentication,
+                    Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
+                    null);
+        }
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings) {

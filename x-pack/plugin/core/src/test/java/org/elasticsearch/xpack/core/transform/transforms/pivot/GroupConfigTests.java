@@ -56,7 +56,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
                         groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
                         break;
                     default:
-                        fail("unknown group source type");
+                        fail("unknown group source type, please implement tests and add support here");
                 }
                 source.put(targetFieldName, Collections.singletonMap(type.value(), getSource(groupBy)));
                 groups.put(targetFieldName, groupBy);

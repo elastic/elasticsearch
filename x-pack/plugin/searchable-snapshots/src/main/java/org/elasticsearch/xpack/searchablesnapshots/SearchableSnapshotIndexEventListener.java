@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.recoveries.RecoveryTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -26,16 +27,21 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
-        setRecoveryState(indexShard);
         ensureSnapshotIsLoaded(indexShard);
         associateNewEmptyTranslogWithIndex(indexShard);
     }
 
-    private static void setRecoveryState(IndexShard indexShard) {
+    @Override
+    public void afterIndexShardStarted(IndexShard indexShard) {
+        setRecoveryTracker(indexShard);
+    }
+
+    private static void setRecoveryTracker(IndexShard indexShard) {
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
 
-        directory.setRecoveryState(indexShard.recoveryState());
+        RecoveryTracker tracker = (RecoveryTracker) indexShard.recoveryState().getIndex();
+        directory.setRecoveryTracker(tracker);
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {

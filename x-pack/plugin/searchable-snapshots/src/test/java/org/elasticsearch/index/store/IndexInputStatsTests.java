@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.index.store;
 
+import org.elasticsearch.index.recoveries.RecoveryTracker;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.store.IndexInputStats.SEEKING_THRESHOLD;
 import static org.elasticsearch.index.store.cache.TestUtils.assertCounter;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class IndexInputStatsTests extends ESTestCase {
 
@@ -22,11 +24,9 @@ public class IndexInputStatsTests extends ESTestCase {
         return -1L;
     };
 
-    private static LongConsumer FAKE_CACHE_WRITE_TRACKER = (length) -> {};
-
     public void testReads() {
         final long fileLength = randomLongBetween(1L, 1_000L);
-        final IndexInputStats inputStats = new IndexInputStats(fileLength, FAKE_CLOCK, FAKE_CACHE_WRITE_TRACKER);
+        final IndexInputStats inputStats = new IndexInputStats("file", fileLength, FAKE_CLOCK);
 
         assertCounter(inputStats.getContiguousReads(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getNonContiguousReads(), 0L, 0L, 0L, 0L);
@@ -61,7 +61,7 @@ public class IndexInputStatsTests extends ESTestCase {
     public void testSeeks() {
         final long fileLength = randomLongBetween(1L, 1_000L);
         final long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileLength) : SEEKING_THRESHOLD.getBytes();
-        final IndexInputStats inputStats = new IndexInputStats(fileLength, seekingThreshold, FAKE_CLOCK, FAKE_CACHE_WRITE_TRACKER);
+        final IndexInputStats inputStats = new IndexInputStats("file", fileLength, seekingThreshold, FAKE_CLOCK);
 
         assertCounter(inputStats.getForwardSmallSeeks(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getForwardLargeSeeks(), 0L, 0L, 0L, 0L);
@@ -120,7 +120,7 @@ public class IndexInputStatsTests extends ESTestCase {
     }
 
     public void testSeekToSamePosition() {
-        final IndexInputStats inputStats = new IndexInputStats(randomLongBetween(1L, 1_000L), FAKE_CLOCK, FAKE_CACHE_WRITE_TRACKER);
+        final IndexInputStats inputStats = new IndexInputStats("file", randomLongBetween(1L, 1_000L), FAKE_CLOCK);
         final long position = randomLongBetween(0L, inputStats.getFileLength());
 
         inputStats.incrementSeeks(position, position);
@@ -132,13 +132,39 @@ public class IndexInputStatsTests extends ESTestCase {
     }
 
     public void testCacheWritesAreTracked() {
-        final AtomicLong cacheWriteTracker = new AtomicLong();
-        final IndexInputStats inputStats = new IndexInputStats(randomLongBetween(1L, 1_000L), FAKE_CLOCK, cacheWriteTracker::addAndGet);
+        final IndexInputStats inputStats = new IndexInputStats("file", randomLongBetween(1L, 1_000L), FAKE_CLOCK);
+
+        RecoveryTracker recoveryTracker = mock(RecoveryTracker.class);
+        inputStats.setRecoveryTracker(recoveryTracker);
 
         final long bytesWrittenIntoCache = randomLongBetween(1L, inputStats.getFileLength());
-
         inputStats.addCachedBytesWritten(bytesWrittenIntoCache, randomLongBetween(0, 100));
 
-        assertThat(cacheWriteTracker.get(), is(bytesWrittenIntoCache));
+        verify(recoveryTracker, times(1)).addRecoveredBytesToFile("file", bytesWrittenIntoCache);
+    }
+
+    public void testEvictionsAreTracked() {
+        final IndexInputStats inputStats = new IndexInputStats("file", randomLongBetween(1L, 1_000L), FAKE_CLOCK);
+        RecoveryTracker recoveryTracker = mock(RecoveryTracker.class);
+        inputStats.setRecoveryTracker(recoveryTracker);
+
+        inputStats.incrementEvictionCount();
+        verify(recoveryTracker, times(1)).trackFileEviction("file");
+    }
+
+    public void testPhysicalUsageIsResetAfterEviction() {
+        final IndexInputStats inputStats = new IndexInputStats("file", randomLongBetween(1L, 1_000L), FAKE_CLOCK);
+        final long bytesWrittenIntoCache = randomLongBetween(1L, inputStats.getFileLength());
+        inputStats.addCachedBytesWritten(bytesWrittenIntoCache, randomLongBetween(0, 100));
+
+        assertThat(inputStats.getCachePhysicalUsageInBytes(), is(bytesWrittenIntoCache));
+
+        inputStats.incrementEvictionCount();
+
+        assertThat(inputStats.getEvicted().sum(), is(1L));
+        assertThat(inputStats.getCachePhysicalUsageInBytes(), is(0L));
+
+        inputStats.addCachedBytesWritten(bytesWrittenIntoCache, randomLongBetween(0, 100));
+        assertThat(inputStats.getCachePhysicalUsageInBytes(), is(bytesWrittenIntoCache));
     }
 }

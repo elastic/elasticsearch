@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.recoveries.RecoveryTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -40,7 +42,6 @@ import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -118,7 +119,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private volatile BlobStoreIndexShardSnapshot snapshot;
     private volatile BlobContainer blobContainer;
     private volatile boolean loaded;
-    private volatile RecoveryState recoveryState;
+    private final SetOnce<RecoveryTracker> recoveryTracker;
 
     public SearchableSnapshotDirectory(
         Supplier<BlobContainer> blobContainer,
@@ -149,6 +150,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.threadPool = threadPool;
         this.loaded = false;
+        this.recoveryTracker = new SetOnce<>();
         assert invariant();
     }
 
@@ -309,11 +311,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     protected IndexInputStats createIndexInputStats(final String fileName, final long fileLength) {
-        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier, (bytesWritten) -> {
-            if (recoveryState != null) {
-                recoveryState.getIndex().addRecoveredBytesToFile(fileName, bytesWritten);
-            }
-        });
+        IndexInputStats indexInputStats = new IndexInputStats(fileName, fileLength, statsCurrentTimeNanosSupplier);
+        indexInputStats.setRecoveryTracker(recoveryTracker.get());
+
+        return indexInputStats;
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -528,8 +529,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return null;
     }
 
-    public void setRecoveryState(RecoveryState recoveryState) {
-        this.recoveryState = recoveryState;
+    public void setRecoveryTracker(RecoveryTracker tracker) {
+        recoveryTracker.set(tracker);
+        for (Map.Entry<String, IndexInputStats> statsEntry : stats.entrySet()) {
+            IndexInputStats indexInputStats = statsEntry.getValue();
+            indexInputStats.setRecoveryTracker(tracker);
+        }
     }
 
     /**

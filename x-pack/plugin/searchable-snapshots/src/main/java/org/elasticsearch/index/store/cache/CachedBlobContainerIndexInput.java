@@ -71,7 +71,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             stats,
             0L,
             fileInfo.length(),
-            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
+            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length(), stats::incrementEvictionCount),
             rangeSize
         );
         stats.incrementOpenCount();
@@ -479,11 +479,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         private final CacheKey cacheKey;
         private final SearchableSnapshotDirectory directory;
         private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
+        private final Runnable evictionListener;
 
-        private CacheFileReference(SearchableSnapshotDirectory directory, String fileName, long fileLength) {
+        private CacheFileReference(SearchableSnapshotDirectory directory, String fileName, long fileLength, Runnable evictionListener) {
             this.cacheKey = directory.createCacheKey(fileName);
             this.fileLength = fileLength;
             this.directory = directory;
+            this.evictionListener = evictionListener;
         }
 
         @Nullable
@@ -513,6 +515,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             synchronized (this) {
                 if (cacheFile.compareAndSet(evictedCacheFile, null)) {
                     evictedCacheFile.release(this);
+                    notifyEvictionListener();
                 }
             }
         }
@@ -523,6 +526,14 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 if (currentCacheFile != null) {
                     currentCacheFile.release(this);
                 }
+            }
+        }
+
+        void notifyEvictionListener() {
+            try {
+                evictionListener.run();
+            } catch (Exception e) {
+                logger.warn("Unable to notify CacheFile eviction listener ", e);
             }
         }
 

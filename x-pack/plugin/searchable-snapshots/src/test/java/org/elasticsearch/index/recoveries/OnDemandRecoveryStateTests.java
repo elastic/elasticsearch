@@ -21,10 +21,10 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class LazyRecoveryStateTests extends ESTestCase {
+public class OnDemandRecoveryStateTests extends ESTestCase {
 
     public void testUnknownFileLengthRecoveryDetails() {
-        LazyRecoveryState recoveryState = createLazyRecoveryState();
+        OnDemandRecoveryState recoveryState = createRecoveryState();
 
         RecoveryState.Index index = recoveryState.getIndex();
 
@@ -44,7 +44,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
     }
 
     public void testFilesWithUnknownLengthDoNotCountForRecoveryStatsUntilAllLengthsAreKnown() {
-        LazyRecoveryState recoveryState = createLazyRecoveryState();
+        OnDemandRecoveryState recoveryState = createRecoveryState();
 
         RecoveryState.Index index = recoveryState.getIndex();
 
@@ -69,7 +69,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
     }
 
     public void testLastStageForLazyRecoveriesIsLazyRecovery() {
-        LazyRecoveryState recoveryState = createLazyRecoveryState();
+        OnDemandRecoveryState recoveryState = createRecoveryState();
         recoveryState.getIndex().setFileDetailsComplete();
 
         recoveryState.setStage(RecoveryState.Stage.INDEX);
@@ -82,7 +82,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
     }
 
     public void testTimerStillRunsAfterReachingLazyRecoveryStage() {
-        LazyRecoveryState recoveryState = createLazyRecoveryState();
+        OnDemandRecoveryState recoveryState = createRecoveryState();
         recoveryState.getIndex().setFileDetailsComplete();
 
         recoveryState.setStage(RecoveryState.Stage.INDEX);
@@ -96,7 +96,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
     }
 
     public void testReusedIndexFileFlagIsIgnored() {
-        LazyRecoveryState recoveryState = createLazyRecoveryState();
+        OnDemandRecoveryState recoveryState = createRecoveryState();
 
         RecoveryState.Index index = recoveryState.getIndex();
         String fileName = randomAlphaOfLength(5);
@@ -105,7 +105,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
         assertThat(index.getFileDetails(fileName).reused(), is(false));
     }
 
-    private LazyRecoveryState createLazyRecoveryState() {
+    private OnDemandRecoveryState createRecoveryState() {
         ShardId shardId = new ShardId(randomAlphaOfLength(5), randomAlphaOfLength(5), randomInt());
         ShardRouting shard = ShardRouting.newUnassigned(
             shardId,
@@ -115,6 +115,6 @@ public class LazyRecoveryStateTests extends ESTestCase {
         );
         shard = shard.initialize(randomAlphaOfLength(5), null, -1);
 
-        return new LazyRecoveryState(shard, mock(DiscoveryNode.class), null);
+        return new OnDemandRecoveryState(shard, mock(DiscoveryNode.class), null);
     }
 }

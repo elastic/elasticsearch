@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
-import org.elasticsearch.index.recoveries.LazyRecoveryState;
+import org.elasticsearch.index.recoveries.OnDemandRecoveryState;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.license.LicenseUtils;
@@ -225,7 +225,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return Map.of(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, LazyRecoveryState::new);
+            return Map.of(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, OnDemandRecoveryState::new);
         } else {
             return Map.of();
         }

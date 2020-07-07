@@ -132,7 +132,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
         stage = Stage.INIT;
-        index = new Index();
+        index = createIndex();
         translog = new Translog();
         verifyIndex = new VerifyIndex();
         timer = new Timer();
@@ -146,7 +146,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         recoverySource = RecoverySource.readFrom(in);
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
-        index = new Index(in);
+        index = createIndex(in);
         translog = new Translog(in);
         verifyIndex = new VerifyIndex(in);
         primary = in.readBoolean();
@@ -164,6 +164,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         translog.writeTo(out);
         verifyIndex.writeTo(out);
         out.writeBoolean(primary);
+    }
+
+    protected Index createIndex() {
+        return new Index();
+    }
+
+    protected Index createIndex(StreamInput in) throws IOException {
+        return new Index(in);
     }
 
     public ShardId getShardId() {
@@ -612,12 +620,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class File implements ToXContentObject, Writeable {
-        private static final Long UNKNOWN_LENGTH = -1L;
-
-        private String name;
-        private long length;
+        private final String name;
+        private final long length;
+        private final boolean reused;
         private long recovered;
-        private boolean reused;
 
         public File(String name, long length, boolean reused) {
             assert name != null;
@@ -633,10 +639,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             reused = in.readBoolean();
         }
 
-        public static File fileWithUnknownLength(String name) {
-            return new File(name, UNKNOWN_LENGTH, false);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
@@ -648,16 +650,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         public void addRecoveredBytes(long bytes) {
             assert reused == false : "file is marked as reused, can't update recovered bytes";
             assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
-            assert length == UNKNOWN_LENGTH || recovered + bytes <= length : "can't recover more than [" + length +"] bytes";
+            assert recovered + bytes <= length : "can't recover more than [" + length +"] bytes " + recovered + " - " + bytes;
             recovered += bytes;
         }
 
-        public void setLength(long length) {
-            assert this.length == UNKNOWN_LENGTH : "Expected to have unknown length but it was " + length;
-            assert length >= recovered : "expected length to be greater than " + recovered + " but it was " + length;
+        public void resetRecovered() {
             assert reused == false : "file is marked as reused, can't set the length of a reused file";
-
-            this.length = length;
+            recovered = 0;
         }
 
         /**
@@ -689,11 +688,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         boolean fullyRecovered() {
-            return reused == false && unknownLength() == false && length == recovered;
-        }
-
-        public boolean unknownLength() {
-            return length == UNKNOWN_LENGTH;
+            return reused == false && length == recovered;
         }
 
         @Override
@@ -735,10 +730,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private final Map<String, File> fileDetails = new HashMap<>();
         private boolean complete;
 
-        RecoveryFilesDetails() {
+        public RecoveryFilesDetails() {
         }
 
-        RecoveryFilesDetails(StreamInput in) throws IOException {
+        public RecoveryFilesDetails(StreamInput in) throws IOException {
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
                 File file = new File(in);

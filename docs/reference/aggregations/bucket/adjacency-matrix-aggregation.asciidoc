@@ -110,5 +110,4 @@ where examining interactions _over time_ becomes important.
 ==== Limitations
 For N filters the matrix of buckets produced can be N²/2 which can be costly.
 The circuit breaker settings prevent results producing too many buckets and to avoid excessive disk seeks
-the `indices.query.bool.max_clause_count` setting is used to limit the number of filters. 
-imposed of 100 filters . This setting can be changed using the `index.max_adjacency_matrix_filters` index-level setting.
+the `indices.query.bool.max_clause_count` setting is used to limit the number of filters.

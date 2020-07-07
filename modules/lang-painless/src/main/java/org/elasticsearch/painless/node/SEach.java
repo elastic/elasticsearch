@@ -31,6 +31,7 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
 import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
 import org.elasticsearch.painless.symbol.Decorations.InLoop;
@@ -78,6 +79,11 @@ public class SEach extends AStatement {
 
     public SBlock getBlockNode() {
         return blockNode;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitEach(this, input);
     }
 
     @Override

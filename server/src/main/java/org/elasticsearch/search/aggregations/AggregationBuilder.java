@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
@@ -37,7 +38,7 @@ import java.util.Map;
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregationBuilder
-        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder {
+        implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -109,6 +110,7 @@ public abstract class AggregationBuilder
      */
     protected abstract AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata);
 
+    @Override
     public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         AggregationBuilder rewritten = doRewrite(context);
         AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
@@ -132,21 +134,6 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Rewrites the given aggregation into its primitive form. Aggregations that for instance fetch resources from remote hosts or
-     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
-     * rewrites the aggregation until it doesn't change anymore.
-     * @throws IOException if an {@link IOException} occurs
-     */
-    static AggregationBuilder rewriteAggregation(AggregationBuilder original, QueryRewriteContext context) throws IOException {
-        AggregationBuilder builder = original;
-        for (AggregationBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
-             rewrittenBuilder = builder.rewrite(context)) {
-            builder = rewrittenBuilder;
-        }
-        return builder;
-    }
-
-    /**
      * Build a tree of {@link PipelineAggregator}s to modify the tree of
      * aggregation results after the final reduction.
      */
@@ -155,15 +142,19 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Rough measure of how many buckets this aggregation can return. Just
-     * "zero", "one", and "many".
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per parent bucket used to validate sorts
+     * and pipeline aggregations. Just "zero", "one", and "many".
+     * <p>
+     * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
+     * instead of <strong>per parent bucket</strong>. 
      */
     public enum BucketCardinality {
         NONE, ONE, MANY;
     }
     /**
-     * Do aggregations built by this builder contain buckets? If so, do they
-     * contain *always* contain a single bucket?
+     * A rough count of the number of buckets that {@link Aggregator}s built
+     * by this builder will contain per owning parent bucket.
      */
     public abstract BucketCardinality bucketCardinality();
 

@@ -7,19 +7,15 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-
-import java.io.IOException;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class ResultsFieldUpdateTests extends AbstractSerializingTestCase<ResultsFieldUpdate> {
+public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<ResultsFieldUpdate> {
 
-    @Override
-    protected ResultsFieldUpdate doParseInstance(XContentParser parser) throws IOException {
-        return ResultsFieldUpdate.fromXContent(parser);
+    public static ResultsFieldUpdate randomUpdate() {
+        return new ResultsFieldUpdate(randomAlphaOfLength(4));
     }
 
     @Override
@@ -29,7 +25,7 @@ public class ResultsFieldUpdateTests extends AbstractSerializingTestCase<Results
 
     @Override
     protected ResultsFieldUpdate createTestInstance() {
-        return new ResultsFieldUpdate(randomAlphaOfLength(4));
+        return randomUpdate();
     }
 
     public void testIsSupported() {

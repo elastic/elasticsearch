@@ -28,6 +28,7 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.tasks.Internal;
 
 public class RestIntegTestTask extends DefaultTask {
 
@@ -36,6 +37,9 @@ public class RestIntegTestTask extends DefaultTask {
     private static final String TESTS_CLUSTER = "tests.cluster";
     private static final String TESTS_CLUSTER_NAME = "tests.clustername";
 
+    // TODO: refactor this so that work is not done in constructor and find usages and register them, not create them
+    // See: https://docs.gradle.org/current/userguide/task_configuration_avoidance.html
+    // See: https://github.com/elastic/elasticsearch/issues/47804
     public RestIntegTestTask() {
         Project project = getProject();
         String name = getName();
@@ -100,5 +104,10 @@ public class RestIntegTestTask extends DefaultTask {
 
     public void runner(Action<? super RestTestRunnerTask> configure) {
         configure.execute(runner);
+    }
+
+    @Internal
+    public RestTestRunnerTask getRunner() {
+        return runner;
     }
 }

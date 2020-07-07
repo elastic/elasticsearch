@@ -53,6 +53,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -305,7 +306,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), HierarchyCircuitBreakerService::realMemoryUsage,
+            trackRealMemoryUsage -> new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(),
+                HierarchyCircuitBreakerService::realMemoryUsage,
                 HierarchyCircuitBreakerService.createYoungGcCountSupplier(), time::get, interval) {
 
                 @Override
@@ -383,16 +385,18 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
             Collections.emptyList(),
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            memoryUsed -> {
-                assertTrue(overLimitTriggered.compareAndSet(false, true));
-                if (saveTheDay) {
-                    return new HierarchyCircuitBreakerService.MemoryUsage(memoryUsed.baseUsage / 2,
-                        memoryUsed.totalUsage - (memoryUsed.baseUsage / 2), memoryUsed.transientChildUsage,
-                        memoryUsed.permanentChildUsage);
-                } else {
-                    return memoryUsed;
+            trackRealMemoryUsage ->
+                memoryUsed -> {
+                    assertTrue(overLimitTriggered.compareAndSet(false, true));
+                    if (saveTheDay) {
+                        return new HierarchyCircuitBreakerService.MemoryUsage(memoryUsed.baseUsage / 2,
+                            memoryUsed.totalUsage - (memoryUsed.baseUsage / 2), memoryUsed.transientChildUsage,
+                            memoryUsed.permanentChildUsage);
+                    } else {
+                        return memoryUsed;
+                    }
                 }
-            });
+            );
 
         int allocationSize = g1RegionSize > 0 ? (int) (g1RegionSize / 2) : 1024 * 1024;
         int allocationCount = (int) (JvmInfo.jvmInfo().getConfiguredMaxHeapSize() / allocationSize) + 1;
@@ -556,6 +560,18 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             thread.join(10000);
         }
         threads.forEach(thread -> assertFalse(thread.isAlive()));
+    }
+
+    public void testCreateOverLimitStrategy() {
+        assertThat(HierarchyCircuitBreakerService.createOverLimitStrategy(false),
+            not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+        if (JvmInfo.jvmInfo().useG1GC().equals("true")) {
+            assertThat(HierarchyCircuitBreakerService.createOverLimitStrategy(true),
+                instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+        } else {
+            assertThat(HierarchyCircuitBreakerService.createOverLimitStrategy(true),
+                not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+        }
     }
 
     public void testTrippedCircuitBreakerDurability() {

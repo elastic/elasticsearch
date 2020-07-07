@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -113,11 +114,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
-        this(settings, customBreakers, clusterSettings, createOverLimitStrategy());
+        this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
     }
 
     HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings,
-                                   OverLimitStrategy overLimitStrategy) {
+                                   Function<Boolean, OverLimitStrategy> overLimitStrategyFactory) {
         super();
         HashMap<String, CircuitBreaker> childCircuitBreakers = new HashMap<>();
         childCircuitBreakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
@@ -182,7 +183,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {});
 
-        this.overLimitStrategy = overLimitStrategy;
+        this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -309,7 +310,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public void checkParentLimit(long newBytesReserved, String label) throws CircuitBreakingException {
         final MemoryUsage memoryUsed = memoryUsed(newBytesReserved);
         long parentLimit = this.parentSettings.getLimit();
-        if (memoryUsed.totalUsage > parentLimit && doubleCheckMemoryUsed(memoryUsed).totalUsage > parentLimit) {
+        if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
             final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
                     " would be [" + memoryUsed.totalUsage + "/" + new ByteSizeValue(memoryUsed.totalUsage) + "]" +
@@ -343,14 +344,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    MemoryUsage doubleCheckMemoryUsed(MemoryUsage memoryUsed) {
-        if (this.trackRealMemoryUsage) {
-            return overLimitStrategy.overLimit(memoryUsed);
-        } else {
-            return memoryUsed;
-        }
-    }
-
     private CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] {breakerSettings});
@@ -362,9 +355,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 breakerSettings.getName());
     }
 
-    private static OverLimitStrategy createOverLimitStrategy() {
+    static OverLimitStrategy createOverLimitStrategy(boolean trackRealMemoryUsage) {
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
-        if (jvmInfo.useG1GC().equals("true")
+        if (trackRealMemoryUsage && jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
             && Booleans.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled"), true)) {
             // hardcode interval, do not want any tuning of it outside code changes.

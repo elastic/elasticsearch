@@ -25,7 +25,7 @@ copyOverrides.dependsOn(copyRestTestsResources)
 integTest.dependsOn(copyOverrides)
 
 dependencies {
-  compile project(':test:framework')
+  implementation project(':test:framework')
 }
 
 test.enabled = false

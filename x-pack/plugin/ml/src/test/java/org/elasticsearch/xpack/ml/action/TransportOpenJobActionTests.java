@@ -33,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -237,9 +238,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
     private void addIndices(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
-        indices.add(AnomalyDetectorsIndex.configIndexName());
+        indices.add(MlConfigIndex.indexName());
         indices.add(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
-        indices.add(MlMetaIndex.INDEX_NAME);
+        indices.add(MlMetaIndex.indexName());
         indices.add(NotificationsIndex.NOTIFICATIONS_INDEX);
         indices.add(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         for (String indexName : indices) {

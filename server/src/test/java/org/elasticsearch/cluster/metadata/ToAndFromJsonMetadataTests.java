@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
@@ -101,8 +102,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         .putAlias(newAliasMetadataBuilder("alias-bar3").routing("routing-bar")))
                 .put(idx1, false)
                 .put(idx2, false)
-                .put(new DataStream("data-stream1", "@timestamp", List.of(idx1.getIndex())))
-                .put(new DataStream("data-stream2", "@timestamp2", List.of(idx2.getIndex())))
+                .put(new DataStream("data-stream1", createTimestampField("@timestamp"), List.of(idx1.getIndex())))
+                .put(new DataStream("data-stream2", createTimestampField("@timestamp2"), List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -152,11 +153,11 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         // data streams
         assertNotNull(parsedMetadata.dataStreams().get("data-stream1"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getName(), is("data-stream1"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream1").getTimeStampField(), is("@timestamp"));
+        assertThat(parsedMetadata.dataStreams().get("data-stream1").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
         assertNotNull(parsedMetadata.dataStreams().get("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField(), is("@timestamp2"));
+        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
     }
 

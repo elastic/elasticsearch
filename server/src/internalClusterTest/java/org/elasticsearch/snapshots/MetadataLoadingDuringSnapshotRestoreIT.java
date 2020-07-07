@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -72,7 +73,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
             client().prepareIndex("others").setSource("rank", 4),
             client().prepareIndex("others").setSource("rank", 5));
 
-        createRepository("repository", CountingMockRepositoryPlugin.TYPE, randomRepoPath());
+        createRepository("repository", CountingMockRepositoryPlugin.TYPE);
 
         // Creating a snapshot does not load any metadata
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("repository", "snap")
@@ -184,8 +185,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         public CountingMockRepository(final RepositoryMetadata metadata,
                                       final Environment environment,
-                                      final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
-            super(metadata, environment, namedXContentRegistry, clusterService);
+                                      final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                                      RecoverySettings recoverySettings) {
+            super(metadata, environment, namedXContentRegistry, clusterService, recoverySettings);
         }
 
         @Override
@@ -209,9 +211,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService) {
+                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
             return Collections.singletonMap(TYPE,
-                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService));
+                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings));
         }
     }
 }

@@ -46,10 +46,6 @@ dependencies {
   testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
 }
 
-dependencyLicenses {
-  ignoreSha 'x-pack-core'
-}
-
 testingConventions.naming {
   IT {
     baseClass "org.elasticsearch.xpack.CcrIntegTestCase"

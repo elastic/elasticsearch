@@ -16,6 +16,7 @@ import org.elasticsearch.index.Index;
 import java.util.List;
 import java.util.UUID;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.is;
 
@@ -77,8 +78,9 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadata, true).put(new DataStream(dataStreamName, "timestamp",
-                List.of(sourceIndexMetadata.getIndex()))).build()
+            Metadata.builder().put(sourceIndexMetadata, true)
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+                    List.of(sourceIndexMetadata.getIndex()))).build()
         ).build();
 
         expectThrows(IllegalStateException.class,
@@ -105,7 +107,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
                 .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, "timestamp", backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
                 .build()
         ).build();
 
@@ -147,7 +149,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
                 .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, "timestamp", backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
                 .put(targetIndexMetadata, true)
                 .build()
         ).build();

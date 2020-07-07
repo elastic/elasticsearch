@@ -21,6 +21,7 @@ package org.elasticsearch.client.eql;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,19 +41,32 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
     private String implicitJoinKeyField = "agent.id";
-    private int fetchSize = 50;
+    private boolean isCaseSensitive = true;
+
+    private int size = 10;
+    private int fetchSize = 1000;
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
     private String tiebreakerField;
+
+    // Async settings
+    private TimeValue waitForCompletionTimeout;
+    private boolean keepOnCompletion;
+    private TimeValue keepAlive;
 
     static final String KEY_FILTER = "filter";
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
     static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
     static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
+    static final String KEY_CASE_SENSITIVE = "case_sensitive";
     static final String KEY_SIZE = "size";
+    static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
+    static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
+    static final String KEY_KEEP_ALIVE = "keep_alive";
+    static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
 
     public EqlSearchRequest(String indices, String query) {
         indices(indices);
@@ -73,13 +87,23 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         if (implicitJoinKeyField != null) {
             builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
         }
-        builder.field(KEY_SIZE, fetchSize());
+        builder.field(KEY_SIZE, size());
+        builder.field(KEY_FETCH_SIZE, fetchSize());
 
         if (searchAfterBuilder != null) {
             builder.array(KEY_SEARCH_AFTER, searchAfterBuilder.getSortValues());
         }
 
+        builder.field(KEY_CASE_SENSITIVE, isCaseSensitive());
+
         builder.field(KEY_QUERY, query);
+        if (waitForCompletionTimeout != null) {
+            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout);
+        }
+        if (keepAlive != null) {
+            builder.field(KEY_KEEP_ALIVE, keepAlive);
+        }
+        builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         builder.endObject();
         return builder;
     }
@@ -136,9 +160,30 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this.implicitJoinKeyField;
     }
 
+    public boolean isCaseSensitive() {
+        return this.isCaseSensitive;
+    }
+
+    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
+        this.isCaseSensitive = isCaseSensitive;
+        return this;
+    }
+
     public EqlSearchRequest implicitJoinKeyField(String implicitJoinKeyField) {
         Objects.requireNonNull(implicitJoinKeyField, "implicit join key must not be null");
         this.implicitJoinKeyField = implicitJoinKeyField;
+        return this;
+    }
+
+    public int size() {
+        return this.size;
+    }
+
+    public EqlSearchRequest size(int size) {
+        this.size = size;
+        if (fetchSize <= 0) {
+            throw new IllegalArgumentException("size must be greater than 0");
+        }
         return this;
     }
 
@@ -148,8 +193,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     public EqlSearchRequest fetchSize(int size) {
         this.fetchSize = size;
-        if (fetchSize <= 0) {
-            throw new IllegalArgumentException("size must be greater than 0");
+        if (fetchSize < 2) {
+            throw new IllegalArgumentException("fetch size must be greater than 1");
         }
         return this;
     }
@@ -181,6 +226,32 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
+    }
+
+    public EqlSearchRequest waitForCompletionTimeout(TimeValue waitForCompletionTimeout) {
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+        return this;
+    }
+
+    public Boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public void keepOnCompletion(Boolean keepOnCompletion) {
+        this.keepOnCompletion = keepOnCompletion;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
+    }
+
+    public EqlSearchRequest keepAlive(TimeValue keepAlive) {
+        this.keepAlive = keepAlive;
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -190,7 +261,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return fetchSize == that.fetchSize &&
+        return size == that.size &&
+                fetchSize == that.fetchSize &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
@@ -199,7 +271,11 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
                 Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
                 Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
-                Objects.equals(query, that.query);
+                Objects.equals(query, that.query) &&
+                Objects.equals(isCaseSensitive, that.isCaseSensitive) &&
+                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
+                Objects.equals(keepAlive, that.keepAlive) &&
+                Objects.equals(keepOnCompletion, that.keepOnCompletion);
     }
 
     @Override
@@ -208,13 +284,18 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             Arrays.hashCode(indices),
             indicesOptions,
             filter,
+            size,
             fetchSize,
             timestampField,
-                tiebreakerField,
+            tiebreakerField,
             eventCategoryField,
             implicitJoinKeyField,
             searchAfterBuilder,
-            query);
+            query,
+            isCaseSensitive,
+            waitForCompletionTimeout,
+            keepAlive,
+            keepOnCompletion);
     }
 
     public String[] indices() {

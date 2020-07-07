@@ -6,11 +6,13 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58260")
 public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
     @Override

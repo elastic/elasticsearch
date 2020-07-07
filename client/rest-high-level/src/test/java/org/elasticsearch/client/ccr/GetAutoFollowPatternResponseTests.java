@@ -20,6 +20,8 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,8 +49,10 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
         NavigableMap<String, AutoFollowMetadata.AutoFollowPattern> patterns = new TreeMap<>();
         for (int i = 0; i < numPatterns; i++) {
             String remoteCluster = randomAlphaOfLength(4);
-            List<String> leaderIndexPatters = Collections.singletonList(randomAlphaOfLength(4));
+            List<String> leaderIndexPatterns = Collections.singletonList(randomAlphaOfLength(4));
             String followIndexNamePattern = randomAlphaOfLength(4);
+            final Settings settings =
+                Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build();
             boolean active = randomBoolean();
 
             Integer maxOutstandingReadRequests = null;
@@ -91,10 +95,26 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
             if (randomBoolean()) {
                 readPollTimeout = new TimeValue(randomNonNegativeLong());
             }
-            patterns.put(randomAlphaOfLength(4), new AutoFollowMetadata.AutoFollowPattern(remoteCluster, leaderIndexPatters,
-                followIndexNamePattern, active, maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests,
-                maxOutstandingWriteRequests, maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize,
-                maxRetryDelay, readPollTimeout));
+            patterns.put(
+                randomAlphaOfLength(4),
+                new AutoFollowMetadata.AutoFollowPattern(
+                    remoteCluster,
+                    leaderIndexPatterns,
+                    followIndexNamePattern,
+                    settings,
+                    active,
+                    maxReadRequestOperationCount,
+                    maxWriteRequestOperationCount,
+                    maxOutstandingReadRequests,
+                    maxOutstandingWriteRequests,
+                    maxReadRequestSize,
+                    maxWriteRequestSize,
+                    maxWriteBufferCount,
+                    maxWriteBufferSize,
+                    maxRetryDelay,
+                    readPollTimeout
+                )
+            );
         }
         return new GetAutoFollowPatternAction.Response(patterns);
     }
@@ -115,6 +135,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
             assertThat(serverPattern.getRemoteCluster(), equalTo(clientPattern.getRemoteCluster()));
             assertThat(serverPattern.getLeaderIndexPatterns(), equalTo(clientPattern.getLeaderIndexPatterns()));
             assertThat(serverPattern.getFollowIndexPattern(), equalTo(clientPattern.getFollowIndexNamePattern()));
+            assertThat(serverPattern.getSettings(), equalTo(clientPattern.getSettings()));
             assertThat(serverPattern.getMaxOutstandingReadRequests(), equalTo(clientPattern.getMaxOutstandingReadRequests()));
             assertThat(serverPattern.getMaxOutstandingWriteRequests(), equalTo(clientPattern.getMaxOutstandingWriteRequests()));
             assertThat(serverPattern.getMaxReadRequestOperationCount(), equalTo(clientPattern.getMaxReadRequestOperationCount()));

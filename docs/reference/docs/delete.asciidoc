@@ -17,6 +17,10 @@ Removes a JSON document from the specified index.
 You use DELETE to remove a document from an index. You must specify the
 index name and document ID.
 
+NOTE: You cannot send deletion requests directly to a data stream. To delete a
+document in a data stream, you must target the backing index containing the
+document. See <<update-delete-docs-in-a-data-stream>>.
+
 [float]
 [[optimistic-concurrency-control-delete]]
 ===== Optimistic concurrency control

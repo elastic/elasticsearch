@@ -1,7 +1,7 @@
 [[search]]
 == Search APIs
 
-Most search APIs are <<search-multi-index,multi-index>>, with the
+Most search APIs support <<search-multi-index,multi-target syntax>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]
@@ -171,6 +171,10 @@ include::search/multi-search.asciidoc[]
 ifdef::permanently-unreleased-branch[]
 
 include::eql/eql-search-api.asciidoc[]
+
+include::eql/get-async-eql-search-api.asciidoc[]
+
+include::eql/delete-async-eql-search-api.asciidoc[]
 
 endif::[]
 

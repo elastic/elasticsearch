@@ -135,7 +135,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         service.start();
         service.clusterChanged(getEvent(true));
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", null, new ESLogMessage("a message", "first", "second"));
+        final Map<String, Object> payloadMap = getWriteRequest("a key", null, new ESLogMessage("a {} and {} message", "first", "second"));
 
         // I can't get this to work as a one-liner. Curse you, Hamcrest.
         assertThat(payloadMap, hasKey("params"));

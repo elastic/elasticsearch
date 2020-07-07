@@ -15,12 +15,24 @@ import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 
+/**
+ * Ranged or boxed query. Provides a beginning or end to the current query.
+ * The query moves between them through search_after.
+ * 
+ * Note that the range is not set at once on purpose since each query tends to have
+ * its own number of results separate from the others.
+ * As such, each query starts where it lefts to reach the current in-progress window
+ * as oppose to always operating with the exact same window.
+ */
 public class BoxedQueryRequest implements QueryRequest {
 
     private final RangeQueryBuilder timestampRange;
     private final RangeQueryBuilder tiebreakerRange;
 
     private final SearchSourceBuilder searchSource;
+
+    private Ordinal from, to;
+    private Ordinal after;
 
     public BoxedQueryRequest(QueryRequest original, String timestamp, String tiebreaker) {
         searchSource = original.searchSource();
@@ -44,28 +56,50 @@ public class BoxedQueryRequest implements QueryRequest {
     }
 
     @Override
-    public void next(Ordinal ordinal) {
-        // reset existing constraints
-        timestampRange.gte(null).lte(null);
-        if (tiebreakerRange != null) {
-            tiebreakerRange.gte(null).lte(null);
-        }
+    public void nextAfter(Ordinal ordinal) {
+        after = ordinal;
         // and leave only search_after
         searchSource.searchAfter(ordinal.toArray());
     }
 
-    public BoxedQueryRequest between(Ordinal begin, Ordinal end) {
-        timestampRange.gte(begin.timestamp()).lte(end.timestamp());
-
+    /**
+     * Sets the lower boundary for the query (non-inclusive).
+     * Can be removed (when the query in unbounded) through null.
+     */
+    public BoxedQueryRequest from(Ordinal begin) {
+        from = begin;
         if (tiebreakerRange != null) {
-            tiebreakerRange.gte(begin.tiebreaker()).lte(end.tiebreaker());
+            timestampRange.gte(begin != null ? begin.timestamp() : null);
+            tiebreakerRange.gt(begin != null ? begin.tiebreaker() : null);
+        } else {
+            timestampRange.gt(begin != null ? begin.timestamp() : null);
         }
+        return this;
+    }
 
+    public Ordinal from() {
+        return from;
+    }
+
+    /**
+     * Sets the upper boundary for the query (inclusive).
+     * Can be removed (when the query in unbounded) through null.
+     */
+    public BoxedQueryRequest to(Ordinal end) {
+        to = end;
+        timestampRange.lte(end != null ? end.timestamp() : null);
+        if (tiebreakerRange != null) {
+            tiebreakerRange.lte(end != null ? end.tiebreaker() : null);
+        }
         return this;
     }
 
     @Override
     public String toString() {
-        return searchSource.toString();
+        return "( " + string(from) + " >-" + string(after) + "-> " + string(to) + "]";
+    }
+
+    private static String string(Ordinal o) {
+        return o != null ? o.toString() : "<none>";
     }
 }

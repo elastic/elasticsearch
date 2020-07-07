@@ -22,6 +22,7 @@ package org.elasticsearch.indices.breaker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -365,7 +366,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
-            && Boolean.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled", "true"))) {
+            && Booleans.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled"), true)) {
             // hardcode interval, do not want any tuning of it outside code changes.
             return new G1OverLimitStrategy(jvmInfo, HierarchyCircuitBreakerService::realMemoryUsage, createYoungGcCountSupplier(),
                 System::currentTimeMillis, 5000);

@@ -32,7 +32,7 @@ public class SearchableSnapshotsFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackField.ENRICH;
+        return XPackField.SEARCHABLE_SNAPSHOTS;
     }
 
     @Override

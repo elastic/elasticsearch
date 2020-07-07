@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,9 +25,9 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.Classificat
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig.TOP_CLASSES_RESULTS_FIELD;
 
-public class ClassificationConfigUpdate implements InferenceConfigUpdate {
+public class ClassificationConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
 
-    public static final ParseField NAME = new ParseField("classification");
+    public static final ParseField NAME = ClassificationConfig.NAME;
 
     public static ClassificationConfigUpdate EMPTY_PARAMS =
         new ClassificationConfigUpdate(null, null, null, null, null);

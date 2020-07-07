@@ -24,6 +24,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ElvisNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.Read;
@@ -56,6 +57,11 @@ public class EElvis extends AExpression {
 
     public AExpression getRightNode() {
         return rightNode;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitElvis(this, input);
     }
 
     @Override

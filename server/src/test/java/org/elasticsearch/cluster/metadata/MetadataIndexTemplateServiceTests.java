@@ -1077,9 +1077,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .put(new DataStream("logs-mysql-default",
                     new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
                     Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))))
+                .put(new DataStream("unreferenced",
+                    new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
+                    Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))))
                 .put(IndexMetadata.builder(".ds-logs-mysql-default-000001")
                     .settings(Settings.builder()
                         .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .build()))
+                .put(IndexMetadata.builder(".ds-unreferenced-000001")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -1096,7 +1106,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertThat(e.getMessage(),
             containsString("composable template [logs] with index patterns [logs-*-*], priority [100] and no data stream " +
-                "configuration would cause data streams [logs-mysql-default] to no longer match a data stream template"));
+                "configuration would cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
 
         // Test adding a higher priority version that would cause problems
         e = expectThrows(IllegalArgumentException.class, () -> {
@@ -1107,7 +1117,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertThat(e.getMessage(),
             containsString("composable template [logs2] with index patterns [logs-my*-*], priority [105] and no data stream " +
-                "configuration would cause data streams [logs-mysql-default] to no longer match a data stream template"));
+                "configuration would cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
 
         // Change the pattern to one that doesn't match the data stream
         e = expectThrows(IllegalArgumentException.class, () -> {
@@ -1118,7 +1128,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         assertThat(e.getMessage(),
             containsString("composable template [logs] with index patterns [logs-postgres-*], priority [100] would " +
-                "cause data streams [logs-mysql-default] to no longer match a data stream template"));
+                "cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
 
         // Add an additional template that matches our data stream at a lower priority
         ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), null, null,

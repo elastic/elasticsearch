@@ -45,9 +45,6 @@ head <max>
 `<max>`::
 (Required, integer)
 Maximum number of matching events to return.
-+
-NOTE: You cannot use this parameter to exceed the <<eql-search-api,EQL search
-API>>'s `size` argument, which defaults to `10`.
 ====
 
 [discrete]
@@ -82,7 +79,4 @@ tail <max>
 `<max>`::
 (Required, integer)
 Maximum number of matching events to return.
-+
-NOTE: You cannot use this parameter to exceed the <<eql-search-api,EQL search
-API>>'s `size` argument, which defaults to `10`.
 ====

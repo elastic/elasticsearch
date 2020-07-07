@@ -142,7 +142,7 @@ Range queries on <<text, `text`>> or <<keyword, `keyword`>> files will not be ex
 [[ranges-on-dates]]
 ===== Using the `range` query with `date` fields
 
-When the `<field>` parameter is a <<date,`date`>> field datatype, you can use
+When the `<field>` parameter is a <<date,`date`>> field data type, you can use
 <<date-math,date math>> with the following parameters:
 
 * `gt`

@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,6 +33,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_DEFAULT_ORDER;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
@@ -55,6 +57,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
     private boolean isCaseSensitive = false;
+    private OrderDirection defaultOrder = FIELD_DEFAULT_ORDER;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -74,6 +77,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
     static final String KEY_CASE_SENSITIVE = "case_sensitive";
+    static final String KEY_DEFAULT_ORDER = "default_order";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -88,6 +92,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField KEEP_ALIVE = new ParseField(KEY_KEEP_ALIVE);
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
     static final ParseField CASE_SENSITIVE = new ParseField(KEY_CASE_SENSITIVE);
+    static final ParseField DEFAULT_ORDER = new ParseField(KEY_DEFAULT_ORDER);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -114,6 +119,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             this.keepOnCompletion = in.readBoolean();
         }
         isCaseSensitive = in.readBoolean();
+        defaultOrder = in.readEnum(OrderDirection.class);
     }
 
     @Override
@@ -172,16 +178,16 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (filter != null) {
             builder.field(KEY_FILTER, filter);
         }
-        builder.field(KEY_TIMESTAMP_FIELD, timestampField());
+        builder.field(KEY_TIMESTAMP_FIELD, timestampField);
         if (tiebreakerField != null) {
-            builder.field(KEY_TIEBREAKER_FIELD, tiebreakerField());
+            builder.field(KEY_TIEBREAKER_FIELD, tiebreakerField);
         }
-        builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
+        builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField);
         if (implicitJoinKeyField != null) {
-            builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
+            builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField);
         }
-        builder.field(KEY_SIZE, size());
-        builder.field(KEY_FETCH_SIZE, fetchSize());
+        builder.field(KEY_SIZE, size);
+        builder.field(KEY_FETCH_SIZE, fetchSize);
 
         if (searchAfterBuilder != null) {
             builder.array(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
@@ -196,6 +202,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         builder.field(KEY_CASE_SENSITIVE, isCaseSensitive);
+        builder.field(KEY_DEFAULT_ORDER, defaultOrder);
 
         return builder;
     }
@@ -224,6 +231,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareBoolean(EqlSearchRequest::isCaseSensitive, CASE_SENSITIVE);
+        parser.declareString((request, order) -> {
+            request.defaultOrder(OrderDirection.fromString(order));
+        }, DEFAULT_ORDER);
         return parser;
     }
 
@@ -344,6 +354,13 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public OrderDirection defaultOrder() { return this.defaultOrder; }
+
+    public EqlSearchRequest defaultOrder(OrderDirection defaultOrder) {
+        this.defaultOrder = defaultOrder;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -364,6 +381,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             out.writeBoolean(keepOnCompletion);
         }
         out.writeBoolean(isCaseSensitive);
+        out.writeEnum(defaultOrder);
     }
 
     @Override
@@ -388,7 +406,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(query, that.query) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(isCaseSensitive, that.isCaseSensitive);
+                Objects.equals(isCaseSensitive, that.isCaseSensitive) &&
+                Objects.equals(defaultOrder, that.defaultOrder);
     }
 
     @Override
@@ -407,7 +426,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             query,
             waitForCompletionTimeout,
             keepAlive,
-            isCaseSensitive);
+            isCaseSensitive,
+            defaultOrder);
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_DEFAULT_ORDER;
 
 public class EqlRequestParserTests extends ESTestCase {
 
@@ -49,9 +51,14 @@ public class EqlRequestParserTests extends ESTestCase {
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"case_sensitive\" : \"whatever\"}", "failed to parse field [case_sensitive]",
             EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"default_order\" : \"whatever\"}", "failed to parse field [default_order]",
+            EqlSearchRequest::fromXContent);
 
         boolean setIsCaseSensitive = randomBoolean();
         boolean isCaseSensitive = randomBoolean();
+        boolean setDefaultOrder = randomBoolean();
+        OrderDirection defaultOrder = randomFrom(OrderDirection.values());
+
         EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
             + "\"event_category_field\" : \"etf\","
@@ -60,6 +67,7 @@ public class EqlRequestParserTests extends ESTestCase {
             + "\"size\" : \"101\","
             + "\"query\" : \"file where user != 'SYSTEM' by file_path\""
             + (setIsCaseSensitive ? (",\"case_sensitive\" : " + isCaseSensitive) : "")
+            + (setDefaultOrder ? (",\"default_order\" : \"" + defaultOrder.toString() + "\"") : "")
             + "}", EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[]{"endgame-*"}, request.indices());
         assertNotNull(request.query());
@@ -75,6 +83,7 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals(1000, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.query());
         assertEquals(setIsCaseSensitive && isCaseSensitive, request.isCaseSensitive());
+        assertEquals(setDefaultOrder ? defaultOrder : FIELD_DEFAULT_ORDER, request.defaultOrder());
     }
 
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)

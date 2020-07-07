@@ -89,7 +89,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     private static List<Object[]> asArray(List<EqlSpec> specs) {
         AtomicInteger counter = new AtomicInteger();
         return specs.stream().map(spec -> {
-            String name = spec.description();
+            String name = spec.name();
             if (Strings.isNullOrEmpty(name)) {
                 name = spec.note();
             }
@@ -114,16 +114,25 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     public void test() throws Exception {
         // run both tests if case sensitivity doesn't matter
         if (spec.caseSensitive() == null) {
-            assertResponse(runQuery(testIndexName, spec.query(), true));
-            assertResponse(runQuery(testIndexName, spec.query(), false));
+            assertResponses(true);
+            assertResponses(false);
         }
         // run only the case sensitive test
         else if (spec.caseSensitive()) {
-            assertResponse(runQuery(testIndexName, spec.query(), true));
+            assertResponses(true);
         }
         // run only the case insensitive test
         else {
-            assertResponse(runQuery(testIndexName, spec.query(), false));
+            assertResponses(false);
+        }
+    }
+
+    protected void assertResponses(boolean isCaseSensitive) throws Exception {
+        if (spec.defaultOrder() == null) {
+            assertResponse(runQuery(testIndexName, spec.query(), isCaseSensitive, "asc"));
+            assertResponse(runQuery(testIndexName, spec.query(), isCaseSensitive, "desc"));
+        } else {
+            assertResponse(runQuery(testIndexName, spec.query(), isCaseSensitive, spec.defaultOrder()));
         }
     }
 
@@ -140,13 +149,14 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         }
     }
 
-    protected EqlSearchResponse runQuery(String index, String query, boolean isCaseSensitive) throws Exception {
+    protected EqlSearchResponse runQuery(String index, String query, boolean isCaseSensitive, String defaultOrder) throws Exception {
         EqlSearchRequest request = new EqlSearchRequest(testIndexName, query);
         request.isCaseSensitive(isCaseSensitive);
         request.tiebreakerField("event.sequence");
         // some queries return more than 10 results
         request.size(50);
         request.fetchSize(2);
+        request.defaultOrder(defaultOrder);
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }
 

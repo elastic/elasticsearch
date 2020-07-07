@@ -9,6 +9,7 @@ package org.elasticsearch.test.eql;
 import io.ous.jtoml.JToml;
 import io.ous.jtoml.Toml;
 import io.ous.jtoml.TomlTable;
+
 import org.elasticsearch.common.Strings;
 
 import java.io.InputStream;
@@ -23,12 +24,22 @@ public class EqlSpecLoader {
     }
 
     private static void validateAndAddSpec(List<EqlSpec> specs, EqlSpec spec, boolean supported) throws Exception {
+        if (Strings.isNullOrEmpty(spec.name())) {
+            throw new IllegalArgumentException("Read a test without a name value");
+        }
+
         if (Strings.isNullOrEmpty(spec.query())) {
             throw new IllegalArgumentException("Read a test without a query value");
         }
 
         if (supported && spec.expectedEventIds() == null) {
             throw new IllegalArgumentException("Read a test without a expected_event_ids value");
+        }
+
+        if (spec.defaultOrder() != null) {
+            if ("asc".equalsIgnoreCase(spec.defaultOrder()) == false && "desc".equalsIgnoreCase(spec.defaultOrder()) == false) {
+                throw new IllegalArgumentException("Invalid value for default_order. Accepted values: asc, desc.");
+            }
         }
 
         specs.add(spec);
@@ -52,8 +63,10 @@ public class EqlSpecLoader {
         for (TomlTable table : queries) {
             spec = new EqlSpec();
             spec.query(getTrimmedString(table, "query"));
+            spec.name(getTrimmedString(table, "name"));
             spec.note(getTrimmedString(table, "note"));
             spec.description(getTrimmedString(table, "description"));
+            spec.defaultOrder(getTrimmedString(table, "default_order"));
 
             Boolean caseSensitive = table.getBoolean("case_sensitive");
             Boolean caseInsensitive = table.getBoolean("case_insensitive");

@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.eql.parser;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.RequestDefaults;
-import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
+import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -78,10 +78,10 @@ public class LogicalPlanTests extends ESTestCase {
 
     private LogicalPlan wrapFilter(Expression exp) {
         LogicalPlan filter = new Filter(Source.EMPTY, relation(), exp);
-        Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.ASC, NullsPosition.FIRST);
+        Order order = new Order(Source.EMPTY, timestamp(), OrderDirection.DESC, NullsPosition.LAST);
         LogicalPlan project = new Project(Source.EMPTY, filter, singletonList(timestamp()));
         LogicalPlan sorted = new OrderBy(Source.EMPTY, project, singletonList(order));
-        LogicalPlan head = new Head(Source.EMPTY, new Literal(Source.EMPTY, RequestDefaults.SIZE, DataTypes.INTEGER), sorted);
+        LogicalPlan head = new Tail(Source.EMPTY, new Literal(Source.EMPTY, RequestDefaults.SIZE, DataTypes.INTEGER), sorted);
         return head;
     }
     

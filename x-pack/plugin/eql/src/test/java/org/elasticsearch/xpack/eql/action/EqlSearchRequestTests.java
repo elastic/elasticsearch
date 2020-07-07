@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -67,6 +68,8 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
                 .eventCategoryField(randomAlphaOfLength(10))
                 .implicitJoinKeyField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
+                .isCaseSensitive(randomBoolean())
+                .defaultOrder(randomFrom(OrderDirection.values()))
                 .query(randomAlphaOfLength(10));
 
             if (randomBoolean()) {

@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 public class EqlSpec {
+    private String name;
     private String description;
     private String note;
     private String[] tags;
@@ -23,6 +24,18 @@ public class EqlSpec {
     // TRUE -> case sensitive
     // FALSE -> case insensitive
     private Boolean caseSensitive = null;
+    // flag to indicate default order for results
+    // accepted values: asc, desc
+    // if it's not specified, both asc and desc tests are run.
+    private String defaultOrder;
+
+    public String name() {
+        return name;
+    }
+
+    public void name(String name) {
+        this.name = name;
+    }
 
     public String description() {
         return description;
@@ -72,15 +85,28 @@ public class EqlSpec {
         return this.caseSensitive;
     }
 
+    public String defaultOrder() {
+        return defaultOrder;
+    }
+
+    public void defaultOrder(String defaultOrder) {
+        this.defaultOrder = defaultOrder;
+    }
+
     @Override
     public String toString() {
         String str = "";
         str = appendWithComma(str, "query", query);
+        str = appendWithComma(str, "name", name);
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
 
         if (caseSensitive != null) {
             str = appendWithComma(str, "case_sensitive", Boolean.toString(caseSensitive));
+        }
+
+        if (defaultOrder != null) {
+            str = appendWithComma(str, "default_order", defaultOrder);
         }
 
         if (tags != null) {
@@ -106,12 +132,13 @@ public class EqlSpec {
         EqlSpec that = (EqlSpec) other;
 
         return Objects.equals(this.query(), that.query())
-                && Objects.equals(this.caseSensitive, that.caseSensitive);
+                && Objects.equals(this.caseSensitive, that.caseSensitive)
+                && Objects.equals(this.defaultOrder, that.defaultOrder);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.query, this.caseSensitive);
+        return Objects.hash(this.query, this.caseSensitive, this.defaultOrder);
     }
 
     private static String appendWithComma(String str, String name, String append) {

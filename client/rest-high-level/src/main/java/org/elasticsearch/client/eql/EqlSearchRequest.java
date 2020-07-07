@@ -42,6 +42,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String eventCategoryField = "event.category";
     private String implicitJoinKeyField = "agent.id";
     private boolean isCaseSensitive = true;
+    private String defaultOrder = "desc";
 
     private int size = 10;
     private int fetchSize = 1000;
@@ -67,6 +68,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
+    static final String KEY_DEFAULT_ORDER = "default_order";
 
     public EqlSearchRequest(String indices, String query) {
         indices(indices);
@@ -104,6 +106,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             builder.field(KEY_KEEP_ALIVE, keepAlive);
         }
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
+        builder.field(KEY_DEFAULT_ORDER, defaultOrder);
         builder.endObject();
         return builder;
     }
@@ -243,6 +246,14 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         this.keepOnCompletion = keepOnCompletion;
     }
 
+    public String defaultOrder() {
+        return defaultOrder;
+    }
+
+    public void defaultOrder(String defaultOrder) {
+        this.defaultOrder = defaultOrder;
+    }
+
     public TimeValue keepAlive() {
         return keepAlive;
     }
@@ -275,7 +286,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
                 Objects.equals(isCaseSensitive, that.isCaseSensitive) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(keepOnCompletion, that.keepOnCompletion);
+                Objects.equals(keepOnCompletion, that.keepOnCompletion) &&
+                Objects.equals(defaultOrder, that.defaultOrder);
     }
 
     @Override
@@ -295,7 +307,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             isCaseSensitive,
             waitForCompletionTimeout,
             keepAlive,
-            keepOnCompletion);
+            keepOnCompletion,
+            defaultOrder);
     }
 
     public String[] indices() {

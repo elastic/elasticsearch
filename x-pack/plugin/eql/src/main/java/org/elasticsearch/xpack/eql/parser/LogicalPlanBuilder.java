@@ -80,7 +80,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private OrderDirection defaultDirection() {
-        return OrderDirection.ASC;
+        return params.defaultOrder();
     }
 
     @Override

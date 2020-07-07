@@ -76,7 +76,7 @@ public class ExecutionManager {
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i > 0 && descending);
                 criteria.add(criterion);
             } else {
-                // until
+                // "until" sequence is (should) always be the last one in the list
                 if (i != plans.size() - 1) {
                     throw new EqlIllegalArgumentException("Expected a query but got [{}]", query.getClass());
                 } else {

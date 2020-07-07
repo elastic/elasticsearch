@@ -297,6 +297,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
         Settings clusterSettings = Settings.builder()
             .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%")
             .build();
 
         AtomicInteger leaderTriggerCount = new AtomicInteger();
@@ -320,16 +321,16 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             });
 
         long maxHeap = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
-        int regionCount = Math.toIntExact((maxHeap + g1RegionSize - 1) / g1RegionSize);
+        int regionCount = Math.toIntExact((maxHeap / 2 + g1RegionSize - 1) / g1RegionSize);
 
         // First setup a host of large byte[]'s, must be Humongous objects since those are cleaned during a young phase (no concurrent cycle
         // necessary, which is hard to control in the test).
         List<byte[]> data = new ArrayList<>();
+        for (int i = 0; i < regionCount; ++i) {
+            data.add(new byte[(int) (JvmInfo.jvmInfo().getG1RegionSize() / 2)]);
+        }
         try {
-            for (int i = 0; i < regionCount; ++i) {
-                data.add(new byte[(int) (JvmInfo.jvmInfo().getG1RegionSize() / 2)]);
-                service.checkParentLimit(0, "test");
-            }
+            service.checkParentLimit(0, "test");
             fail("must exceed memory limit");
         } catch (CircuitBreakingException e) {
             // OK

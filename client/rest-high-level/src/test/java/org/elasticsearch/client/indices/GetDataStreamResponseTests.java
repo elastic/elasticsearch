@@ -20,7 +20,9 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,17 +50,19 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
         return indices;
     }
 
-    private static DataStream randomInstance() {
+    private static DataStreamInfo randomInstance() {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
+        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
+        return new DataStreamInfo(dataStream, ClusterHealthStatus.YELLOW, randomAlphaOfLengthBetween(2, 10),
+            randomAlphaOfLengthBetween(2, 10));
     }
 
     @Override
     protected GetDataStreamAction.Response createServerTestInstance(XContentType xContentType) {
-        ArrayList<DataStream> dataStreams = new ArrayList<>();
+        ArrayList<DataStreamInfo> dataStreams = new ArrayList<>();
         int count = randomInt(10);
         for (int i = 0; i < count; i++) {
             dataStreams.add(randomInstance());
@@ -74,12 +78,12 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
     @Override
     protected void assertInstances(GetDataStreamAction.Response serverTestInstance, GetDataStreamResponse clientInstance) {
         assertEquals(serverTestInstance.getDataStreams().size(), clientInstance.getDataStreams().size());
-        Iterator<DataStream> serverIt = serverTestInstance.getDataStreams().iterator();
+        Iterator<DataStreamInfo> serverIt = serverTestInstance.getDataStreams().iterator();
 
         Iterator<org.elasticsearch.client.indices.DataStream> clientIt = clientInstance.getDataStreams().iterator();
         while (serverIt.hasNext()) {
             org.elasticsearch.client.indices.DataStream client = clientIt.next();
-            DataStream server = serverIt.next();
+            DataStream server = serverIt.next().getDataStream();
             assertEquals(server.getName(), client.getName());
             assertEquals(server.getIndices().stream().map(Index::getName).collect(Collectors.toList()), client.getIndices());
             assertEquals(server.getTimeStampField().getName(), client.getTimeStampField());

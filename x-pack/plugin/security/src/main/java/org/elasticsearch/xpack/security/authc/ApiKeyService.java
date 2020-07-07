@@ -585,7 +585,7 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+    void validateApiKeyExpiration(ApiKeyDoc apiKeyDoc, ApiKeyCredentials credentials, Clock clock,
                                   ActionListener<AuthenticationResult> listener) {
         if (apiKeyDoc.expirationTime == -1 || Instant.ofEpochMilli(apiKeyDoc.expirationTime).isAfter(clock.instant())) {
             final String principal = Objects.requireNonNull((String) apiKeyDoc.creator.get("principal"));

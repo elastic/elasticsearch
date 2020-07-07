@@ -1033,9 +1033,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
-        ApiKeyService apiKeyService = new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
+        ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(ThreadPool.class));
+                mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =
@@ -1086,9 +1086,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
 
-        ApiKeyService apiKeyService = new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
+        ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(ThreadPool.class));
+                mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =

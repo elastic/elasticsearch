@@ -24,6 +24,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -38,11 +40,13 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -73,6 +77,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
@@ -760,6 +765,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public static class Utils {
+        private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
 
         public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,
                                                                 Authentication authentication,
@@ -768,17 +774,31 @@ public class ApiKeyServiceTests extends ESTestCase {
                                                                 Version version) throws Exception {
             XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", authentication,
                     userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
-            Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();
+            final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
+                XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                    BytesReference.bytes(keyDocSource), XContentType.JSON));
             PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
-            apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id",
+            apiKeyService.validateApiKeyExpiration(apiKeyDoc, new ApiKeyService.ApiKeyCredentials("id",
                             new SecureString("pass".toCharArray())),
                     Clock.systemUTC(), authenticationResultFuture);
-            final Authentication apiKeyAuth = apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
-            if (apiKeyAuth.getVersion().equals(version)) {
-                return apiKeyAuth;
-            } else {
-                return new Authentication(apiKeyAuth.getUser(), apiKeyAuth.getAuthenticatedBy(), apiKeyAuth.getLookedUpBy(),
-                    version, apiKeyAuth.getAuthenticationType(), apiKeyAuth.getMetadata());
+
+            final TestThreadPool threadPool = new TestThreadPool("utils");
+            try {
+                final ThreadContext threadContext = threadPool.getThreadContext();
+                final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+                authenticationContextSerializer.writeToContext(
+                    apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01"), threadContext);
+                final CompletableFuture<Authentication> authFuture = new CompletableFuture<>();
+                securityContext.executeAfterRewritingAuthentication((c) -> {
+                    try {
+                        authFuture.complete(authenticationContextSerializer.readFromContext(threadContext));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }, version);
+                return authFuture.get();
+            } finally {
+                terminate(threadPool);
             }
         }
     }

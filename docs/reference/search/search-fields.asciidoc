@@ -9,17 +9,18 @@ response, you can use the `fields` parameter:
 
 [source,console]
 ----
-GET /_search
+POST twitter/_search
 {
   "query": {
-    "term": {
-      "user.id": "8a4f500d"
+    "match": {
+      "message": "elasticsearch"
     }
   },
-  "fields": ["user.name", "timestamp"],
+  "fields": ["user", "date"],
   "_source": false
 }
 ----
+// TEST[setup:twitter]
 
 The `fields` parameter consults both a document's `_source` and the index
 mappings to load and return values. Because it makes use of the mappings,
@@ -62,27 +63,30 @@ type. By default, date fields are formatted according to the
 [%collapsible]
 ====
 The following search request uses the `fields` parameter to retrieve values
-for the `clientip` field, all fields starting with `location.`, and the
-`timestamp` field:
+for the `user` field, all fields starting with `location.`, and the
+`date` field:
 
 [source,console]
 ----
-POST logs-*/_search
+POST twitter/_search
 {
   "query": {
-    "match_all": {}
+    "match": {
+      "message": "elasticsearch"
+    }
   },
   "fields": [
-    "clientip",
+    "user",
     "location.*", <1>
     {
-      "field": "timestamp",
+      "field": "date",
       "format": "epoch_millis" <2>
     }
   ],
   "_source": false
 }
 ----
+// TEST[continued]
 
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom
@@ -111,21 +115,21 @@ The values are returned as a flat list in the `fields` section in each hit:
     "max_score" : 1.0,
     "hits" : [
       {
-        "_index" : "http-logs",
-        "_id" : "1",
+        "_index" : "twitter",
+        "_id" : "0",
         "_score" : 1.0,
         "fields" : {
-          "clientip" : [
-            "192.0.2.0"
+          "user" : [
+            "kimchy"
           ],
-          "location.city" : [
-            "Toronto"
+          "date" : [
+            "1258294332000"
           ],
-          "location.country" : [
-            "Canada"
+          "location.city": [
+            "Amsterdam"
           ],
-          "timestamp" : [
-            "1593274413000"
+          "location.country": [
+            "Netherlands"
           ]
         }
       }
@@ -133,7 +137,9 @@ The values are returned as a flat list in the `fields` section in each hit:
   }
 }
 ----
-// TESTRESPONSE[skip:no test set-up]
+// TESTRESPONSE[s/"took" : 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 Only leaf fields are returned -- `fields` does not allow for fetching entire
 objects.
@@ -166,27 +172,30 @@ not supported for <<text,`text`>> or
 [%collapsible]
 ====
 The following search request uses the `docvalue_fields` parameter to retrieve
-doc values for the `clientip` field, all fields starting with `location.`, and the
-`timestamp` field:
+doc values for the `user` field, all fields starting with `location.`, and the
+`date` field:
 
 
 [source,console]
 ----
-GET /_search
+GET twitter/_search
 {
   "query": {
-    "match_all": {}
+    "match": {
+      "message": "elasticsearch"
+    }
   },
   "docvalue_fields": [
-    "clientip",                   <1>
-    "location.*",
+    "user",
+    "location.*", <1>
     {
-      "field": "timestamp",
-      "format": "epoch_millis"    <2>
+      "field": "date",
+      "format": "epoch_millis" <2>
     }
   ]
 }
 ----
+// TEST[continued]
 
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom

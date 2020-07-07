@@ -110,7 +110,6 @@ public class TransportBulkShardOperationsAction
                 final Translog.Delete delete = (Translog.Delete) operation;
                 operationWithPrimaryTerm = new Translog.Delete(
                     delete.id(),
-                    delete.uid(),
                     delete.seqNo(),
                     primaryTerm,
                     delete.version());

@@ -301,22 +301,21 @@ restResources {
 }
 ---------------------------------------------------------------------------
 
-YAML tests that include x-pack specific APIs need to explicitly declare
+YAML REST tests that include x-pack specific APIs need to explicitly declare
 which APIs are required through a similar `includeXpack` configuration.
 
 The REST tests are run automatically when executing the "./gradlew check" command. To run only the
-REST tests use the following command:
+YAML REST tests use the following command (modules and plugins may also include YAML REST tests):
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:archives:integ-test-zip:integTestRunner \
- --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT"
+./gradlew :rest-api-spec:yamlRestTest
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following command:
 
 ---------------------------------------------------------------------------
-./gradlew ':distribution:archives:integ-test-zip:integTestRunner' \
-  --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT" \
+./gradlew ':rest-api-spec:yamlRestTestRunner' \
+  --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
   -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 

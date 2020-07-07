@@ -61,7 +61,8 @@ import java.util.stream.StreamSupport;
 public class IndexNameExpressionResolver {
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
-    private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, new WildcardExpressionResolver());
+    private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
+    private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
@@ -110,10 +111,16 @@ public class IndexNameExpressionResolver {
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, false, false, true);
-        return Arrays.stream(indexExpressions)
-            .flatMap(expression -> WildcardExpressionResolver.matches(context, state.metadata(), expression).values().stream())
-            .filter(i -> i.getType() == IndexAbstraction.Type.DATA_STREAM)
+        Context context = new Context(state, options, false, false, true, true);
+        if (indexExpressions == null || indexExpressions.length == 0) {
+            indexExpressions = new String[]{"*"};
+        }
+
+        Set<String> s = wildcardExpressionResolver.innerResolve(context, Arrays.asList(indexExpressions), options, state.metadata());
+        return ((s == null) ? List.<String>of() : s).stream()
+            .map(x -> state.metadata().getIndicesLookup().get(x))
+            .filter(Objects::nonNull)
+            .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
             .collect(Collectors.toList());
     }
@@ -153,7 +160,7 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
-        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams());
+        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false);
         return concreteIndices(context, request.indices());
     }
 
@@ -643,6 +650,7 @@ public class IndexNameExpressionResolver {
         private final boolean preserveAliases;
         private final boolean resolveToWriteIndex;
         private final boolean includeDataStreams;
+        private final boolean preserveDataStreams;
 
         Context(ClusterState state, IndicesOptions options) {
             this(state, options, System.currentTimeMillis());
@@ -650,21 +658,27 @@ public class IndexNameExpressionResolver {
 
         Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex,
                 boolean includeDataStreams) {
-            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams);
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, false);
+        }
+
+        Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex,
+                boolean includeDataStreams, boolean preserveDataStreams) {
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, preserveDataStreams);
         }
 
         Context(ClusterState state, IndicesOptions options, long startTime) {
-           this(state, options, startTime, false, false, false);
+           this(state, options, startTime, false, false, false, false);
         }
 
-        protected Context(ClusterState state, IndicesOptions options, long startTime,
-                          boolean preserveAliases, boolean resolveToWriteIndex, boolean includeDataStreams) {
+        protected Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex,
+                          boolean includeDataStreams, boolean preserveDataStreams) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
             this.resolveToWriteIndex = resolveToWriteIndex;
             this.includeDataStreams = includeDataStreams;
+            this.preserveDataStreams = preserveDataStreams;
         }
 
         public ClusterState getState() {
@@ -698,6 +712,10 @@ public class IndexNameExpressionResolver {
 
         public boolean includeDataStreams() {
             return includeDataStreams;
+        }
+
+        public boolean isPreserveDataStreams() {
+            return preserveDataStreams;
         }
     }
 
@@ -938,7 +956,9 @@ public class IndexNameExpressionResolver {
                                 expand.add(meta.getIndex().getName());
                             }
                         }
-
+                        if (context.isPreserveDataStreams() && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                            expand.add(indexAbstraction.getName());
+                        }
                     }
                 }
             }

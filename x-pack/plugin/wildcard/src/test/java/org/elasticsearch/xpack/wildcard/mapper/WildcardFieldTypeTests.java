@@ -16,6 +16,6 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
 
     @Override
     protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new WildcardFieldMapper.WildcardFieldType(name, meta);
+        return new WildcardFieldMapper.WildcardFieldType(name, WildcardFieldMapper.Defaults.FIELD_TYPE, meta);
     }
 }

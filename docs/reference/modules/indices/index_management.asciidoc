@@ -1,0 +1,29 @@
+[[index-management-settings]]
+=== Index management settings
+
+You can configure these index settings in the `elasticsearch.yml` file.
+
+[[auto-create-index]]
+// tag::auto-create-index-tag[]
+`action.auto_create_index` {ess-icon}::
+<<index-creation,Automatically create an index>> if it doesn't already exist and apply any configured index templates. Default: `true`.
+// end::auto-create-index-tag[]
+
+[[action-destructive-requires-name]]
+// tag::action-destructive-requires-name-tag[]
+`action.destructive_requires_name` {ess-icon}::
+When set to `true`, you must specify the index name to <<indices-delete-index,delete an index>>. It is not possible to delete all indices with `_all` or use wildcards.
+// end::action-destructive-requires-name-tag[]
+
+[[cluster-indices-close-enable]]
+// tag::cluster-indices-close-enable-tag[]
+`cluster.indices.close.enable` {ess-icon}::
+Enables <<indices-open-close,opening of closed indices>> in {es}. You might enable this setting temporarily to change the analyzer configuration for an existing index. We strongly recommend leaving this set to `false` (the default) otherwise.
++
+IMPORTANT: Closed indices are a data loss risk because they are not included when you make cluster configuration changes, such as scaling to a different capacity, failover, and many other operations. Additionally, closed indices can lead to inaccurate disk space counts.
+
+[[reindex-remote-whitelist]]
+// tag::reindex-remote-whitelist[]
+`reindex.remote.whitelist` {ess-icon}::
+Specifies the hosts that can be <<reindex-from-remote,reindexed from remotely>>. Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
+// end::reindex-remote-whitelist[]

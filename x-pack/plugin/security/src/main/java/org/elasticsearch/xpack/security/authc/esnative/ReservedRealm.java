@@ -66,7 +66,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final ReservedUserInfo disabledDefaultUserInfo;
     private final ReservedUserInfo enabledDefaultUserInfo;
 
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {

@@ -27,7 +27,6 @@ import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.elasticsearch.gradle.test.rest.RestResourcesPlugin
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
@@ -73,8 +72,6 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         // only setup tests to build
         SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)
         SourceSet testSourceSet = sourceSets.create('test')
-        // need to apply plugin after test source sets are created
-        project.pluginManager.apply(RestResourcesPlugin)
 
         project.tasks.withType(Test).configureEach { Test test ->
             test.testClassesDirs = testSourceSet.output.classesDirs

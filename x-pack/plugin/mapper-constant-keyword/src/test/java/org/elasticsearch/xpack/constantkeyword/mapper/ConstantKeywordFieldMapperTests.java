@@ -36,7 +36,7 @@ public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<Constan
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return Set.of("analyzer", "similarity", "store", "doc_values");
+        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
 
     @Override

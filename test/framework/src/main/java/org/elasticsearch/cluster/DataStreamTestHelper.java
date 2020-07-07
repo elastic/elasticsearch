@@ -26,6 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 
 public final class DataStreamTestHelper {
@@ -50,5 +52,9 @@ public final class DataStreamTestHelper {
             .settings(Settings.builder().put(SETTINGS.build()).put(SETTING_INDEX_UUID, index.getUUID()))
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);
+    }
+
+    public static DataStream.TimestampField createTimestampField(String fieldName) {
+        return new DataStream.TimestampField(fieldName, Map.of("type", "date"));
     }
 }

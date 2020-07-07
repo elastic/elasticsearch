@@ -5,7 +5,7 @@
 ++++
 
 Updates documents that match the specified query. 
-If no query is specified, performs an update on every document in the index without
+If no query is specified, performs an update on every document in the data stream or index without
 modifying the source, which is useful for picking up mapping changes.
 
 [source,console]
@@ -44,7 +44,7 @@ POST twitter/_update_by_query?conflicts=proceed
 [[docs-update-by-query-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_update_by_query`
+`POST /<target>/_update_by_query`
 
 [[docs-update-by-query-api-desc]]
 ==== {api-description-title}
@@ -52,7 +52,7 @@ POST twitter/_update_by_query?conflicts=proceed
 You can specify the query criteria in the request URI or the request body
 using the same syntax as the  <<search-search,Search API>>. 
 
-When you submit an update by query request, {es} gets a snapshot of the index
+When you submit an update by query request, {es} gets a snapshot of the data stream or index
 when it begins processing the request and updates matching documents using
 `internal` versioning. 
 When the versions match, the document is updated and the version number is incremented. 
@@ -75,7 +75,7 @@ Any update requests that completed successfully still stick, they are not rolled
 ===== Refreshing shards
 
 Specifying the `refresh` parameter refreshes all shards once the request completes. 
-This is different than the update API#8217;s `refresh` parameter, which causes just the shard
+This is different than the update API's `refresh` parameter, which causes just the shard
 that received the request to be refreshed. Unlike the update API, it does not support 
 `wait_for`.
 
@@ -129,12 +129,12 @@ Update by query supports <<sliced-scroll, sliced scroll>> to parallelize the
 update process. This can improve efficiency and provide a
 convenient way to break the request down into smaller parts.
 
-Setting `slices` to `auto` chooses a reasonable number for most indices. 
+Setting `slices` to `auto` chooses a reasonable number for most data streams and indices. 
 If you're slicing manually or otherwise tuning automatic slicing, keep in mind 
 that:
 
 * Query performance is most efficient when the number of `slices` is equal to 
-the number of shards in the index. If that number is large (for example,
+the number of shards in the index or backing index. If that number is large (for example,
 500), choose a lower number as too many `slices` hurts performance. Setting
 `slices` higher than the number of shards generally does not improve efficiency
 and adds overhead.
@@ -148,9 +148,13 @@ documents being reindexed and cluster resources.
 [[docs-update-by-query-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Optional, string) A comma-separated list of index names to search. Use `_all`
-or omit to search all indices.
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to search.
+Wildcard (`*`) expressions are supported.
++
+To search all data streams or indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[docs-update-by-query-api-query-params]]
 ==== {api-query-parms-title}
@@ -197,7 +201,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
+`scroll`::
+(Optional, <<time-units,time value>>)
+Period to retain the <<scroll-search-context,search context>> for scrolling. See
+<<request-body-search-scroll>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
@@ -290,7 +297,7 @@ version conflicts.
 ==== {api-examples-title}
 
 The simplest usage of `_update_by_query` just performs an update on every
-document in the index without changing the source. This is useful to
+document in the data stream or index without changing the source. This is useful to
 <<picking-up-a-new-property,pick up a new property>> or some other online
 mapping change.
 
@@ -313,7 +320,7 @@ POST twitter/_update_by_query?conflicts=proceed
 way as the <<search-search,Search API>>. You can also use the `q`
 parameter in the same way as the search API.
 
-Update documents in multiple indices:
+Update documents in multiple data streams or indices:
 
 [source,console]
 --------------------------------------------------
@@ -617,8 +624,8 @@ Which results in a sensible `total` like this one:
 
 Setting `slices` to `auto` will let Elasticsearch choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
-there are multiple source indices, it will choose the number of slices based
-on the index with the smallest number of shards.
+there are multiple source data streams or indices, it will choose the number of slices based
+on the index or backing index with the smallest number of shards.
 
 Adding `slices` to `_update_by_query` just automates the manual process used in
 the section above, creating sub-requests which means it has some quirks:
@@ -641,7 +648,7 @@ be larger than others. Expect larger slices to have a more even distribution.
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being updated.
-* Each sub-request gets a slightly different snapshot of the source index
+* Each sub-request gets a slightly different snapshot of the source data stream or index
 though these are all taken at approximately the same time.
 
 [float]

@@ -449,29 +449,25 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     public static boolean okayToDeleteSnapshots(ClusterState state) {
         // Cannot delete during a snapshot
-        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE);
-        if (snapshotsInProgress != null && snapshotsInProgress.entries().size() > 0) {
+        if (state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() > 0) {
             logger.trace("deletion cannot proceed as there are snapshots in progress");
             return false;
         }
 
         // Cannot delete during an existing delete
-        final SnapshotDeletionsInProgress deletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+        if (state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress()) {
             logger.trace("deletion cannot proceed as there are snapshot deletions in progress");
             return false;
         }
 
         // Cannot delete while a repository is being cleaned
-        final RepositoryCleanupInProgress repositoryCleanupInProgress = state.custom(RepositoryCleanupInProgress.TYPE);
-        if (repositoryCleanupInProgress != null && repositoryCleanupInProgress.hasCleanupInProgress()) {
+        if (state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()) {
             logger.trace("deletion cannot proceed as there are repository cleanups in progress");
             return false;
         }
 
         // Cannot delete during a restore
-        final RestoreInProgress restoreInProgress = state.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null && restoreInProgress.isEmpty() == false) {
+        if (state.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY).isEmpty() == false) {
             logger.trace("deletion cannot proceed as there are snapshot restores in progress");
             return false;
         }

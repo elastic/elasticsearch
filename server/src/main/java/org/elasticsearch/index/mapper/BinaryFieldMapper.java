@@ -20,8 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -32,7 +32,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -60,6 +59,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
+            FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -68,13 +68,14 @@ public class BinaryFieldMapper extends FieldMapper {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
+            hasDocValues = false;
             builder = this;
         }
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
             return new BinaryFieldMapper(name, fieldType, new BinaryFieldType(buildFullName(context), hasDocValues, meta),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
@@ -99,7 +100,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static final class BinaryFieldType extends MappedFieldType {
 
         public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, meta);
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {
@@ -167,8 +168,8 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     protected BinaryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+                                MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
     }
 
     @Override
@@ -188,7 +189,7 @@ public class BinaryFieldMapper extends FieldMapper {
             return;
         }
         if (fieldType.stored()) {
-            context.doc().add(new Field(fieldType().name(), value, fieldType));
+            context.doc().add(new StoredField(fieldType().name(), value));
         }
 
         if (fieldType().hasDocValues()) {
@@ -206,6 +207,16 @@ public class BinaryFieldMapper extends FieldMapper {
             createFieldNamesField(context);
         }
 
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

@@ -227,7 +227,7 @@ public class MetadataRolloverService {
         } else {
             return List.of(
                 new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
-                new AliasAction.Remove(oldIndex, alias));
+                new AliasAction.Remove(oldIndex, alias, null));
         }
     }
 

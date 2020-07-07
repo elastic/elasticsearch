@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:s3-fixture')
 final Project repositoryPlugin = project(':plugins:repository-s3')
@@ -45,7 +46,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.s3.bucket', s3Bucket
-    systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" : 'base_path'
+    nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path'
   }
 }
 

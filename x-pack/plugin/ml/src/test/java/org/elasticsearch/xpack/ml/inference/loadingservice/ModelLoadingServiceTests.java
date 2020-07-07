@@ -130,7 +130,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         String[] modelIds = new String[]{model1, model2, model3};
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -147,7 +147,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -199,7 +199,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         for(int i = 0; i < 10; i++) {
             // Only reference models 1 and 2, so that cache is only invalidated once for model3 (after initial load)
             String model = modelIds[i%2];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -222,7 +222,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 3, should invalidate 1 and 2
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future3 = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future3 = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model3, future3);
             assertThat(future3.get(), is(not(nullValue())));
         }
@@ -243,7 +243,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 1, should invalidate 3
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future1 = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future1 = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model1, future1);
             assertThat(future1.get(), is(not(nullValue())));
         }
@@ -257,7 +257,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
 
         // Load model 2
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future2 = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future2 = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model2, future2);
             assertThat(future2.get(), is(not(nullValue())));
         }
@@ -268,7 +268,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2));
         for(int i = 0; i < 10; i++) {
             String model = modelIds[i%3];
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -295,7 +295,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(false, model1));
 
         for(int i = 0; i < 10; i++) {
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model1, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -319,7 +319,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             circuitBreaker);
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
-        PlainActionFuture<Model> future = new PlainActionFuture<>();
+        PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
         modelLoadingService.getModelForPipeline(model, future);
 
         try {
@@ -347,7 +347,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             "test-node",
             circuitBreaker);
 
-        PlainActionFuture<Model> future = new PlainActionFuture<>();
+        PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
         modelLoadingService.getModelForPipeline(model, future);
         try {
             future.get();
@@ -372,7 +372,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             circuitBreaker);
 
         for(int i = 0; i < 3; i++) {
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(model, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -396,7 +396,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             circuitBreaker);
 
         for(int i = 0; i < 3; i++) {
-            PlainActionFuture<Model> future = new PlainActionFuture<>();
+            PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
             modelLoadingService.getModelForSearch(modelId, future);
             assertThat(future.get(), is(not(nullValue())));
         }
@@ -636,7 +636,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             return expectedModelIds.isEmpty();
         }
 
-        private synchronized void onModelLoaded(Model model) {
+        private synchronized void onModelLoaded(LocalModel model) {
             expectedModelIds.remove(model.getModelId());
         }
 
@@ -644,7 +644,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             fail(e.getMessage());
         }
 
-        ActionListener<Model> actionListener() {
+        ActionListener<LocalModel> actionListener() {
             return ActionListener.wrap(this::onModelLoaded, this::onFailure);
         }
     }

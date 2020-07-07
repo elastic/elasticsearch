@@ -28,9 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryOperation;
-import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,13 +42,22 @@ import java.util.Objects;
  */
 public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
+    public static final SnapshotDeletionsInProgress EMPTY = new SnapshotDeletionsInProgress(List.of());
+
     public static final String TYPE = "snapshot_deletions";
 
     // the list of snapshot deletion request entries
     private final List<Entry> entries;
 
-    public SnapshotDeletionsInProgress(List<Entry> entries) {
-        this.entries = Collections.unmodifiableList(entries);
+    private SnapshotDeletionsInProgress(List<Entry> entries) {
+        this.entries = entries;
+    }
+
+    public static SnapshotDeletionsInProgress of(List<SnapshotDeletionsInProgress.Entry> entries) {
+        if (entries.isEmpty()) {
+            return EMPTY;
+        }
+        return new SnapshotDeletionsInProgress(Collections.unmodifiableList(entries));
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
@@ -72,7 +79,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public SnapshotDeletionsInProgress withAddedEntry(Entry entry) {
         List<Entry> entries = new ArrayList<>(getEntries());
         entries.add(entry);
-        return new SnapshotDeletionsInProgress(entries);
+        return SnapshotDeletionsInProgress.of(entries);
     }
 
     /**
@@ -82,7 +89,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     public SnapshotDeletionsInProgress withRemovedEntry(Entry entry) {
         List<Entry> entries = new ArrayList<>(getEntries());
         entries.remove(entry);
-        return new SnapshotDeletionsInProgress(entries);
+        return SnapshotDeletionsInProgress.of(entries);
     }
 
     /**
@@ -190,14 +197,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
         }
 
         public Entry(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
-                this.repoName = in.readString();
-                this.snapshots = in.readList(SnapshotId::new);
-            } else {
-                final Snapshot snapshot = new Snapshot(in);
-                this.snapshots = Collections.singletonList(snapshot.getSnapshotId());
-                this.repoName = snapshot.getRepository();
-            }
+            this.repoName = in.readString();
+            this.snapshots = in.readList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
         }
@@ -235,14 +236,8 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
-                out.writeString(repoName);
-                out.writeCollection(snapshots);
-            } else {
-                assert snapshots.size() == 1 : "Only single deletion allowed in mixed version cluster containing [" + out.getVersion() +
-                        "] but saw " + snapshots;
-                new Snapshot(repoName, snapshots.get(0)).writeTo(out);
-            }
+            out.writeString(repoName);
+            out.writeCollection(snapshots);
             out.writeVLong(startTime);
             out.writeLong(repositoryStateId);
         }

@@ -684,6 +684,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return "index {[" + index + "][" + id + "], source[" + sSource + "]}";
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
 
     /**
      * Returns <code>true</code> if this request has been sent to a shard copy more than once.

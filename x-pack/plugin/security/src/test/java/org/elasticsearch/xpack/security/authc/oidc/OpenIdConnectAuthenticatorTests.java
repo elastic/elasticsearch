@@ -841,7 +841,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         OpenIdConnectAuthenticator.mergeObjects(idTokenObject, userInfoObject);
         assertSame(Boolean.TRUE, idTokenObject.get("email_verified"));
         assertSame(Boolean.TRUE, idTokenObject.get("email_verified_1"));
-        assertSame(Boolean.FALSE, idTokenObject.get("email_verified_2"));
+        assertSame(Boolean.TRUE, idTokenObject.get("email_verified_2"));
         assertSame(Boolean.FALSE, idTokenObject.get("email_verified_3"));
 
         final JSONObject idTokenObject1 = new JWTClaimsSet.Builder()

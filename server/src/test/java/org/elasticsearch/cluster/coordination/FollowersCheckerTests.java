@@ -298,18 +298,9 @@ public class FollowersCheckerTests extends ESTestCase {
     }
 
     public void testFailsNodeThatIsUnhealthy() {
-        final Builder settingsBuilder = Settings.builder();
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), randomIntBetween(1, 10));
-        }
-        if (randomBoolean()) {
-            settingsBuilder.put(FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), randomIntBetween(100, 100000) + "ms");
-        }
-        final Settings settings = settingsBuilder.build();
-
-        testBehaviourOfFailingNode(settings, () -> {
-                throw new NodeHealthCheckFailureException("non writable exception");
-            }, "health check failed", 0, () -> new StatusInfo(HEALTHY, "healthy-info"));
+        testBehaviourOfFailingNode(Settings.EMPTY, () -> {
+            throw new NodeHealthCheckFailureException("non writable exception");
+        }, "health check failed", 0, () -> new StatusInfo(HEALTHY, "healthy-info"));
     }
 
     private void testBehaviourOfFailingNode(Settings testSettings, Supplier<TransportResponse.Empty> responder, String failureReason,

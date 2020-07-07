@@ -526,7 +526,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             "{   \"size\": 100,"
                 + "  \"sort\": ["
                 + "    {"
-                + "      \"@timestamp\": {"
+                + "      \"timestamp\": {"
                 + "        \"order\": \"asc\""
                 + "      }"
                 + "    }"
@@ -550,7 +550,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     logger.log(
                         Level.getLevel(level.toUpperCase(Locale.ROOT)),
                         "Transform audit: [{}] [{}] [{}] [{}]",
-                        Instant.ofEpochMilli((long) source.getOrDefault("@timestamp", 0)),
+                        Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
                         source.getOrDefault("transform_id", "n/a"),
                         source.getOrDefault("message", "n/a"),
                         source.getOrDefault("node_name", "n/a")

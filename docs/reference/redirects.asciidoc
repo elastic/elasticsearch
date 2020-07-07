@@ -891,7 +891,7 @@ See <<ilm-existing-indices-apply>>.
 
 See <<ilm-existing-indices-reindex>>.
 
-[[role="exclude", id="release-highlights-7.7.0"]
+[role="exclude", id="release-highlights-7.7.0"]
 === 7.7.0 release highlights
 
 See <<release-highlights, Release highlights>>.

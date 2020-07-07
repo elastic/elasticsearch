@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -32,18 +31,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV7.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 import static org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class RestPutMappingActionV7 extends RestPutMappingAction {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestPutMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in put " +
-        "mapping requests is deprecated. The parameter will be removed in the next major version.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in put "
+        + "mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
@@ -56,14 +52,15 @@ public class RestPutMappingActionV7 extends RestPutMappingAction {
             new Route(POST, "/{index}/_mapping/{type}"),
             new Route(POST, "/_mapping/{type}"),
 
-            //register the same paths, but with plural form _mappings
+            // register the same paths, but with plural form _mappings
             new Route(PUT, "/{index}/{type}/_mappings"),
             new Route(PUT, "/{index}/_mappings/{type}"),
             new Route(PUT, "/_mappings/{type}"),
 
             new Route(POST, "/{index}/{type}/_mappings"),
             new Route(POST, "/{index}/_mappings/{type}"),
-            new Route(POST, "/_mappings/{type}"));
+            new Route(POST, "/_mappings/{type}")
+        );
     }
 
     @Override
@@ -78,19 +75,18 @@ public class RestPutMappingActionV7 extends RestPutMappingAction {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             deprecationLogger.deprecate("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         String type = request.param("type");
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
-            request.getXContentType()).v2();
-        if (includeTypeName == false &&
-            (type != null || MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap))) {
-            throw new IllegalArgumentException("Types cannot be provided in put mapping requests, unless " +
-                "the include_type_name parameter is set to true.");
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
+        if (includeTypeName == false
+            && (type != null || MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap))) {
+            throw new IllegalArgumentException(
+                "Types cannot be provided in put mapping requests, unless " + "the include_type_name parameter is set to true."
+            );
         }
         return super.sendPutMappingRequest(request, client, sourceAsMap);
     }

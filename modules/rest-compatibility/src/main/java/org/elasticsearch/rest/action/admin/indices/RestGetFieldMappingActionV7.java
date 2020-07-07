@@ -32,10 +32,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetFieldMappingActionV7 extends RestGetFieldMappingAction {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestGetFieldMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
-        "field mapping requests is deprecated. The parameter will be removed in the next major version.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetFieldMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get "
+        + "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
@@ -45,7 +44,8 @@ public class RestGetFieldMappingActionV7 extends RestGetFieldMappingAction {
 
             new Route(GET, "/_mapping/{type}/field/{fields}"),
             new Route(GET, "/{index}/{type}/_mapping/field/{fields}"),
-            new Route(GET, "/{index}/_mapping/{type}/field/{fields}"));
+            new Route(GET, "/{index}/_mapping/{type}/field/{fields}")
+        );
     }
 
     @Override
@@ -62,25 +62,27 @@ public class RestGetFieldMappingActionV7 extends RestGetFieldMappingAction {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
 
-        boolean includeTypeName = request.paramAsBoolean(RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER,
-            RestCreateIndexActionV7.DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+        boolean includeTypeName = request.paramAsBoolean(
+            RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER,
+            RestCreateIndexActionV7.DEFAULT_INCLUDE_TYPE_NAME_POLICY
+        );
         if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Types cannot be specified unless include_type_name" +
-                " is set to true.");
+            throw new IllegalArgumentException("Types cannot be specified unless include_type_name" + " is set to true.");
         }
         if (request.hasParam(RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER)) {
             request.param(RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER);
             deprecationLogger.deprecate("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-            //todo compatible log about using INCLUDE_TYPE_NAME_PARAMETER
+            // todo compatible log about using INCLUDE_TYPE_NAME_PARAMETER
         }
         if (types.length > 0) {
-            //todo compatible log about using types in path
+            // todo compatible log about using types in path
         }
         if (request.hasParam("local")) {
             request.param("local");
-            deprecationLogger.deprecate("get_field_mapping_local",
-                "Use [local] in get field mapping requests is deprecated. "
-                    + "The parameter will be removed in the next major version");
+            deprecationLogger.deprecate(
+                "get_field_mapping_local",
+                "Use [local] in get field mapping requests is deprecated. " + "The parameter will be removed in the next major version"
+            );
         }
         return super.prepareRequest(request, client);
     }

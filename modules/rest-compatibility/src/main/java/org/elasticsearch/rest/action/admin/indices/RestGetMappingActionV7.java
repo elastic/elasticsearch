@@ -37,8 +37,8 @@ import static org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV
 public class RestGetMappingActionV7 extends RestGetMappingAction {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get" +
-        " mapping requests is deprecated. The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
+        + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
@@ -47,7 +47,8 @@ public class RestGetMappingActionV7 extends RestGetMappingAction {
             new Route(GET, "/{index}/_mappings/{type}"),
             new Route(GET, "/{index}/_mapping/{type}"),
             new Route(HEAD, "/{index}/_mapping/{type}"),
-            new Route(GET, "/_mapping/{type}"));
+            new Route(GET, "/_mapping/{type}")
+        );
     }
 
     @Override
@@ -66,17 +67,18 @@ public class RestGetMappingActionV7 extends RestGetMappingAction {
         boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
         if (request.method().equals(HEAD)) {
-            deprecationLogger.deprecate("get_mapping_with_types","Type exists requests are deprecated, as types have been deprecated.");
+            deprecationLogger.deprecate("get_mapping_with_types", "Type exists requests are deprecated, as types have been deprecated.");
         } else if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Types cannot be provided in get mapping requests, unless" +
-                " include_type_name is set to true.");
+            throw new IllegalArgumentException(
+                "Types cannot be provided in get mapping requests, unless" + " include_type_name is set to true."
+            );
         }
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
             request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             deprecationLogger.deprecate("get_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         if (types.length > 0) {
-            //todo compatible log about using types in path
+            // todo compatible log about using types in path
         }
         return super.prepareRequest(request, client);
     }

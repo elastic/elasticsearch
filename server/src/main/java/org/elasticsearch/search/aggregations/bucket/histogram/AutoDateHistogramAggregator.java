@@ -32,6 +32,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -73,10 +74,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return collectsFromSingleBucket
+        return cardinality == CardinalityUpperBound.ONE
             ? new FromSingle(
                 name,
                 factories,

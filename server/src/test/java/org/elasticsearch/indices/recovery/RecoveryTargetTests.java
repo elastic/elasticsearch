@@ -342,7 +342,7 @@ public class RecoveryTargetTests extends ESTestCase {
 
     public void testStageSequenceEnforcement() {
         Stage[] regularRecoveryStages = Arrays.stream(Stage.values())
-            .filter(stage -> stage != Stage.LAZY_RECOVERY)
+            .filter(stage -> stage != Stage.ON_DEMAND)
             .toArray(Stage[]::new);
         assertStageSequenceIsEnforces(regularRecoveryStages);
 

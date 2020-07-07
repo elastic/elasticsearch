@@ -24,20 +24,22 @@ public final class LazyRecoveryState extends RecoveryState {
     }
 
     @Override
-    protected RecoveryFileDetails createFileDetails() {
-        return new LazyRecoveryFileDetails();
-    }
-
-    @Override
     public synchronized RecoveryState setStage(Stage stage) {
         // The recovery will be performed in the background,
         // so we move to the latest stage of lazy recovery
         // instead of DONE
-        if (stage == Stage.DONE) {
-            return super.setStage(Stage.LAZY_RECOVERY);
+        switch (stage) {
+            case VERIFY_INDEX:
+                RecoveryState recoveryState = super.setStage(Stage.VERIFY_INDEX);
+                // Index recovery will be performed lazily
+                // as searches hit the shard
+                getIndex().resetStopTime();
+                return recoveryState;
+            case DONE:
+                return super.setStage(Stage.ON_DEMAND);
+            default:
+                return super.setStage(stage);
         }
-
-        return super.setStage(stage);
     }
 
     private static class LazyRecoveryFileDetails implements RecoveryFileDetails {

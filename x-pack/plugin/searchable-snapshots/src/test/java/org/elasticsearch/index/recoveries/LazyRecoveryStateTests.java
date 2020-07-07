@@ -78,7 +78,7 @@ public class LazyRecoveryStateTests extends ESTestCase {
         recoveryState.setStage(RecoveryState.Stage.FINALIZE);
         recoveryState.setStage(RecoveryState.Stage.DONE);
 
-        assertThat(recoveryState.getStage(), is(RecoveryState.Stage.LAZY_RECOVERY));
+        assertThat(recoveryState.getStage(), is(RecoveryState.Stage.ON_DEMAND));
     }
 
     public void testTimerStillRunsAfterReachingLazyRecoveryStage() {

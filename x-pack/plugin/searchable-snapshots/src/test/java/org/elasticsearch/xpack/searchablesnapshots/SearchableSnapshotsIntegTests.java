@@ -650,7 +650,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     cacheEnabled ? greaterThan(0) : lessThanOrEqualTo(1)
                 );
 
-                assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.LAZY_RECOVERY));
+                assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.ON_DEMAND));
             }
         }
     }

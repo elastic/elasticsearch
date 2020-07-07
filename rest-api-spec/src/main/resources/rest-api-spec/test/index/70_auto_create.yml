@@ -12,7 +12,15 @@
         body:    { foo: bar }
 
   - do:
+      indices.create:
+        index: backing_index
+        body:
+          mappings: {}
+          aliases:
+            test_require_alias: {}
+
+  - do:
       index:
         index:   test_require_alias
-        require_alias: false
+        require_alias: true
         body:    { foo: bar }

@@ -889,7 +889,7 @@ public class MetadataIndexTemplateService {
      */
     public static List<CompressedXContent> collectMappings(final ClusterState state,
                                                            final String templateName,
-                                                           final boolean createDataStream) {
+                                                           final String indexName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null : "attempted to resolve mappings for a template [" + templateName +
             "] that did not exist in the cluster state";
@@ -910,8 +910,10 @@ public class MetadataIndexTemplateService {
             .map(Template::mappings)
             .ifPresent(mappings::add);
 
-        // Add the mapping of a data stream's timestamp field if available, since it has the highest precedence:
-        if (createDataStream) {
+        // Only include _timestamp mapping snippet if creating backing index.
+        if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            // Only if template has data stream definition this should be added and
+            // adding this template last, since _timestamp field should have highest precedence:
             Optional.ofNullable(template.getDataStreamTemplate())
                 .map(ComposableIndexTemplate.DataStreamTemplate::getDataSteamMappingSnippet)
                 .map(mapping -> {
@@ -1069,8 +1071,10 @@ public class MetadataIndexTemplateService {
                     // shard id and the current timestamp
                     xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
 
+                // triggers inclusion of _timestamp field and its validation:
+                String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
                 // Parse mappings to ensure they are valid after being composed
-                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, true);
+                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName );
                 try {
                     MapperService mapperService = tempIndexService.mapperService();
                     for (CompressedXContent mapping : mappings) {

@@ -490,7 +490,7 @@ public class MetadataCreateIndexService {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
         final List<Map<String, Object>> mappings =
-            collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.dataStreamName() != null);
+            collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.index());
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,
                 MetadataIndexTemplateService.resolveSettings(currentState.metadata(), templateName),
@@ -511,11 +511,11 @@ public class MetadataCreateIndexService {
                                                               final ClusterState currentState,
                                                               final String templateName,
                                                               final NamedXContentRegistry xContentRegistry,
-                                                              final boolean createDataStream) throws Exception {
+                                                              final String indexName) throws Exception {
         List<Map<String, Object>> result = new ArrayList<>();
 
         List<CompressedXContent> templateMappings =
-            MetadataIndexTemplateService.collectMappings(currentState, templateName, createDataStream);
+            MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
         for (CompressedXContent templateMapping : templateMappings) {
             Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
             result.add(parsedTemplateMapping);

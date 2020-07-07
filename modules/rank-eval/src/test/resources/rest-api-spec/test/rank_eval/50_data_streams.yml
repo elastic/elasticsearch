@@ -29,14 +29,14 @@
         index:   logs-foobar
         id:      doc1
         op_type: create
-        body:    { "text": "berlin" }
+        body:    { "text": "berlin", "@timestamp": "2020-01-01" }
 
   - do:
       index:
         index:   logs-foobar
         id:      doc2
         op_type: create
-        body:    { "text": "amsterdam" }
+        body:    { "text": "amsterdam", "@timestamp": "2020-01-01" }
 
   # rollover data stream to split documents across multiple backing indices
   - do:
@@ -53,14 +53,14 @@
         index:   logs-foobar
         id:      doc3
         op_type: create
-        body:    { "text": "amsterdam" }
+        body:    { "text": "amsterdam", "@timestamp": "2020-01-01" }
 
   - do:
       index:
         index:   logs-foobar
         id:      doc4
         op_type: create
-        body:    { "text": "something about amsterdam and berlin" }
+        body:    { "text": "something about amsterdam and berlin", "@timestamp": "2020-01-01" }
 
   - do:
       indices.refresh:

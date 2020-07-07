@@ -24,6 +24,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -56,7 +57,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata
     ) throws IOException {
         super(
@@ -72,7 +73,7 @@ public class NumericHistogramAggregator extends AbstractHistogramAggregator {
             valuesSourceConfig.format(),
             context,
             parent,
-            collectsFromSingleBucket,
+            cardinalityUpperBound,
             metadata
         );
         // TODO: Stop using null here

@@ -30,7 +30,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteActionV7 extends RestDeleteAction {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetActionV7.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteActionV7.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
         + "document index requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 

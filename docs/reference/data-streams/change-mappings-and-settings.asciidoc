@@ -569,8 +569,8 @@ GET /_data_stream/logs
 ----
 
 The API returns the following response. Note the `indices` property contains an
-array of the stream's current backing indices. The oldest backing index,
-`.ds-logs-000001`, is the first item in the array.
+array of the stream's current backing indices. The first item in the array
+contains information about the stream's oldest backing index, `.ds-logs-000001`.
 
 [source,console-result]
 ----
@@ -606,7 +606,7 @@ array of the stream's current backing indices. The oldest backing index,
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
 <1> First item in the `indices` array for the `logs` data stream. This item
-contains the stream's oldest backing index, `.ds-logs-000001`.
+contains information about the stream's oldest backing index, `.ds-logs-000001`.
 
 The following <<docs-reindex,reindex API>> request copies documents from
 `.ds-logs-000001` to the `new_logs` data stream. Note the request's `op_type` is

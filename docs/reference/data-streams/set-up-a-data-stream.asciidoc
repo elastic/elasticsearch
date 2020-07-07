@@ -316,7 +316,7 @@ GET /_data_stream/logs
 
 The API returns the following response. Note the `indices` property contains an
 array of the stream's current backing indices. The last item in this array
-contains information for the stream's write index, `.ds-logs-000002`.
+contains information about the stream's write index, `.ds-logs-000002`.
 
 [source,console-result]
 ----
@@ -353,7 +353,7 @@ contains information for the stream's write index, `.ds-logs-000002`.
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
 <1> Last item in the `indices` array for the `logs` data stream. This item
-contains the stream's current write index, `.ds-logs-000002`.
+contains information about the stream's current write index, `.ds-logs-000002`.
 ====
 
 [discrete]

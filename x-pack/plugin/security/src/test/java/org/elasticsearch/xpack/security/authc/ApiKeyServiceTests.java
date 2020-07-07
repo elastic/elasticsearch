@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,6 +33,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -68,12 +70,14 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -388,7 +392,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
-            Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
+            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1),
+            AuthenticationType.API_KEY, authMetadata);
         ApiKeyService service = createApiKeyService(Settings.EMPTY);
 
         PlainActionFuture<ApiKeyRoleDescriptors> roleFuture = new PlainActionFuture<>();
@@ -430,7 +435,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         authMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Collections.singletonMap("limited role", limitedRdMap));
 
         final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
-            Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
+            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1),
+            AuthenticationType.API_KEY, authMetadata);
 
         final NativePrivilegeStore privilegesStore = mock(NativePrivilegeStore.class);
         doAnswer(i -> {
@@ -457,6 +463,54 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(result.getRoleDescriptors().get(0).getName(), is("a role"));
             assertThat(result.getLimitedByRoleDescriptors().get(0).getName(), is("limited role"));
         }
+    }
+
+    public void testGetApiKeyIdAndRoleBytes() {
+        Map<String, Object> authMetadata = new HashMap<>();
+        final String apiKeyId = randomAlphaOfLength(12);
+        authMetadata.put(ApiKeyService.API_KEY_ID_KEY, apiKeyId);
+        final BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
+        final BytesReference limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
+        authMetadata.put(API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        authMetadata.put(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
+
+        final Authentication authentication = new Authentication(new User("joe"), new RealmRef("apikey", "apikey", "node"), null,
+            Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+
+        Tuple<String, BytesReference> apiKeyIdAndRoleBytes = service.getApiKeyIdAndRoleBytes(authentication, false);
+        assertEquals(apiKeyId, apiKeyIdAndRoleBytes.v1());
+        assertEquals(roleBytes, apiKeyIdAndRoleBytes.v2());
+        apiKeyIdAndRoleBytes = service.getApiKeyIdAndRoleBytes(authentication, true);
+        assertEquals(apiKeyId, apiKeyIdAndRoleBytes.v1());
+        assertEquals(limitedByRoleBytes, apiKeyIdAndRoleBytes.v2());
+    }
+
+    public void testParseRoleDescriptors() {
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final String apiKeyId = randomAlphaOfLength(12);
+        List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(apiKeyId, null);
+        assertTrue(roleDescriptors.isEmpty());
+
+        BytesReference roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
+        roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes);
+        assertEquals(1, roleDescriptors.size());
+        assertEquals("a role", roleDescriptors.get(0).getName());
+        assertArrayEquals(new String[] { "all" }, roleDescriptors.get(0).getClusterPrivileges());
+        assertEquals(0, roleDescriptors.get(0).getIndicesPrivileges().length);
+        assertEquals(0, roleDescriptors.get(0).getApplicationPrivileges().length);
+
+        roleBytes = new BytesArray(
+            "{\"reporting_user\":{\"cluster\":[],\"indices\":[],\"applications\":[],\"run_as\":[],\"metadata\":{\"_reserved\":true}," +
+                "\"transient_metadata\":{\"enabled\":true}},\"superuser\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"]," +
+                "\"privileges\":[\"all\"],\"allow_restricted_indices\":true}],\"applications\":[{\"application\":\"*\"," +
+                "\"privileges\":[\"*\"],\"resources\":[\"*\"]}],\"run_as\":[\"*\"],\"metadata\":{\"_reserved\":true}," +
+                "\"transient_metadata\":{}}}\n");
+        roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes);
+        assertEquals(2, roleDescriptors.size());
+        assertEquals(
+            Set.of("reporting_user", "superuser"),
+            roleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toSet()));
     }
 
     public void testApiKeyServiceDisabled() throws Exception {

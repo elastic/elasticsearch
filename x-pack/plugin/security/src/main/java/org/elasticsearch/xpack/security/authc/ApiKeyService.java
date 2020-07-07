@@ -408,7 +408,9 @@ public class ApiKeyService {
         if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
-        
+        assert authentication.getVersion()
+            .onOrAfter(Version.V_7_9_0) : "This method only applies to authentication objects created on or after v7.9.0";
+
         final Map<String, Object> metadata = authentication.getMetadata();
         return new Tuple<>(
             (String) metadata.get(API_KEY_ID_KEY),

@@ -45,11 +45,11 @@ if (!isEclipse) {
   }
 
   configurations {
-    java12Compile.extendsFrom(compile)
+    java12Api.extendsFrom(api)
   }
 
   dependencies {
-    java12Compile sourceSets.main.output
+    java12Api sourceSets.main.output
   }
 
   compileJava12Java {
@@ -128,7 +128,7 @@ dependencies {
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
   if (!isEclipse) {
-    java12Compile sourceSets.main.output
+    java12Api sourceSets.main.output
   }
 
   testImplementation(project(":test:framework")) {

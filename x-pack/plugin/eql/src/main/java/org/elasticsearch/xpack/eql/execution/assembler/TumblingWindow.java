@@ -41,11 +41,20 @@ public class TumblingWindow implements Executable {
     private final Matcher matcher;
     // shortcut
     private final int maxStages;
+    private final int windowSize;
 
     private long startTime;
 
-    private int baseStage = 0;
-    private Ordinal begin, end;
+    private static class WindowInfo {
+        private final int baseStage;
+        private final Ordinal begin, end;
+
+        WindowInfo(int baseStage, Ordinal begin, Ordinal end) {
+            this.baseStage = baseStage;
+            this.begin = begin;
+            this.end = end;
+        }
+    }
 
     public TumblingWindow(QueryClient client,
                           List<Criterion<BoxedQueryRequest>> criteria,
@@ -56,6 +65,7 @@ public class TumblingWindow implements Executable {
         this.until = until;
         this.criteria = criteria;
         this.maxStages = criteria.size();
+        this.windowSize = criteria.get(0).queryRequest().searchSource().size();
 
         this.matcher = matcher;
     }
@@ -64,23 +74,21 @@ public class TumblingWindow implements Executable {
     public void execute(ActionListener<Payload> listener) {
         log.info("Starting sequence window...");
         startTime = System.currentTimeMillis();
-        advance(listener);
+        advance(0, listener);
     }
 
-
-    private void advance(ActionListener<Payload> listener) {
+    private void advance(int baseStage, ActionListener<Payload> listener) {
         // initialize
-        log.info("Querying base stage");
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
+        // remove any potential upper limit (if a criteria has been promoted)
+        base.queryRequest().to(null);
 
-        if (end != null) {
-            // pick up where we left of
-            base.queryRequest().next(end);
-        }
-        client.query(base.queryRequest(), wrap(p -> baseCriterion(p, listener), listener::onFailure));
+        log.info("Querying base stage [{}] {}", base.stage(), base.queryRequest());
+
+        client.query(base.queryRequest(), wrap(p -> baseCriterion(baseStage, p, listener), listener::onFailure));
     }
 
-    private void baseCriterion(Payload p, ActionListener<Payload> listener) {
+    private void baseCriterion(int baseStage, Payload p, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
         List<SearchHit> hits = p.values();
 
@@ -95,14 +103,7 @@ public class TumblingWindow implements Executable {
         if (hits.size() < 2) {
             // if there are still candidates, advance the window base
             if (matcher.hasCandidates(baseStage) && baseStage + 1 < maxStages) {
-                // swap window begin/end when changing directions
-                if (base.reverse() != criteria.get(baseStage + 1).reverse()) {
-                    Ordinal temp = begin;
-                    begin = end;
-                    end = temp;
-                }
-                baseStage++;
-                advance(listener);
+                advance(baseStage + 1, listener);
             }
             // there aren't going to be any matches so cancel search
             else {
@@ -112,53 +113,93 @@ public class TumblingWindow implements Executable {
         }
 
         // get borders for the rest of the queries
-        begin = base.ordinal(hits.get(0));
-        end = base.ordinal(hits.get(hits.size() - 1));
+        Ordinal begin = base.ordinal(hits.get(0));
+        Ordinal end = base.ordinal(hits.get(hits.size() - 1));
+
+        // update current query for the next request
+        base.queryRequest().nextAfter(end);
+
+        log.info("Found base [{}] window {} {}", base.stage(), begin, end);
 
         // find until ordinals
         //NB: not currently implemented
 
         // no more queries to run
         if (baseStage + 1 < maxStages) {
-            secondaryCriterion(baseStage + 1, listener);
+            secondaryCriterion(new WindowInfo(baseStage, begin, end), baseStage + 1, listener);
         } else {
-            advance(listener);
+            advance(baseStage, listener);
         }
     }
 
-    private void secondaryCriterion(int index, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> criterion = criteria.get(index);
-        log.info("Querying (secondary) stage {}", criterion.stage());
+    private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
+        final Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
+
+        final BoxedQueryRequest request = criterion.queryRequest();
+        Criterion<BoxedQueryRequest> base = criteria.get(window.baseStage);
 
         // first box the query
-        BoxedQueryRequest request = criterion.queryRequest();
-        Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
-
-        // if the base has a different direction, swap begin/end
+        // only the first base can be descending
+        // all subsequence queries are ascending
         if (criterion.reverse() != base.reverse()) {
-            request.between(end, begin);
+            if (window.end.equals(request.from()) == false) {
+                // if that's the case, set the starting point
+                request.from(window.end);
+                // reposition the pointer
+                request.nextAfter(window.end);
+            }
         } else {
-            request.between(begin, end);
+            // otherwise just the upper limit
+            request.to(window.end);
         }
+
+        log.info("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, wrap(p -> {
             List<SearchHit> hits = p.values();
-            // no more results in this window so continue in another window
+
+            // no more results for this query
             if (hits.isEmpty()) {
-                log.info("Advancing window...");
-                advance(listener);
-                return;
+                // put the markers in place before the next call
+                if (criterion.reverse() != base.reverse()) {
+                    request.to(window.end);
+                } else {
+                    request.from(window.end);
+                }
+
+                // if there are no candidates, advance the window
+                if (matcher.hasCandidates(criterion.stage()) == false) {
+                    log.info("Advancing window...");
+                    advance(window.baseStage, listener);
+                    return;
+                }
+                // otherwise let the other queries run to allow potential matches with the existing candidates
             }
-            // if the limit has been reached, return what's available
-            if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
-                listener.onResponse(payload());
-                return;
+            else {
+                // prepare the query for the next search
+                request.nextAfter(criterion.ordinal(hits.get(hits.size() - 1)));
+
+                // if the limit has been reached, return what's available
+                if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
+                    listener.onResponse(payload());
+                    return;
+                }
             }
 
-            if (index + 1 < maxStages) {
-                secondaryCriterion(index + 1, listener);
-            } else {
-                advance(listener);
+            // keep running the query runs out of the results (essentially returns less than what we want)
+            if (hits.size() == windowSize) {
+                secondaryCriterion(window, currentStage, listener);
+            }
+            // looks like this stage is done, move on
+            else {
+                // to the next query
+                if (currentStage + 1 < maxStages) {
+                    secondaryCriterion(window, currentStage + 1, listener);
+                }
+                // or to the next window
+                else {
+                    advance(window.baseStage, listener);
+                }
             }
 
         }, listener::onFailure));

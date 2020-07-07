@@ -177,11 +177,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         boolean hasIndexRequestsWithPipelines = false;
-        boolean shouldCheckAlias = false;
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-            shouldCheckAlias |= actionRequest.isRequireAlias();
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
@@ -220,24 +218,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 listener.onFailure(e);
             }
             return;
-        }
-
-
-        if (shouldCheckAlias) {
-            final Map<String, Boolean> indices = bulkRequest.requests.stream()
-                // delete requests should not attempt to create the index (if the index does not
-                // exists), unless an external versioning is used
-                .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
-                    || request.versionType() == VersionType.EXTERNAL
-                    || request.versionType() == VersionType.EXTERNAL_GTE)
-                .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 && v2));
-            ClusterState state = clusterService.state();
-            for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
-                if (indexAndFlag.getValue() && (state.getMetadata().hasAlias(indexAndFlag.getKey()) == false)) {
-                    throw new AliasNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]",
-                        indexAndFlag.getKey());
-                }
-            }
         }
 
         if (needToCheck()) {
@@ -534,6 +514,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (docWriteRequest == null) {
                     continue;
                 }
+                if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
+                    continue;
+                }
                 if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
                     continue;
                 }
@@ -683,6 +666,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     run();
                 }
             });
+        }
+
+        private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
+            if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
+                Exception exception = new AliasNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]",
+                    request.index());
+                addFailure(request, idx, exception);
+                return true;
+            }
+            return false;
         }
 
         private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices,

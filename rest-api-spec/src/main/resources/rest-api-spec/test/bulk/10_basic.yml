@@ -125,6 +125,13 @@
       reason: "require_alias flag was added in version 7.9"
 
   - do:
+      indices.create:
+        index: backing_index
+        body:
+          mappings: {}
+          aliases:
+            test_require_alias: {}
+  - do:
       bulk:
         refresh: true
         body:
@@ -136,11 +143,11 @@
               _index: new_index_created
           - f: 2
           - index:
-              _index: another_index_created
+              _index: test_require_alias
               require_alias: true
           - f: 3
           - create:
-              _index: another_index_created
+              _index: test_require_alias
           - f: 4
   - match: { errors: true }
   - match: { items.0.index.status: 404 }

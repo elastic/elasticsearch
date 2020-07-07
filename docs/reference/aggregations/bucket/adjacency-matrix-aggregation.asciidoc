@@ -110,4 +110,4 @@ where examining interactions _over time_ becomes important.
 ==== Limitations
 For N filters the matrix of buckets produced can be N²/2 and so there is a default maximum 
 imposed of 100 filters . This setting can be changed using the `index.max_adjacency_matrix_filters` index-level setting
-(note this setting is deprecated and will be removed in 8.0+).
+(note this setting is deprecated and will be repaced with `indices.query.bool.max_clause_count` in 8.0+).

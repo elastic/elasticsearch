@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -55,6 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RecoveryTargetTests extends ESTestCase {
     abstract class Streamer<T extends Writeable> extends Thread {
@@ -343,16 +343,13 @@ public class RecoveryTargetTests extends ESTestCase {
     public void testStageSequenceEnforcement() {
         final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT);
-        Stage[] stages = Stage.values();
-        int i = randomIntBetween(0, stages.length - 1);
-        int j;
-        do {
-            j = randomIntBetween(0, stages.length - 1);
-        } while (j == i);
-        Stage t = stages[i];
-        stages[i] = stages[j];
-        stages[j] = t;
-        try {
+        final AssertionError error = expectThrows(AssertionError.class, () -> {
+            Stage[] stages = Stage.values();
+            int i = randomIntBetween(0, stages.length - 1);
+            int j = randomValueOtherThan(i, () -> randomIntBetween(0, stages.length - 1));
+            Stage t = stages[i];
+            stages[i] = stages[j];
+            stages[j] = t;
             ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
                 randomBoolean(), ShardRoutingState.INITIALIZING);
             RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
@@ -363,14 +360,11 @@ public class RecoveryTargetTests extends ESTestCase {
                 }
                 state.setStage(stage);
             }
-            fail("succeeded in performing the illegal sequence [" + Strings.arrayToCommaDelimitedString(stages) + "]");
-        } catch (IllegalStateException e) {
-            // cool
-        }
-
+        });
+        assertThat(error.getMessage(), startsWith("can't move recovery to stage"));
         // but reset should be always possible.
-        stages = Stage.values();
-        i = randomIntBetween(1, stages.length - 1);
+        Stage[] stages = Stage.values();
+        int i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),

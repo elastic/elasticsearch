@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -643,25 +644,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(role.cluster().check(PutUserAction.NAME, randomFrom(request1, request2), authentication), equalTo(true));
         assertThat(role.cluster().check(PutUserAction.NAME, request3, authentication), equalTo(false));
 
-        final Predicate<String> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
-        assertThat(allowedRead.test("abc-123"), equalTo(true));
-        assertThat(allowedRead.test("xyz-000"), equalTo(true));
-        assertThat(allowedRead.test("ind-1-a"), equalTo(true));
-        assertThat(allowedRead.test("ind-2-a"), equalTo(true));
-        assertThat(allowedRead.test("foo"), equalTo(false));
-        assertThat(allowedRead.test("abc"), equalTo(false));
-        assertThat(allowedRead.test("xyz"), equalTo(false));
-        assertThat(allowedRead.test("ind-3-a"), equalTo(false));
+        final Predicate<IndexAbstraction> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
+        assertThat(allowedRead.test(mockIndexAbstraction("abc-123")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("xyz-000")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("ind-1-a")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("ind-2-a")), equalTo(true));
+        assertThat(allowedRead.test(mockIndexAbstraction("foo")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("abc")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("xyz")), equalTo(false));
+        assertThat(allowedRead.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
 
-        final Predicate<String> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
-        assertThat(allowedWrite.test("abc-123"), equalTo(true));
-        assertThat(allowedWrite.test("xyz-000"), equalTo(false));
-        assertThat(allowedWrite.test("ind-1-a"), equalTo(true));
-        assertThat(allowedWrite.test("ind-2-a"), equalTo(true));
-        assertThat(allowedWrite.test("foo"), equalTo(false));
-        assertThat(allowedWrite.test("abc"), equalTo(false));
-        assertThat(allowedWrite.test("xyz"), equalTo(false));
-        assertThat(allowedWrite.test("ind-3-a"), equalTo(false));
+        final Predicate<IndexAbstraction> allowedWrite = role.indices().allowedIndicesMatcher(IndexAction.NAME);
+        assertThat(allowedWrite.test(mockIndexAbstraction("abc-123")), equalTo(true));
+        assertThat(allowedWrite.test(mockIndexAbstraction("xyz-000")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("ind-1-a")), equalTo(true));
+        assertThat(allowedWrite.test(mockIndexAbstraction("ind-2-a")), equalTo(true));
+        assertThat(allowedWrite.test(mockIndexAbstraction("foo")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("abc")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("xyz")), equalTo(false));
+        assertThat(allowedWrite.test(mockIndexAbstraction("ind-3-a")), equalTo(false));
 
         role.application().grants(new ApplicationPrivilege("app1", "app1-read", "write"), "user/joe");
         role.application().grants(new ApplicationPrivilege("app1", "app1-read", "read"), "settings/hostname");
@@ -1287,5 +1288,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
         }
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String name) {
+        IndexAbstraction mock = mock(IndexAbstraction.class);
+        when(mock.getName()).thenReturn(name);
+        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
+                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        return mock;
     }
 }

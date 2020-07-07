@@ -231,14 +231,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("code_user"), is(false));
     }
 
-    private IndexAbstraction mockIndexAbstraction(String name) {
-        IndexAbstraction mock = mock(IndexAbstraction.class);
-        when(mock.getName()).thenReturn(name);
-        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
-                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
-        return mock;
-    }
-
     public void testSnapshotUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = mock(Authentication.class);
@@ -1657,5 +1649,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)),
                 is(true));
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String name) {
+        IndexAbstraction mock = mock(IndexAbstraction.class);
+        when(mock.getName()).thenReturn(name);
+        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
+                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        return mock;
     }
 }

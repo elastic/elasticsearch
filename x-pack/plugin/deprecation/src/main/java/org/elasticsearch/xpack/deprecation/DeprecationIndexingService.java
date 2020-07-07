@@ -22,7 +22,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecatedLogHandler;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 
 import java.time.Instant;

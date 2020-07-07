@@ -237,7 +237,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
-    public boolean isNoAutoCreate() {
+    public boolean isRequireAlias() {
         return false;
     }
 

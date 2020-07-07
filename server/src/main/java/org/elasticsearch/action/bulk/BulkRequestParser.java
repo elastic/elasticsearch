@@ -63,7 +63,7 @@ public final class BulkRequestParser {
     private static final ParseField SOURCE = new ParseField("_source");
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
-    private static final ParseField NO_AUTO_CREATE = new ParseField(DocWriteRequest.NO_AUTO_CREATE);
+    private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     private final boolean errorOnType;
@@ -168,7 +168,7 @@ public final class BulkRequestParser {
                 long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
-                boolean noAutoCreate = false;
+                boolean requireAlias = false;
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -211,8 +211,8 @@ public final class BulkRequestParser {
                                 pipeline = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
-                            } else if (NO_AUTO_CREATE.match(currentFieldName, parser.getDeprecationHandler())) {
-                                noAutoCreate = parser.booleanValue();
+                            } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
+                                requireAlias = parser.booleanValue();
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
                                         + currentFieldName + "]");
@@ -251,21 +251,21 @@ public final class BulkRequestParser {
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType)
-                                    .setNoAutoCreate(noAutoCreate), type);
+                                    .setRequireAlias(requireAlias), type);
                         } else {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
                                     .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                    .setNoAutoCreate(noAutoCreate), type);
+                                    .setRequireAlias(requireAlias), type);
                         }
                     } else if ("create".equals(action)) {
                         indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
-                                .setNoAutoCreate(noAutoCreate), type);
+                                .setRequireAlias(requireAlias), type);
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +
@@ -274,7 +274,7 @@ public final class BulkRequestParser {
                         UpdateRequest updateRequest = new UpdateRequest().index(index).id(id).routing(routing)
                                 .retryOnConflict(retryOnConflict)
                                 .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                .setNoAutoCreate(noAutoCreate)
+                                .setRequireAlias(requireAlias)
                                 .routing(routing);
                         // EMPTY is safe here because we never call namedObject
                         try (InputStream dataStream = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput();

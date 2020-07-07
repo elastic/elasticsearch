@@ -25,6 +25,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.AliasNotFoundException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.List;
@@ -111,7 +113,10 @@ class ReindexValidator {
             return;
         }
         String target = destination.index();
-        if (false == autoCreateIndex.shouldAutoCreate(target, destination.isNoAutoCreate(), clusterState)) {
+        if (destination.isRequireAlias() && (false == clusterState.getMetadata().hasAlias(target))) {
+            throw new AliasNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]", target);
+        }
+        if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest

@@ -570,12 +570,11 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
-tag::no-auto-create[]
-`no_auto_create`::
-(Optional, boolean) When true, this prevents the request from auto creating the
-index. When false, auto creation behavior defaults to the configured settings
-(See <<index-creation, Index Creation>>). Defaults to false.
-end::no-auto-create[]
+tag::require-alias[]
+`require_alias`::
+(Optional, boolean) When true, this requires the destination to be an alias.
+Defaults to false.
+end::require-alias[]
 
 tag::node-filter[]
 `<node_filter>`::

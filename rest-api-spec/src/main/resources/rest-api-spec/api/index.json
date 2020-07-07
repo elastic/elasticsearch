@@ -93,9 +93,9 @@
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with"
       },
-      "no_auto_create": {
+      "require_alias": {
         "type": "boolean",
-        "description": "When true, disallows this specific request from creating the specified index. Default is false and relies on the configured auto creation settings"
+        "description": "When true, requires destination to be an alias. Default is false"
       }
     },
     "body":{

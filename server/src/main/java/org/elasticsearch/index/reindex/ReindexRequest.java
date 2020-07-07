@@ -238,10 +238,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
-     * Sets the no_auto_create request flag on the destination index
+     * Sets the require_alias request flag on the destination index
      */
-    public ReindexRequest setNoAutoCreate(boolean noAutoCreate) {
-        this.getDestination().setNoAutoCreate(noAutoCreate);
+    public ReindexRequest setRequireAlias(boolean requireAlias) {
+        this.getDestination().setRequireAlias(requireAlias);
         return this;
     }
 
@@ -311,8 +311,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.field("pipeline", getDestination().getPipeline());
             }
             builder.field("version_type", VersionType.toString(getDestination().versionType()));
-            if (getDestination().isNoAutoCreate()) {
-                builder.field(DocWriteRequest.NO_AUTO_CREATE, getDestination().isNoAutoCreate());
+            if (getDestination().isRequireAlias()) {
+                builder.field(DocWriteRequest.REQUIRE_ALIAS, getDestination().isRequireAlias());
             }
             builder.endObject();
         }
@@ -357,7 +357,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
-        destParser.declareBoolean(IndexRequest::setNoAutoCreate, new ParseField(DocWriteRequest.NO_AUTO_CREATE));
+        destParser.declareBoolean(IndexRequest::setRequireAlias, new ParseField(DocWriteRequest.REQUIRE_ALIAS));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);

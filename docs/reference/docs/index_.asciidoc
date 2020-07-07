@@ -94,7 +94,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=no-auto-create]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
 
 [[docs-index-api-request-body]]
 ==== {api-request-body-title}

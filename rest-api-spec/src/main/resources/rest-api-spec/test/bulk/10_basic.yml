@@ -118,11 +118,11 @@
            {}
 
 ---
-"When setting no_auto_create flag":
+"When setting require_alias flag":
   - skip:
       # TODO adjust after backport
       version: " - 7.99.99"
-      reason: "no_auto_create flag was added in version 7.9"
+      reason: "require_alias flag was added in version 7.9"
 
   - do:
       bulk:
@@ -130,22 +130,22 @@
         body:
           - index:
               _index: new_index_not_created
-              no_auto_create: true
+              require_alias: true
           - f: 1
           - index:
               _index: new_index_created
           - f: 2
           - index:
               _index: another_index_created
-              no_auto_create: true
+              require_alias: true
           - f: 3
           - create:
               _index: another_index_created
           - f: 4
   - match: { errors: true }
   - match: { items.0.index.status: 404 }
-  - match: { items.0.index.error.type: index_not_found_exception }
-  - match: { items.0.index.error.reason: "no such index [new_index_not_created] and [no_auto_create] request flag is [true]" }
+  - match: { items.0.index.error.type: alias_not_found_exception }
+  - match: { items.0.index.error.reason: "no such alias [new_index_not_created] and [require_alias] request flag is [true]" }
   - match: { items.1.index.result: created }
   - match: { items.2.index.result: created }
   - match: { items.3.create.result: created }

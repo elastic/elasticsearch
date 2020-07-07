@@ -155,9 +155,9 @@ public class IndexRequestTests extends ESTestCase {
 
     public void testIndexRequestXContentSerialization() throws IOException {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
-        boolean isNoAutoCreate = randomBoolean();
+        boolean isRequireAlias = randomBoolean();
         indexRequest.source("{}", XContentType.JSON);
-        indexRequest.setNoAutoCreate(isNoAutoCreate);
+        indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -166,7 +166,7 @@ public class IndexRequestTests extends ESTestCase {
         IndexRequest serialized = new IndexRequest(in);
         assertEquals(XContentType.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
-        assertEquals(isNoAutoCreate, serialized.isNoAutoCreate());
+        assertEquals(isRequireAlias, serialized.isRequireAlias());
     }
 
     // reindex makes use of index requests without a source so this needs to be handled

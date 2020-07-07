@@ -75,7 +75,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
         updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
         updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));
-        updateRequest.setNoAutoCreate(request.paramAsBoolean(DocWriteRequest.NO_AUTO_CREATE, updateRequest.isNoAutoCreate()));
+        updateRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, updateRequest.isRequireAlias()));
 
         request.applyContentParser(parser -> {
             updateRequest.fromXContent(parser);

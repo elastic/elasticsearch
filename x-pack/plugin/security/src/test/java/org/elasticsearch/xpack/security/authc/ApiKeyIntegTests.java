@@ -532,13 +532,21 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testGetApiKeysForApiKeyName() throws InterruptedException, ExecutionException {
-        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
+        List<CreateApiKeyResponse> responses = createApiKeys(3, null);
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
                 .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName(responses.get(0).getName(), false), listener);
         GetApiKeyResponse response = listener.get();
         verifyGetResponse(1, responses, response, Collections.singleton(responses.get(0).getId()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener2 = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("test-key*", false), listener2);
+        verifyGetResponse(3, responses, listener2.get(), responses.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener3 = new PlainActionFuture<>();
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("*", false), listener2);
+        verifyGetResponse(3, responses, listener2.get(), responses.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
     }
 
     public void testGetApiKeysOwnedByCurrentAuthenticatedUser() throws InterruptedException, ExecutionException {

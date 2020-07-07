@@ -58,6 +58,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -763,8 +764,12 @@ public class ApiKeyService {
             if (Strings.hasText(userName)) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.principal", userName));
             }
-            if (Strings.hasText(apiKeyName)) {
-                boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
+            if (Strings.hasText(apiKeyName) && "*".equals(apiKeyName) == false) {
+                if (apiKeyName.endsWith("*")) {
+                    boolQuery.filter(QueryBuilders.prefixQuery("name", apiKeyName.substring(0, apiKeyName.length() - 1)));
+                } else {
+                    boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
+                }
             }
             if (Strings.hasText(apiKeyId)) {
                 boolQuery.filter(QueryBuilders.termQuery("_id", apiKeyId));

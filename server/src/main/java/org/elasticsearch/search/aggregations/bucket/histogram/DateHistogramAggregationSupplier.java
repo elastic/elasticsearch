@@ -24,6 +24,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
@@ -44,6 +45,6 @@ public interface DateHistogramAggregationSupplier extends AggregatorSupplier {
                      ValuesSourceConfig valuesSourceConfig,
                      SearchContext aggregationContext,
                      Aggregator parent,
-                     boolean collectsFromSingleBucket,
+                     CardinalityUpperBound cardinality,
                      Map<String, Object> metadata) throws IOException;
 }

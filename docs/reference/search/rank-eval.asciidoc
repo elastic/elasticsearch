@@ -145,9 +145,10 @@ GET /my_index/_rank_eval
 <1> The search request's ID, used to group result details later.
 <2> The query being evaluated.
 <3> A list of document ratings. Each entry contains the following arguments:
-- `_index`: The document's data stream or index
-- `_id`: The document ID
-- `rating`: The document's relevance with regard to this search request
+- `_index`: The document's index. For data streams, this should be the
+   document's backing index.
+- `_id`: The document ID.
+- `rating`: The document's relevance with regard to this search request.
 
 A document `rating` can be any integer value that expresses the relevance of the 
 document on a user-defined scale. For some of the metrics, just giving a binary 

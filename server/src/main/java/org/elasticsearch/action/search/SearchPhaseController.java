@@ -869,7 +869,10 @@ public final class SearchPhaseController {
                 PartialReduceResult partialReduceResult = new PartialReduceResult(partialResultAggs, partialResultTopDocs);
                 putInQueue(partialReduceResult);
                 // check to start parallel reduce task
-                if (intermediateReducedResultsQueue.size() > parallelBuffSize) {
+                if (intermediateReducedResultsQueue.size() > parallelBuffSize
+                    || intermediateReducedResultsQueue.size() == numShards) {
+                    // execute parallel reduce task when there are enough buff size results or all results have put in
+                    // queue and have not executed once
                     reduceExecutor.execute(new PartialReduceTask());
                 }
                 if (numShards == 1) {

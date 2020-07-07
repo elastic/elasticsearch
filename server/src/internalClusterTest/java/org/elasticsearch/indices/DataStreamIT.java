@@ -53,6 +53,9 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectPath;
@@ -610,7 +613,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo("logs-foobar"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getTimeStampField().getName(), equalTo("@timestamp"));
-        Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
+        java.util.Map<?, ?> expectedTimestampMapping = Map.of("type", "date", "format", "yyyy-MM", "meta", Map.of("x", "y"));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getTimeStampField().getFieldMapping(),
             equalTo(expectedTimestampMapping));
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 1), "properties.@timestamp", expectedTimestampMapping);
@@ -887,7 +890,7 @@ public class DataStreamIT extends ESIntegTestCase {
         });
     }
 
-    public static void putComposableIndexTemplate(String id, String timestampFieldName, List<String> patterns) throws IOException {
+    public static void putComposableIndexTemplate(String id, String timestampFieldName, java.util.List<String> patterns) throws IOException {
         String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
         putComposableIndexTemplate(id, timestampFieldName, mapping, patterns, null);
     }
@@ -895,7 +898,7 @@ public class DataStreamIT extends ESIntegTestCase {
     public static void putComposableIndexTemplate(String id,
                                                   String timestampFieldName,
                                                   java.util.List<String> patterns,
-						  Settings settings) throws IOException {
+                                                  Settings settings) throws IOException {
         String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
         putComposableIndexTemplate(id, timestampFieldName, mapping, patterns, settings);
     }
@@ -904,7 +907,7 @@ public class DataStreamIT extends ESIntegTestCase {
                                            String timestampFieldName,
                                            String mapping,
                                            java.util.List<String> patterns,
-					   @Nullable Settings settings) throws IOException {
+                                           @Nullable Settings settings) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -73,7 +74,7 @@ public class InferenceRunnerTests extends ESTestCase {
         modelLoadingService = mock(ModelLoadingService.class);
     }
 
-    public void testRun() {
+    public void testInferTestDocs() {
         Map<String, Object> doc1 = new HashMap<>();
         doc1.put("key", 1);
         Map<String, Object> doc2 = new HashMap<>();
@@ -83,7 +84,7 @@ public class InferenceRunnerTests extends ESTestCase {
         when(testDocsIterator.next()).thenReturn(buildSearchHits(Arrays.asList(doc1, doc2)));
         when(testDocsIterator.getTotalHits()).thenReturn(2L);
         InferenceConfig config = ClassificationConfig.EMPTY_PARAMS;
-        InferenceRunner inferenceRunner = createInferenceRunner();
+
         LocalModel localModel = localModelInferences(new ClassificationInferenceResults(1.0,
         "foo",
             Collections.emptyList(),
@@ -92,6 +93,9 @@ public class InferenceRunnerTests extends ESTestCase {
                 "bar",
                 Collections.emptyList(),
                 config));
+
+        InferenceRunner inferenceRunner = createInferenceRunner();
+
         inferenceRunner.inferTestDocs(localModel, testDocsIterator);
 
         ArgumentCaptor<BulkRequest> argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
@@ -114,6 +118,23 @@ public class InferenceRunnerTests extends ESTestCase {
                 put("predicted_value", "bar");
                 put("is_training", false);
             }}));
+    }
+
+    public void testInferTestDocs_GivenCancelWasCalled() {
+
+        LocalModel localModel = mock(LocalModel.class);
+
+        TestDocsIterator infiniteDocsIterator = mock(TestDocsIterator.class);
+        when(infiniteDocsIterator.hasNext()).thenReturn(true);
+
+        InferenceRunner inferenceRunner = createInferenceRunner();
+        inferenceRunner.cancel();
+
+        inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator);
+
+
+        Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
+        assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));
     }
 
     private static Deque<SearchHit> buildSearchHits(List<Map<String, Object>> vals) {

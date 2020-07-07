@@ -118,7 +118,10 @@ public class InferenceRunner {
         if (bulkRequest.numberOfActions() > 0 && isCancelled == false) {
             executeBulkRequest(bulkRequest);
         }
-        progressTracker.updateInferenceProgress(100);
+
+        if (isCancelled == false) {
+            progressTracker.updateInferenceProgress(100);
+        }
     }
 
     private IndexRequest createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {

@@ -7,7 +7,7 @@ inverted index for search and highlighting purposes.
 [WARNING]
 ====
 The `index_options` parameter is intended for use with <<text,`text`>> fields
-only. Avoid using `index_options` with other field datatypes.
+only. Avoid using `index_options` with other field data types.
 ====
 
 It accepts the following values:

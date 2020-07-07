@@ -1067,29 +1067,34 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testUnreferencedDataStreamsWhenAddingTemplate() throws Exception {
         ClusterState state = ClusterState.EMPTY_STATE;
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        state = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata())
+                .put(new DataStream("unreferenced",
+                    new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
+                    Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))))
+                .put(IndexMetadata.builder(".ds-unreferenced-000001")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .build()))
+                .build())
+            .build();
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"), null, null,
             100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
 
         state = service.addIndexTemplateV2(state, false, "logs", template);
+
         ClusterState stateWithDS = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata())
                 .put(new DataStream("logs-mysql-default",
                     new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
                     Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))))
-                .put(new DataStream("unreferenced",
-                    new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
-                    Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))))
                 .put(IndexMetadata.builder(".ds-logs-mysql-default-000001")
                     .settings(Settings.builder()
                         .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                        .build()))
-                .put(IndexMetadata.builder(".ds-unreferenced-000001")
-                    .settings(Settings.builder()
-                        .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

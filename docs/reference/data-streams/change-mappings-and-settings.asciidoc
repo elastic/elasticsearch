@@ -251,7 +251,7 @@ PUT /logs/_mapping
 ====
 
 Except for supported mapping parameters, we don't recommend you change the
-mapping or field datatype of existing fields, even in a data stream's matching
+mapping or field data type of existing fields, even in a data stream's matching
 index template or its backing indices. Changing the mapping of an existing
 field could invalidate any data that’s already indexed.
 
@@ -384,7 +384,7 @@ new data stream and reindex your data into it. See
 === Use reindex to change mappings or settings
 
 You can use a reindex to change the mappings or settings of a data stream. This
-is often required to change the datatype of an existing field or update static
+is often required to change the data type of an existing field or update static
 index settings for backing indices.
 
 To reindex a data stream, first create or update an index template so that it

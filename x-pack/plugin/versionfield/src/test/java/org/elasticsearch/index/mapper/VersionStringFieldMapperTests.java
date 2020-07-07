@@ -112,6 +112,10 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.prefixQuery("version", "21.11")).get();
         assertEquals(1, response.getHits().getTotalHits().value);
 
+        // phrase query (just for keyword compatibility)
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchPhraseQuery("version", "2.1.0-alpha.beta")).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
         // sort based on version field
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).addSort("version", SortOrder.DESC).get();
         assertEquals(6, response.getHits().getTotalHits().value);
@@ -132,6 +136,12 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("2.1.0", hits[3].getSortValues()[0]);
         assertEquals("11.1.0", hits[4].getSortValues()[0]);
         assertEquals("21.11.0", hits[5].getSortValues()[0]);
+
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.matchQuery("version.isPreRelease", true)))
+            .get();
+        System.out.println(response);
+        assertEquals(1, response.getHits().getTotalHits().value);
     }
 
     public void testWildcardQuery() throws Exception {
@@ -228,19 +238,34 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
             .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject())
             .get();
         client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.0").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
-        // range aggs
+        // terms aggs
         SearchResponse response = client().prepareSearch(indexName)
             .addAggregation(AggregationBuilders.terms("myterms").field("version"))
             .get();
         Terms terms = response.getAggregations().get("myterms");
         List<? extends Bucket> buckets = terms.getBuckets();
-        ;
-        assertEquals(4, buckets.size());
+
+        assertEquals(5, buckets.size());
         assertEquals("1.0.0", buckets.get(0).getKey());
         assertEquals("1.3.0", buckets.get(1).getKey());
         assertEquals("2.1.0-alpha", buckets.get(2).getKey());
         assertEquals("2.1.0", buckets.get(3).getKey());
+        assertEquals("3.11.0", buckets.get(4).getKey());
+
+        response = client().prepareSearch(indexName)
+            .addAggregation(AggregationBuilders.terms("myterms").field("version.major"))
+            .get();
+        terms = response.getAggregations().get("myterms");
+        buckets = terms.getBuckets();
+        assertEquals(3, buckets.size());
+        assertEquals(1L, buckets.get(0).getKey());
+        assertEquals(2L, buckets.get(0).getDocCount());
+        assertEquals(2L, buckets.get(1).getKey());
+        assertEquals(2L, buckets.get(1).getDocCount());
+        assertEquals(3L, buckets.get(2).getKey());
+        assertEquals(1L, buckets.get(2).getDocCount());
     }
 }

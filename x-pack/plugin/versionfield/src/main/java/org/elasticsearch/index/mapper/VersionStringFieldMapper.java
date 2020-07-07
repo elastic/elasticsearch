@@ -8,6 +8,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -20,12 +21,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.versionfield.VersionEncoder.SortMode;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -103,6 +107,10 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public VersionStringFieldMapper build(BuilderContext context) {
+            BooleanFieldMapper.Builder preReleaseSubfield = new BooleanFieldMapper.Builder(name + ".isPreRelease");
+            NumberFieldMapper.Builder majorVersionSubField = new NumberFieldMapper.Builder(name + ".major", NumberType.INTEGER);
+            NumberFieldMapper.Builder minorVersionSubField = new NumberFieldMapper.Builder(name + ".minor", NumberType.INTEGER);
+
             return new VersionStringFieldMapper(
                 name,
                 fieldType,
@@ -111,7 +119,10 @@ public class VersionStringFieldMapper extends FieldMapper {
                 nullValue,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
-                mode
+                mode,
+                preReleaseSubfield.build(context),
+                majorVersionSubField.build(context),
+                minorVersionSubField.build(context)
             );
         }
     }
@@ -161,9 +172,14 @@ public class VersionStringFieldMapper extends FieldMapper {
             SortMode mode,
             FieldType fieldType
         ) {
-            super(name, isSearchable, hasDocValues, new TextSearchInfo(fieldType, null), meta);
+            super(
+                name,
+                isSearchable,
+                hasDocValues,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
+                meta
+            );
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);
             this.mode = mode;
         }
@@ -284,6 +300,9 @@ public class VersionStringFieldMapper extends FieldMapper {
     private Explicit<Boolean> ignoreMalformed;
     private String nullValue;
     private SortMode mode;
+    private BooleanFieldMapper prereleaseSubField;
+    private NumberFieldMapper majorVersionSubField;
+    private NumberFieldMapper minorVersionSubField;
 
     VersionStringFieldMapper(
         String simpleName,
@@ -293,12 +312,18 @@ public class VersionStringFieldMapper extends FieldMapper {
         String nullValue,
         MultiFields multiFields,
         CopyTo copyTo,
-        SortMode mode
+        SortMode mode,
+        BooleanFieldMapper preReleaseMapper,
+        NumberFieldMapper majorVersionMapper,
+        NumberFieldMapper minorVersionMapper
     ) {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.nullValue = nullValue;
         this.mode = mode;
+        this.prereleaseSubField = preReleaseMapper;
+        this.majorVersionSubField = majorVersionMapper;
+        this.minorVersionSubField = minorVersionMapper;
     }
 
     @Override
@@ -354,11 +379,29 @@ public class VersionStringFieldMapper extends FieldMapper {
                 createFieldNamesField(context);
             }
         }
+        // add prerelease flag
+        boolean isPrerelease = versionString.contains("-");
+        context.doc()
+            .add(new Field(prereleaseSubField.name(), isPrerelease ? "T" : "F", BooleanFieldMapper.Defaults.FIELD_TYPE));
+        context.doc().add(new SortedNumericDocValuesField(prereleaseSubField.name(), isPrerelease ? 1 : 0));
+
+        boolean docValued = fieldType().hasDocValues();
+        boolean stored = fieldType.stored();
+       // add major version
+        Integer major = Integer.valueOf(versionString.substring(0, versionString.indexOf('.')));
+        context.doc().addAll(NumberType.INTEGER.createFields(majorVersionSubField.name(), major,
+            fieldType().isSearchable(), docValued, stored));
+
+        // add minor version
+        Integer minor = Integer.valueOf(
+            versionString.substring(versionString.indexOf('.') + 1, versionString.indexOf('.', versionString.indexOf('.') + 1))
+        );
+        context.doc().addAll(NumberType.INTEGER.createFields(minorVersionSubField.name(), minor,
+            fieldType().isSearchable(), docValued, stored));
 
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
         }
-
     }
 
     @Override
@@ -367,6 +410,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         if (mergeWith.ignoreMalformed.explicit()) {
             this.ignoreMalformed = mergeWith.ignoreMalformed;
         }
+        this.prereleaseSubField = (BooleanFieldMapper) this.prereleaseSubField.merge(mergeWith.prereleaseSubField);
         this.nullValue = mergeWith.nullValue;
         this.mode = mergeWith.mode;
     }
@@ -384,5 +428,15 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         builder.field("mode", mode);
+    }
+
+    @Override
+    public Iterator<Mapper> iterator() {
+        List<Mapper> subIterators = new ArrayList<>();
+        subIterators.add(prereleaseSubField);
+        subIterators.add(majorVersionSubField);
+        subIterators.add(minorVersionSubField);
+        @SuppressWarnings("unchecked") Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
+        return concat;
     }
 }

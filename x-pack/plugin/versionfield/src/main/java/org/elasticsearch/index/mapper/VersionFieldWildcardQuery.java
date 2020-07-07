@@ -32,6 +32,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
         super(term, toAutomaton(term), Integer.MAX_VALUE, true);
     }
 
+
     public static Automaton toAutomaton(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 
@@ -43,6 +44,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
             // TODO assert we stay in ASCII range always, otherwise throw error
             final byte c = wildcardText.bytes[wildcardText.offset + i];
             int length = Character.charCount(c);
+
             switch (c) {
                 case WILDCARD_STRING:
                     automata.add(Automata.makeAnyString());
@@ -52,14 +54,19 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     automata.add(optionalNumericCharPrefix());
                     automata.add(Automata.makeAnyChar());
                     break;
+
                 case '-':
                     // this should potentially match the first prerelease-dash, so we need an optional marker byte here
                     automata.add(Operations.optional(Automata.makeChar(VersionEncoder.PRERELESE_SEPARATOR_BYTE)));
                     containsPreReleaseSeparator = true;
+                    automata.add(Automata.makeChar(c));
+                    break;
                 case '+':
                     // this can potentially appear after major version, optionally match the no-prerelease marker
                     automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELESE_SEPARATOR_BYTE)));
                     containsPreReleaseSeparator = true;
+                    automata.add(Automata.makeChar(c));
+                    break;
                 case '0':
                 case '1':
                 case '2':
@@ -79,6 +86,8 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     if (firstDigitInGroup) {
                         automata.add(optionalNumericCharPrefix());
                     }
+                    automata.add(Automata.makeChar(c));
+                    break;
                 default:
                     automata.add(Automata.makeChar(c));
             }

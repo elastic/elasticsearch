@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz.permission;
 
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
@@ -17,6 +18,8 @@ import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivile
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PermissionTests extends ESTestCase {
     private Role permission;
@@ -35,8 +38,8 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testAllowedIndicesMatcherActionCaching() throws Exception {
-        Predicate<String> matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
-        Predicate<String> matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        Predicate<IndexAbstraction> matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        Predicate<IndexAbstraction> matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(matcher1, is(matcher2));
     }
 
@@ -59,11 +62,19 @@ public class PermissionTests extends ESTestCase {
     }
 
     // "baz_*foo", "/fool.*bar/"
-    private void testAllowedIndicesMatcher(Predicate<String> indicesMatcher) {
-        assertThat(indicesMatcher.test("foobar"), is(false));
-        assertThat(indicesMatcher.test("fool"), is(false));
-        assertThat(indicesMatcher.test("fool2bar"), is(true));
-        assertThat(indicesMatcher.test("baz_foo"), is(true));
-        assertThat(indicesMatcher.test("barbapapa"), is(false));
+    private void testAllowedIndicesMatcher(Predicate<IndexAbstraction> indicesMatcher) {
+        assertThat(indicesMatcher.test(mockIndexAbstraction("foobar")), is(false));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("fool")), is(false));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("fool2bar")), is(true));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("baz_foo")), is(true));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("barbapapa")), is(false));
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String name) {
+        IndexAbstraction mock = mock(IndexAbstraction.class);
+        when(mock.getName()).thenReturn(name);
+        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
+                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        return mock;
     }
 }

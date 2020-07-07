@@ -29,7 +29,7 @@ import java.util.Set;
 public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
     // array of illegal characters, see {@link AggregatorFactories#VALID_AGG_NAME}
-    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = {'[', ']', '>'};
+    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = { '[', ']', '>' };
 
     public static GroupConfig randomGroupConfig() {
         Map<String, Object> source = new LinkedHashMap<>();
@@ -43,20 +43,20 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
                 SingleGroupSource groupBy = null;
                 Type type = randomFrom(SingleGroupSource.Type.values());
                 switch (type) {
-                case TERMS:
-                    groupBy = TermsGroupSourceTests.randomTermsGroupSource();
-                    break;
-                case HISTOGRAM:
-                    groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
-                    break;
-                case DATE_HISTOGRAM:
-                    groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
-                    break;
-                case GEOTILE_GRID:
-                    groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
-                    break;
-                default:
-                    fail("unknown group source type");
+                    case TERMS:
+                        groupBy = TermsGroupSourceTests.randomTermsGroupSource();
+                        break;
+                    case HISTOGRAM:
+                        groupBy = HistogramGroupSourceTests.randomHistogramGroupSource();
+                        break;
+                    case DATE_HISTOGRAM:
+                        groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
+                        break;
+                    case GEOTILE_GRID:
+                        groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
+                        break;
+                    default:
+                        fail("unknown group source type");
                 }
                 source.put(targetFieldName, Collections.singletonMap(type.value(), getSource(groupBy)));
                 groups.put(targetFieldName, groupBy);
@@ -98,18 +98,19 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
     public void testInvalidGroupByNames() throws IOException {
 
-        String invalidName = randomAlphaOfLengthBetween(0, 5)
-                + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0, ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)]
-                + randomAlphaOfLengthBetween(0, 5);
+        String invalidName = randomAlphaOfLengthBetween(0, 5) + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(
+            0,
+            ILLEGAL_FIELD_NAME_CHARACTERS.length - 1
+        )] + randomAlphaOfLengthBetween(0, 5);
 
         XContentBuilder source = JsonXContent.contentBuilder()
-                .startObject()
-                    .startObject(invalidName)
-                        .startObject("terms")
-                            .field("field", "user")
-                        .endObject()
-                    .endObject()
-                .endObject();
+            .startObject()
+            .startObject(invalidName)
+            .startObject("terms")
+            .field("field", "user")
+            .endObject()
+            .endObject()
+            .endObject();
 
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(source)) {

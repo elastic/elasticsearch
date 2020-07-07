@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -43,13 +44,50 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     private final CompositeAggregationBuilder compositeAggregation;
     private Map<String, Object> afterKey = null;
 
+    /**
+     * Collector for collecting changes from 1 group_by field.
+     *
+     * Every field collector instance is stateful and implements the query logic and result collection,
+     * but also stores the changes in their state.
+     */
     interface FieldCollector {
-        boolean collectChanges(Collection<? extends Bucket> buckets);
 
+        /**
+         * Get the maximum page size supported by this field collector.
+         *
+         * Note: this page size is only about change collection, not the indexer page size.
+         *
+         * @return the maximum allowed page size, or Integer.MAX_VALUE for unlimited.
+         */
+        int getMaxPageSize();
+
+        /**
+         * Allows the field collector to add aggregations to the changes query.
+         *
+         * @return aggregations specific for this field collector or null.
+         */
         AggregationBuilder aggregateChanges();
 
+        /**
+         * Collects the changes from the search response, e.g. stores the terms that have changed.
+         *
+         * @param buckets buckets from the search result.
+         * @return true if changes have been found and got collected, false otherwise.
+         */
+        boolean collectChanges(Collection<? extends Bucket> buckets);
+
+        /**
+         * Apply the collected changes in the query that updates the transform destination.
+         *
+         * @param lastCheckpointTimestamp the last(complete) checkpoint timestamp
+         * @param nextcheckpointTimestamp the next(currently running) checkpoint timestamp.
+         * @return
+         */
         QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp);
 
+        /**
+         * Clear the field collector, e.g. the changes to free up memory.
+         */
         void clear();
     }
 
@@ -63,6 +101,13 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
             this.changedTerms = new HashSet<>();
+        }
+
+        @Override
+        public int getMaxPageSize() {
+            // TODO: based on index.max_terms_count, however this is per index, which we don't have access to here,
+            // because the page size is limit to 64k anyhow, return 64k
+            return 65536;
         }
 
         @Override
@@ -118,6 +163,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
+        public int getMaxPageSize() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
         public boolean collectChanges(Collection<? extends Bucket> buckets) {
             // todo: implementation for isSynchronizationField == false
             return false;
@@ -141,7 +191,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         public AggregationBuilder aggregateChanges() {
             return null;
         }
-
     }
 
     static class HistogramFieldCollector implements FieldCollector {
@@ -152,6 +201,11 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         HistogramFieldCollector(final String sourceFieldName, final String targetFieldName) {
             this.sourceFieldName = sourceFieldName;
             this.targetFieldName = targetFieldName;
+        }
+
+        @Override
+        public int getMaxPageSize() {
+            return Integer.MAX_VALUE;
         }
 
         @Override
@@ -186,6 +240,12 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         @Override
+        public int getMaxPageSize() {
+            // this collector is limited by indices.query.bool.max_clause_count, default 1024
+            return BooleanQuery.getMaxClauseCount();
+        }
+
+        @Override
         public boolean collectChanges(Collection<? extends Bucket> buckets) {
             changedBuckets.clear();
 
@@ -201,7 +261,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
 
         @Override
         public QueryBuilder filterByChanges(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
-            // todo: this limited by indices.query.bool.max_clause_count, default 1024 which is lower than the maximum page size
             if (changedBuckets != null && changedBuckets.isEmpty() == false) {
                 BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
                 changedBuckets.stream().map(GeoTileUtils::toBoundingBox).map(this::toGeoQuery).forEach(boolQueryBuilder::should);
@@ -233,6 +292,40 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
+    public SearchSourceBuilder buildChangesQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize) {
+
+        sourceBuilder.size(0);
+        for (FieldCollector fieldCollector : fieldCollectors.values()) {
+            AggregationBuilder aggregationForField = fieldCollector.aggregateChanges();
+
+            if (aggregationForField != null) {
+                sourceBuilder.aggregation(aggregationForField);
+            }
+            pageSize = Math.min(pageSize, fieldCollector.getMaxPageSize());
+        }
+
+        CompositeAggregationBuilder changesAgg = this.compositeAggregation;
+        changesAgg.size(pageSize).aggregateAfter(position);
+        sourceBuilder.aggregation(changesAgg);
+
+        return sourceBuilder;
+    }
+
+    @Override
+    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
+        BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
+
+        for (FieldCollector fieldCollector : fieldCollectors.values()) {
+            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextcheckpointTimestamp);
+            if (filter != null) {
+                filteredQuery.filter(filter);
+            }
+        }
+
+        return filteredQuery;
+    }
+
+    @Override
     public boolean processSearchResponse(final SearchResponse searchResponse) {
         final Aggregations aggregations = searchResponse.getAggregations();
         if (aggregations == null) {
@@ -253,38 +346,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
         }
 
         return false;
-    }
-
-    @Override
-    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextcheckpointTimestamp) {
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
-
-        for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextcheckpointTimestamp);
-            if (filter != null) {
-                filteredQuery.filter(filter);
-            }
-        }
-
-        return filteredQuery;
-    }
-
-    @Override
-    public SearchSourceBuilder buildChangesQuery(SearchSourceBuilder sourceBuilder, Map<String, Object> position, int pageSize) {
-
-        CompositeAggregationBuilder changesAgg = this.compositeAggregation;
-        changesAgg.size(pageSize).aggregateAfter(position);
-        sourceBuilder.aggregation(changesAgg);
-        sourceBuilder.size(0);
-        for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            AggregationBuilder aggregationForField = fieldCollector.aggregateChanges();
-
-            if (aggregationForField != null) {
-                sourceBuilder.aggregation(aggregationForField);
-            }
-        }
-
-        return sourceBuilder;
     }
 
     @Override

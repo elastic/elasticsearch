@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -45,6 +46,8 @@ import static java.util.Collections.unmodifiableSet;
  * on specific indices
  */
 public final class IndicesPermission {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
@@ -274,7 +277,8 @@ public final class IndicesPermission {
 
             if (false == granted && bwcGrantMappingUpdate) {
                 granted = true;
-                // log
+                deprecationLogger.deprecate("mapping update for ingest privileges", "The privileges [" +
+                        String.join(",", privilegeNameSetBwcAllowMappingUpdate.toString()) + "] grant mapping updates the ");
             }
 
             if (concreteIndices.isEmpty()) {

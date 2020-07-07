@@ -230,7 +230,7 @@ APIs are not be blocked and can run on any available node.
 
 `monitor.fs.health.enabled`::
 
-    (<<cluster-update-settings,Dynamic>>, boolean) Sets whether the node runs
+    (<<cluster-update-settings,Dynamic>>, boolean) If `true`, the node runs
     periodic <<cluster-fault-detection-filesystem-health,filesystem health
     checks>>. Defaults to `true`.
 

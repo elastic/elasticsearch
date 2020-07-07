@@ -24,6 +24,7 @@ import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CatchNode;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.TryNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
@@ -52,6 +53,11 @@ public class STry extends AStatement {
 
         this.blockNode = blockNode;
         this.catcheNodes = Collections.unmodifiableList(Objects.requireNonNull(catcheNodes));
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitTry(this, input);
     }
 
     @Override

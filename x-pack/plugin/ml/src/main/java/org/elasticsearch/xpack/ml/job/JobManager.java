@@ -349,19 +349,25 @@ public class JobManager {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
 
-        Runnable doUpdate = () -> {
-                jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
-                        this::validate, ActionListener.wrap(
-                                updatedJob -> postJobUpdate(request, updatedJob, actionListener),
-                                actionListener::onFailure
-                        ));
-        };
-
         ClusterState clusterState = clusterService.state();
         if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), clusterState)) {
             actionListener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update job", request.getJobId()));
             return;
         }
+
+        Runnable doUpdate = () ->
+            jobConfigProvider.updateJobWithValidation(request.getJobId(), request.getJobUpdate(), maxModelMemoryLimit,
+                this::validate, ActionListener.wrap(
+                    updatedJob -> postJobUpdate(request, updatedJob, actionListener),
+                    actionListener::onFailure
+                ));
+
+        // Obviously if we're updating a job it's impossible that the config index has no mappings at
+        // all, but if we rewrite the job config we may add new fields that require the latest mappings
+        Runnable checkMappingsAreUpToDate = () ->
+            ElasticsearchMappings.addDocMappingIfMissing(
+                MlConfigIndex.indexName(), MlConfigIndex::mapping, client, clusterState,
+                ActionListener.wrap(bool -> doUpdate.run(), actionListener::onFailure));
 
         if (request.getJobUpdate().getGroups() != null && request.getJobUpdate().getGroups().isEmpty() == false) {
 
@@ -369,7 +375,7 @@ public class JobManager {
             jobConfigProvider.jobIdMatches(request.getJobUpdate().getGroups(), ActionListener.wrap(
                     matchingIds -> {
                         if (matchingIds.isEmpty()) {
-                            doUpdate.run();
+                            checkMappingsAreUpToDate.run();
                         } else {
                             actionListener.onFailure(new ResourceAlreadyExistsException(
                                     Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, matchingIds.get(0))));
@@ -378,7 +384,7 @@ public class JobManager {
                     actionListener::onFailure
             ));
         } else {
-            doUpdate.run();
+            checkMappingsAreUpToDate.run();
         }
     }
 

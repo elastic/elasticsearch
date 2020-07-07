@@ -181,16 +181,18 @@ public class GeometryParserTests extends ESTestCase {
 
     public void testBasics() {
         GeometryParser parser = new GeometryParser(true, randomBoolean(), randomBoolean());
+        // point
         Point expectedPoint = new Point(-122.084110, 37.386637);
         testBasics(parser, Map.of("lat", 37.386637, "lon", -122.084110), expectedPoint);
         testBasics(parser, "37.386637, -122.084110", expectedPoint);
         testBasics(parser, "POINT (-122.084110 37.386637)", expectedPoint);
         testBasics(parser, Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)), expectedPoint);
         testBasics(parser, List.of(-122.084110, 37.386637), expectedPoint);
+        // line
         Line expectedLine = new Line(new double[] {0, 1}, new double[] {0, 1});
         testBasics(parser, "LINESTRING(0 0, 1 1)", expectedLine);
         testBasics(parser, Map.of("type", "LineString", "coordinates", List.of(List.of(0, 0), List.of(1, 1))), expectedLine);
-
+        // polygon
         Polygon expectedPolygon = new Polygon(new LinearRing(new double[] {0, 1, 1, 0, 0}, new double[] {0, 0, 1, 1, 0}));
         testBasics(parser, "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", expectedPolygon);
         testBasics(parser, Map.of("type", "Polygon", "coordinates",
@@ -198,7 +200,7 @@ public class GeometryParserTests extends ESTestCase {
                 List.of(List.of(0, 0), List.of(1, 0), List.of(1, 1), List.of(0, 1), List.of(0, 0)))
             ),
             expectedPolygon);
-
+        // geometry collection
         testBasics(parser,
             List.of(
                 List.of(-122.084110, 37.386637),

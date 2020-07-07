@@ -52,7 +52,7 @@ cluster, omit this parameter or use `*` or `_all`.
 
 `<snapshot>`::
 (Required, string)
-Comma-separated list of snapshot names to return. Also accepts wildcards (`*`).
+Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`).
 +
 * To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
 * To get information about any snapshots that are currently running, omit this parameter and use `_current`.

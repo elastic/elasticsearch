@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.client.indices;
 
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,12 +36,20 @@ public final class DataStream {
     private final String timeStampField;
     private final List<String> indices;
     private final long generation;
+    ClusterHealthStatus dataStreamStatus;
+    String indexTemplate;
+    @Nullable
+    String ilmPolicyName;
 
-    public DataStream(String name, String timeStampField, List<String> indices, long generation) {
+    public DataStream(String name, String timeStampField, List<String> indices, long generation, ClusterHealthStatus dataStreamStatus,
+                      String indexTemplate, @Nullable String ilmPolicyName) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
         this.generation = generation;
+        this.dataStreamStatus = dataStreamStatus;
+        this.indexTemplate = indexTemplate;
+        this.ilmPolicyName = ilmPolicyName;
     }
 
     public String getName() {
@@ -58,18 +68,42 @@ public final class DataStream {
         return generation;
     }
 
+    public ClusterHealthStatus getDataStreamStatus() {
+        return dataStreamStatus;
+    }
+
+    public String getIndexTemplate() {
+        return indexTemplate;
+    }
+
+    public String getIlmPolicyName() {
+        return ilmPolicyName;
+    }
+
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
+    public static final ParseField STATUS_FIELD = new ParseField("status");
+    public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
+    public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
         args -> {
+            String dataStreamName = (String) args[0];
             String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
             List<String> indices =
                 ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
-            return new DataStream((String) args[0], timeStampField, indices, (Long) args[3]);
+            Long generation = (Long) args[3];
+            String statusStr = (String) args[4];
+            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+            String indexTemplate = (String) args[5];
+            String ilmPolicy = null;
+            if(args.length == 7) {
+                ilmPolicy = (String) args[6];
+            }
+            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy);
         });
 
     static {
@@ -77,6 +111,9 @@ public final class DataStream {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_TEMPLATE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ILM_POLICY_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {

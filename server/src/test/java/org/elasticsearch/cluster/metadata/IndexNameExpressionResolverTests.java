@@ -2021,6 +2021,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         List<String> names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "log*");
         assertEquals(Collections.singletonList(dataStream1), names);
 
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), dataStream1);
+        assertEquals(Collections.singletonList(dataStream1), names);
+
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "other*");
         assertEquals(Collections.singletonList(dataStream2), names);
 

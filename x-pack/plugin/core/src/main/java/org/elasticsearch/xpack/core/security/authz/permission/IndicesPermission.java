@@ -244,15 +244,19 @@ public final class IndicesPermission {
 
             boolean granted = false;
             boolean bwcGrantMappingUpdate = false;
+            final List<Runnable> bwcDeprecationLogActions = new ArrayList<>();
 
             for (Group group : groups) {
                 final boolean indexCheck = group.checkIndex(indexOrAlias) ||
                         (isBackingIndex && group.checkIndex(indexAbstraction.getParentDataStream().getName()));
                 if (indexCheck) {
                     boolean actionCheck = group.checkAction(action);
+                    // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
+                    // outside of the privilege definition
                     boolean bwcMappingActionCheck = isMappingUpdateAction && false == isDataStream &&
                             group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains);
                     if (actionCheck || bwcMappingActionCheck) {
+                        // propagate DLS and FLS permissions over the concrete indices
                         for (String index : concreteIndices) {
                             Set<FieldPermissions> fieldPermissions = fieldPermissionsByIndex.computeIfAbsent(index, (k) -> new HashSet<>());
                             fieldPermissionsByIndex.put(indexOrAlias, fieldPermissions);
@@ -272,13 +276,21 @@ public final class IndicesPermission {
                     }
                     granted |= actionCheck;
                     bwcGrantMappingUpdate |= bwcMappingActionCheck;
+                    if (false == actionCheck && bwcMappingActionCheck) {
+                        bwcDeprecationLogActions.add(() -> {
+                            deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" + String.join(",",
+                                    group.privilege.name()) + "]", "The mapping update action [" + action + "] for the [" +
+                                    indexOrAlias + "] index, granted by the [" + String.join(",", group.privilege.name()) + "] privilege," +
+                                    " is deprecated and will not be granted in the next major release.");
+                        });
+                    }
                 }
             }
 
             if (false == granted && bwcGrantMappingUpdate) {
+                // the action is granted only due to the deprecated behaviour of certain privileges
                 granted = true;
-                deprecationLogger.deprecate("mapping update for ingest privileges", "The privileges [" +
-                        String.join(",", privilegeNameSetBwcAllowMappingUpdate.toString()) + "] grant mapping updates the ");
+                bwcDeprecationLogActions.forEach(deprecationLogAction -> deprecationLogAction.run());
             }
 
             if (concreteIndices.isEmpty()) {

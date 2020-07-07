@@ -11,4 +11,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 public interface QueryRequest {
 
     SearchSourceBuilder searchSource();
+
+    default void nextAfter(Ordinal ordinal) {
+        searchSource().searchAfter(ordinal.toArray());
+    }
 }

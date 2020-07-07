@@ -173,6 +173,7 @@ public final class ReservedFieldNames {
             ForecastRequestStats.MEMORY_USAGE.getPreferredName(),
 
             ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName(),
+            ModelSizeStats.PEAK_MODEL_BYTES_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(),

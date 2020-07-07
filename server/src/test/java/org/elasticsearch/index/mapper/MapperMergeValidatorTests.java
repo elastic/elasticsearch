@@ -109,7 +109,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
         MapperMergeValidator.validateFieldReferences(emptyList(),
             singletonList(aliasMapper),
             Collections.singletonMap("nested", objectMapper),
-            new FieldTypeLookup());
+            new FieldTypeLookup(),
+            new MetadataFieldMapper[0],
+            null);
     }
 
     public void testFieldAliasWithDifferentObjectScopes() {
@@ -122,7 +124,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
         MapperMergeValidator.validateFieldReferences(emptyList(),
             singletonList(aliasMapper),
             fullPathObjectMappers,
-            new FieldTypeLookup());
+            new FieldTypeLookup(),
+            new MetadataFieldMapper[0],
+            null);
     }
 
     public void testFieldAliasWithNestedTarget() {
@@ -133,7 +137,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateFieldReferences(emptyList(),
                 singletonList(aliasMapper),
                 Collections.singletonMap("nested", objectMapper),
-                new FieldTypeLookup()));
+                new FieldTypeLookup(),
+                new MetadataFieldMapper[0],
+                null));
 
         String expectedMessage = "Invalid [path] value [nested.field] for field alias [alias]: " +
             "an alias must have the same nested scope as its target. The alias is not nested, " +
@@ -152,7 +158,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateFieldReferences(emptyList(),
                 singletonList(aliasMapper),
                 fullPathObjectMappers,
-                new FieldTypeLookup()));
+                new FieldTypeLookup(),
+                new MetadataFieldMapper[0],
+                null));
 
 
         String expectedMessage = "Invalid [path] value [nested1.field] for field alias [nested2.alias]: " +

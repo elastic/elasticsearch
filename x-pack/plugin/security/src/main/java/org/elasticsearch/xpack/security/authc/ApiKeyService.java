@@ -14,14 +14,18 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -42,6 +46,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -66,6 +71,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -99,11 +105,13 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
 public class ApiKeyService {
 
@@ -212,24 +220,28 @@ public class ApiKeyService {
 
         try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
             request.getRoleDescriptors(), version)) {
+
+
             final IndexRequest indexRequest =
                 client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
+            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-            executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
-                    ActionListener.wrap(
-                            indexResponse -> listener.onResponse(
-                                    new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
-                            listener::onFailure)));
+                executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
+                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
+                        indexResponse -> listener.onResponse(
+                            new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                        listener::onFailure))));
         } catch (IOException e) {
             listener.onFailure(e);
         }
     }
 
     /**
-     * package protected for testing
+     * package-private for testing
      */
     XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
                                         Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
@@ -318,6 +330,16 @@ public class ApiKeyService {
         }
     }
 
+    public Authentication createApiKeyAuthentication(AuthenticationResult authResult, String nodeName) {
+        if (false == authResult.isAuthenticated()) {
+            throw new IllegalArgumentException("API Key authn result must be successful");
+        }
+        final User user = authResult.getUser();
+        final RealmRef authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
+        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
+                authResult.getMetadata());
+    }
+
     private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
                                                   ActionListener<AuthenticationResult> listener) {
         final String docId = credentials.getId();
@@ -328,14 +350,26 @@ public class ApiKeyService {
         executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                 if (response.isExists()) {
                     final Map<String, Object> source = response.getSource();
-                    validateApiKeyCredentials(docId, source, credentials, clock, listener);
+                    validateApiKeyCredentials(docId, source, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                            listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }));
                 } else {
                     listener.onResponse(
                         AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
                 }
             },
-            e -> listener.onResponse(AuthenticationResult.unsuccessful(
-                "apikey authentication for id " + credentials.getId() + " encountered a failure", e))),
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                    listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                } else {
+                    listener.onResponse(AuthenticationResult.unsuccessful(
+                        "apikey authentication for id " + credentials.getId() + " encountered a failure",e));
+                }
+            }),
             client::get);
     }
 
@@ -468,23 +502,31 @@ public class ApiKeyService {
                         }, listener::onFailure),
                         threadPool.generic(), threadPool.getThreadContext());
                 } else {
-                    final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
-                    listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
-                    if (verified) {
-                        // move on
-                        validateApiKeyExpiration(source, credentials, clock, listener);
-                    } else {
-                        listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                    }
+                    verifyKeyAgainstHash(apiKeyHash, credentials, ActionListener.wrap(
+                        verified -> {
+                            listenableCacheEntry.onResponse(new CachedApiKeyHashResult(verified, credentials.getKey()));
+                            if (verified) {
+                                // move on
+                                validateApiKeyExpiration(source, credentials, clock, listener);
+                            } else {
+                                listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                            }
+                        }, listener::onFailure
+                    ));
                 }
             } else {
-                final boolean verified = verifyKeyAgainstHash(apiKeyHash, credentials);
-                if (verified) {
-                    // move on
-                    validateApiKeyExpiration(source, credentials, clock, listener);
-                } else {
-                    listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
-                }
+                verifyKeyAgainstHash(apiKeyHash, credentials, ActionListener.wrap(
+                    verified -> {
+                        if (verified) {
+                            // move on
+                            validateApiKeyExpiration(source, credentials, clock, listener);
+                        } else {
+                            listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
+                        }
+                    },
+                    listener::onFailure
+                ));
+
             }
         }
     }
@@ -494,7 +536,8 @@ public class ApiKeyService {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
     }
 
-    private void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+    // package-private for testing
+    void validateApiKeyExpiration(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
                                   ActionListener<AuthenticationResult> listener) {
         final Long expirationEpochMilli = (Long) source.get("expiration_time");
         if (expirationEpochMilli == null || Instant.ofEpochMilli(expirationEpochMilli).isAfter(clock.instant())) {
@@ -552,14 +595,16 @@ public class ApiKeyService {
     }
 
     // Protected instance method so this can be mocked
-    protected boolean verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials) {
-        final char[] apiKeyHashChars = apiKeyHash.toCharArray();
-        try {
+    protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
+        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
             Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
-            return hasher.verify(credentials.getKey(), apiKeyHashChars);
-        } finally {
-            Arrays.fill(apiKeyHashChars, (char) 0);
-        }
+            final char[] apiKeyHashChars = apiKeyHash.toCharArray();
+            try {
+                return hasher.verify(credentials.getKey(), apiKeyHashChars);
+            } finally {
+                Arrays.fill(apiKeyHashChars, (char) 0);
+            }
+        }));
     }
 
     private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
@@ -585,12 +630,12 @@ public class ApiKeyService {
         }
     }
 
-    // package private class for testing
-    static final class ApiKeyCredentials implements Closeable {
+    // public class for testing
+    public static final class ApiKeyCredentials implements Closeable {
         private final String id;
         private final SecureString key;
 
-        ApiKeyCredentials(String id, SecureString key) {
+        public ApiKeyCredentials(String id, SecureString key) {
             this.id = id;
             this.key = key;
         }

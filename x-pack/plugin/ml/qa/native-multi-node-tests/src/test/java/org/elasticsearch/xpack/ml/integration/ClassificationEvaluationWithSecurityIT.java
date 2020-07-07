@@ -62,6 +62,8 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
                 "}"
         );
         client().performRequest(createDoc);
+        Request refreshRequest = new Request("POST", index + "/_refresh");
+        client().performRequest(refreshRequest);
         setupDataAccessRole(index);
         setupUser("ml_admin", Collections.singletonList("machine_learning_admin"));
         setupUser("ml_admin_plus_data", Arrays.asList("machine_learning_admin", "test_data_access"));

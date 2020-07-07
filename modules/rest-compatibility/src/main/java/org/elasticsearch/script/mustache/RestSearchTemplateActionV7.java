@@ -34,7 +34,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestSearchTemplateActionV7 extends RestSearchTemplateAction {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchTemplateActionV7.class);
 
-
     @Override
     public List<Route> routes() {
         return List.of(

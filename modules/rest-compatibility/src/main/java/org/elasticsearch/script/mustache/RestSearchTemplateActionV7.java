@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -33,9 +32,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateActionV7 extends RestSearchTemplateAction {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestSearchTemplateActionV7.class)
-    );
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchTemplateActionV7.class);
+
 
     @Override
     public List<Route> routes() {

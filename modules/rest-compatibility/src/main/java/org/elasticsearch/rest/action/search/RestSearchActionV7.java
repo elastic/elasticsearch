@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -35,7 +34,7 @@ public class RestSearchActionV7 extends RestSearchAction {
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in search requests is deprecated.";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestSearchAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchActionV7.class);
 
     @Override
     public List<Route> routes() {

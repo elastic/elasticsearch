@@ -155,7 +155,7 @@ cluster to enable <<cross-cluster-configuring,{ccs}>>.
 
 [horizontal]
 `all`::
-Any action on a data stream or index
+Any action on an index
 
 `create`::
 Privilege to index documents. Also grants access to the update mapping
@@ -190,28 +190,26 @@ privilege (and no higher privilege such as `index` or `write`), you must ensure 
 --
 
 `create_index`::
-Privilege to create a data stream or index.
-+
-A create index request may contain aliases to be
-added to an index once created. In that case, the request requires the `manage`
+Privilege to create an index. A create index request may contain aliases to be
+added to the index once created. In that case the request requires the `manage`
 privilege as well, on both the index and the aliases names.
 
 `delete`::
 Privilege to delete documents.
 
 `delete_index`::
-Privilege to delete a data stream or index.
+Privilege to delete an index.
 
 `index`::
 Privilege to index and update documents. Also grants access to the update
 mapping action.
 
 `maintenance`::
-Permits refresh, flush, synced flush and force merge administration operations.
-No privilege to read or write data or otherwise manage the data stream or index.
+Permits refresh, flush, synced flush and force merge index administration operations.
+No privilege to read or write index data or otherwise manage the index.
 
 `manage`::
-All `monitor` privileges plus administration (aliases, analyze, cache clear,
+All `monitor` privileges plus index administration (aliases, analyze, cache clear,
 close, delete, exists, flush, mapping, open, force merge, refresh, settings,
 search shards, templates, validate).
 
@@ -243,7 +241,7 @@ clear_scroll, search, suggest, tv).
 Read-only access to the search action from a <<cross-cluster-configuring,remote cluster>>.
 
 `view_index_metadata`::
-Read-only access to metadata (aliases, aliases exists, get index, exists, field mappings,
+Read-only access to index metadata (aliases, aliases exists, get index, exists, field mappings,
 mappings, search shards, type exists, validate, warmers, settings, ilm). This
 privilege is primarily available for use by {kib} users.
 

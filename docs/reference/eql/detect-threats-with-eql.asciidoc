@@ -24,7 +24,7 @@ by MITRE ATT&CK®.
 
 To get started, download and index the dataset:
 
-. Download the https://github.com/endgameinc/eqllib/blob/master/data/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`] dataset.
+. Download the https://raw.githubusercontent.com/elastic/elasticsearch/{branch}/docs/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json[`normalized-T1117-AtomicRed-regsvr32.json`] dataset.
 
 . Index the data into the `sec_logs` index with the following
 <<docs-bulk,bulk API>> request:

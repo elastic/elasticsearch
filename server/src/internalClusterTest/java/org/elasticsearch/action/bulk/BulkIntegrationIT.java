@@ -261,11 +261,11 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
         GetDataStreamAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamsResponse.getDataStreams(), hasSize(4));
-        getDataStreamsResponse.getDataStreams().sort(Comparator.comparing(DataStream::getName));
-        assertThat(getDataStreamsResponse.getDataStreams().get(0).getName(), equalTo("logs-foobar"));
-        assertThat(getDataStreamsResponse.getDataStreams().get(1).getName(), equalTo("logs-foobaz"));
-        assertThat(getDataStreamsResponse.getDataStreams().get(2).getName(), equalTo("logs-foobaz2"));
-        assertThat(getDataStreamsResponse.getDataStreams().get(3).getName(), equalTo("logs-foobaz3"));
+        getDataStreamsResponse.getDataStreams().sort(Comparator.comparing(dataStreamInfo -> dataStreamInfo.getDataStream().getName()));
+        assertThat(getDataStreamsResponse.getDataStreams().get(0).getDataStream().getName(), equalTo("logs-foobar"));
+        assertThat(getDataStreamsResponse.getDataStreams().get(1).getDataStream().getName(), equalTo("logs-foobaz"));
+        assertThat(getDataStreamsResponse.getDataStreams().get(2).getDataStream().getName(), equalTo("logs-foobaz2"));
+        assertThat(getDataStreamsResponse.getDataStreams().get(3).getDataStream().getName(), equalTo("logs-foobaz3"));
 
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices("logs-bar*")).actionGet();
         assertThat(getIndexResponse.getIndices(), arrayWithSize(4));

@@ -13,9 +13,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
@@ -23,8 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -54,7 +52,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -65,7 +62,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * Tests for Snapshot Lifecycle Management that require a slow or blocked snapshot repo (using {@link MockRepository}
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
+public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase {
     private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
     private static final String REPO = "repo-id";
@@ -117,9 +114,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         for (int i = 0; i < docCount; i++) {
             index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
         }
-
-        // Create a snapshot repo
-        initializeRepo(REPO);
+        createRepository(REPO, "mock");
 
         logger.info("--> creating policy {}", policyName);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true);
@@ -150,7 +145,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
         logger.info("--> unblocking snapshots");
         unblockAllDataNodes(REPO);
-        unblockRepo(REPO);
+        unblockNode(REPO, internalCluster().getMasterName());
 
         // Cancel/delete the snapshot
         try {
@@ -167,8 +162,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         for (int i = 0; i < docCount; i++) {
             index(indexName, "_doc", null, Collections.singletonMap("foo", "bar"));
         }
-
-        initializeRepo(REPO);
+        createRepository(REPO, "mock");
 
         logger.info("--> creating policy {}", policyId);
         createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
@@ -190,12 +184,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             }
         });
 
-        // Wait for all running snapshots to be cleared from cluster state
-        assertBusy(() -> {
-            logger.info("--> waiting for cluster state to be clear of snapshots");
-            ClusterState state = client().admin().cluster().prepareState().setCustoms(true).get().getState();
-            assertTrue("cluster state was not ready for deletion " + state, SnapshotRetentionTask.okayToDeleteSnapshots(state));
-        });
+        awaitNoMoreRunningOperations(randomFrom(dataNodeNames));
 
         logger.info("--> indexing more docs to force new segment files");
         for (int i = 0; i < docCount; i++) {
@@ -211,11 +200,10 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             final String secondSnapName = executePolicy(policyId);
             logger.info("--> executed policy, got snapname [{}]", secondSnapName);
 
-
             // Check that the executed snapshot shows up in the SLM output as in_progress
+            logger.info("--> Waiting for at least one data node to hit the block");
+            waitForBlockOnAnyDataNode(REPO, TimeValue.timeValueSeconds(30L));
             assertBusy(() -> {
-                logger.info("--> Waiting for at least one data node to hit the block");
-                assertTrue(dataNodeNames.stream().anyMatch(node -> checkBlocked(node, REPO)));
                 logger.info("--> at least one data node has hit the block");
                 GetSnapshotLifecycleAction.Response getResp =
                     client().execute(GetSnapshotLifecycleAction.INSTANCE, new GetSnapshotLifecycleAction.Request(policyId)).get();
@@ -238,7 +226,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 new ExecuteSnapshotRetentionAction.Request()).get().isAcknowledged());
 
             logger.info("--> unblocking snapshots");
-            unblockRepo(REPO);
+            unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);
 
             // Check that the snapshot created by the policy has been removed by retention
@@ -275,7 +263,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
             });
         } finally {
-            unblockRepo(REPO);
+            unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);
         }
     }
@@ -295,9 +283,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         final SnapshotState expectedUnsuccessfulState = partialSuccess ? SnapshotState.PARTIAL : SnapshotState.FAILED;
         // Setup
         createAndPopulateIndex(indexName);
-
-        // Create a snapshot repo
-        initializeRepo(REPO);
+        createRepository(REPO, "mock");
 
         createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true,
             partialSuccess, new SnapshotRetentionConfiguration(null, 1, 2));
@@ -355,7 +341,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             createAndPopulateIndex(indexName);
 
             logger.info("--> unblocking snapshots");
-            unblockRepo(REPO);
+            unblockNode(REPO, internalCluster().getMasterName());
             unblockAllDataNodes(REPO);
 
             logger.info("--> taking new snapshot");
@@ -405,18 +391,14 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             });
         }
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }
 
     public void testSLMRetentionAfterRestore() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";
-        int docCount = 20;
-        for (int i = 0; i < docCount; i++) {
-            index(indexName, "_doc", i + "", Collections.singletonMap("foo", "bar"));
-        }
-
-        // Create a snapshot repo
-        initializeRepo(REPO);
+        indexRandomDocs(indexName, 20);
+        createRepository(REPO, "mock");
 
         logger.info("--> creating policy {}", policyName);
         createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, REPO, indexName, true, false,
@@ -475,27 +457,9 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     private void createAndPopulateIndex(String indexName) throws InterruptedException {
         logger.info("--> creating and populating index [{}]", indexName);
-        assertAcked(prepareCreate(indexName, 0, Settings.builder()
-            .put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate(indexName, 0, indexSettingsNoReplicas(6)));
         ensureGreen();
-
-        final int numdocs = randomIntBetween(50, 100);
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(indexName, SINGLE_MAPPING_NAME, Integer.toString(i)).setSource("field1", "bar " + i);
-        }
-        indexRandom(true, builders);
-        flushAndRefresh();
-    }
-
-    private void initializeRepo(String repoName) {
-        client().admin().cluster().preparePutRepository(repoName)
-            .setType("mock")
-            .setSettings(Settings.builder()
-                .put("compress", randomBoolean())
-                .put("location", randomAlphaOfLength(6))
-                .build())
-            .get();
+        indexRandomDocs(indexName, randomIntBetween(50, 100));
     }
 
     private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String REPO,
@@ -545,50 +509,5 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             fail("failed to execute policy " + policyId + " got: " + e);
             return "bad";
         }
-    }
-
-    public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockOnWriteIndexFile(true);
-        return masterName;
-    }
-
-    public static String unblockRepo(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).unblock();
-        return masterName;
-    }
-
-    public static void blockAllDataNodes(String repository) {
-        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            ((MockRepository)repositoriesService.repository(repository)).blockOnDataFiles(true);
-        }
-    }
-
-    public static void unblockAllDataNodes(String repository) {
-        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-            ((MockRepository)repositoriesService.repository(repository)).unblock();
-        }
-    }
-
-    public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
-        MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
-        while (System.currentTimeMillis() - start < timeout.millis()) {
-            if (mockRepository.blocked()) {
-                return;
-            }
-            Thread.sleep(100);
-        }
-        fail("Timeout waiting for node [" + node + "] to be blocked");
-    }
-
-    public boolean checkBlocked(String node, String repository) {
-        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
-        MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
-        return mockRepository.blocked();
     }
 }

@@ -87,7 +87,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.startObject("mappings").startObject("properties").startObject("timestamp").field("type", dateType);
+                builder.startObject("mappings").startObject("properties").startObject("@timestamp").field("type", dateType);
 
                 if (dateType.equals("date_nanos")) {
                     builder.field("format", "strict_date_optional_time_nanos");
@@ -116,7 +116,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     "{\n" +
                         "  \"index_patterns\": [ \"" + indexName + "\" ],\n" +
                         "  \"data_stream\": {\n" +
-                        "    \"timestamp_field\": \"timestamp\"\n" +
+                        "    \"timestamp_field\": \"@timestamp\"\n" +
                         "  },\n" +
                         "  \"template\": \n" + Strings.toString(builder) +
                         "}"
@@ -167,7 +167,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 .append(stars)
                 .append(",\"location\":\"")
                 .append(location)
-                .append("\",\"timestamp\":\"")
+                .append("\",\"@timestamp\":\"")
                 .append(date_string)
                 .append("\"}\n");
 
@@ -220,7 +220,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
         String config = "{ \"dest\": {\"index\":\"" + transformIndex + "\"}," + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
         // Set frequency high for testing
-            + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\"}},"
+            + " \"sync\": {\"time\":{\"field\": \"@timestamp\", \"delay\": \"15m\"}},"
             + " \"frequency\": \"1s\","
             + " \"pivot\": {"
             + "   \"group_by\": {"
@@ -526,7 +526,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             "{   \"size\": 100,"
                 + "  \"sort\": ["
                 + "    {"
-                + "      \"timestamp\": {"
+                + "      \"@timestamp\": {"
                 + "        \"order\": \"asc\""
                 + "      }"
                 + "    }"
@@ -550,7 +550,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     logger.log(
                         Level.getLevel(level.toUpperCase(Locale.ROOT)),
                         "Transform audit: [{}] [{}] [{}] [{}]",
-                        Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
+                        Instant.ofEpochMilli((long) source.getOrDefault("@timestamp", 0)),
                         source.getOrDefault("transform_id", "n/a"),
                         source.getOrDefault("message", "n/a"),
                         source.getOrDefault("node_name", "n/a")

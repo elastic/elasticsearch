@@ -1,12 +1,12 @@
 [[point]]
 [role="xpack"]
 [testenv="basic"]
-=== Point datatype
+=== Point data type
 ++++
 <titleabbrev>Point</titleabbrev>
 ++++
 
-The `point` datatype facilitates the indexing of and searching
+The `point` data type facilitates the indexing of and searching
 arbitrary `x, y` pairs that fall in a 2-dimensional planar
 coordinate system.
 

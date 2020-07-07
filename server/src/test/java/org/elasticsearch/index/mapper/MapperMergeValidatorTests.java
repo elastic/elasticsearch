@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,8 +43,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 singletonList(objectMapper),
                 emptyList(),
-                singletonList(aliasMapper),
-                new FieldTypeLookup()));
+                singletonList(aliasMapper)));
         assertEquals("Field [some.path] is defined both as an object and a field.", e.getMessage());
     }
 
@@ -56,8 +56,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 Arrays.asList(field, invalidField),
-                singletonList(invalidAlias),
-                new FieldTypeLookup()));
+                singletonList(invalidAlias)));
 
         assertEquals("Field [invalid] is defined both as an alias and a concrete field.", e.getMessage());
     }
@@ -71,8 +70,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 singletonList(field),
-                Arrays.asList(alias, invalidAlias),
-                new FieldTypeLookup()));
+                Arrays.asList(alias, invalidAlias)));
 
         assertEquals("Invalid [path] value [alias] for field alias [invalid-alias]: an alias" +
             " cannot refer to another alias.", e.getMessage());
@@ -85,8 +83,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias),
-                new FieldTypeLookup()));
+                singletonList(invalidAlias)));
 
         assertEquals("Invalid [path] value [invalid-alias] for field alias [invalid-alias]: an alias" +
             " cannot refer to itself.", e.getMessage());
@@ -99,8 +96,7 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateNewMappers(
                 emptyList(),
                 emptyList(),
-                singletonList(invalidAlias),
-                new FieldTypeLookup()));
+                singletonList(invalidAlias)));
 
         assertEquals("Invalid [path] value [non-existent] for field alias [invalid-alias]: an alias" +
             " must refer to an existing field in the mappings.", e.getMessage());
@@ -113,7 +109,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
         MapperMergeValidator.validateFieldReferences(emptyList(),
             singletonList(aliasMapper),
             Collections.singletonMap("nested", objectMapper),
-            new FieldTypeLookup());
+            new FieldTypeLookup(),
+            new MetadataFieldMapper[0],
+            null);
     }
 
     public void testFieldAliasWithDifferentObjectScopes() {
@@ -126,7 +124,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
         MapperMergeValidator.validateFieldReferences(emptyList(),
             singletonList(aliasMapper),
             fullPathObjectMappers,
-            new FieldTypeLookup());
+            new FieldTypeLookup(),
+            new MetadataFieldMapper[0],
+            null);
     }
 
     public void testFieldAliasWithNestedTarget() {
@@ -137,7 +137,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateFieldReferences(emptyList(),
                 singletonList(aliasMapper),
                 Collections.singletonMap("nested", objectMapper),
-                new FieldTypeLookup()));
+                new FieldTypeLookup(),
+                new MetadataFieldMapper[0],
+                null));
 
         String expectedMessage = "Invalid [path] value [nested.field] for field alias [alias]: " +
             "an alias must have the same nested scope as its target. The alias is not nested, " +
@@ -156,7 +158,9 @@ public class MapperMergeValidatorTests extends ESTestCase {
             MapperMergeValidator.validateFieldReferences(emptyList(),
                 singletonList(aliasMapper),
                 fullPathObjectMappers,
-                new FieldTypeLookup()));
+                new FieldTypeLookup(),
+                new MetadataFieldMapper[0],
+                null));
 
 
         String expectedMessage = "Invalid [path] value [nested1.field] for field alias [nested2.alias]: " +
@@ -170,14 +174,16 @@ public class MapperMergeValidatorTests extends ESTestCase {
         .build();
 
     private static ObjectMapper createObjectMapper(String name) {
-        return new ObjectMapper(name, name, true,
+        return new ObjectMapper(name, name,
+            new Explicit<>(true, false),
             ObjectMapper.Nested.NO,
             ObjectMapper.Dynamic.FALSE, emptyMap(), SETTINGS);
     }
 
     private static ObjectMapper createNestedObjectMapper(String name) {
-        return new ObjectMapper(name, name, true,
-            ObjectMapper.Nested.newNested(false, false),
+        return new ObjectMapper(name, name,
+            new Explicit<>(true, false),
+            ObjectMapper.Nested.newNested(),
             ObjectMapper.Dynamic.FALSE, emptyMap(), SETTINGS);
     }
 }

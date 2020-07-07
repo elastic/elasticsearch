@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -98,12 +97,7 @@ public class Detector implements ToXContentObject, Writeable {
         parser.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
         parser.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
         parser.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
-        parser.declareField(Builder::setExcludeFrequent, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ExcludeFrequent.forString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
+        parser.declareString(Builder::setExcludeFrequent, ExcludeFrequent::forString, EXCLUDE_FREQUENT_FIELD);
         parser.declareObjectArray(Builder::setRules,
             (p, c) -> (ignoreUnknownFields ? DetectionRule.LENIENT_PARSER : DetectionRule.STRICT_PARSER).apply(p, c).build(),
             CUSTOM_RULES_FIELD);

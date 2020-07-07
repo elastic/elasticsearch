@@ -18,7 +18,7 @@ task copyRestTestsResources(type: Copy) {
 integTest.dependsOn(copyRestTestsResources)
 
 dependencies {
-  compile project(':test:framework')
+  implementation project(':test:framework')
 }
 
 test.enabled = false

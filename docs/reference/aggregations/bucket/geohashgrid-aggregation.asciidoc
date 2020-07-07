@@ -268,6 +268,16 @@ Cell dimensions vary with latitude and so the table is for the worst-case scenar
 12::	3.7cm x 1.9cm
 
 
+[discrete]
+[role="xpack"]
+==== Aggregating `geo_shape` fields
+
+Aggregating on <<geo-shape>> fields works just as it does for points, except that a single
+shape can be counted for in multiple tiles. A shape will contribute to the count of matching values
+if any part of its shape intersects with that tile. Below is an image that demonstrates this
+
+
+image:images/spatial/geoshape_grid.png[]
 
 ==== Options
 

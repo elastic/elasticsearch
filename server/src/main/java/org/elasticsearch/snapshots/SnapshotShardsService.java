@@ -121,15 +121,12 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         try {
-            SnapshotsInProgress previousSnapshots = event.previousState().custom(SnapshotsInProgress.TYPE);
-            SnapshotsInProgress currentSnapshots = event.state().custom(SnapshotsInProgress.TYPE);
-            if ((previousSnapshots == null && currentSnapshots != null)
-                || (previousSnapshots != null && previousSnapshots.equals(currentSnapshots) == false)) {
+            SnapshotsInProgress previousSnapshots = event.previousState().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            SnapshotsInProgress currentSnapshots = event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+            if (previousSnapshots.equals(currentSnapshots) == false) {
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
-                    if (currentSnapshots != null) {
-                        startNewSnapshots(currentSnapshots);
-                    }
+                    startNewSnapshots(currentSnapshots);
                 }
             }
 
@@ -175,13 +172,13 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void cancelRemoved(@Nullable SnapshotsInProgress snapshotsInProgress) {
+    private void cancelRemoved(SnapshotsInProgress snapshotsInProgress) {
         // First, remove snapshots that are no longer there
         Iterator<Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>>> it = shardSnapshots.entrySet().iterator();
         while (it.hasNext()) {
             final Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry = it.next();
             final Snapshot snapshot = entry.getKey();
-            if (snapshotsInProgress == null || snapshotsInProgress.snapshot(snapshot) == null) {
+            if (snapshotsInProgress.snapshot(snapshot) == null) {
                 // abort any running snapshots of shards for the removed entry;
                 // this could happen if for some reason the cluster state update for aborting
                 // running shards is missed, then the snapshot is removed is a subsequent cluster
@@ -232,7 +229,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     if (snapshotStatus == null) {
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify master that abort has completed by moving to FAILED
-                        if (shard.value.state() == ShardState.ABORTED) {
+                        if (shard.value.state() == ShardState.ABORTED && localNodeId.equals(shard.value.nodeId())) {
                             notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
                         }
                     } else {

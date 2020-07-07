@@ -7,7 +7,6 @@
 :xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
-
 include::../Versions.asciidoc[]
 
 include::intro.asciidoc[]

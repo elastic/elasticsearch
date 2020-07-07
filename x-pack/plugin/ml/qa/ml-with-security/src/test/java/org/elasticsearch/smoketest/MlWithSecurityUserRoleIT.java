@@ -47,7 +47,7 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
                 if (section instanceof DoSection) {
                     String apiName = ((DoSection) section).getApiCallSection().getApi();
 
-                    if (((DoSection) section).getApiCallSection().getApi().startsWith("ml.") && isAllowed(apiName) == false) {
+                    if (apiName.startsWith("ml.") && isAllowed(apiName) == false) {
                         fail("should have failed because of missing role");
                     }
                 }

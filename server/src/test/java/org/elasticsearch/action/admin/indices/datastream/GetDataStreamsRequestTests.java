@@ -32,6 +32,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -65,7 +66,8 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
-        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", List.of(idx.getIndex()));
+        DataStream existingDataStream =
+            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(dataStreamName);
@@ -79,8 +81,8 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
         IndexMetadata idx1 = DataStreamTestHelper.createFirstBackingIndex(dataStreamNames[0]).build();
         IndexMetadata idx2 = DataStreamTestHelper.createFirstBackingIndex(dataStreamNames[1]).build();
 
-        DataStream ds1 = new DataStream(dataStreamNames[0], "timestamp", List.of(idx1.getIndex()));
-        DataStream ds2 = new DataStream(dataStreamNames[1], "timestamp", List.of(idx2.getIndex()));
+        DataStream ds1 = new DataStream(dataStreamNames[0], createTimestampField("@timestamp"), List.of(idx1.getIndex()));
+        DataStream ds2 = new DataStream(dataStreamNames[1], createTimestampField("@timestamp"), List.of(idx2.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(
                 Map.of(dataStreamNames[0], ds1, dataStreamNames[1], ds2)).build())

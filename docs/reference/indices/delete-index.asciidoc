@@ -36,6 +36,11 @@ with `_all` or wildcard expressions, change the
 `action.destructive_requires_name` cluster setting to `true`. You can update
 this setting in the `elasticsearch.yml` file or using the
 <<cluster-update-settings,cluster update settings>> API.
+
+NOTE: You cannot delete the current write index of a data stream. To delete the
+index, you must <<rollover-data-stream-ex,roll over>> the data stream so a new
+write index is created. You can then use the delete index API to delete the
+previous write index.
 --
 
 

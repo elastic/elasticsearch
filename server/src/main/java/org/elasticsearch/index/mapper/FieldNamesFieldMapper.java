@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -44,7 +43,7 @@ import java.util.Objects;
  */
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldNamesFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldNamesFieldMapper.class);
 
     public static final String NAME = "_field_names";
 
@@ -81,7 +80,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         public FieldNamesFieldMapper build(BuilderContext context) {
             FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType();
             fieldNamesFieldType.setEnabled(enabled);
-            return new FieldNamesFieldMapper(fieldType, fieldNamesFieldType, context.indexSettings());
+            return new FieldNamesFieldMapper(fieldType, fieldNamesFieldType);
         }
     }
 
@@ -118,7 +117,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new FieldNamesFieldMapper(Defaults.FIELD_TYPE, new FieldNamesFieldType(), indexSettings);
+            return new FieldNamesFieldMapper(Defaults.FIELD_TYPE, new FieldNamesFieldType());
         }
     }
 
@@ -127,7 +126,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
-            super(Defaults.NAME, true, false, Collections.emptyMap());
+            super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {
@@ -181,8 +180,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private FieldNamesFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, Settings indexSettings) {
-        super(fieldType, mappedFieldType, indexSettings);
+    private FieldNamesFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
+        super(fieldType, mappedFieldType);
     }
 
     @Override

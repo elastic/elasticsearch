@@ -24,9 +24,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -35,14 +32,13 @@ import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
-    static Settings dummySettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
 
     public MockFieldMapper(String fullName) {
         this(new FakeFieldType(fullName));
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        super(findSimpleName(fieldType.name()), new FieldType(), fieldType, dummySettings,
+        super(findSimpleName(fieldType.name()), new FieldType(), fieldType,
             MultiFields.empty(), new CopyTo.Builder().build());
     }
 
@@ -53,7 +49,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType(String name) {
-            super(name, true, false, Collections.emptyMap());
+            super(name, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         protected FakeFieldType(FakeFieldType ref) {

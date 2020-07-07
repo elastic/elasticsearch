@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,8 +62,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public abstract MetadataFieldMapper build(BuilderContext context);
     }
 
-    protected MetadataFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, Settings indexSettings) {
-        super(mappedFieldType.name(), fieldType, mappedFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+    protected MetadataFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
+        super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
     /**

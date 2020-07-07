@@ -37,7 +37,13 @@ GET /_snapshot/my_repository/my_snapshot
 [[get-snapshot-api-desc]]
 ==== {api-description-title}
 
-Use the get snapshot API to return information about one or more snapshots, including start and end time, version of {es} that created the snapshot, the list of included indices, the current state of the snapshot, and the list of failures that occurred during the snapshot.
+Use the get snapshot API to return information about one or more snapshots, including:
+
+* Value start and end time
+* Version of {es} that created the snapshot
+* List of included indices
+* Current state of the snapshot
+* List of failures that occurred during the snapshot
 
 [[get-snapshot-api-path-params]]
 ==== {api-path-parms-title}
@@ -55,9 +61,10 @@ cluster, omit this parameter or use `*` or `_all`.
 Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`).
 +
 * To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
-* To get information about any snapshots that are currently running, omit this parameter and use `_current`.
+* To get information about any snapshots that are currently running, use `_current`.
 +
-NOTE: Using `_all` in a request fails if any snapshots are unavailable. Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
+NOTE: Using `_all` in a request fails if any snapshots are unavailable.
+Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
 
 [role="child-attributes"]
 [[get-snapshot-api-request-body]]
@@ -75,6 +82,78 @@ If `true`, the request ignores snapshots that are unavailable, such as those tha
 If `true`, returns all available information about a snapshot. Defaults to `true`.
 +
 If `false`, omits additional information about the snapshot, such as version information, start and end times, and the number of snapshotted shards.
+
+[role="child-attributes"]
+[[get-snapshot-api-response-body]]
+==== {api-response-body-title}
+
+`snapshot`::
+Name of the snapshot.
+
+`uuid`::
+Universally unique identifier (UUID) of the snapshot.
+
+`version_id`::
+Build ID of the {es} version used to create the snapshot.
+
+`version`::
+{es} version used to create the snapshot.
+
+`indices`::
+Indices that are included in the snapshot.
+
+`start_time`::
+Date timestamp of when the snapshot creation process started.
+
+`start_time_in_millis`::
+The start time, in milliseconds, when the snapshot creation process started.
+
+`end_time`::
+Date timestamp of when the snapshot creation process ended.
+
+`end_time_in_millis`::
+The end time, in milliseconds, when the snapshot creation process ended.
+
+`duration_in_millis`::
+How long, in milliseconds, it took to create the snapshot.
+
+`failures`::
+Lists any failures that occurred when creating the snapshot.
+
+`shards`::
+Indicates the following shards information:
+* Total shards included in the snapshot
+* Failed shards that were not included in the snapshot
+* Successful shards that were included in the snapshot
+
+`state`::
++
+--
+(string)
+The snapshot `state` can be one of the following values:
+
+.Values for `state`
+[%collapsible%open]
+====
+`IN_PROGRESS`::
+  The snapshot is currently running.
+
+`SUCCESS`::
+  The snapshot finished and all shards were stored successfully.
+
+`FAILED`::
+  The snapshot finished with an error and failed to store any data.
+
+`PARTIAL`::
+  The global cluster state was stored, but data of at least one shard was not stored successfully.
+  The `failures` section of the response contains more detailed information about shards
+  that were not processed correctly.
+
+`INCOMPATIBLE`::
+  The snapshot was created with an old version of {es} and is incompatible with
+  the current version of the cluster.
+====
+--
 
 [[get-snapshot-api-example]]
 ==== {api-examples-title}
@@ -126,24 +205,3 @@ The API returns the following response:
 // TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.responses.0.snapshots.0.end_time/]
 // TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.responses.0.snapshots.0.end_time_in_millis/]
 // TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.responses.0.snapshots.0.duration_in_millis/]
-
-The snapshot `state` can be one of the following values:
-
-[horizontal]
-`IN_PROGRESS`::
-  The snapshot is currently running.
-
-`SUCCESS`::
-  The snapshot finished and all shards were stored successfully.
-
-`FAILED`::
-  The snapshot finished with an error and failed to store any data.
-
-`PARTIAL`::
-  The global cluster state was stored, but data of at least one shard was not stored successfully.
-  The `failures` section of the response contains more detailed information about shards
-  that were not processed correctly.
-
-`INCOMPATIBLE`::
-  The snapshot was created with an old version of {es} and is incompatible with
-  the current version of the cluster.

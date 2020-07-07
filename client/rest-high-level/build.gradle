@@ -37,11 +37,11 @@ restResources {
 }
 
 dependencies {
-  compile project(':modules:mapper-extras')
-  compile project(':modules:parent-join')
-  compile project(':modules:aggs-matrix-stats')
-  compile project(':modules:rank-eval')
-  compile project(':modules:lang-mustache')
+  api project(':modules:mapper-extras')
+  api project(':modules:parent-join')
+  api project(':modules:aggs-matrix-stats')
+  api project(':modules:rank-eval')
+  api project(':modules:lang-mustache')
 
   // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
   shadow project(':server')
@@ -59,10 +59,6 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
   testImplementation(project(':x-pack:plugin:eql'))
-}
-
-processTestResources {
-  from(project(':client:rest-high-level').file('src/test/resources'))
 }
 
 tasks.named('forbiddenApisMain').configure {

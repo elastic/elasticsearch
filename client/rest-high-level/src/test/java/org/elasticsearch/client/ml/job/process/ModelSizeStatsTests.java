@@ -32,6 +32,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
         assertEquals(0, stats.getModelBytes());
+        assertNull(stats.getPeakModelBytes());
         assertNull(stats.getModelBytesExceeded());
         assertNull(stats.getModelBytesMemoryLimit());
         assertEquals(0, stats.getTotalByFieldCount());
@@ -76,6 +77,9 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
         }
         if (randomBoolean()) {
             stats.setModelBytes(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setPeakModelBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             stats.setModelBytesExceeded(randomNonNegativeLong());

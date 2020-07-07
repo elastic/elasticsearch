@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'Lucene expressions integration for Elasticsearch'
@@ -23,11 +24,11 @@ esplugin {
 }
 
 dependencies {
-  compile "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  compile 'org.antlr:antlr4-runtime:4.5.1-1'
-  compile 'org.ow2.asm:asm:5.0.4'
-  compile 'org.ow2.asm:asm-commons:5.0.4'
-  compile 'org.ow2.asm:asm-tree:5.0.4'
+  api "org.apache.lucene:lucene-expressions:${versions.lucene}"
+  api 'org.antlr:antlr4-runtime:4.5.1-1'
+  api 'org.ow2.asm:asm:5.0.4'
+  api 'org.ow2.asm:asm-commons:5.0.4'
+  api 'org.ow2.asm:asm-tree:5.0.4'
 }
 restResources {
   restApi {

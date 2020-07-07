@@ -1,5 +1,8 @@
 [[analysis-stop-analyzer]]
-=== Stop Analyzer
+=== Stop analyzer
+++++
+<titleabbrev>Stop</titleabbrev>
+++++
 
 The `stop` analyzer is the same as the <<analysis-simple-analyzer,`simple` analyzer>>
 but adds support for removing stop words.  It defaults to using the

@@ -25,20 +25,20 @@ tasks.named("dependencyLicenses").configure {
 
 dependencies {
   compileOnly project(":server")
-  compile project(":libs:elasticsearch-ssl-config")
-  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
-  compile "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
+  api project(":libs:elasticsearch-ssl-config")
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
+  api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
 
-  compile "commons-logging:commons-logging:${versions.commonslogging}"
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api "commons-codec:commons-codec:${versions.commonscodec}"
 
   // security deps
-  compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
-  compile project(path: ':modules:transport-netty4', configuration: 'runtime')
-  compile(project(path: ':plugins:transport-nio', configuration: 'runtime')) {
+  api 'com.unboundid:unboundid-ldapsdk:4.0.8'
+  api project(path: ':modules:transport-netty4')
+  api( project(path: ':plugins:transport-nio')) {
     // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
     exclude group: "org.elasticsearch", module: "elasticsearch-core"
   }
@@ -47,10 +47,10 @@ dependencies {
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  testImplementation project(path: ':modules:reindex', configuration: 'runtime')
-  testImplementation project(path: ':modules:parent-join', configuration: 'runtime')
-  testImplementation project(path: ':modules:lang-mustache', configuration: 'runtime')
-  testImplementation project(path: ':modules:analysis-common', configuration: 'runtime')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:lang-mustache')
+  testImplementation project(path: ':modules:analysis-common')
   testImplementation project(":client:rest-high-level")
 
   testImplementation(project(':x-pack:license-tools')) {
@@ -65,6 +65,10 @@ ext.expansions = [
 
 processResources {
   from(sourceSets.main.resources.srcDirs) {
+    // we need to have duplicate strategy here as
+    // we cannot apply the filter on root level due
+    // to wrong behaviour with binary files.
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     exclude '**/public.key'
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)

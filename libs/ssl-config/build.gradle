@@ -19,7 +19,7 @@
 apply plugin: "elasticsearch.publish"
 
 dependencies {
-  compile project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-core')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-ssl-config'

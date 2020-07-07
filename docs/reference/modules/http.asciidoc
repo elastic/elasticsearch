@@ -1,6 +1,7 @@
 [[modules-http]]
 === HTTP
-
+[[modules-http-description]]
+// tag::modules-http-description-tag[]
 The HTTP layer exposes {es}'s REST APIs over HTTP.
 
 The HTTP mechanism is completely asynchronous in nature, meaning that
@@ -13,105 +14,118 @@ http://en.wikipedia.org/wiki/Keepalive#HTTP_Keepalive[HTTP keep alive]
 when connecting for better performance and try to get your favorite
 client not to do
 http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
+// end::modules-http-description-tag[]
 
 [http-settings]
 ==== HTTP settings
 
-The settings in the table below can be configured for HTTP. Note that none of
-them are dynamically updatable so for them to take effect they should be set in
-the Elasticsearch <<settings, configuration file>>.
+The following settings can be configured for HTTP. These settings also use the common <<modules-network,network settings>>.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`http.port` |A bind port range. Defaults to `9200-9300`.
+NOTE: HTTP settings cannot be updated dynamically. You must configure these settings in the {es} <<settings, configuration file>>
+and restart {es} for changes to take effect.
 
-|`http.publish_port` |The port that HTTP clients should use when
+`http.port`::
+A bind port range. Defaults to `9200-9300`.
+
+`http.publish_port`::
+The port that HTTP clients should use when
 communicating with this node. Useful when a cluster node is behind a
 proxy or firewall and the `http.port` is not directly addressable
 from the outside. Defaults to the actual port assigned via `http.port`.
 
-|`http.bind_host` |The host address to bind the HTTP service to. Defaults to `http.host` (if set) or `network.bind_host`.
+`http.bind_host`::
+The host address to bind the HTTP service to. Defaults to `http.host` (if set) or `network.bind_host`.
 
-|`http.publish_host` |The host address to publish for HTTP clients to connect to. Defaults to `http.host` (if set) or `network.publish_host`.
+`http.publish_host`::
+The host address to publish for HTTP clients to connect to. Defaults to `http.host` (if set) or `network.publish_host`.
 
-|`http.host` |Used to set the `http.bind_host` and the `http.publish_host`.
+`http.host`::
+Used to set the `http.bind_host` and the `http.publish_host`.
 
-|`http.max_content_length` |The max content of an HTTP request. Defaults to
-`100mb`.
+`http.max_content_length`::
+The max content of an HTTP request. Defaults to `100MB`.
 
-|`http.max_initial_line_length` |The max length of an HTTP URL. Defaults
-to `4kb`
+`http.max_initial_line_length`::
+The max length of an HTTP URL. Defaults to `4KB`.
 
-|`http.max_header_size` | The max size of allowed headers.  Defaults to `8kB`
+`http.max_header_size`::
+The max size of allowed headers. Defaults to `8KB`.
 
-
-|`http.compression` |Support for compression when possible (with
-Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults
-to `true`.
-
+[[http-compression]]
+// tag::http-compression-tag[]
+`http.compression` {ess-icon}::
+Support for compression when possible (with Accept-Encoding). If HTTPS is enabled, defaults to `false`. Otherwise, defaults to `true`.
++
 Disabling compression for HTTPS mitigates potential security risks, such as a
 https://en.wikipedia.org/wiki/BREACH[BREACH attack]. To compress HTTPS traffic,
 you must explicitly set `http.compression` to `true`.
+// end::http-compression-tag[]
 
-|`http.compression_level` |Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression)
-and 9 (maximum compression). Defaults to `3`.
+`http.compression_level`::
+Defines the compression level to use for HTTP responses. Valid values are in the range of 1 (minimum compression) and 9 (maximum compression). Defaults to `3`.
 
-|`http.cors.enabled` |Enable or disable cross-origin resource sharing,
-i.e. whether a browser on another origin can execute requests against
-Elasticsearch. Set to `true` to enable Elasticsearch to process pre-flight
+[[http-cors-enabled]]
+// tag::http-cors-enabled-tag[]
+`http.cors.enabled` {ess-icon}::
+Enable or disable cross-origin resource sharing, which determines whether a browser on another origin can execute requests against {es}. Set to `true` to enable {es} to process pre-flight
 https://en.wikipedia.org/wiki/Cross-origin_resource_sharing[CORS] requests.
-Elasticsearch will respond to those requests with the `Access-Control-Allow-Origin` header
-if the `Origin` sent in the request is permitted by the `http.cors.allow-origin`
-list. Set to `false` (the default) to make Elasticsearch ignore the `Origin`
-request header, effectively disabling CORS requests because Elasticsearch will
-never respond with the `Access-Control-Allow-Origin` response header. Note that
-if the client does not send a pre-flight request with an `Origin` header or it
-does not check the response headers from the server to validate the
+{es} will respond to those requests with the `Access-Control-Allow-Origin` header if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` list. Set to `false` (the default) to make {es} ignore the `Origin` request header, effectively disabling CORS requests because {es} will never respond with the `Access-Control-Allow-Origin` response header.
++
+NOTE: If the client does not send a pre-flight request with an `Origin` header or it does not check the response headers from the server to validate the
 `Access-Control-Allow-Origin` response header, then cross-origin security is
-compromised. If CORS is not enabled on Elasticsearch, the only way for the client
-to know is to send a pre-flight request and realize the required response headers
-are missing.
+compromised. If CORS is not enabled on {es}, the only way for the client to know is to send a pre-flight request and realize the required response headers are missing.
 
-|`http.cors.allow-origin` |Which origins to allow. Defaults to no origins
-allowed. If you prepend and append a `/` to the value, this will
-be treated as a regular expression, allowing you to support HTTP and HTTPs.
-for example using `/https?:\/\/localhost(:[0-9]+)?/` would return the
-request header appropriately in both cases. `*` is a valid value but is
-considered a *security risk* as your Elasticsearch instance is open to cross origin
-requests from *anywhere*.
+// end::http-cors-enabled-tag[]
 
-|`http.cors.max-age` |Browsers send a "preflight" OPTIONS-request to
-determine CORS settings. `max-age` defines how long the result should
-be cached for. Defaults to `1728000` (20 days)
+[[http-cors-allow-origin]]
+// tag::http-cors-allow-origin-tag[]
+`http.cors.allow-origin` {ess-icon}::
+Which origins to allow. If you prepend and append a forward slash (`/`) to the value, this will be treated as a regular expression, allowing you to support HTTP and HTTPs. For example, using `/https?:\/\/localhost(:[0-9]+)?/` would return the request header appropriately in both cases. Defaults to no origins allowed.
++
+IMPORTANT: A wildcard (`*`) is a valid value but is considered a security risk, as your {es} instance is open to cross origin requests from *anywhere*.
 
-|`http.cors.allow-methods` |Which methods to allow. Defaults to
-`OPTIONS, HEAD, GET, POST, PUT, DELETE`.
+// end::http-cors-allow-origin-tag[]
 
-|`http.cors.allow-headers` |Which headers to allow. Defaults to
-`X-Requested-With, Content-Type, Content-Length`.
+[[http-cors-max-age]]
+// tag::http-cors-max-age-tag[]
+`http.cors.max-age` {ess-icon}::
+Browsers send a "preflight" OPTIONS-request to determine CORS settings. `max-age` defines how long the result should be cached for. Defaults to `1728000` (20 days).
+// end::http-cors-max-age-tag[]
 
-|`http.cors.allow-credentials` | Whether the `Access-Control-Allow-Credentials`
-header should be returned. Note: This header is only returned, when the setting is
-set to `true`. Defaults to `false`
+[[http-cors-allow-methods]]
+// tag::http-cors-allow-methods-tag[]
+`http.cors.allow-methods` {ess-icon}::
+Which methods to allow. Defaults to `OPTIONS, HEAD, GET, POST, PUT, DELETE`.
+// end::http-cors-allow-methods-tag[]
 
-|`http.detailed_errors.enabled` |Enables or disables the output of detailed error messages
-and stack traces in response output. Note: When set to `false` and the `error_trace` request
-parameter is specified, an error will be returned; when `error_trace` is not specified, a
-simple message will be returned. Defaults to `true`
+[[http-cors-allow-headers]]
+// tag::http-cors-allow-headers-tag[]
+`http.cors.allow-headers` {ess-icon}::
+Which headers to allow. Defaults to `X-Requested-With, Content-Type, Content-Length`.
+// end::http-cors-allow-headers-tag[]
 
-|`http.pipelining.max_events` |The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
+[[http-cors-allow-credentials]]
+// tag::http-cors-allow-credentials-tag[]
+`http.cors.allow-credentials` {ess-icon}::
+Whether the `Access-Control-Allow-Credentials` header should be returned. Defaults to `false`.
++
+NOTE: This header is only returned when the setting is set to `true`.
 
-|`http.max_warning_header_count` |The maximum number of warning headers in
- client HTTP responses, defaults to unbounded.
+// end::http-cors-allow-credentials-tag[]
 
-|`http.max_warning_header_size` |The maximum total size of warning headers in
-client HTTP responses, defaults to unbounded.
+`http.detailed_errors.enabled`::
+If `true`, enables the output of detailed error messages and stack traces in the response output. Defaults to `true`.
++
+If `false`, use the `error_trace` parameter to <<common-options-error-options,enable stack traces>> and return detailed error messages. Otherwise, only a simple message will be returned.
 
-|=======================================================================
+`http.pipelining.max_events`::
+The maximum number of events to be queued up in memory before an HTTP connection is closed, defaults to `10000`.
 
-It also uses the common
-<<modules-network,network settings>>.
+`http.max_warning_header_count`::
+The maximum number of warning headers in client HTTP responses. Defaults to `unbounded`.
+
+`http.max_warning_header_size`::
+The maximum total size of warning headers in client HTTP responses. Defaults to `unbounded`.
 
 [http-rest-request-tracer]
 ==== REST request tracer

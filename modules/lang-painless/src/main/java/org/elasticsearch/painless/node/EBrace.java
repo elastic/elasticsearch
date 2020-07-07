@@ -19,9 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BraceNode;
 import org.elasticsearch.painless.ir.BraceSubDefNode;
 import org.elasticsearch.painless.ir.BraceSubNode;
@@ -33,6 +31,14 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -63,49 +69,61 @@ public class EBrace extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.read == false && input.write == false) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitBrace(this, input);
+    }
+
+    @Override
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        boolean read = semanticScope.getCondition(this, Read.class);
+        boolean write = semanticScope.getCondition(this, Write.class);
+
+        if (read == false && write == false) {
             throw createError(new IllegalArgumentException("not a statement: result of brace operator not used"));
         }
 
-        Output prefixOutput = analyze(prefixNode, classNode, semanticScope, new Input());
+        semanticScope.setCondition(prefixNode, Read.class);
+        Output prefixOutput = analyze(prefixNode, classNode, semanticScope);
+        Class<?> prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class).getValueType();
 
         ExpressionNode expressionNode;
         Output output = new Output();
+        Class<?> valueType;
 
-        if (prefixOutput.actual.isArray()) {
-            Input indexInput = new Input();
-            indexInput.expected = int.class;
-            Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-            PainlessCast indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                    indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
-
-            output.actual = prefixOutput.actual.getComponentType();
+        if (prefixValueType.isArray()) {
+            semanticScope.setCondition(indexNode, Read.class);
+            semanticScope.putDecoration(indexNode, new TargetType(int.class));
+            Output indexOutput = analyze(indexNode, classNode, semanticScope);
+            PainlessCast indexCast = indexNode.cast(semanticScope);
+            valueType = prefixValueType.getComponentType();
 
             BraceSubNode braceSubNode = new BraceSubNode();
             braceSubNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             braceSubNode.setLocation(getLocation());
-            braceSubNode.setExpressionType(output.actual);
+            braceSubNode.setExpressionType(valueType);
             expressionNode = braceSubNode;
-        } else if (prefixOutput.actual == def.class) {
-            Input indexInput = new Input();
-            Output indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
+        } else if (prefixValueType == def.class) {
+            semanticScope.setCondition(indexNode, Read.class);
+            Output indexOutput = analyze(indexNode, classNode, semanticScope);
 
+            TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
-            output.isDefOptimized = true;
+            valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
+                    semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
+            semanticScope.setCondition(this, DefOptimized.class);
 
             BraceSubDefNode braceSubDefNode = new BraceSubDefNode();
             braceSubDefNode.setChildNode(indexOutput.expressionNode);
             braceSubDefNode.setLocation(getLocation());
-            braceSubDefNode.setExpressionType(output.actual);
+            braceSubDefNode.setExpressionType(valueType);
             expressionNode = braceSubDefNode;
-        } else if (Map.class.isAssignableFrom(prefixOutput.actual)) {
-            Class<?> targetClass = prefixOutput.actual;
-            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
+        } else if (Map.class.isAssignableFrom(prefixValueType)) {
+            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
-            PainlessMethod getter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-            PainlessMethod setter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "put", 2);
+            PainlessMethod getter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
+            PainlessMethod setter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "put", 2);
 
             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1)) {
                 throw createError(new IllegalArgumentException("Illegal map get shortcut for type [" + canonicalClassName + "]."));
@@ -123,14 +141,13 @@ public class EBrace extends AExpression {
             Output indexOutput;
             PainlessCast indexCast;
 
-            if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
-                Input indexInput = new Input();
-                indexInput.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-                indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-                indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
-
-                output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+            if ((read == false || getter != null) && (write == false || setter != null)) {
+                semanticScope.setCondition(indexNode, Read.class);
+                semanticScope.putDecoration(indexNode,
+                        new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
+                indexOutput = analyze(indexNode, classNode, semanticScope);
+                indexCast = indexNode.cast(semanticScope);
+                valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
                 throw createError(new IllegalArgumentException("Illegal map shortcut for type [" + canonicalClassName + "]."));
             }
@@ -138,16 +155,17 @@ public class EBrace extends AExpression {
             MapSubShortcutNode mapSubShortcutNode = new MapSubShortcutNode();
             mapSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             mapSubShortcutNode.setLocation(getLocation());
-            mapSubShortcutNode.setExpressionType(output.actual);
+            mapSubShortcutNode.setExpressionType(valueType);
             mapSubShortcutNode.setGetter(getter);
             mapSubShortcutNode.setSetter(setter);
             expressionNode = mapSubShortcutNode;
-        } else if (List.class.isAssignableFrom(prefixOutput.actual)) {
-            Class<?> targetClass = prefixOutput.actual;
-            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
+        } else if (List.class.isAssignableFrom(prefixValueType)) {
+            String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType);
 
-            PainlessMethod getter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
-            PainlessMethod setter = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(targetClass, false, "set", 2);
+            PainlessMethod getter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "get", 1);
+            PainlessMethod setter =
+                    semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(prefixValueType, false, "set", 2);
 
             if (getter != null && (getter.returnType == void.class || getter.typeParameters.size() != 1 ||
                     getter.typeParameters.get(0) != int.class)) {
@@ -166,14 +184,12 @@ public class EBrace extends AExpression {
             Output indexOutput;
             PainlessCast indexCast;
 
-            if ((input.read == false || getter != null) && (input.write == false || setter != null)) {
-                Input indexInput = new Input();
-                indexInput.expected = int.class;
-                indexOutput = analyze(indexNode, classNode, semanticScope, indexInput);
-                indexCast = AnalyzerCaster.getLegalCast(indexNode.getLocation(),
-                        indexOutput.actual, indexInput.expected, indexInput.explicit, indexInput.internal);
-
-                output.actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
+            if ((read == false || getter != null) && (write == false || setter != null)) {
+                semanticScope.setCondition(indexNode, Read.class);
+                semanticScope.putDecoration(indexNode, new TargetType(int.class));
+                indexOutput = analyze(indexNode, classNode, semanticScope);
+                indexCast = indexNode.cast(semanticScope);
+                valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
             } else {
                 throw createError(new IllegalArgumentException("Illegal list shortcut for type [" + canonicalClassName + "]."));
             }
@@ -181,21 +197,22 @@ public class EBrace extends AExpression {
             ListSubShortcutNode listSubShortcutNode = new ListSubShortcutNode();
             listSubShortcutNode.setChildNode(cast(indexOutput.expressionNode, indexCast));
             listSubShortcutNode.setLocation(getLocation());
-            listSubShortcutNode.setExpressionType(output.actual);
+            listSubShortcutNode.setExpressionType(valueType);
             listSubShortcutNode.setGetter(getter);
             listSubShortcutNode.setSetter(setter);
             expressionNode = listSubShortcutNode;
         } else {
             throw createError(new IllegalArgumentException("Illegal array access on type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixOutput.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(prefixValueType) + "]."));
         }
+
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
         BraceNode braceNode = new BraceNode();
         braceNode.setLeftNode(prefixOutput.expressionNode);
         braceNode.setRightNode(expressionNode);
         braceNode.setLocation(getLocation());
-        braceNode.setExpressionType(output.actual);
-
+        braceNode.setExpressionType(valueType);
         output.expressionNode = braceNode;
 
         return output;

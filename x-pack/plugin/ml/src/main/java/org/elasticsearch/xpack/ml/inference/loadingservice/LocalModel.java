@@ -7,16 +7,14 @@ package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 
@@ -24,11 +22,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
-public class LocalModel implements Model {
+public class LocalModel {
 
     private final InferenceDefinition trainedModelDefinition;
     private final String modelId;
@@ -63,28 +62,12 @@ public class LocalModel implements Model {
         return trainedModelDefinition.ramBytesUsed();
     }
 
-    @Override
     public String getModelId() {
         return modelId;
     }
 
-    @Override
     public InferenceStats getLatestStatsAndReset() {
         return statsAccumulator.currentStatsAndReset();
-    }
-
-    @Override
-    public String getResultsType() {
-        switch (trainedModelDefinition.getTargetType()) {
-            case CLASSIFICATION:
-                return ClassificationInferenceResults.NAME;
-            case REGRESSION:
-                return RegressionInferenceResults.NAME;
-            default:
-                throw ExceptionsHelper.badRequestException("Model [{}] has unsupported target type [{}]",
-                    modelId,
-                    trainedModelDefinition.getTargetType());
-        }
     }
 
     void persistStats(boolean flush) {
@@ -97,7 +80,6 @@ public class LocalModel implements Model {
         }
     }
 
-    @Override
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
         if (update.isSupported(this.inferenceConfig) == false) {
             listener.onFailure(ExceptionsHelper.badRequestException(
@@ -112,7 +94,7 @@ public class LocalModel implements Model {
             currentInferenceCount.increment();
 
             // Needs to happen before collapse as defaultFieldMap might resolve fields to their appropriate name
-            Model.mapFieldsIfNecessary(fields, defaultFieldMap);
+            LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
 
             Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
             boolean shouldPersistStats = ((currentInferenceCount.sum() + 1) % persistenceQuotient == 0);
@@ -135,4 +117,42 @@ public class LocalModel implements Model {
         }
     }
 
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfigUpdate update) throws Exception {
+        AtomicReference<InferenceResults> result = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<InferenceResults> listener = ActionListener.wrap(
+            result::set,
+            exception::set
+        );
+
+        infer(fields, update, listener);
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        return result.get();
+    }
+
+    /**
+     * Used for translating field names in according to the passed `fieldMappings` parameter.
+     *
+     * This mutates the `fields` parameter in-place.
+     *
+     * Fields are only appended. If the expected field name already exists, it is not created/overwritten.
+     *
+     * Original fields are not deleted.
+     *
+     * @param fields Fields to map against
+     * @param fieldMapping Field originalName to expectedName string mapping
+     */
+    public static void mapFieldsIfNecessary(Map<String, Object> fields, Map<String, String> fieldMapping) {
+        if (fieldMapping != null) {
+            fieldMapping.forEach((src, dest) -> {
+                Object srcValue = MapHelper.dig(src, fields);
+                if (srcValue != null) {
+                    fields.putIfAbsent(dest, srcValue);
+                }
+            });
+        }
+    }
 }

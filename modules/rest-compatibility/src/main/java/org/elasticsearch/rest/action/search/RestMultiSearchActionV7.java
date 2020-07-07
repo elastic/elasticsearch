@@ -19,13 +19,12 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.compat.TypeConsumer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compat.TypeConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
@@ -36,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchActionV7 extends RestMultiSearchAction {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestMultiSearchAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchActionV7.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in multi search requests is deprecated.";
 
     public RestMultiSearchActionV7(Settings settings) {

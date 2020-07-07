@@ -48,6 +48,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import static java.lang.Long.max;
+import static java.lang.Long.min;
+
 /**
  * An aggregator for date values. Every date is rounded down using a configured
  * {@link Rounding}.
@@ -67,7 +70,8 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     private final long minDocCount;
-    private final ExtendedBounds extendedBounds;
+    private final LongBounds extendedBounds;
+    private final LongBounds hardBounds;
 
     private final LongKeyedBucketOrds bucketOrds;
 
@@ -79,7 +83,8 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        @Nullable ExtendedBounds extendedBounds,
+        @Nullable LongBounds extendedBounds,
+        @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
@@ -95,6 +100,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Range) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
@@ -140,9 +146,13 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
-                            final long startKey = preparedRounding.round(from);
-                            final long endKey = preparedRounding.round(to);
-                            for (long  key = startKey > previousKey ? startKey : previousKey; key <= endKey;
+                            final long effectiveFrom = hardBounds != null && hardBounds.getMin() != null ?
+                                max(from, hardBounds.getMin()) : from;
+                            final long effectiveTo = hardBounds != null && hardBounds.getMax() != null ?
+                                min(to, hardBounds.getMax()) : to;
+                            final long startKey = preparedRounding.round(effectiveFrom);
+                            final long endKey =  preparedRounding.round(effectiveTo);
+                            for (long key = max(startKey, previousKey); key <= endKey;
                                  key = preparedRounding.nextRoundingValue(key)) {
                                 if (key == previousKey) {
                                     continue;
@@ -166,6 +176,8 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
             }
         };
     }
+
+
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {

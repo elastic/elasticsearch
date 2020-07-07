@@ -187,11 +187,30 @@ public class GeometryParserTests extends ESTestCase {
         testBasics(parser, "POINT (-122.084110 37.386637)", expectedPoint);
         testBasics(parser, Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)), expectedPoint);
         testBasics(parser, List.of(-122.084110, 37.386637), expectedPoint);
+        Line expectedLine = new Line(new double[] {0, 1}, new double[] {0, 1});
+        testBasics(parser, "LINESTRING(0 0, 1 1)", expectedLine);
+        testBasics(parser, Map.of("type", "LineString", "coordinates", List.of(List.of(0, 0), List.of(1, 1))), expectedLine);
+
+        Polygon expectedPolygon = new Polygon(new LinearRing(new double[] {0, 1, 1, 0, 0}, new double[] {0, 0, 1, 1, 0}));
+        testBasics(parser, "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", expectedPolygon);
+        testBasics(parser, Map.of("type", "Polygon", "coordinates",
+            List.of(
+                List.of(List.of(0, 0), List.of(1, 0), List.of(1, 1), List.of(0, 1), List.of(0, 0)))
+            ),
+            expectedPolygon);
+
         testBasics(parser,
-            List.of(List.of(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)"),
-            new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint))
+            List.of(
+                List.of(-122.084110, 37.386637),
+                "37.386637, -122.084110",
+                "POINT (-122.084110 37.386637)",
+                Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)),
+                Map.of("type", "LineString", "coordinates", List.of(List.of(0, 0), List.of(1, 1))),
+                "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+            ),
+            new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint, expectedPoint, expectedLine, expectedPolygon))
         );
-        expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a point", null));
+        expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a geometry", null));
     }
 
     private void testBasics(GeometryParser parser, Object value, Geometry expected) {

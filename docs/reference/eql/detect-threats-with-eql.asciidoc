@@ -273,12 +273,15 @@ scripts as `scrobj.dll`
 . An image load of the `scrobj.dll` file
 . Any network event, which could indicate the download of a remote file
 
+To match, each event in the sequence must share the same `pid` (process ID)
+field value.
+
 [source,console]
 ----
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence
+    sequence by pid
       [process where process_name == 'regsvr32.exe']
       [image_load where image_name == 'scrobj.dll']
       [network where true]
@@ -306,6 +309,9 @@ The query matches a sequence, indicating the attack likely succeeded.
     },
     "sequences": [
       {
+        "join_keys": [
+          "2012"
+        ],
         "events": [
           {
             "_index": "sec_logs",

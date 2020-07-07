@@ -21,8 +21,9 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
+import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
@@ -119,16 +120,23 @@ public class FunctionNode extends IRNode {
         return maxLoopCounter;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitFunction(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         int access = Opcodes.ACC_PUBLIC;
 
         if (isStatic) {
             access |= Opcodes.ACC_STATIC;
         } else {
-            scopeTable.defineInternalVariable(Object.class, "this");
+            writeScope.defineInternalVariable(Object.class, "this");
         }
 
         if (hasVarArgs) {
@@ -145,7 +153,7 @@ public class FunctionNode extends IRNode {
         for (int index = 0; index < asmParameterTypes.length; ++index) {
             Class<?> type = typeParameters.get(index);
             String name = parameterNames.get(index);
-            scopeTable.defineVariable(type, name);
+            writeScope.defineVariable(type, name);
             asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
         }
 
@@ -158,13 +166,13 @@ public class FunctionNode extends IRNode {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
 
-            Variable loop = scopeTable.defineInternalVariable(int.class, "loop");
+            Variable loop = writeScope.defineInternalVariable(int.class, "loop");
 
             methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        blockNode.write(classWriter, methodWriter, scopeTable.newScope());
+        blockNode.write(classWriter, methodWriter, writeScope.newScope());
 
         methodWriter.endMethod();
     }

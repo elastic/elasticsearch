@@ -40,12 +40,13 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction FROZEN_INDICES = new XPackUsageFeatureAction(XPackField.FROZEN_INDICES);
     public static final XPackUsageFeatureAction SPATIAL = new XPackUsageFeatureAction(XPackField.SPATIAL);
     public static final XPackUsageFeatureAction ANALYTICS = new XPackUsageFeatureAction(XPackField.ANALYTICS);
-    public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
     public static final XPackUsageFeatureAction ENRICH = new XPackUsageFeatureAction(XPackField.ENRICH);
+    public static final XPackUsageFeatureAction SEARCHABLE_SNAPSHOTS = new XPackUsageFeatureAction(XPackField.SEARCHABLE_SNAPSHOTS);
+    public static final XPackUsageFeatureAction AGGREGATE_METRIC = new XPackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
 
     public static final List<XPackUsageFeatureAction> ALL = Arrays.asList(
         SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-        TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, AGGREGATE_METRIC
+        TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, SEARCHABLE_SNAPSHOTS, AGGREGATE_METRIC
     );
 
     private XPackUsageFeatureAction(String name) {

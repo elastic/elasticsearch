@@ -51,7 +51,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -59,23 +59,23 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
-            verify(licenseState).isAllowed(Feature.MONITORING);
+            verify(licenseState).checkFeature(Feature.MONITORING);
         }
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.isAllowed(Feature.MONITORING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexRecoveryCollector collector = new IndexRecoveryCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).isAllowed(Feature.MONITORING);
+        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {

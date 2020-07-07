@@ -34,6 +34,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
@@ -322,7 +323,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService) {
+                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }
 

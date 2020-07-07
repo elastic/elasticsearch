@@ -236,7 +236,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
     @Nullable
-    private RecoveryState recoveryState;
+    private volatile RecoveryState recoveryState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();
@@ -884,16 +884,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert opPrimaryTerm <= getOperationPrimaryTerm()
                 : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
         ensureWriteAllowed(origin);
-        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        final Engine.Delete delete = prepareDelete(id, uid, seqNo, opPrimaryTerm, version,
-            versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
         return delete(engine, delete);
     }
 
-    private Engine.Delete prepareDelete(String id, Term uid, long seqNo, long primaryTerm, long version,
-                                               VersionType versionType, Engine.Operation.Origin origin,
-                                               long ifSeqNo, long ifPrimaryTerm) {
+    public static Engine.Delete prepareDelete(String id, long seqNo, long primaryTerm, long version, VersionType versionType,
+                                              Engine.Operation.Origin origin, long ifSeqNo, long ifPrimaryTerm) {
         long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType,
             origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
@@ -1005,7 +1003,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public StoreStats storeStats() {
         try {
-            return store.stats();
+            final RecoveryState recoveryState = this.recoveryState;
+            final long bytesStillToRecover = recoveryState == null ? -1L : recoveryState.getIndex().bytesStillToRecover();
+            return store.stats(bytesStillToRecover == -1 ? StoreStats.UNKNOWN_RESERVED_BYTES : bytesStillToRecover);
         } catch (IOException e) {
             failShard("Failing shard because of exception during storeStats", e);
             throw new ElasticsearchException("io exception while building 'store stats'", e);

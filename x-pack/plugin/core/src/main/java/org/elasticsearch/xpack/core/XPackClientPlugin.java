@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -504,7 +505,10 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // Aggregate metric field type
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.AGGREGATE_METRIC, AggregateMetricFeatureSetUsage::new),
             // Enrich
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new),
+            // Searchable snapshots
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SEARCHABLE_SNAPSHOTS,
+                SearchableSnapshotFeatureSetUsage::new)
         );
     }
 

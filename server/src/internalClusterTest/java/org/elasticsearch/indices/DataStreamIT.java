@@ -35,7 +35,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -99,7 +98,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     @After
     public void deleteAllComposableTemplates() {
-        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request("*");
+        DeleteDataStreamAction.Request deleteDSRequest = new DeleteDataStreamAction.Request(new String[]{"*"});
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDSRequest).actionGet();
         DeleteComposableIndexTemplateAction.Request deleteTemplateRequest = new DeleteComposableIndexTemplateAction.Request("*");
         client().execute(DeleteComposableIndexTemplateAction.INSTANCE, deleteTemplateRequest).actionGet();
@@ -184,7 +183,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
         verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("metrics-*");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"metrics-*"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
         getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
@@ -210,33 +209,21 @@ public class DataStreamIT extends ESIntegTestCase {
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
         {
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(dataStreamName).source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON));
-            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
-        }
-        {
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new DeleteRequest(dataStreamName, "_id"));
-            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
-        }
-        {
-            BulkRequest bulkRequest = new BulkRequest()
-                .add(new UpdateRequest(dataStreamName, "_id").doc("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON));
-            expectFailure(dataStreamName, () -> client().bulk(bulkRequest).actionGet());
-        }
-        {
             IndexRequest indexRequest = new IndexRequest(dataStreamName)
                 .source("{\"@timestamp1\": \"2020-12-12\"}", XContentType.JSON);
-            expectFailure(dataStreamName, () -> client().index(indexRequest).actionGet());
+            Exception e = expectThrows(IndexNotFoundException.class, () -> client().index(indexRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
         {
             UpdateRequest updateRequest = new UpdateRequest(dataStreamName, "_id")
                 .doc("{}", XContentType.JSON);
-            expectFailure(dataStreamName, () -> client().update(updateRequest).actionGet());
+            Exception e = expectThrows(IndexNotFoundException.class, () -> client().update(updateRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
         {
             DeleteRequest deleteRequest = new DeleteRequest(dataStreamName, "_id");
-            expectFailure(dataStreamName, () -> client().delete(deleteRequest).actionGet());
+            Exception e = expectThrows(IndexNotFoundException.class, () -> client().delete(deleteRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no such index [null]"));
         }
         {
             IndexRequest indexRequest = new IndexRequest(dataStreamName)
@@ -318,7 +305,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs(dataStreamName, "@timestamp", numDocs2);
         verifyDocs(dataStreamName, numDocs + numDocs2, 1, 2);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(dataStreamName);
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
         getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(0));
@@ -407,6 +394,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetIndex().addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareOpen(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().cluster().prepareSearchShards(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareShardStores(dataStreamName), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
         client().admin().indices().createDataStream(request).actionGet();
@@ -428,7 +416,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), true);
+        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), false);
         verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), false);
         verifyResolvability(wildcardExpression,
             putMapping("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", wildcardExpression), false);
@@ -442,6 +430,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().cluster().prepareSearchShards(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareShardStores(wildcardExpression), false);
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
@@ -477,7 +466,8 @@ public class DataStreamIT extends ESIntegTestCase {
             .index(dataStreamName).aliases("foo");
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
-        expectFailure(dataStreamName, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        Exception e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("no such index [" + dataStreamName +"]"));
     }
 
     public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {
@@ -533,7 +523,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 3)));
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"logs-foobar"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
@@ -569,7 +559,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(rolloverResponse.isRolledOver());
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.event.properties.@timestamp");
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"logs-foobar"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
@@ -606,7 +596,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(rolloverResponse.isRolledOver());
         assertBackingIndex(DataStream.getDefaultBackingIndexName("logs-foobar", 2), "properties.@timestamp", expectedTimestampMapping);
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request("logs-foobar");
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"logs-foobar"});
         client().admin().indices().deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 
@@ -789,8 +779,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
-            String expectedErrorMessage = "The provided expression [" + dataStream +
-                "] matches a data stream, specify the corresponding concrete indices instead.";
+            String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
                 assertThat(multiSearchResponse.getResponses().length, equalTo(1));
@@ -798,10 +787,10 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertThat(multiSearchResponse.getResponses()[0].getFailure(), instanceOf(IllegalArgumentException.class));
                 assertThat(multiSearchResponse.getResponses()[0].getFailure().getMessage(), equalTo(expectedErrorMessage));
             } else if (requestBuilder instanceof ValidateQueryRequestBuilder) {
-                ValidateQueryResponse response = (ValidateQueryResponse) requestBuilder.get();
-                assertThat(response.getQueryExplanation().get(0).getError(), equalTo(expectedErrorMessage));
+                Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
+                assertThat(e.getMessage(), equalTo(expectedErrorMessage));
             } else {
-                Exception e = expectThrows(IllegalArgumentException.class, requestBuilder::get);
+                Exception e = expectThrows(IndexNotFoundException.class, requestBuilder::get);
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
             }
         } else {

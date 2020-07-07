@@ -49,16 +49,16 @@ setup:
   - do:
       indices.get_data_stream:
         name: "*"
-  - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field.name: '@timestamp' }
-  - match: { 0.generation: 1 }
-  - length: { 0.indices: 1 }
-  - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
-  - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field.name: '@timestamp2' }
-  - match: { 0.generation: 1 }
-  - length: { 1.indices: 1 }
-  - match: { 1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
+  - match: { data_streams.1.name: simple-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp2' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.1.indices: 1 }
+  - match: { data_streams.1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
 
   - do:
       index:
@@ -122,34 +122,34 @@ setup:
 
   - do:
       indices.get_data_stream: {}
-  - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field.name: '@timestamp' }
-  - match: { 0.timestamp_field.mapping: {type: date} }
-  - match: { 0.generation: 1 }
-  - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field.name: '@timestamp2' }
-  - match: { 1.timestamp_field.mapping: {type: date} }
-  - match: { 1.generation: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.timestamp_field.mapping: {type: date} }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.1.name: simple-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp2' }
+  - match: { data_streams.1.timestamp_field.mapping: {type: date} }
+  - match: { data_streams.1.generation: 1 }
 
   - do:
       indices.get_data_stream:
         name: simple-data-stream1
-  - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field.name: '@timestamp' }
-  - match: { 0.timestamp_field.mapping: {type: date} }
-  - match: { 0.generation: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.timestamp_field.mapping: {type: date} }
+  - match: { data_streams.0.generation: 1 }
 
   - do:
       indices.get_data_stream:
         name: simple-data-stream*
-  - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field.name: '@timestamp' }
-  - match: { 0.timestamp_field.mapping: {type: date} }
-  - match: { 0.generation: 1 }
-  - match: { 1.name: simple-data-stream2 }
-  - match: { 1.timestamp_field.name: '@timestamp2' }
-  - match: { 1.timestamp_field.mapping: {type: date} }
-  - match: { 1.generation: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.timestamp_field.mapping: {type: date} }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.1.name: simple-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp2' }
+  - match: { data_streams.1.timestamp_field.mapping: {type: date} }
+  - match: { data_streams.1.generation: 1 }
 
   - do:
       indices.get_data_stream:
@@ -202,11 +202,11 @@ setup:
 
   - do:
       indices.get_data_stream: {}
-  - match: { 0.name: simple-data-stream1 }
-  - match: { 0.timestamp_field.name: '@timestamp' }
-  - match: { 0.generation: 1 }
-  - length: { 0.indices: 1 }
-  - match: { 0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '.ds-simple-data-stream1-000001' }
 
   - do:
       indices.delete_data_stream:

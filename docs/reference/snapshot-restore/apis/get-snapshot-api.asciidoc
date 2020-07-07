@@ -4,7 +4,7 @@
 <titleabbrev>Get snapshot</titleabbrev>
 ++++
 
-Returns information about one or more snapshots from one or more registered repositories.
+Retrieves information about one or more snapshots.
 
 ////
 [source,console]

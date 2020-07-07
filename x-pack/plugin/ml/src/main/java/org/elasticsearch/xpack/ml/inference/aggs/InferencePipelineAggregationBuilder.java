@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.inference.aggs;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -30,18 +30,18 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.concurrent.CountDownLatch;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
 
-    public static String NAME = "inference";
+    public static final String NAME = "inference";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
-    static String AGGREGATIONS_RESULTS_FIELD = "value";
+    static final String AGGREGATIONS_RESULTS_FIELD = "value";
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferencePipelineAggregationBuilder,
@@ -61,6 +61,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     private String modelId;
     private InferenceConfigUpdate inferenceConfig;
     private final SetOnce<ModelLoadingService> modelLoadingService;
+    /**
+     * The model. Set to a non-null value during the rewrite phase.
+     */
+    private final Supplier<LocalModel> model;
 
     public static InferencePipelineAggregationBuilder parse(SetOnce<ModelLoadingService> modelLoadingService,
                                                             String pipelineAggregatorName,
@@ -74,6 +78,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         super(name, NAME, new TreeMap<>(bucketsPath).values().toArray(new String[] {}));
         this.modelLoadingService = modelLoadingService;
         this.bucketPathMap = bucketsPath;
+        this.model = null;
     }
 
     public InferencePipelineAggregationBuilder(StreamInput in, SetOnce<ModelLoadingService> modelLoadingService) throws IOException {
@@ -82,6 +87,32 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
         inferenceConfig = in.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         this.modelLoadingService = modelLoadingService;
+        this.model = null;
+    }
+
+    /**
+     * Constructor for the rewrite phase.
+     */
+    private InferencePipelineAggregationBuilder(
+        String name,
+        Map<String, String> bucketsPath,
+        Supplier<LocalModel> model,
+        String modelId,
+        InferenceConfigUpdate inferenceConfig
+    ) {
+        super(name, NAME, new TreeMap<>(bucketsPath).values().toArray(new String[] {}));
+        modelLoadingService = null;
+        bucketPathMap = bucketsPath;
+        this.model = model;
+        /*
+         * These aren't strictly needed for running the pipeline aggregation
+         * but are needed for serialization, which is still done after the
+         * rewrite, mostly due to some oddness with the interaction with the
+         * transport client. It *should* vanish once we no longer have to
+         * support the transport client.
+         */
+        this.modelId = modelId;
+        this.inferenceConfig = inferenceConfig;
     }
 
     void setModelId(String modelId) {
@@ -129,34 +160,26 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     }
 
     @Override
+    public InferencePipelineAggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
+        if (model != null) {
+            return this;
+        }
+        SetOnce<LocalModel> loadedModel = new SetOnce<>();
+        context.registerAsyncAction((client, listener) -> {
+            modelLoadingService.get().getModelForSearch(modelId, ActionListener.delegateFailure(listener, (delegate, model) -> {
+                loadedModel.set(model);
+                delegate.onResponse(null);
+            }));
+        });
+        return new InferencePipelineAggregationBuilder(name, bucketPathMap, loadedModel::get, modelId, inferenceConfig);
+    }
+
+    @Override
     protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-
-        SetOnce<LocalModel> model = new SetOnce<>();
-        SetOnce<Exception> error = new SetOnce<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<LocalModel> listener = new LatchedActionListener<>(
-            ActionListener.wrap(model::set, error::set), latch);
-
-        modelLoadingService.get().getModelForSearch(modelId, listener);
-        try {
-            // TODO Avoid the blocking wait
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Inference aggregation interrupted loading model", e);
+        if (model == null) {
+            throw new IllegalStateException("model must be null, missing rewrite?");
         }
-
-        Exception e = error.get();
-        if (e != null) {
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException)e;
-            } else {
-                throw new RuntimeException(error.get());
-            }
-        }
-
         InferenceConfigUpdate update = adaptForAggregation(inferenceConfig);
-
         return new InferencePipelineAggregator(name, bucketPathMap, metaData, update, model.get());
     }
 

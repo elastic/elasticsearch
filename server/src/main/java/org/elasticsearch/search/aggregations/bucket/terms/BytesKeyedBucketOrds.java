@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps {@link BytesRef} bucket keys to bucket ordinals.
@@ -32,8 +33,8 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
     /**
      * Build a {@link LongKeyedBucketOrds}.
      */
-    public static BytesKeyedBucketOrds build(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-        return collectsFromSingleBucket ? new FromSingle(bigArrays) : new FromMany(bigArrays);
+    public static BytesKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+        return cardinality == CardinalityUpperBound.ONE ? new FromSingle(bigArrays) : new FromMany(bigArrays);
     }
 
     private BytesKeyedBucketOrds() {}
@@ -169,7 +170,7 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
 
         private FromMany(BigArrays bigArrays) {
             bytesToLong = new BytesRefHash(1, bigArrays);
-            longToBucketOrds = LongKeyedBucketOrds.build(bigArrays, false);
+            longToBucketOrds = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY);
         }
 
         @Override

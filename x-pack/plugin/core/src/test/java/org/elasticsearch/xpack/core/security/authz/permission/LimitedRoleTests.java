@@ -6,9 +6,11 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,12 +26,14 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,6 +54,7 @@ public class LimitedRoleTests extends ESTestCase {
         Role limitedByRole = Role.builder("limited-role").build();
         Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
         assertNotNull(role);
+        assertThat(role.names(), is(limitedByRole.names()));
 
         NullPointerException npe = expectThrows(NullPointerException.class, () -> LimitedRole.createLimitedRole(fromRole, null));
         assertThat(npe.getMessage(), containsString("limited by role is required to create limited role"));
@@ -198,6 +203,42 @@ public class LimitedRoleTests extends ESTestCase {
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-1"), is(true));
             assertThat(role.allowedIndicesMatcher(SearchAction.NAME).test("ind-2"), is(false));
         }
+    }
+
+    public void testAllowedActionsMatcher() {
+        Role fromRole = Role.builder("fromRole")
+                .add(IndexPrivilege.WRITE, "ind*")
+                .add(IndexPrivilege.READ, "ind*")
+                .add(IndexPrivilege.READ, "other*")
+                .build();
+        Automaton fromRoleAutomaton = fromRole.allowedActionsMatcher("index1");
+        Predicate<String> fromRolePredicate = Automatons.predicate(fromRoleAutomaton);
+        assertThat(fromRolePredicate.test(SearchAction.NAME), is(true));
+        assertThat(fromRolePredicate.test(BulkAction.NAME), is(true));
+
+        Role limitedByRole = Role.builder("limitedRole")
+                .add(IndexPrivilege.READ, "index1", "index2")
+                .build();
+        Automaton limitedByRoleAutomaton = limitedByRole.allowedActionsMatcher("index1");
+        Predicate<String> limitedByRolePredicated = Automatons.predicate(limitedByRoleAutomaton);
+        assertThat(limitedByRolePredicated.test(SearchAction.NAME), is(true));
+        assertThat(limitedByRolePredicated.test(BulkAction.NAME), is(false));
+        Role role = LimitedRole.createLimitedRole(fromRole, limitedByRole);
+
+        Automaton roleAutomaton = role.allowedActionsMatcher("index1");
+        Predicate<String> rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(SearchAction.NAME), is(true));
+        assertThat(rolePredicate.test(BulkAction.NAME), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("index2");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(SearchAction.NAME), is(true));
+        assertThat(rolePredicate.test(BulkAction.NAME), is(false));
+
+        roleAutomaton = role.allowedActionsMatcher("other");
+        rolePredicate = Automatons.predicate(roleAutomaton);
+        assertThat(rolePredicate.test(SearchAction.NAME), is(false));
+        assertThat(rolePredicate.test(BulkAction.NAME), is(false));
     }
 
     public void testCheckClusterPrivilege() {

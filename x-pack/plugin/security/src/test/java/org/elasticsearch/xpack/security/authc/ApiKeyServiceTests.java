@@ -9,12 +9,18 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,9 +31,11 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -58,12 +66,17 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
+import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -75,8 +88,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ApiKeyServiceTests extends ESTestCase {
@@ -88,7 +104,11 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     @Before
     public void createThreadPool() {
-        threadPool = new TestThreadPool("api key service tests");
+        threadPool = Mockito.spy(
+            new TestThreadPool("api key service tests",
+                new FixedExecutorBuilder(Settings.EMPTY, SECURITY_CRYPTO_THREAD_POOL_NAME, 1, 1000,
+                    "xpack.security.crypto.thread_pool", false))
+        );
     }
 
     @After
@@ -104,6 +124,20 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
+    }
+
+    public void testCreateApiKeyWillUseBulkAction() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final Authentication authentication = new Authentication(
+            new User("alice", "superuser"),
+            new RealmRef("file", "file", "node-1"),
+            null);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.threadPool()).thenReturn(threadPool);
+        service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
+        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
     }
 
     public void testGetCredentialsFromThreadContext() {
@@ -560,7 +594,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             hashCounter.incrementAndGet();
             hashWait.acquire();
             return invocationOnMock.callRealMethod();
-        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class));
+        }).when(service).verifyKeyAgainstHash(any(String.class), any(ApiKeyCredentials.class), any(ActionListener.class));
 
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
         final PlainActionFuture<AuthenticationResult> future1 = new PlainActionFuture<>();
@@ -634,6 +668,108 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Authentication authentication = new Authentication(
             new User("user"), authenticatedBy, lookedUpBy);
         assertEquals("looked_up_by_type", ApiKeyService.getCreatorRealmType(authentication));
+    }
+
+    public void testAuthWillTerminateIfGetThreadPoolIsSaturated() throws ExecutionException, InterruptedException {
+        final String apiKey = randomAlphaOfLength(16);
+        final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
+        writeCredentialsToThreadContext(creds);
+        SecurityMocks.mockGetRequestException(client, new EsRejectedExecutionException("rejected"));
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future);
+        final AuthenticationResult authenticationResult = future.get();
+        assertEquals(AuthenticationResult.Status.TERMINATE, authenticationResult.getStatus());
+        assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
+    }
+
+    public void testAuthWillTerminateIfHashingThreadPoolIsSaturated() throws IOException, ExecutionException, InterruptedException {
+        final String apiKey = randomAlphaOfLength(16);
+        final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey.toCharArray()));
+        writeCredentialsToThreadContext(creds);
+
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
+        mockSourceDocument(creds.getId(), sourceMap);
+        final ExecutorService mockExecutorService = mock(ExecutorService.class);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        Mockito.doAnswer(invocationOnMock -> {
+            final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
+            actionRunnable.onRejection(new EsRejectedExecutionException("rejected"));
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
+
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future);
+        final AuthenticationResult authenticationResult = future.get();
+        assertEquals(AuthenticationResult.Status.TERMINATE, authenticationResult.getStatus());
+        assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
+    }
+
+    public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {
+        final String apiKey1 = randomAlphaOfLength(16);
+        final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey1.toCharArray()));
+        writeCredentialsToThreadContext(creds);
+
+        Hasher hasher = randomFrom(Hasher.PBKDF2, Hasher.BCRYPT4, Hasher.BCRYPT);
+        final char[] hash = hasher.hash(new SecureString(apiKey1.toCharArray()));
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
+        mockSourceDocument(creds.getId(), sourceMap);
+
+        // Authenticate the key once to cache it
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future);
+        final AuthenticationResult authenticationResult = future.get();
+        assertEquals(AuthenticationResult.Status.SUCCESS, authenticationResult.getStatus());
+
+        // Now force the hashing thread pool to saturate so that any un-cached keys cannot be validated
+        final ExecutorService mockExecutorService = mock(ExecutorService.class);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        Mockito.doAnswer(invocationOnMock -> {
+            final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
+            actionRunnable.onRejection(new EsRejectedExecutionException("rejected"));
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
+
+        // A new API key trying to connect that must go through full hash computation
+        final String apiKey2 = randomAlphaOfLength(16);
+        final ApiKeyCredentials creds2 = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey2.toCharArray()));
+        mockSourceDocument(creds2.getId(), buildApiKeySourceDoc(hasher.hash(new SecureString(apiKey2.toCharArray()))));
+        final PlainActionFuture<AuthenticationResult> future2 = new PlainActionFuture<>();
+        final ThreadContext.StoredContext storedContext = threadPool.getThreadContext().stashContext();
+        writeCredentialsToThreadContext(creds2);
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future2);
+        final AuthenticationResult authenticationResult2 = future2.get();
+        assertEquals(AuthenticationResult.Status.TERMINATE, authenticationResult2.getStatus());
+        assertThat(authenticationResult2.getMessage(), containsString("server is too busy to respond"));
+
+        // The cached API key should not be affected
+        mockSourceDocument(creds.getId(), sourceMap);
+        final PlainActionFuture<AuthenticationResult> future3 = new PlainActionFuture<>();
+        storedContext.restore();
+        service.authenticateWithApiKeyIfPresent(threadPool.getThreadContext(), future3);
+        final AuthenticationResult authenticationResult3 = future3.get();
+        assertEquals(AuthenticationResult.Status.SUCCESS, authenticationResult3.getStatus());
+    }
+
+    public static class Utils {
+
+        public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,
+                                                                Authentication authentication,
+                                                                Set<RoleDescriptor> userRoles,
+                                                                List<RoleDescriptor> keyRoles) throws Exception {
+            XContentBuilder keyDocSource = apiKeyService.newDocument(new SecureString("secret".toCharArray()), "test", authentication,
+                    userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT);
+            Map<String, Object> keyDocMap = XContentHelper.convertToMap(BytesReference.bytes(keyDocSource), true, XContentType.JSON).v2();
+            PlainActionFuture<AuthenticationResult> authenticationResultFuture = PlainActionFuture.newFuture();
+            apiKeyService.validateApiKeyExpiration(keyDocMap, new ApiKeyService.ApiKeyCredentials("id",
+                            new SecureString("pass".toCharArray())),
+                    Clock.systemUTC(), authenticationResultFuture);
+            return apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01");
+        }
     }
 
     private ApiKeyService createApiKeyService(Settings baseSettings) {

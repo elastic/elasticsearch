@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
@@ -38,7 +37,6 @@ public class RestUpdateActionV7Tests extends RestActionTestCase {
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestUpdateActionV7.TYPES_DEPRECATION_MESSAGE);
-
 
         RestRequest validRequest = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_update/some_id")

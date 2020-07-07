@@ -236,7 +236,7 @@ APIs are not be blocked and can run on any available node.
 
 `monitor.fs.health.refresh_interval`::
 
-    (<<time-units, Time unit value>>) Sets the interval between successive
+    (<<time-units, Time value>>) Interval between successive
     <<cluster-fault-detection-filesystem-health,filesystem health checks>>.
     Defaults to `2m`.
 

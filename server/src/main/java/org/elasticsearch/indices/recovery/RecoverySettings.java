@@ -48,8 +48,8 @@ public class RecoverySettings {
     /**
      * Controls the maximum number of operation chunk requests that can be sent concurrently from the source node to the target node.
      */
-    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OPERATION_CHUNKS_SETTING =
-        Setting.intSetting("indices.recovery.max_concurrent_operation_chunks", 1, 1, 4, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING =
+        Setting.intSetting("indices.recovery.max_concurrent_operations", 1, 1, 4, Property.Dynamic, Property.NodeScope);
 
     /**
      * how long to wait before retrying after issues cause by cluster state syncing between nodes
@@ -97,7 +97,7 @@ public class RecoverySettings {
 
     private volatile ByteSizeValue maxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
-    private volatile int maxConcurrentOperationChunks;
+    private volatile int maxConcurrentOperations;
     private volatile SimpleRateLimiter rateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
@@ -111,7 +111,7 @@ public class RecoverySettings {
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
         this.maxConcurrentFileChunks = INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.get(settings);
-        this.maxConcurrentOperationChunks = INDICES_RECOVERY_MAX_CONCURRENT_OPERATION_CHUNKS_SETTING.get(settings);
+        this.maxConcurrentOperations = INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.get(settings);
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
         // and we want to give the master time to remove a faulty node
         this.retryDelayNetwork = INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.get(settings);
@@ -133,8 +133,8 @@ public class RecoverySettings {
 
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATION_CHUNKS_SETTING,
-            this::setMaxConcurrentOperationChunks);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING,
+            this::setMaxConcurrentOperations);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING, this::setInternalActionTimeout);
@@ -220,11 +220,11 @@ public class RecoverySettings {
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
     }
 
-    public int getMaxConcurrentOperationChunks() {
-        return maxConcurrentOperationChunks;
+    public int getMaxConcurrentOperations() {
+        return maxConcurrentOperations;
     }
 
-    private void setMaxConcurrentOperationChunks(int maxConcurrentOperationChunks) {
-        this.maxConcurrentOperationChunks = maxConcurrentOperationChunks;
+    private void setMaxConcurrentOperations(int maxConcurrentOperations) {
+        this.maxConcurrentOperations = maxConcurrentOperations;
     }
 }

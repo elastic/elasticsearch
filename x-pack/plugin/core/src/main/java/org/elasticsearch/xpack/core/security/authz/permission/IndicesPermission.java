@@ -138,8 +138,10 @@ public final class IndicesPermission {
      * checked on the coordinating node), and properly authorized later at the shard level checking their indices as well.
      */
     public boolean check(String action) {
+        final boolean isMappingUpdateAction = action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
         for (Group group : groups) {
-            if (group.checkAction(action) || authorizeMappingUpdateBwcSpecialCase(group, action)) {
+            if (group.checkAction(action) || (isMappingUpdateAction &&
+                    group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains))) {
                 return true;
             }
         }
@@ -335,14 +337,6 @@ public final class IndicesPermission {
         return RestrictedIndicesNames.isRestricted(indexPattern);
     }
 
-    private static boolean authorizeMappingUpdateBwcSpecialCase(Group group, String action) {
-        return (action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME)) &&
-                (group.privilege().name().containsAll(IndexPrivilege.CREATE_DOC.name()) ||
-                        group.privilege().name().containsAll(IndexPrivilege.CREATE.name()) ||
-                        group.privilege().name().containsAll(IndexPrivilege.INDEX.name()) ||
-                        group.privilege().name().containsAll(IndexPrivilege.WRITE.name()));
-    }
-
     public static class Group {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
@@ -415,6 +409,7 @@ public final class IndicesPermission {
             final Set<String> restrictedIndices = new HashSet<>();
             final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
             final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
+            final boolean isMappingUpdateAction = action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
             for (final Group group : groups) {
                 if (group.actionMatcher.test(action)) {
                     if (group.allowRestrictedIndices) {
@@ -422,7 +417,8 @@ public final class IndicesPermission {
                     } else {
                         ordinaryIndices.addAll(Arrays.asList(group.indices()));
                     }
-                } else if (authorizeMappingUpdateBwcSpecialCase(group, action)) {
+                } else if (isMappingUpdateAction &&
+                        group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains)) {
                     // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
                     // the privilege definition does not currently allow it
                     if (group.allowRestrictedIndices) {

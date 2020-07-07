@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
-    private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
+    private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 100;
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -837,7 +837,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException, ExecutionException {
-        
+
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);

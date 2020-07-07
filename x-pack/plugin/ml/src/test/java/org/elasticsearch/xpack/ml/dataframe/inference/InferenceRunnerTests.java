@@ -73,7 +73,7 @@ public class InferenceRunnerTests extends ESTestCase {
         modelLoadingService = mock(ModelLoadingService.class);
     }
 
-    public void test() {
+    public void testRun() {
         Map<String, Object> doc1 = new HashMap<>();
         doc1.put("key", 1);
         Map<String, Object> doc2 = new HashMap<>();

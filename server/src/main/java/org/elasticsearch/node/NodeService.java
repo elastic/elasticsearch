@@ -107,7 +107,8 @@ public class NodeService implements Closeable {
 
     public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker,
-                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection, boolean scriptCache) {
+                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection, boolean scriptCache,
+                           boolean indexingPressure) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
@@ -126,7 +127,8 @@ public class NodeService implements Closeable {
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
                 scriptCache ? scriptService.cacheStats() : null,
                 // TODO: Update with more metrics (including totals) after rejections merged.
-                new IndexingPressureStats(-1L, -1L, writeMemoryLimits.getWriteBytes(), writeMemoryLimits.getReplicaWriteBytes()));
+                indexingPressure ? new IndexingPressureStats(-1L, -1L, writeMemoryLimits.getWriteBytes(),
+                    writeMemoryLimits.getReplicaWriteBytes()) : null);
     }
 
     public IngestService getIngestService() {

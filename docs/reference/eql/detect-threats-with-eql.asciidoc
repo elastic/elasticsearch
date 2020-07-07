@@ -290,8 +290,7 @@ GET /sec_logs/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-The request returns the following response with a matching sequence, indicating
-the attack likely succeeded.
+The query matches a sequence, indicating the attack likely succeeded.
 
 [source,console-result]
 ----

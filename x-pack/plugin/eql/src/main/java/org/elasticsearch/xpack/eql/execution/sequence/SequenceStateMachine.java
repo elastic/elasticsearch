@@ -84,7 +84,7 @@ public class SequenceStateMachine {
         group.trim(before.v2() + 1);
         
         // check maxspan before continuing the sequence
-        if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startTimestamp() >= maxSpanInMillis)) {
+        if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startTimestamp() > maxSpanInMillis)) {
             return;
         }
 

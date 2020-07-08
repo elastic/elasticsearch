@@ -7,7 +7,9 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -16,6 +18,7 @@ import org.junit.Before;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
@@ -504,7 +507,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             case "crud" :
                 if (userIsAllowed) {
                     assertUserIsAllowed(user, "read", index);
-                    assertUserIsAllowed(user, "index", index);
+                    assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                 } else {
                     assertUserIsDenied(user, "read", index);
                     assertUserIsDenied(user, "index", index);
@@ -548,11 +552,23 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
             case "index" :
                 if (userIsAllowed) {
-                assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
-                assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                    assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
+                    // test auto mapping update is allowed but deprecated
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", "{ \"" +
+                            UUIDs.randomBase64UUID() + "\" : \"foo\" }");
+                    String warningHeader = response.getHeader("Warning");
+                    assertThat(warningHeader, containsString("the mapping update action [indices:admin/mapping/auto_put] on the [" +
+                            index + "] index, is granted by the [index] privilege"));
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321",
+                            "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
+                    warningHeader = response.getHeader("Warning");
+                    assertThat(warningHeader, containsString("the mapping update action [indices:admin/mapping/auto_put] on the [" +
+                            index + "] index, is granted by the [index] privilege"));
                 } else {
-                assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
-                assertAccessIsDenied(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                    assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
+                    assertAccessIsDenied(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                 }
                 break;
 
@@ -569,8 +585,21 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
             case "write" :
                 if (userIsAllowed) {
-                    assertUserIsAllowed(user, "index", index);
                     assertUserIsAllowed(user, "delete", index);
+
+                    assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/321", "{ \"foo\" : \"bar\" }");
+                    // test auto mapping update is allowed but deprecated
+                    Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", "{ \"" +
+                            UUIDs.randomBase64UUID() + "\" : \"foo\" }");
+                    String warningHeader = response.getHeader("Warning");
+                    assertThat(warningHeader, containsString("the mapping update action [indices:admin/mapping/auto_put] on the [" +
+                            index + "] index, is granted by the [write] privilege"));
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
+                    response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321",
+                            "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
+                    warningHeader = response.getHeader("Warning");
+                    assertThat(warningHeader, containsString("the mapping update action [indices:admin/mapping/auto_put] on the [" +
+                            index + "] index, is granted by the [write] privilege"));
                 } else {
                     assertUserIsDenied(user, "index", index);
                     assertUserIsDenied(user, "delete", index);

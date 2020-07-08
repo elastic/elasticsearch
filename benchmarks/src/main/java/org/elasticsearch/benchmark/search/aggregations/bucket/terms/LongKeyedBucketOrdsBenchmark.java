@@ -69,6 +69,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoSingleImmutableMonmorphicInvocation(Blackhole bh) {
+        forceLoadClasses(bh);
         try (LongKeyedBucketOrds.FromSingle ords = new LongKeyedBucketOrds.FromSingle(bigArrays)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
@@ -82,6 +83,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoSingleImmutableBimorphicInvocation(Blackhole bh) {
+        forceLoadClasses(bh);
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
@@ -95,6 +97,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoSingleMutableMonmorphicInvocation(Blackhole bh) {
+        forceLoadClasses(bh);
         LongKeyedBucketOrds.FromSingle ords = new LongKeyedBucketOrds.FromSingle(bigArrays);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {
@@ -115,7 +118,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoSingleMutableBimorphicInvocation(Blackhole bh) {
-        bh.consume(LongKeyedBucketOrds.FromMany.class);
+        forceLoadClasses(bh);
         LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {
@@ -137,6 +140,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoMulti(Blackhole bh) {
+        forceLoadClasses(bh);
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
@@ -150,11 +154,17 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void multiBucket(Blackhole bh) {
+        forceLoadClasses(bh);
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(i % DISTINCT_BUCKETS, i % DISTINCT_VALUES);
             }
             bh.consume(ords);
         }
+    }
+
+    private void forceLoadClasses(Blackhole bh) {
+        bh.consume(LongKeyedBucketOrds.FromSingle.class);
+        bh.consume(LongKeyedBucketOrds.FromMany.class);
     }
 }

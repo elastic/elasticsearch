@@ -111,6 +111,10 @@ Example response:
          "available": true,
          "enabled": true
       },
+      "searchable_snapshots" : {
+         "available" : true,
+         "enabled" : true
+      },
       "security" : {
          "available" : true,
          "enabled" : false

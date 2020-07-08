@@ -29,12 +29,10 @@ public class DocLookup {
 
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-    private final SearchLookup searchLookup;
 
-    public DocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, SearchLookup searchLookup) {
+    public DocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         this.mapperService = mapperService;
         this.fieldDataLookup = fieldDataLookup;
-        this.searchLookup = searchLookup;
     }
 
     public MapperService mapperService() {
@@ -46,6 +44,6 @@ public class DocLookup {
     }
 
     public LeafDocLookup getLeafDocLookup(LeafReaderContext context) {
-        return new LeafDocLookup(mapperService, fieldDataLookup, searchLookup, context);
+        return new LeafDocLookup(mapperService, fieldDataLookup, context);
     }
 }

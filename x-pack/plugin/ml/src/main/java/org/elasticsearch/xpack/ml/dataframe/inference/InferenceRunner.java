@@ -70,14 +70,13 @@ public class InferenceRunner {
             return;
         }
 
-        LOGGER.info("[{}] Running inference on model [{}]", config.getId(), modelId);
+        LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
             modelLoadingService.getModelForSearch(modelId, localModelPlainActionFuture);
             LocalModel localModel = localModelPlainActionFuture.actionGet();
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config);
             inferTestDocs(localModel, testDocsIterator);
-            LOGGER.info("[{}] Inference finished", config.getId());
         } catch (Exception e) {
             throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]", e, config.getId(), modelId);
         }
@@ -102,7 +101,7 @@ public class InferenceRunner {
 
             for (SearchHit doc : batch) {
                 dataCountsTracker.incrementTestDocsCount();
-                InferenceResults inferenceResults = model.internalInfer(new HashMap<>(doc.getSourceAsMap()));
+                InferenceResults inferenceResults = model.inferNoStats(new HashMap<>(doc.getSourceAsMap()));
                 bulkRequest.add(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
 
                 processedDocCount++;

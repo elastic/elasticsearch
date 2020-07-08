@@ -153,7 +153,7 @@ public class InferenceRunnerTests extends ESTestCase {
 
     private LocalModel localModelInferences(InferenceResults first, InferenceResults... rest) {
         LocalModel localModel = mock(LocalModel.class);
-        when(localModel.internalInfer(any())).thenReturn(first, rest);
+        when(localModel.inferNoStats(any())).thenReturn(first, rest);
         return localModel;
     }
 

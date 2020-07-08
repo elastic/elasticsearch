@@ -80,7 +80,12 @@ public class LocalModel {
         }
     }
 
-    public InferenceResults internalInfer(Map<String, Object> fields) {
+    /**
+     * Infers without updating the stats.
+     * This is mainly for usage by data frame analytics jobs
+     * when they do inference against test data.
+     */
+    public InferenceResults inferNoStats(Map<String, Object> fields) {
         LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
         Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
         if (flattenedFields.isEmpty()) {

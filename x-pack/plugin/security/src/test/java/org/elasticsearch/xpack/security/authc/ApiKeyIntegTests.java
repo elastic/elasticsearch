@@ -837,7 +837,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException, ExecutionException {
-
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);

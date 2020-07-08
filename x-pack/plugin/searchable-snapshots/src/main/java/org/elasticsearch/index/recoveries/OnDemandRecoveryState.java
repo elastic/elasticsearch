@@ -11,10 +11,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.index.store.cache.PersistentCacheTracker;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public final class OnDemandRecoveryState extends RecoveryState {
 
@@ -57,7 +59,7 @@ public final class OnDemandRecoveryState extends RecoveryState {
         }
 
         @Override
-        public synchronized void trackPersistedBytesToFile(String name, long bytes) {
+        public synchronized void trackPersistedBytesForFile(String name, long bytes) {
             addRecoveredBytesToFile(name, bytes);
         }
 
@@ -68,21 +70,25 @@ public final class OnDemandRecoveryState extends RecoveryState {
         }
 
         @Override
+        public synchronized void addRecoveredBytesToFile(String name, long bytes) {
+            File fileDetails = getFileDetails(name);
+            assert fileDetails != null;
+            // It's possible that a read on the cache on an overlapping range triggers
+            // multiple concurrent writes for the same range, in that case we need to
+            // track the minimal amount of written data
+            bytes = Math.min(bytes, fileDetails.length() - fileDetails.recovered());
+            super.addRecoveredBytesToFile(name, bytes);
+        }
+
+        @Override
         public synchronized void stop() {
-            // do nothing
+            // Since this is an on demand recovery,
+            // the timer will remain open forever.
         }
 
         @Override
-        public synchronized PersistentCacheTracker merge(PersistentCacheTracker recoveryTracker) {
-            for (Map.Entry<String, Long> fileSize : recoveryTracker.getValues().entrySet()) {
-                addRecoveredBytesToFile(fileSize.getKey(), fileSize.getValue());
-            }
-            return this;
-        }
-
-        @Override
-        public Map<String, Long> getValues() {
-            return Collections.emptyMap();
+        public Map<String, Long> getPersistedFilesSize() {
+            return fileDetails().stream().collect(Collectors.toMap(File::name, File::recovered));
         }
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.index.recoveries.PersistentCacheTracker;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
@@ -273,7 +272,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         remainingBytes -= bytesRead;
                     }
                     final long endTimeNanos = stats.currentTimeNanos();
-                    addCachedBytesWritten(totalBytesWritten, endTimeNanos - startTimeNanos);
+                    addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
                 }
 
                 assert totalBytesRead == rangeLength;
@@ -283,9 +282,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         }
     }
 
-    private void addCachedBytesWritten(AtomicLong totalBytesWritten, long totalTime) {
-        tracker.trackPersistedBytesToFile(fileInfo.physicalName(), totalBytesWritten.get());
-        stats.addCachedBytesWritten(totalBytesWritten.get(), totalTime);
+    private void addCachedBytesWritten(long totalBytesWritten, long totalTime) {
+        tracker.trackPersistedBytesForFile(fileInfo.physicalName(), totalBytesWritten);
+        stats.addCachedBytesWritten(totalBytesWritten, totalTime);
     }
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
@@ -382,7 +381,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 progressUpdater.accept(start + bytesCopied);
             }
             final long endTimeNanos = stats.currentTimeNanos();
-            stats.addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
+            addCachedBytesWritten(bytesCopied, endTimeNanos - startTimeNanos);
         }
     }
 
@@ -454,7 +453,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private int readDirectly(long start, long end, ByteBuffer b) throws IOException {
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
+        logger.info(() -> new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
 
         int bytesCopied = 0;
         final long startTimeNanos = stats.currentTimeNanos();

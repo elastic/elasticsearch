@@ -62,10 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -643,11 +640,15 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
             for (RecoveryState recoveryState : recoveryStates) {
                 logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
+                boolean largeCache = cacheSize.compareTo(new ByteSizeValue(1, ByteSizeUnit.MB)) >= 0;
                 assertThat(
                     Strings.toString(recoveryState),
                     recoveryState.getIndex().recoveredFileCount(),
                     // we make a new commit so we write a new `segments_n` file when the cache is disabled
-                    cacheEnabled ? greaterThan(0) : lessThanOrEqualTo(1)
+                    // When the cache is enabled it's possible that depending on the cache size
+                    // some or even all files won't fit on the cache, meaning that effectively there
+                    // are 0 recovered files.
+                    cacheEnabled && largeCache ? greaterThan(0) : lessThanOrEqualTo(1)
                 );
 
                 assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.ON_DEMAND));

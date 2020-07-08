@@ -37,6 +37,8 @@ import java.util.Collection;
 import java.util.List;
 
 public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCase {
+    protected ByteSizeValue cacheSize = CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getDefault(Settings.EMPTY);
+
     @Override
     protected boolean addMockInternalEngine() {
         return false;
@@ -52,13 +54,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (randomBoolean()) {
+            cacheSize = generateCacheSize();
             builder.put(
                 CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? randomBoolean()
-                        ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                        : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
-                    : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+                cacheSize
             );
         }
         if (randomBoolean()) {
@@ -70,5 +69,13 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
             );
         }
         return builder.build();
+    }
+
+    private ByteSizeValue generateCacheSize() {
+        return rarely()
+            ? randomBoolean()
+                ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
+                : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
+            : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB);
     }
 }

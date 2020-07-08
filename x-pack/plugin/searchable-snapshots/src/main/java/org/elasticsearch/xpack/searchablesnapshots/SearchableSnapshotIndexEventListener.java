@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.recoveries.PersistentCacheTracker;
+import org.elasticsearch.index.store.cache.PersistentCacheTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;

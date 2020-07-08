@@ -32,7 +32,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.recoveries.PersistentCacheTracker;
+import org.elasticsearch.index.store.cache.PersistentCacheTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -57,6 +57,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -113,7 +114,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
     private final AtomicBoolean closed;
-    private final PersistentCacheTracker.FilterPersistentCacheTracker cacheTracker;
+    private final DelegatingPersistentCacheTracker cacheTracker;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
@@ -149,7 +150,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.threadPool = threadPool;
         this.loaded = false;
-        this.cacheTracker = new PersistentCacheTracker.FilterPersistentCacheTracker(useCache ? new PersistentCacheTracker.AccumulatingRecoveryTracker() : PersistentCacheTracker.NO_OP);
+        this.cacheTracker = new DelegatingPersistentCacheTracker(useCache ? new PreWarmingCacheTracker() : PersistentCacheTracker.NO_OP);
         assert invariant();
     }
 
@@ -556,6 +557,58 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         @Override
         public InputStream readBlob(String blobName, long position, long length) throws IOException {
             return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
+        }
+    }
+
+    /**
+     * A {@link PersistentCacheTracker} that delegates all the method calls to a delegate instance
+     * and allows changing the delegate instance after construction, merging all the information
+     * tracked by the previous delegate after setting the new one.
+     */
+    private static class DelegatingPersistentCacheTracker implements PersistentCacheTracker {
+        private PersistentCacheTracker delegate;
+
+        private DelegatingPersistentCacheTracker(PersistentCacheTracker delegate) {
+            this.delegate = delegate;
+        }
+
+        public synchronized void trackPersistedBytesForFile(String name, long bytes) {
+            delegate.trackPersistedBytesForFile(name, bytes);
+        }
+
+        public synchronized void trackFileEviction(String name) {
+            delegate.trackFileEviction(name);
+        }
+
+        public synchronized Map<String, Long> getPersistedFilesSize() {
+            return delegate.getPersistedFilesSize();
+        }
+
+        private synchronized void setNewDelegate(PersistentCacheTracker newDelegate) {
+            for (Map.Entry<String, Long> persistedFileSize : delegate.getPersistedFilesSize().entrySet()) {
+                newDelegate.trackPersistedBytesForFile(persistedFileSize.getKey(), persistedFileSize.getValue());
+            }
+            this.delegate = newDelegate;
+        }
+    }
+
+    private static class PreWarmingCacheTracker implements PersistentCacheTracker {
+        private final Map<String, Long> persistedFiles = new HashMap<>();
+
+        @Override
+        public void trackPersistedBytesForFile(String name, long bytes) {
+            long storedBytes = persistedFiles.getOrDefault(name, 0L);
+            persistedFiles.put(name, storedBytes + bytes);
+        }
+
+        @Override
+        public void trackFileEviction(String name) {
+            persistedFiles.put(name, 0L);
+        }
+
+        @Override
+        public Map<String, Long> getPersistedFilesSize() {
+            return Map.copyOf(persistedFiles);
         }
     }
 }

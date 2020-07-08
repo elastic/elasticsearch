@@ -38,6 +38,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -47,7 +48,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -57,6 +60,8 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -932,7 +937,9 @@ public class MetadataIndexTemplateService {
     /**
      * Collect the given v2 template into an ordered list of mappings.
      */
-    public static List<CompressedXContent> collectMappings(final ClusterState state, final String templateName) {
+    public static List<CompressedXContent> collectMappings(final ClusterState state,
+                                                           final String templateName,
+                                                           final String indexName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null : "attempted to resolve mappings for a template [" + templateName +
             "] that did not exist in the cluster state";
@@ -952,6 +959,23 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::mappings)
             .ifPresent(mappings::add);
+
+        // Only include _timestamp mapping snippet if creating backing index.
+        if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            // Only if template has data stream definition this should be added and
+            // adding this template last, since _timestamp field should have highest precedence:
+            Optional.ofNullable(template.getDataStreamTemplate())
+                .map(ComposableIndexTemplate.DataStreamTemplate::getDataSteamMappingSnippet)
+                .map(mapping -> {
+                    try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                        builder.value(mapping);
+                        return new CompressedXContent(BytesReference.bytes(builder));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                })
+                .ifPresent(mappings::add);
+        }
         return Collections.unmodifiableList(mappings);
     }
 
@@ -1097,16 +1121,19 @@ public class MetadataIndexTemplateService {
                     // shard id and the current timestamp
                     xContentRegistry, tempIndexService.newQueryShardContext(0, null, () -> 0L, null));
 
+                // triggers inclusion of _timestamp field and its validation:
+                String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
                 // Parse mappings to ensure they are valid after being composed
-                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName);
+                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName );
                 try {
                     MapperService mapperService = tempIndexService.mapperService();
                     for (CompressedXContent mapping : mappings) {
                         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
-                        if (template.getDataStreamTemplate() != null) {
-                            String tsFieldName = template.getDataStreamTemplate().getTimestampField();
-                            validateTimestampFieldMapping(tsFieldName, mapperService);
-                        }
+                    }
+
+                    if (template.getDataStreamTemplate() != null) {
+                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
+                        validateTimestampFieldMapping(tsFieldName, mapperService);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

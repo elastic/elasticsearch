@@ -135,7 +135,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                         List.of(indexMetadata.getIndex()), 1L))
                     .put(indexMetadata, true)
             )

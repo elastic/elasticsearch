@@ -66,7 +66,7 @@ Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`)
 NOTE: Using `_all` in a request fails if any snapshots are unavailable.
 Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
 
-[role="child-attributes"]
+[role="child_attributes"]
 [[get-snapshot-api-request-body]]
 ==== {api-request-body-title}
 
@@ -92,40 +92,73 @@ If `false`, omits additional information about the snapshot, such as version inf
 Name of the snapshot.
 
 `uuid`::
+(string)
 Universally unique identifier (UUID) of the snapshot.
 
 `version_id`::
+(int)
 Build ID of the {es} version used to create the snapshot.
 
 `version`::
+(float)
 {es} version used to create the snapshot.
 
 `indices`::
-Indices that are included in the snapshot.
+(array)
+List of indices included in the snapshot.
+
+`data_streams`::
+(array)
+List of <<data-streams,data streams>> included in the snapshot.
+
+`include_global_state`::
+(boolean)
+Indicates whether the current cluster state is included in the snapshot.
 
 `start_time`::
+(string)
 Date timestamp of when the snapshot creation process started.
 
 `start_time_in_millis`::
-The start time, in milliseconds, when the snapshot creation process started.
+(long)
+The time, in milliseconds, when the snapshot creation process started.
 
 `end_time`::
+(string)
 Date timestamp of when the snapshot creation process ended.
 
 `end_time_in_millis`::
-The end time, in milliseconds, when the snapshot creation process ended.
+(long)
+The time, in milliseconds, when the snapshot creation process ended.
 
 `duration_in_millis`::
+(long)
 How long, in milliseconds, it took to create the snapshot.
 
+[[get-snapshot-api-response-failures]]
 `failures`::
+(array)
 Lists any failures that occurred when creating the snapshot.
 
 `shards`::
-Indicates the following shards information:
-* Total shards included in the snapshot
-* Failed shards that were not included in the snapshot
-* Successful shards that were included in the snapshot
+(object)
+Contains a count of shards in the snapshot.
++
+.Properties of `shards`
+[%collapsible%open]
+====
+`total`::
+(integer)
+Total number of shards included in the snapshot.
+
+`successful`::
+(integer)
+Number of shards that were successfully included in the snapshot.
+
+`failed`::
+(integer)
+Number of shards that failed to be included in the snapshot.
+====
 
 `state`::
 +
@@ -147,12 +180,8 @@ The snapshot `state` can be one of the following values:
 
 `PARTIAL`::
   The global cluster state was stored, but data of at least one shard was not stored successfully.
-  The `failures` section of the response contains more detailed information about shards
+  The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
   that were not processed correctly.
-
-`INCOMPATIBLE`::
-  The snapshot was created with an old version of {es} and is incompatible with
-  the current version of the cluster.
 ====
 --
 

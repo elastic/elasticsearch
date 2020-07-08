@@ -241,7 +241,11 @@ The API returns the following result:
     "user": "kimchy",
     "date": "2009-11-15T14:12:12",
     "likes": 0,
-    "message": "trying out Elasticsearch"
+    "message": "trying out Elasticsearch",
+    "location": {
+      "city": "Amsterdam",
+      "country": "Netherlands"
+    }
   }
 }
 --------------------------------------------------

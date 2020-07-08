@@ -105,7 +105,8 @@ GET /twitter/_search?typed_keys
       "aggregations": {
         "top_users": {
             "top_hits": {
-                "size": 1
+                "size": 1,
+                "_source": ["user", "likes", "message"]
             }
         }
       }
@@ -133,7 +134,7 @@ In the response, the aggregations names will be changed to respectively `date_hi
               "total": {
                 "value": 5,
                 "relation": "eq"
-            },
+              },
               "max_score": 1.0,
               "hits": [
                 {
@@ -141,9 +142,8 @@ In the response, the aggregations names will be changed to respectively `date_hi
                   "_id": "0",
                   "_score": 1.0,
                   "_source": {
-                    "date": "2009-11-15T14:12:12",
-                    "message": "trying out Elasticsearch",
                     "user": "kimchy",
+                    "message": "trying out Elasticsearch",
                     "likes": 0
                   }
                 }
@@ -167,12 +167,12 @@ request. This is the case for Terms, Significant Terms and Percentiles aggregati
 also contains information about the type of the targeted field: `lterms` (for a terms aggregation on a Long field),
  `sigsterms` (for a significant terms aggregation on a String field), `tdigest_percentiles` (for a percentile
  aggregation based on the TDigest algorithm).
- 
+
 
 [[indexing-aggregation-results]]
 == Indexing aggregation results with {transforms}
- 
-<<transforms,{transforms-cap}>> enable you to convert existing {es} indices 
-into summarized indices, which provide opportunities for new insights and 
-analytics. You can use {transforms} to persistently index your aggregation 
+
+<<transforms,{transforms-cap}>> enable you to convert existing {es} indices
+into summarized indices, which provide opportunities for new insights and
+analytics. You can use {transforms} to persistently index your aggregation
 results into entity-centric indices.

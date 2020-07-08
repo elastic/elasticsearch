@@ -4,33 +4,211 @@
 
 By default, each hit in the search response includes the document
 <<mapping-source-field,`_source`>>, which is the entire JSON object that was
-provided when indexing the document. If you only need certain source fields in
-the search response, you can use the <<source-filtering,source filtering>> to
-restrict what parts of the source are returned.
+provided when indexing the document. To retrieve specific fields in the search
+response, you can use the `fields` parameter:
 
-Returning fields using only the document source has some limitations:
+[source,console]
+----
+POST twitter/_search
+{
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "fields": ["user", "date"],
+  "_source": false
+}
+----
+// TEST[setup:twitter]
 
-* The `_source` field does not include <<multi-fields, multi-fields>> or
-<<alias, field aliases>>. Likewise, a field in the source does not contain
-values copied using the <<copy-to,`copy_to`>> mapping parameter.
-* Since the `_source` is stored as a single field in Lucene, the whole source
-object must be loaded and parsed, even if only a small number of fields are
-needed.
+The `fields` parameter consults both a document's `_source` and the index
+mappings to load and return values. Because it makes use of the mappings,
+`fields` has some advantages over referencing the `_source` directly: it
+accepts <<multi-fields, multi-fields>> and <<alias, field aliases>>, and
+also formats field values like dates in a consistent way.
 
-To avoid these limitations, you can:
+A document's `_source` is stored as a single field in Lucene. So the whole
+`_source` object must be loaded and parsed even if only a small number of
+fields are requested. To avoid this limitation, you can try another option for
+loading fields:
 
 * Use the <<docvalue-fields, `docvalue_fields`>>
 parameter to get values for selected fields. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
-* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to get the values for specific  stored fields. (Fields that use the <<mapping-store,`store`>> mapping option.)
+* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
+get the values for specific stored fields (fields that use the
+<<mapping-store,`store`>> mapping option).
 
-You can find more detailed information on each of these methods in the 
+You can find more detailed information on each of these methods in the
 following sections:
 
-* <<source-filtering>>
+* <<search-fields-param>>
 * <<docvalue-fields>>
 * <<stored-fields>>
+* <<source-filtering>>
+
+[discrete]
+[[search-fields-param]]
+=== Fields
+
+The `fields` parameter allows for retrieving a list of document fields in
+the search response. It consults both the document `_source` and the index
+mappings to return each value in a standardized way that matches its mapping
+type. By default, date fields are formatted according to the
+<<mapping-date-format,date format>> parameter in their mappings.
+
+The following search request uses the `fields` parameter to retrieve values
+for the `user` field, all fields starting with `location.`, and the
+`date` field:
+
+[source,console]
+----
+POST twitter/_search
+{
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "fields": [
+    "user",
+    "location.*", <1>
+    {
+      "field": "date",
+      "format": "epoch_millis" <2>
+    }
+  ],
+  "_source": false
+}
+----
+// TEST[continued]
+
+<1> Both full field names and wildcard patterns are accepted.
+<2> Using object notation, you can pass a `format` parameter to apply a custom
+    format for the field's values. This is currently supported for
+    <<date,`date` fields>> and <<date_nanos, `date_nanos` fields>>, which
+    accept a <<mapping-date-format,date format>>.
+
+The values are returned as a flat list in the `fields` section in each hit:
+
+[source,console-result]
+----
+{
+  "took" : 2,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "twitter",
+        "_id" : "0",
+        "_score" : 1.0,
+        "fields" : {
+          "user" : [
+            "kimchy"
+          ],
+          "date" : [
+            "1258294332000"
+          ],
+          "location.city": [
+            "Amsterdam"
+          ],
+          "location.country": [
+            "Netherlands"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+
+Only leaf fields are returned -- `fields` does not allow for fetching entire
+objects.
+
+The `fields` parameter handles field types like <<alias, field aliases>> and
+<<constant-keyword, `constant_keyword`>> whose values aren't always present in
+the `_source`. Other mapping options are also respected, including
+<<ignore-above, `ignore_above`>>, <<ignore-malformed, `ignore_malformed`>> and
+<<null-value, `null_value`>>.
+
+[discrete]
+[[docvalue-fields]]
+=== Doc value fields
+
+You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
+<<doc-values,doc values>> for one or more fields in the search response.
+
+Doc values store the same values as the `_source` but in an on-disk,
+column-based structure that's optimized for sorting and aggregations. Since each
+field is stored separately, {es} only reads the field values that were requested
+and can avoid loading the whole document `_source`.
+
+Doc values are stored for supported fields by default. However, doc values are
+not supported for <<text,`text`>> or
+{plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
+
+The following search request uses the `docvalue_fields` parameter to retrieve
+doc values for the `user` field, all fields starting with `location.`, and the
+`date` field:
+
+[source,console]
+----
+GET twitter/_search
+{
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "docvalue_fields": [
+    "user",
+    "location.*", <1>
+    {
+      "field": "date",
+      "format": "epoch_millis" <2>
+    }
+  ]
+}
+----
+// TEST[continued]
+
+<1> Both full field names and wildcard patterns are accepted.
+<2> Using object notation, you can pass a `format` parameter to apply a custom
+    format for the field's doc values. <<date,Date fields>> support a
+    <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
+    https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
+    pattern]. Other field datatypes do not support the `format` parameter.
+
+TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
+nested objects. If you specify a nested object, the search returns an empty
+array (`[ ]`) for the field. To access nested fields, use the
+<<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
+property.
+
+[discrete]
+[[stored-fields]]
+=== Stored fields
+
+It's also possible to store an individual field's values by using the
+<<mapping-store,`store`>> mapping option. You can use the
+<<request-body-search-stored-fields, `stored_fields`>> parameter to include
+these stored values in the search response.
 
 [discrete]
 [[source-filtering]]
@@ -117,71 +295,3 @@ GET /_search
   }
 }
 ----
-
-
-[discrete]
-[[docvalue-fields]]
-=== Doc value fields
-
-You can use the <<docvalue-fields,`docvalue_fields`>> parameter to return
-<<doc-values,doc values>> for one or more fields in the search response.
-
-Doc values store the same values as the `_source` but in an on-disk,
-column-based structure that's optimized for sorting and aggregations. Since each
-field is stored separately, {es} only reads the field values that were requested
-and can avoid loading the whole document `_source`.
-
-Doc values are stored for supported fields by default. However, doc values are
-not supported for <<text,`text`>> or
-{plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
-
-The following search request uses the `docvalue_fields` parameter to
-retrieve doc values for the following fields:
-
-* Fields with names starting with `my_ip`
-* `my_keyword_field`
-* Fields with names ending with `_date_field`
-
-[source,console]
-----
-GET /_search
-{
-  "query": {
-    "match_all": {}
-  },
-  "docvalue_fields": [
-    "my_ip*",                     <1>
-    {
-      "field": "my_keyword_field" <2>
-    },
-    {
-      "field": "*_date_field",
-      "format": "epoch_millis"    <3>
-    }
-  ]
-}
-----
-
-<1> Wildcard patten used to match field names, specified as a string.
-<2> Wildcard patten used to match field names, specified as an object.
-<3> With the object notation, you can use the `format` parameter to specify a
-    format for the field's returned doc values. <<date,Date fields>> support a
-    <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
-    https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
-    pattern]. Other field data types do not support the `format` parameter.
-
-TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
-nested objects. If you specify a nested object, the search returns an empty
-array (`[ ]`) for the field. To access nested fields, use the
-<<request-body-search-inner-hits, `inner_hits`>> parameter's `docvalue_fields`
-property.
-
-
-[discrete]
-[[stored-fields]]
-=== Stored fields
-
-It's also possible to store an individual field's values by using the
-<<mapping-store,`store`>> mapping option. You can use the
-<<request-body-search-stored-fields, `stored_fields`>> parameter to include
-these stored values in the search response.

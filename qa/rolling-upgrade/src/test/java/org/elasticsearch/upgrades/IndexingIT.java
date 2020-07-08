@@ -96,6 +96,8 @@ public class IndexingIT extends AbstractRollingTestCase {
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
             client().performRequest(createTestIndex);
+            allowedWarnings("index [test_index] matches multiple legacy templates [global, prevent-bwc-deprecation-template], " +
+                "composable templates will only match a single template");
 
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");

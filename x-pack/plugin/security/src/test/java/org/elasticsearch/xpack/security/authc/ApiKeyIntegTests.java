@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
-    private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 100;
+    private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -841,7 +841,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        assumeTrue("Skip test if the node has only a single thread", allocatedProcessors > 1);
+//        assumeTrue("Skip test if the node has only a single thread", allocatedProcessors > 1);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
 
         final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
@@ -875,15 +875,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 }
             });
         }
-        // Fill the whole queue for the crypto thread pool
+        // Make sure above tasks are running
+        readyLatch.await();
+        // Then fill the whole queue for the crypto thread pool
         Future<?> lastTaskFuture = null;
+        int i = 0;
         try {
-            for (int i = 0; i < CRYPTO_THREAD_POOL_QUEUE_SIZE; i++) {
+            for (i = 0; i < CRYPTO_THREAD_POOL_QUEUE_SIZE; i++) {
                 lastTaskFuture = executorService.submit(() -> { });
             }
         } catch (EsRejectedExecutionException e) {
+            logger.info("Attempted to push {} tasks but only pushed {}", CRYPTO_THREAD_POOL_QUEUE_SIZE, i + 1);
         }
-        readyLatch.await();
 
         try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {
             final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(

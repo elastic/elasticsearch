@@ -225,8 +225,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertArrayEquals(readBlobFully(containerFoo, "test", data1.length), data1);
             assertArrayEquals(readBlobFully(containerBar, "test", data2.length), data2);
 
-            assertTrue(BlobStoreTestUtil.blobExists(containerFoo, "test"));
-            assertTrue(BlobStoreTestUtil.blobExists(containerBar, "test"));
+            assertTrue(containerFoo.blobExists("test"));
+            assertTrue(containerBar.blobExists("test"));
             containerBar.delete();
             containerFoo.delete();
         }
@@ -445,7 +445,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         for (IndexId indexId : repositoryData.actionGet().getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
-                assertFalse(BlobStoreTestUtil.blobExists(indicesBlobContainer.get(), indexId.getId())); // deleted index
+                assertFalse(indicesBlobContainer.get().blobExists(indexId.getId())); // deleted index
             }
         }
 

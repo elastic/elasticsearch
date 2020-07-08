@@ -6,11 +6,14 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,13 +25,18 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -37,6 +45,47 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class SearchableSnapshotsCacheClearingIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+
+    private static DeleteBlockingFileSystemProvider deleteBlockingFileSystemProvider;
+
+    @BeforeClass
+    public static void installDeleteBlockingFileSystemProvider() {
+        FileSystem current = PathUtils.getDefaultFileSystem();
+        deleteBlockingFileSystemProvider = new DeleteBlockingFileSystemProvider(current);
+        PathUtilsForTesting.installMock(deleteBlockingFileSystemProvider.getFileSystem(null));
+    }
+
+    @AfterClass
+    public static void removeDeleteBlockingFileSystemProvider() {
+        PathUtilsForTesting.teardown();
+    }
+
+    void startBlockingDeletes() {
+        deleteBlockingFileSystemProvider.injectFailures.set(true);
+    }
+
+    void stopBlockingDeletes() {
+        deleteBlockingFileSystemProvider.injectFailures.set(false);
+    }
+
+    private static class DeleteBlockingFileSystemProvider extends FilterFileSystemProvider {
+
+        AtomicBoolean injectFailures = new AtomicBoolean();
+
+        DeleteBlockingFileSystemProvider(FileSystem inner) {
+            super("writeblocking://", inner);
+        }
+
+        @Override
+        public boolean deleteIfExists(Path path) throws IOException {
+            if (injectFailures.get()) {
+                throw new IOException("blocked deletion of " + path);
+            } else {
+                return super.deleteIfExists(path);
+            }
+        }
+
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -114,6 +163,7 @@ public class SearchableSnapshotsCacheClearingIntegTests extends BaseSearchableSn
         }
         assertFalse("no cache files found", cacheFiles.isEmpty());
 
+        startBlockingDeletes();
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
@@ -121,7 +171,7 @@ public class SearchableSnapshotsCacheClearingIntegTests extends BaseSearchableSn
                 for (Path cacheFile : cacheFiles) {
                     assertTrue(cacheFile + " should not have been cleaned up yet", Files.isRegularFile(cacheFile));
                 }
-
+                stopBlockingDeletes();
                 return Settings.EMPTY;
             }
         });

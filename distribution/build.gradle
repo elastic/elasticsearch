@@ -288,15 +288,11 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
           attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
           attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
-
         }
       }
     }
   }
 
-  repositories {
-
-  }
   dependencies {
     libs project(':server')
     libs project(path: ':libs:elasticsearch-plugin-classloader', configuration: 'archives')
@@ -523,62 +519,62 @@ subprojects {
     String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
     Map<String, Object> expansions = [
-      'project.name'          : project.name,
-      'project.version'       : version,
+      'project.name': project.name,
+      'project.version': version,
 
-      'path.conf'             : [
+      'path.conf': [
         'deb': '/etc/elasticsearch',
         'rpm': '/etc/elasticsearch',
         'def': '"$ES_HOME"/config'
       ],
-      'path.data'             : [
+      'path.data': [
         'deb': packagingPathData,
         'rpm': packagingPathData,
         'def': '#path.data: /path/to/data'
       ],
-      'path.env'              : [
+      'path.env': [
         'deb': '/etc/default/elasticsearch',
         'rpm': '/etc/sysconfig/elasticsearch',
         /* There isn't one of these files for tar or zip but its important to
           make an empty string here so the script can properly skip it. */
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; done',
       ],
-      'source.path.env'       : [
+      'source.path.env': [
         'deb': 'source /etc/default/elasticsearch',
         'rpm': 'source /etc/sysconfig/elasticsearch',
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
       ],
-      'path.logs'             : [
+      'path.logs': [
         'deb': packagingPathLogs,
         'rpm': packagingPathLogs,
         'def': '#path.logs: /path/to/logs'
       ],
-      'loggc'                 : [
+      'loggc': [
         'deb': packagingLoggc,
         'rpm': packagingLoggc,
         'def': 'logs/gc.log'
       ],
 
-      'heap.min'              : defaultHeapSize,
-      'heap.max'              : defaultHeapSize,
+      'heap.min': defaultHeapSize,
+      'heap.max': defaultHeapSize,
 
-      'heap.dump.path'        : [
+      'heap.dump.path': [
         'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
         'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
         'def': "-XX:HeapDumpPath=data"
       ],
 
-      'error.file'            : [
+      'error.file': [
         'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
         'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
         'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
-      'stopping.timeout'      : [
+      'stopping.timeout': [
         'rpm': 86400,
       ],
 
-      'scripts.footer'        : [
+      'scripts.footer': [
         /* Debian needs exit 0 on these scripts so we add it here and preserve
           the pretty footer. */
         'deb': "exit 0\n${footer}",
@@ -589,22 +585,22 @@ subprojects {
         'def': oss ? 'oss' : 'default'
       ],
 
-      'es.distribution.type'  : [
+      'es.distribution.type': [
         'deb': 'deb',
         'rpm': 'rpm',
         'tar': 'tar',
         'zip': 'zip'
       ],
 
-      'es.bundled_jdk'        : [
+      'es.bundled_jdk': [
         'def': jdk ? 'true' : 'false'
       ],
 
-      'license.name'          : [
+      'license.name': [
         'deb': oss ? 'ASL-2.0' : 'Elastic-License'
       ],
 
-      'license.text'          : [
+      'license.text': [
         'deb': licenseText,
       ],
     ]

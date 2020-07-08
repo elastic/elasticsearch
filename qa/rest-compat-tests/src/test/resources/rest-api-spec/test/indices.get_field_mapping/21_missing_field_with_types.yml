@@ -19,5 +19,5 @@
         index: test_index
         type: test_type
         fields: not_existent
-
+#  - match: { '': {}}
   - match: { 'test_index.mappings': { '_doc':{}}}

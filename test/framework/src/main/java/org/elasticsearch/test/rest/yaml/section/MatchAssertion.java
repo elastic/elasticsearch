@@ -45,12 +45,7 @@ public class MatchAssertion extends Assertion {
     public static MatchAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
         Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
-        String field = stringObjectTuple.v1();
-        String replaced = field.replaceFirst("mappings\\.[a-zA-Z_]+_type", "mappings\\._doc");
-        if(replaced.equals(field) == false){
-            return new MatchAssertion(location, replaced, stringObjectTuple.v2());
-        }
-        return new MatchAssertion(location, field, stringObjectTuple.v2());
+        return new MatchAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 
     private static final Logger logger = LogManager.getLogger(MatchAssertion.class);
@@ -62,8 +57,8 @@ public class MatchAssertion extends Assertion {
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
         // TODO this needs to be moved to override directory
-        if(getField().endsWith("type") ){
-//            assertThat(actualValue, equalTo("_doc"));
+        if(getField().equals("_type") ){
+            assertThat(actualValue, equalTo("_doc"));
             return;
         }
 

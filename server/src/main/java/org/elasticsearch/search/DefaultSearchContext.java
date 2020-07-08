@@ -175,8 +175,9 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(), lowLevelCancellation);
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
+        Map<String, Object> extraMapping = request.source() == null ? null : request.source().extraMapping();
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher,
-            request::nowInMillis, shardTarget.getClusterAlias());
+            request::nowInMillis, shardTarget.getClusterAlias(), extraMapping);
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
     }
@@ -775,7 +776,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public MappedFieldType fieldType(String name) {
-        return mapperService().fieldType(name);
+        return queryShardContext.fieldMapper(name);
     }
 
     @Override

@@ -368,7 +368,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null, null, () -> true,
-            valuesSourceRegistry);
+            valuesSourceRegistry, null);
     }
 
     /**

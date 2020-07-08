@@ -619,6 +619,38 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Builds a {@linkplain Function} to lookup mappers for a request, adding
+     * any {@code extraMapping} provided.
+     * @param extraMapping extra mappings parse and to add to the request
+     *        lookup or {@code null} if there aren't any extra mappings  
+     */
+    public Function<String, MappedFieldType> newFieldTypeLookup(Map<String, Object> extraMapping) {
+        if (extraMapping == null || extraMapping.size() == 0) {
+            return this::fieldType;
+        }
+        // TODO parsing an entire mapping is almost certainly "too big"
+        Mapping mapping = documentMapperParser().parseMapping("extra", extraMapping);
+        Map<String, MappedFieldType> extra = new HashMap<>();
+        for (Mapper m : mapping.root()) {
+            // TODO this should dig the sub fields out of object mappers. Probably.
+            for (MappedFieldType ft: m.convertToSearchTimeMappings()) {
+                MappedFieldType fromIndexMapping = fieldType(ft.name());
+                if (fromIndexMapping != null) {
+                    throw new IllegalArgumentException("No shadowing?! Was [" + fromIndexMapping + "] attempted to add [" + mapping + "]");
+                }
+                extra.put(ft.name(), ft);
+            }
+        }
+        return fullName -> {
+            MappedFieldType searchTime = extra.get(fullName);
+            if (searchTime != null) {
+                return searchTime;
+            }
+            return fieldType(fullName);
+        };
+    }
+
+    /**
      * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
      */
     public boolean isIdFieldDataEnabled() {

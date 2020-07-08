@@ -20,6 +20,8 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -62,6 +64,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -185,6 +188,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private CollapseBuilder collapse = null;
 
+    private Map<String, Object> extraMapping; 
+
     /**
      * Constructs a new search source builder.
      */
@@ -239,6 +244,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
         trackTotalHitsUpTo = in.readOptionalInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            extraMapping = in.readMap();
+        }
     }
 
     @Override
@@ -293,6 +301,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
         out.writeOptionalInt(trackTotalHitsUpTo);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeMap(extraMapping);
+        } else {
+            throw new IllegalArgumentException(
+                "Defining [" + CreateIndexRequest.MAPPINGS.getPreferredName() + "] in the search request is not supported before 8.0.0"
+            );
+        }
     }
 
     /**
@@ -895,6 +910,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return stats;
     }
 
+    /**
+     * Add a search time mapping.
+     */
+    public SearchSourceBuilder extraMapping(Map<String, Object> extraMapping) {
+        this.extraMapping = extraMapping;
+        return this;
+    }
+
+    /**
+     * The search time mappings.
+     */
+    public Map<String, Object> extraMapping() {
+        return extraMapping;
+    }
+
     public SearchSourceBuilder ext(List<SearchExtBuilder> searchExtBuilders) {
         this.extBuilders = Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null");
         return this;
@@ -996,6 +1026,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.version = version;
         rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         rewrittenBuilder.collapse = collapse;
+        rewrittenBuilder.extraMapping = extraMapping;
         return rewrittenBuilder;
     }
 
@@ -1104,6 +1135,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     sliceBuilder = SliceBuilder.fromXContent(parser);
                 } else if (COLLAPSE.match(currentFieldName, parser.getDeprecationHandler())) {
                     collapse = CollapseBuilder.fromXContent(parser);
+                } else if (CreateIndexRequest.MAPPINGS.match(currentFieldName, parser.getDeprecationHandler())) {
+                    extraMapping = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1551,7 +1584,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(profile, other.profile)
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
-                && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo);
+                && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
+                && Objects.equals(extraMapping, other.extraMapping);
     }
 
     @Override

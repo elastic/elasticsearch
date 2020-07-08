@@ -103,14 +103,17 @@ public class DocumentMapper implements ToXContentFragment {
             return this;
         }
 
-        public DocumentMapper build(MapperService mapperService) {
+        public Mapping buildMapping(Version indexVersionCreated) {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            Mapping mapping = new Mapping(
-                    mapperService.getIndexSettings().getIndexVersionCreated(),
+            return new Mapping(
+                    indexVersionCreated,
                     rootObjectMapper,
                     metadataMappers.values().toArray(new MetadataFieldMapper[metadataMappers.values().size()]),
                     meta);
-            return new DocumentMapper(mapperService, mapping);
+        }
+
+        public DocumentMapper build(MapperService mapperService) {
+            return new DocumentMapper(mapperService, buildMapping(mapperService.getIndexSettings().getIndexVersionCreated()));
         }
     }
 

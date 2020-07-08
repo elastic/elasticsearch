@@ -575,13 +575,24 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
+        return newQueryShardContext(shardId, searcher, nowInMillis, clusterAlias, null);
+    }
+
+    public QueryShardContext newQueryShardContext(
+        int shardId,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Map<String, Object> extraMapping
+    ) {
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
             shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry);
+            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, extraMapping);
     }
+
 
     /**
      * The {@link ThreadPool} to use for this index.

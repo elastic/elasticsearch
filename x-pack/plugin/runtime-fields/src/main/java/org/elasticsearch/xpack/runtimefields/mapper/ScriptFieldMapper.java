@@ -57,6 +57,11 @@ public final class ScriptFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public List<MappedFieldType> convertToSearchTimeMappings() {
+        return List.of(fieldType());
+    }
+
     public static class Builder extends FieldMapper.Builder<BooleanFieldMapper.Builder> {
 
         private final ScriptService scriptService;

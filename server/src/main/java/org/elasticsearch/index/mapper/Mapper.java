@@ -26,6 +26,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -172,4 +173,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
     public abstract Mapper merge(Mapper mergeWith);
 
+    /**
+     * Called when this {@linkplain Mapper} is parsed on the {@code _search}
+     * request to make fields available just for this search. 
+     */
+    public List<MappedFieldType> convertToSearchTimeMappings() {
+        throw new IllegalArgumentException("fields with type [" + typeName() + "] can't be added to [_search]");
+    }
 }

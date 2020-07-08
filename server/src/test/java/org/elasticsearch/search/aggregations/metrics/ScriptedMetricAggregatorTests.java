@@ -566,7 +566,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             null,
             null,
             () -> true,
-            valuesSourceRegistry
+            valuesSourceRegistry,
+            null
         );
     }
 }

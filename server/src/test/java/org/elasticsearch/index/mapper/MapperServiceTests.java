@@ -37,11 +37,15 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.Mapper.TypeParser;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -49,19 +53,25 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InternalSettingsPlugin.class, ReloadableFilterPlugin.class);
+        return List.of(InternalSettingsPlugin.class, ReloadableFilterPlugin.class, TestSearchTimeFieldPlugin.class);
     }
 
     public void testTypeValidation() {
@@ -410,6 +420,33 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()));
     }
 
+    public void testNewFieldTypeLookupEmpty() throws IOException {
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
+        Function<String, MappedFieldType> lookup = mapperService.newFieldTypeLookup(randomBoolean() ? null : new HashMap<>());
+        assertThat(lookup.apply("f1"), notNullValue());
+        assertThat(lookup.apply("f2"), nullValue());
+    }
+
+    public void testNewFieldTypeLookupInvalidExtra() throws IOException {
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+            new TreeMap<>(Map.of("properties", new TreeMap<>(Map.of("st1", new TreeMap<>(Map.of("type", "long"))))))
+        ));
+        assertThat(e.getMessage(), equalTo("fields with type [long] can't be added to [_search]"));
+    }
+
+    public void testNewFieldTypeLookupValidExtra() throws IOException {
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
+        Function<String, MappedFieldType> lookup = mapperService.newFieldTypeLookup(
+            new TreeMap<>(Map.of("properties", new TreeMap<>(Map.of("st1", new TreeMap<>(Map.of("type", "test_search_time"))))))
+        );
+        assertThat(lookup.apply("f1"), notNullValue());
+        assertThat(lookup.apply("f2"), nullValue());
+        assertThat(lookup.apply("st1"), notNullValue());
+        assertThat(lookup.apply("st2"), nullValue());
+    }
+
+
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {
         ReloadableCustomAnalyzer updatedReloadableAnalyzer = (ReloadableCustomAnalyzer) updatedAnalyzer.analyzer();
         TokenFilterFactory[] newTokenFilters = updatedReloadableAnalyzer.getComponents().getTokenFilters();
@@ -456,6 +493,29 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                         }
                     };
                 }
+            });
+        }
+    }
+
+    /**
+     * Creates a totally broken search time field that returns a {@code long}'s
+     * {@link MappedFieldType} and doesn't crash. Searches would never work
+     * with it though.
+     */
+    public static final class TestSearchTimeFieldPlugin extends Plugin implements MapperPlugin {
+        @Override
+        @SuppressWarnings("rawtypes")
+        public Map<String, TypeParser> getMappers() {
+            return Map.of("test_search_time", (name, node, parserContext) -> {
+                Mapper.Builder<?> delegate = new NumberFieldMapper.TypeParser(NumberType.LONG).parse(name, node, parserContext);
+                return new Mapper.Builder(name) {
+                    @Override
+                    public Mapper build(BuilderContext context) {
+                        FieldMapper longMapper = spy((FieldMapper) delegate.build(context));
+                        doReturn(List.of(longMapper.fieldType())).when(longMapper).convertToSearchTimeMappings();
+                        return longMapper;
+                    }
+                };
             });
         }
     }

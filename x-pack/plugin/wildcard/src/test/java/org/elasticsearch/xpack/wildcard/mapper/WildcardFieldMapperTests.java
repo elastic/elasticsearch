@@ -793,7 +793,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, xContentRegistry(), null, null, null,
-                () -> randomNonNegativeLong(), null, null, () -> true, null) {
+                () -> randomNonNegativeLong(), null, null, () -> true, null, null) {
 
             @Override
             public MappedFieldType fieldMapper(String name) {

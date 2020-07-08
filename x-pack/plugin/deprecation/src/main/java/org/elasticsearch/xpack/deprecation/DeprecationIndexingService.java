@@ -45,7 +45,7 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
 
     public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(
         "cluster.deprecation_indexing.enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

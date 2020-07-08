@@ -55,7 +55,7 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
-        this.warningLogger = new WarningLogger(deprecatedLoggerName(parentLogger.getName()));
+        this.warningLogger = new WarningLogger(parentLogger);
     }
 
     public static DeprecationLogger getLogger(Class<?> aClass) {

@@ -88,6 +88,7 @@ If `false`, omits additional information about the snapshot, such as version inf
 ==== {api-response-body-title}
 
 `snapshot`::
+(string)
 Name of the snapshot.
 
 `uuid`::

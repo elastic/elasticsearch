@@ -253,7 +253,28 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
 
-You can further constrain matching event sequences using the `by` keyword.
+You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
+constrain a sequence to a specified timespan.
+
+The following EQL search request adds `with maxspan=1h` to the previous query.
+This ensures all events in a matching sequence occur within one hour (`1h`) of
+the first event's timestamp.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    sequence with maxspan=1h
+      [ file where file.name == "cmd.exe" ]
+      [ process where stringContains(process.name, "regsvr32") ]
+  """
+}
+----
+// TEST[s/search/search\?filter_path\=\-\*\.sequences\.events\.\*fields/]
+
+You can further constrain matching event sequences using the
+<<eql-by-keyword,`by` keyword>>.
 
 The following EQL search request adds `by agent.id` to each event item. This
 ensures events matching the sequence share the same `agent.id` field value.
@@ -263,7 +284,7 @@ ensures events matching the sequence share the same `agent.id` field value.
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence
+    sequence with maxspan=1h
       [ file where file.name == "cmd.exe" ] by agent.id
       [ process where stringContains(process.name, "regsvr32") ] by agent.id
   """
@@ -279,7 +300,7 @@ prior one.
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence by agent.id
+    sequence by agent.id with maxspan=1h
       [ file where file.name == "cmd.exe" ]
       [ process where stringContains(process.name, "regsvr32") ]
   """

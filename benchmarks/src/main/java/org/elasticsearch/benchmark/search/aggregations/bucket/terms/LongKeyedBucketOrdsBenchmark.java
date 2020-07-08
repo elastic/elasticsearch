@@ -115,6 +115,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoSingleMutableBimorphicInvocation(Blackhole bh) {
+        bh.consume(LongKeyedBucketOrds.FromMany.class);
         LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {

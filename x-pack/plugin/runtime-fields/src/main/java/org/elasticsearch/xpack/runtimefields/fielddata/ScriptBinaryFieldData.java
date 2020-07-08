@@ -75,7 +75,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent  // TODO
     public void setSearchLookup(SearchLookup searchLookup) {
         // TODO wire the params from the mappings definition, we don't parse them yet
         // TODO it'd be nice if we could stuff `runtimeValues` some place into the search context so we could reuse it
-        this.docValuesBuilder.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup).runtimeValues().docValues());
+        this.docValuesBuilder.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup).runtimeFieldHelper().docValues());
     }
 
     @Override

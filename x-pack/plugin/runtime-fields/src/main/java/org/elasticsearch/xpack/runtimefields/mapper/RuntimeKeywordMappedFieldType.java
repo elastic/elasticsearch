@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -68,9 +68,8 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
-    private StringRuntimeFieldHelper runtimeValues(QueryShardContext ctx) {
-        // TODO cache the runtimeValues in the context somehow
-        return scriptFactory.newFactory(script.getParams(), ctx.lookup()).runtimeValues();
+    private StringRuntimeFieldHelper helper(QueryShardContext ctx) {
+        return scriptFactory.newFactory(script.getParams(), ctx.lookup()).runtimeFieldHelper();
     }
 
     @Override
@@ -81,7 +80,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public Query existsQuery(QueryShardContext context) {
-        return runtimeValues(context).existsQuery(name());
+        return helper(context).existsQuery(name());
     }
 
     @Override
@@ -94,12 +93,12 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         QueryShardContext context
     ) {
         String term = BytesRefs.toString(value);
-        return runtimeValues(context).fuzzyQuery(name(), term, fuzziness.asDistance(term), prefixLength, maxExpansions, transpositions);
+        return helper(context).fuzzyQuery(name(), term, fuzziness.asDistance(term), prefixLength, maxExpansions, transpositions);
     }
 
     @Override
     public Query prefixQuery(String value, RewriteMethod method, QueryShardContext context) {
-        return runtimeValues(context).prefixQuery(name(), value);
+        return helper(context).prefixQuery(name(), value);
     }
 
     @Override
@@ -113,33 +112,27 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         DateMathParser parser,
         QueryShardContext context
     ) {
-        return runtimeValues(context).rangeQuery(
-            name(),
-            BytesRefs.toString(lowerTerm),
-            BytesRefs.toString(upperTerm),
-            includeLower,
-            includeUpper
-        );
+        return helper(context).rangeQuery(name(), BytesRefs.toString(lowerTerm), BytesRefs.toString(upperTerm), includeLower, includeUpper);
     }
 
     @Override
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
-        return runtimeValues(context).regexpQuery(name(), value, flags, maxDeterminizedStates);
+        return helper(context).regexpQuery(name(), value, flags, maxDeterminizedStates);
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
-        return runtimeValues(context).termQuery(name(), BytesRefs.toString(value));
+        return helper(context).termQuery(name(), BytesRefs.toString(value));
     }
 
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
-        return runtimeValues(context).termsQuery(name(), values.stream().map(BytesRefs::toString).toArray(String[]::new));
+        return helper(context).termsQuery(name(), values.stream().map(BytesRefs::toString).toArray(String[]::new));
     }
 
     @Override
     public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
-        return runtimeValues(context).wildcardQuery(name(), value);
+        return helper(context).wildcardQuery(name(), value);
     }
 
     void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {

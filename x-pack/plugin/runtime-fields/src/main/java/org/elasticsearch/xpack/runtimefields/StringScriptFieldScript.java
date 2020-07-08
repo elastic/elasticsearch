@@ -54,7 +54,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
          * Build an {@link StringRuntimeFieldHelper} to manage creation of doc
          * values and queries using the script.
          */
-        default StringRuntimeFieldHelper runtimeValues() {
+        default StringRuntimeFieldHelper runtimeFieldHelper() {
             return new StringRuntimeFieldHelper((ctx, sync) -> {
                 StringScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {

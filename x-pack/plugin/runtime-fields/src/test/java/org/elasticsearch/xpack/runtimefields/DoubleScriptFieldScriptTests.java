@@ -160,7 +160,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     @Override
     protected DoubleRuntimeFieldHelper newHelper(Factory factory, Map<String, Object> params, SearchLookup searchLookup)
         throws IOException {
-        return factory.newFactory(params, searchLookup).runtimeValues();
+        return factory.newFactory(params, searchLookup).runtimeFieldHelper();
     }
 
     @Override

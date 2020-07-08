@@ -51,7 +51,7 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
          * Build an {@link LongRuntimeFieldHelper} to manage creation of doc
          * values and queries using the script.
          */
-        default LongRuntimeFieldHelper runtimeValues() {
+        default LongRuntimeFieldHelper runtimeFieldHelper() {
             return new LongRuntimeFieldHelper((ctx, sync) -> {
                 LongScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {

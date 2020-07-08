@@ -173,7 +173,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     @Override
     protected LongRuntimeFieldHelper newHelper(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
-        return factory.newFactory(params, searchLookup).runtimeValues();
+        return factory.newFactory(params, searchLookup).runtimeFieldHelper();
     }
 
     @Override

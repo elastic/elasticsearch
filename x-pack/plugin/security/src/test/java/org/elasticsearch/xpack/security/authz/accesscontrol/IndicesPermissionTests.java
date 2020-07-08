@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -254,6 +256,8 @@ public class IndicesPermissionTests extends ESTestCase {
         assertFalse(authzMap.get("ba").getFieldPermissions().hasFieldLevelSecurity());
 
         assertTrue(core.check(SearchAction.NAME));
+        assertTrue(core.check(PutMappingAction.NAME));
+        assertTrue(core.check(AutoPutMappingAction.NAME));
         assertFalse(core.check("unknown"));
 
         // test with two indices
@@ -276,6 +280,8 @@ public class IndicesPermissionTests extends ESTestCase {
         assertTrue(authzMap.get("a2").getFieldPermissions().hasFieldLevelSecurity());
 
         assertTrue(core.check(SearchAction.NAME));
+        assertTrue(core.check(PutMappingAction.NAME));
+        assertTrue(core.check(AutoPutMappingAction.NAME));
         assertFalse(core.check("unknown"));
     }
 

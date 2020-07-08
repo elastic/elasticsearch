@@ -18,6 +18,7 @@
  */
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Lucene expressions integration for Elasticsearch'
@@ -36,6 +37,8 @@ restResources {
     includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'search'
   }
 }
+
+integTest.enabled = false
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'

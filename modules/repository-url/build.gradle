@@ -23,6 +23,8 @@ import org.elasticsearch.gradle.test.AntFixture
 
 apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
 
 esplugin {
   description 'Module for URL repository'
@@ -34,6 +36,8 @@ restResources {
     includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
   }
 }
+
+integTest.enabled = false
 
  // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
@@ -48,11 +52,11 @@ task urlFixture(type: AntFixture) {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
-
 yamlRestTest {
   dependsOn urlFixture
 }
-integTest {
+
+internalClusterTest {
   dependsOn urlFixture
 }
 testClusters.all {

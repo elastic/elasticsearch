@@ -242,9 +242,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         Optional.of(ApiKeyService.getCreatorRealmName(authentication)),
                         Optional.empty(),
                         Optional.empty())) == false) {
+            // this is redundant information maintained for bwc purposes
+            final String authnRealm = authentication.getAuthenticatedBy().getName();
             final StringMapMessage logEntry = new LogEntryBuilder()
                     .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(EVENT_ACTION_FIELD_NAME, "authentication_success")
+                    .with(REALM_FIELD_NAME, authnRealm)
                     .withRestUriAndMethod(request)
                     .withRequestId(requestId)
                     .withAuthentication(authentication)

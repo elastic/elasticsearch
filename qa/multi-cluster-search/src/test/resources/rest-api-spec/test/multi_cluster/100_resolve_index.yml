@@ -51,4 +51,4 @@
   - match: {data_streams.1.name: my_remote_cluster:simple-data-stream2}
   - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
   - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
-  - match: {data_streams.1.timestamp_field: "@timestamp2"}
+  - match: {data_streams.1.timestamp_field: "@timestamp"}

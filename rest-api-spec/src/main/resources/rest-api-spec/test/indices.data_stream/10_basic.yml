@@ -27,10 +27,10 @@ setup:
           template:
             mappings:
               properties:
-                '@timestamp2':
+                '@timestamp':
                   type: date
           data_stream:
-            timestamp_field: '@timestamp2'
+            timestamp_field: '@timestamp'
 
 ---
 "Create data stream":
@@ -59,7 +59,7 @@ setup:
   - match: { data_streams.0.status: 'GREEN' }
   - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.1.name: simple-data-stream2 }
-  - match: { data_streams.1.timestamp_field.name: '@timestamp2' }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.1.indices: 1 }
   - match: { data_streams.1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
@@ -129,11 +129,9 @@ setup:
       indices.get_data_stream: {}
   - match: { data_streams.0.name: simple-data-stream1 }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.timestamp_field.mapping: {type: date} }
   - match: { data_streams.0.generation: 1 }
   - match: { data_streams.1.name: simple-data-stream2 }
-  - match: { data_streams.1.timestamp_field.name: '@timestamp2' }
-  - match: { data_streams.1.timestamp_field.mapping: {type: date} }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
   - match: { data_streams.1.generation: 1 }
 
   - do:
@@ -141,7 +139,6 @@ setup:
         name: simple-data-stream1
   - match: { data_streams.0.name: simple-data-stream1 }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.timestamp_field.mapping: {type: date} }
   - match: { data_streams.0.generation: 1 }
 
   - do:
@@ -149,11 +146,9 @@ setup:
         name: simple-data-stream*
   - match: { data_streams.0.name: simple-data-stream1 }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.timestamp_field.mapping: {type: date} }
   - match: { data_streams.0.generation: 1 }
   - match: { data_streams.1.name: simple-data-stream2 }
-  - match: { data_streams.1.timestamp_field.name: '@timestamp2' }
-  - match: { data_streams.1.timestamp_field.mapping: {type: date} }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
   - match: { data_streams.1.generation: 1 }
 
   - do:
@@ -240,35 +235,35 @@ setup:
           template:
             mappings:
               properties:
-                'timestamp':
+                '@timestamp':
                   type: date
           data_stream:
-            timestamp_field: timestamp
+            timestamp_field: '@timestamp'
 
   - do:
       index:
         index:  logs-foobar
-        body:   { timestamp: '2020-12-12' }
+        body:   { '@timestamp': '2020-12-12' }
   - match: { _index: .ds-logs-foobar-000001 }
 
   - do:
       catch: bad_request
       index:
         index:  .ds-logs-foobar-000001
-        body:   { timestamp: '2020-12-12' }
+        body:   { '@timestamp': '2020-12-12' }
 
   - do:
       bulk:
         body:
           - create:
               _index: .ds-logs-foobar-000001
-          - timestamp: '2020-12-12'
+          - '@timestamp': '2020-12-12'
           - index:
               _index: .ds-logs-foobar-000001
-          - timestamp: '2020-12-12'
+          - '@timestamp': '2020-12-12'
           - create:
               _index: logs-foobar
-          - timestamp: '2020-12-12'
+          - '@timestamp': '2020-12-12'
   - match: { errors: true }
   - match: { items.0.create.status: 400 }
   - match: { items.0.create.error.type: illegal_argument_exception }
@@ -301,10 +296,10 @@ setup:
           template:
             mappings:
               properties:
-                'timestamp':
+                '@timestamp':
                   type: date
           data_stream:
-            timestamp_field: timestamp
+            timestamp_field: '@timestamp'
 
   - do:
       catch: bad_request
@@ -320,19 +315,19 @@ setup:
           - foo: bar
           - create:
               _index: logs-foobar
-          - timestamp: '2020-12-12'
+          - '@timestamp': '2020-12-12'
           - create:
               _index: logs-foobar
-          - timestamp: ['2020-12-12', '2022-12-12']
+          - '@timestamp': ['2020-12-12', '2022-12-12']
   - match: { errors: true }
   - match: { items.0.create.status: 400 }
   - match: { items.0.create.error.caused_by.type: illegal_argument_exception }
-  - match: { items.0.create.error.caused_by.reason: "data stream timestamp field [timestamp] is missing" }
+  - match: { items.0.create.error.caused_by.reason: "data stream timestamp field [@timestamp] is missing" }
   - match: { items.1.create.result: created }
   - match: { items.1.create._index: .ds-logs-foobar-000001 }
   - match: { items.2.create.status: 400 }
   - match: { items.2.create.error.caused_by.type: illegal_argument_exception }
-  - match: { items.2.create.error.caused_by.reason: "data stream timestamp field [timestamp] encountered multiple values" }
+  - match: { items.2.create.error.caused_by.reason: "data stream timestamp field [@timestamp] encountered multiple values" }
 
   - do:
       indices.delete_data_stream:

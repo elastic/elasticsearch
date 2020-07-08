@@ -3,7 +3,7 @@
 
 Type mappings, <<object,`object` fields>> and <<nested,`nested` fields>>
 contain sub-fields, called `properties`. These properties may be of any
-<<mapping-types,datatype>>, including `object` and `nested`.  Properties can
+<<mapping-types,data type>>, including `object` and `nested`.  Properties can
 be added:
 
 * explicitly by defining them when <<indices-create-index,creating an index>>.

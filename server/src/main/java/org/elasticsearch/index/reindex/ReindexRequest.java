@@ -311,9 +311,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.field("pipeline", getDestination().getPipeline());
             }
             builder.field("version_type", VersionType.toString(getDestination().versionType()));
-            if (getDestination().isRequireAlias()) {
-                builder.field(DocWriteRequest.REQUIRE_ALIAS, getDestination().isRequireAlias());
-            }
             builder.endObject();
         }
         {
@@ -357,7 +354,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
         destParser.declareString(IndexRequest::opType, new ParseField("op_type"));
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
-        destParser.declareBoolean(IndexRequest::setRequireAlias, new ParseField(DocWriteRequest.REQUIRE_ALIAS));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);

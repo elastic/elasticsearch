@@ -111,7 +111,7 @@ public final class BulkRequestParser {
     public void parse(
             BytesReference data, @Nullable String defaultIndex,
             @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-            @Nullable String defaultPipeline, boolean allowExplicitIndex,
+            @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
             XContentType xContentType,
             BiConsumer<IndexRequest, String> indexRequestConsumer,
             Consumer<UpdateRequest> updateRequestConsumer,
@@ -168,7 +168,7 @@ public final class BulkRequestParser {
                 long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
-                boolean requireAlias = false;
+                boolean requireAlias = defaultRequireAlias == null && defaultRequireAlias;
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters

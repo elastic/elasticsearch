@@ -120,7 +120,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         if (request.isRequireAlias() && (clusterService.state().getMetadata().hasAlias(request.index()) == false)) {
-            throw new IndexNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]", request.index());
+            throw new IndexNotFoundException("["
+                + DocWriteRequest.REQUIRE_ALIAS
+                + "] request flag is [true] and ["
+                + request.index()
+                + "] is not an alias", request.index());
         }
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {

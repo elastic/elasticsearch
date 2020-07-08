@@ -114,7 +114,12 @@ class ReindexValidator {
         }
         String target = destination.index();
         if (destination.isRequireAlias() && (false == clusterState.getMetadata().hasAlias(target))) {
-            throw new IndexNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]", target);
+            throw new IndexNotFoundException("["
+                + DocWriteRequest.REQUIRE_ALIAS
+                + "] request flag is [true] and ["
+                + target
+                + "] is not an alias",
+                target);
         }
         if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
             /*

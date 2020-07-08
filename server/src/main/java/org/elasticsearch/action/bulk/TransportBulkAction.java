@@ -228,7 +228,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
                     || request.versionType() == VersionType.EXTERNAL
                     || request.versionType() == VersionType.EXTERNAL_GTE)
-                .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 && v2));
+                .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
              * that we'll use when we try to run the requests. */
             final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
@@ -670,7 +670,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
             if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
-                Exception exception = new IndexNotFoundException("[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true]",
+                Exception exception = new IndexNotFoundException("["
+                    + DocWriteRequest.REQUIRE_ALIAS
+                    + "] request flag is [true] and ["
+                    + request.index()
+                    + "] is not an alias",
                     request.index());
                 addFailure(request, idx, exception);
                 return true;

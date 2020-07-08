@@ -74,7 +74,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private static final ParseField SOURCE_FIELD = new ParseField("_source");
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
-    private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
 
     static {
         PARSER = new ObjectParser<>(UpdateRequest.class.getSimpleName());
@@ -100,7 +99,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
         PARSER.declareLong(UpdateRequest::setIfSeqNo, IF_SEQ_NO);
         PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_PRIMARY_TERM);
-        PARSER.declareBoolean(UpdateRequest::setRequireAlias, REQUIRE_ALIAS);
     }
 
     private String id;
@@ -929,9 +927,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (fetchSourceContext != null) {
             builder.field("_source", fetchSourceContext);
-        }
-        if (requireAlias) {
-            builder.field(REQUIRE_ALIAS.getPreferredName(), requireAlias);
         }
         builder.endObject();
         return builder;

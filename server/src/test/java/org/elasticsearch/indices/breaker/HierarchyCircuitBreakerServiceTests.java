@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
@@ -309,7 +310,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             trackRealMemoryUsage -> new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(),
                 HierarchyCircuitBreakerService::realMemoryUsage,
-                HierarchyCircuitBreakerService.createYoungGcCountSupplier(), time::get, interval) {
+                HierarchyCircuitBreakerService.createYoungGcCountSupplier(), time::get, interval, TimeValue.timeValueSeconds(30)) {
 
                 @Override
                 void overLimitTriggered(boolean leader) {
@@ -431,7 +432,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicLong memoryUsage = new AtomicLong();
 
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
-            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get, () -> 0, time::get, interval) {
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get, () -> 0, time::get, interval,
+                TimeValue.timeValueSeconds(30)) {
             @Override
             void overLimitTriggered(boolean leader) {
                 if (leader) {
@@ -483,7 +485,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(),
                 memoryUsageSupplier,
                 gcCounter::incrementAndGet,
-                time::get, interval) {
+                time::get, interval, TimeValue.timeValueSeconds(30)) {
 
                 @Override
                 void overLimitTriggered(boolean leader) {
@@ -511,7 +513,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         AtomicLong memoryUsage = new AtomicLong();
         HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
             new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get, () -> 0,
-                time::get, interval) {
+                time::get, interval, TimeValue.timeValueSeconds(30)) {
 
                 @Override
                 void overLimitTriggered(boolean leader) {
@@ -566,12 +568,52 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     public void testCreateOverLimitStrategy() {
         assertThat(HierarchyCircuitBreakerService.createOverLimitStrategy(false),
             not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+        HierarchyCircuitBreakerService.OverLimitStrategy overLimitStrategy = HierarchyCircuitBreakerService.createOverLimitStrategy(true);
         if (JvmInfo.jvmInfo().useG1GC().equals("true")) {
-            assertThat(HierarchyCircuitBreakerService.createOverLimitStrategy(true),
-                instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+            assertThat(overLimitStrategy, instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+            assertThat(((HierarchyCircuitBreakerService.G1OverLimitStrategy) overLimitStrategy).getLockTimeout(),
+                equalTo(TimeValue.timeValueMillis(500)));
         } else {
-            assertThat(HierarchyCircuitBreakerService.createOverLimitStrategy(true),
-                not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+            assertThat(overLimitStrategy, not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+        }
+    }
+
+    public void testG1LockTimeout() throws Exception {
+        CountDownLatch startedBlocking = new CountDownLatch(1);
+        CountDownLatch blockingUntil = new CountDownLatch(1);
+        AtomicLong gcCounter = new AtomicLong();
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), () -> 100, gcCounter::incrementAndGet,
+                () -> 0, 1, TimeValue.timeValueMillis(randomFrom(0, 5, 10))) {
+
+                @Override
+                void overLimitTriggered(boolean leader) {
+                    if (leader) {
+                        startedBlocking.countDown();
+                        try {
+                            // this is the central assertion - the overLimit call below should complete in a timely manner.
+                            assertThat(blockingUntil.await(10, TimeUnit.SECONDS), is(true));
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                }
+            };
+
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(100, 100, 0, 0);
+        Thread blocker = new Thread(() -> {
+            strategy.overLimit(input);
+        });
+        blocker.start();
+        try {
+            assertThat(startedBlocking.await(10, TimeUnit.SECONDS), is(true));
+
+            // this should complete in a timely manner, verified by the assertion in the thread.
+            assertThat(strategy.overLimit(input), sameInstance(input));
+        } finally {
+            blockingUntil.countDown();
+            blocker.join(10000);
+            assertThat(blocker.isAlive(), is(false));
         }
     }
 

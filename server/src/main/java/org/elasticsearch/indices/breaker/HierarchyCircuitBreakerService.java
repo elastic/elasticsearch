@@ -33,6 +33,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -45,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -359,10 +362,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (trackRealMemoryUsage && jvmInfo.useG1GC().equals("true")
             // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
-            && Booleans.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1.double_check.enabled"), true)) {
+            && Booleans.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.enabled"), true)) {
+            TimeValue lockTimeout = TimeValue.timeValueMillis(
+                Integer.parseInt(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500"))
+            );
             // hardcode interval, do not want any tuning of it outside code changes.
             return new G1OverLimitStrategy(jvmInfo, HierarchyCircuitBreakerService::realMemoryUsage, createYoungGcCountSupplier(),
-                System::currentTimeMillis, 5000);
+                System::currentTimeMillis, 5000, lockTimeout);
         } else {
             return memoryUsed -> memoryUsed;
         }
@@ -393,17 +399,19 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         private final LongSupplier currentMemoryUsageSupplier;
         private final LongSupplier gcCountSupplier;
         private final LongSupplier timeSupplier;
+        private final TimeValue lockTimeout;
         private final long maxHeap;
 
         private long lastCheckTime = Long.MIN_VALUE;
         private final long minimumInterval;
 
         private long blackHole;
-        private final Object lock = new Object();
+        private final ReleasableLock lock = new ReleasableLock(new ReentrantLock());
 
         G1OverLimitStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
                             LongSupplier gcCountSupplier,
-                            LongSupplier timeSupplier, long minimumInterval) {
+                            LongSupplier timeSupplier, long minimumInterval, TimeValue lockTimeout) {
+            this.lockTimeout = lockTimeout;
             assert minimumInterval > 0;
             this.currentMemoryUsageSupplier = currentMemoryUsageSupplier;
             this.gcCountSupplier = gcCountSupplier;
@@ -412,7 +420,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             this.maxHeap = jvmInfo.getMem().getHeapMax().getBytes();
             long g1RegionSize = jvmInfo.getG1RegionSize();
             if (g1RegionSize <= 0) {
-
                 this.g1RegionSize = fallbackRegionSize(jvmInfo);
             } else {
                 this.g1RegionSize = g1RegionSize;
@@ -439,43 +446,48 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         @Override
         public MemoryUsage overLimit(MemoryUsage memoryUsed) {
-            boolean leader;
+            boolean leader = false;
             int allocationIndex = 0;
             long allocationDuration = 0;
-            synchronized (lock) {
-                long begin = timeSupplier.getAsLong();
-                leader = begin >= lastCheckTime + minimumInterval;
-                overLimitTriggered(leader);
-                if (leader) {
-                    long initialCollectionCount = gcCountSupplier.getAsLong();
-                    logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
-                    long localBlackHole = 0;
-                    // number of allocations, corresponding to (approximately) number of free regions + 1
-                    int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
-                    // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-                    int allocationSize = (int) (g1RegionSize >> 1);
-                    long maxUsageObserved = memoryUsed.baseUsage;
-                    for ( ; allocationIndex < allocationCount; ++allocationIndex) {
-                        long current = currentMemoryUsageSupplier.getAsLong();
-                        if (current >= maxUsageObserved) {
-                            maxUsageObserved = current;
-                        } else {
-                            // we observed a memory drop, so some GC must have occurred
-                            break;
+            try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
+                if (locked != null) {
+                    long begin = timeSupplier.getAsLong();
+                    leader = begin >= lastCheckTime + minimumInterval;
+                    overLimitTriggered(leader);
+                    if (leader) {
+                        long initialCollectionCount = gcCountSupplier.getAsLong();
+                        logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
+                        long localBlackHole = 0;
+                        // number of allocations, corresponding to (approximately) number of free regions + 1
+                        int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
+                        // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
+                        int allocationSize = (int) (g1RegionSize >> 1);
+                        long maxUsageObserved = memoryUsed.baseUsage;
+                        for (; allocationIndex < allocationCount; ++allocationIndex) {
+                            long current = currentMemoryUsageSupplier.getAsLong();
+                            if (current >= maxUsageObserved) {
+                                maxUsageObserved = current;
+                            } else {
+                                // we observed a memory drop, so some GC must have occurred
+                                break;
+                            }
+                            if (initialCollectionCount != gcCountSupplier.getAsLong()) {
+                                break;
+                            }
+                            localBlackHole += new byte[allocationSize].hashCode();
                         }
-                        if (initialCollectionCount != gcCountSupplier.getAsLong()) {
-                            break;
-                        }
-                        localBlackHole += new byte[allocationSize].hashCode();
+
+                        blackHole += localBlackHole;
+                        logger.trace("black hole [{}]", blackHole);
+
+                        long now = timeSupplier.getAsLong();
+                        this.lastCheckTime = now;
+                        allocationDuration = now - begin;
                     }
-
-                    blackHole += localBlackHole;
-                    logger.trace("black hole [{}]", blackHole);
-
-                    long now = timeSupplier.getAsLong();
-                    this.lastCheckTime = now;
-                    allocationDuration = now - begin;
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                // fallthrough
             }
 
             final long current = currentMemoryUsageSupplier.getAsLong();
@@ -498,6 +510,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         void overLimitTriggered(boolean leader) {
             // for tests to override.
+        }
+
+        TimeValue getLockTimeout() {
+            return lockTimeout;
         }
     }
 }

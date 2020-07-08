@@ -19,18 +19,15 @@
 package org.elasticsearch.action.admin.indices.datastream;
 
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStreamTests;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Response> {
+public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Writeable.Reader<Response> instanceReader() {
@@ -38,22 +35,12 @@ public class GetDataStreamsResponseTests extends AbstractSerializingTestCase<Res
     }
 
     @Override
-    protected Response doParseInstance(XContentParser parser) throws IOException {
-        List<DataStream> dataStreams = new ArrayList<>();
-        for (Token token = parser.nextToken(); token != Token.END_ARRAY; token = parser.nextToken()) {
-            if (token == Token.START_OBJECT) {
-                dataStreams.add(DataStream.fromXContent(parser));
-            }
-        }
-        return new Response(dataStreams);
-    }
-
-    @Override
     protected Response createTestInstance() {
         int numDataStreams = randomIntBetween(0, 8);
-        List<DataStream> dataStreams = new ArrayList<>();
+        List<Response.DataStreamInfo> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
-            dataStreams.add(DataStreamTests.randomInstance());
+            dataStreams.add(new Response.DataStreamInfo(DataStreamTests.randomInstance(), ClusterHealthStatus.GREEN,
+                randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10)));
         }
         return new Response(dataStreams);
     }

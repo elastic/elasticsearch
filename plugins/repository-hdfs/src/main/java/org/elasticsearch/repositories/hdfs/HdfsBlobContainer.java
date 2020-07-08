@@ -64,6 +64,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     private static final DeleteResult DELETE_RESULT = new DeleteResult(1L, 0L);
 
     @Override
+    public boolean blobExists(String blobName) throws IOException {
+        return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
+    }
+
+    @Override
     public DeleteResult delete() throws IOException {
         store.execute(fileContext -> fileContext.delete(path, true));
         return DELETE_RESULT;

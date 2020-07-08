@@ -174,7 +174,7 @@ regsvr32 misuse behavior.
           "@timestamp": 131883573237130000,
           "event": {
             "category": "process",
-            "type": "create"
+            "type": "creation"
           },
           "user": {
             "full_name": "bob",
@@ -342,7 +342,7 @@ The query matches a sequence, indicating the attack likely succeeded.
               "@timestamp": 131883573237130000,
               "event": {
                 "category": "process",
-                "type": "create"
+                "type": "creation"
               },
               "user": {
                 "full_name": "bob",
@@ -398,12 +398,12 @@ The query matches a sequence, indicating the attack likely succeeded.
                 "port": "50505"
               },
               "network": {
+                "direction": "outbound",
                 "protocol": "tcp"
               },
               "@timestamp": 131883573238680000,
               "event": {
-                "category": "network",
-                "type": "outgoing"
+                "category": "network"
               },
               "user": {
                 "full_name": "bob",

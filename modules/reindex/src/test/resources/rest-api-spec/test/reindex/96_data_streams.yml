@@ -10,11 +10,11 @@ setup:
         body:
           index_patterns: logs-*
           data_stream:
-            timestamp_field: timestamp
+            timestamp_field: '@timestamp'
           template:
             mappings:
               properties:
-                timestamp:
+                '@timestamp':
                   type: date
 
 ---
@@ -36,7 +36,7 @@ teardown:
         refresh: true
         body:
           foo: bar
-          timestamp: '2020-12-12'
+          '@timestamp': '2020-12-12'
 
   - do:
       reindex:
@@ -69,7 +69,7 @@ teardown:
         refresh: true
         body:
           foo: bar
-          timestamp: '2020-12-12'
+          '@timestamp': '2020-12-12'
 
   - do:
       reindex:
@@ -102,7 +102,7 @@ teardown:
         refresh: true
         body:
           foo: bar
-          timestamp: '2020-12-12'
+          '@timestamp': '2020-12-12'
 
   - do:
       reindex:

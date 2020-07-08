@@ -710,7 +710,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -776,7 +776,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             Arrays.asList("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));

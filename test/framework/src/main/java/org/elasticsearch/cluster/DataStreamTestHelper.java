@@ -54,6 +54,6 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStream.TimestampField createTimestampField(String fieldName) {
-        return new DataStream.TimestampField(fieldName, Map.of("type", "date"));
+        return new DataStream.TimestampField(fieldName);
     }
 }

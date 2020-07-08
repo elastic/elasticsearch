@@ -1070,7 +1070,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata())
                 .put(new DataStream("unreferenced",
-                    new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
+                    new DataStream.TimestampField("@timestamp"),
                     Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))))
                 .put(IndexMetadata.builder(".ds-unreferenced-000001")
                     .settings(Settings.builder()
@@ -1082,15 +1082,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"), null, null,
-            100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        Template mappingTemplate = new Template(null, new CompressedXContent(mapping), null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"),
+            mappingTemplate, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
 
         state = service.addIndexTemplateV2(state, false, "logs", template);
 
         ClusterState stateWithDS = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata())
                 .put(new DataStream("logs-mysql-default",
-                    new DataStream.TimestampField("@timestamp", Collections.singletonMap("type", "date")),
+                    new DataStream.TimestampField("@timestamp"),
                     Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))))
                 .put(IndexMetadata.builder(".ds-logs-mysql-default-000001")
                     .settings(Settings.builder()
@@ -1126,8 +1134,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Change the pattern to one that doesn't match the data stream
         e = expectThrows(IllegalArgumentException.class, () -> {
-            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), null, null,
-                100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), mappingTemplate,
+                null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
             service.addIndexTemplateV2(stateWithDS, false, "logs", newTemplate);
         });
 
@@ -1136,8 +1144,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
 
         // Add an additional template that matches our data stream at a lower priority
-        ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), null, null,
-            50L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+        ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), mappingTemplate,
+            null, 50L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
         ClusterState stateWithDSAndTemplate = service.addIndexTemplateV2(stateWithDS, false, "logs-mysql", mysqlTemplate);
 
         // We should be able to replace the "logs" template, because we have the "logs-mysql" template that can handle the data stream

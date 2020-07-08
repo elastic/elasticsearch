@@ -1,14 +1,5 @@
 ---
-"Nodes stats":
-  - do:
-      nodes.stats:
-        metric: [ indexing_pressure ]
-
-  - is_true: cluster_name
-  - is_true: nodes
-
----
-"Nodes stats level":
+"Indexing pressure stats":
   - skip:
       features: [arbitrary_key]
 
@@ -19,18 +10,11 @@
 
   - do:
       nodes.stats:
-        metric: [ indices ]
-        level: "indices"
+        metric: [ indexing_pressure ]
 
-  - is_true: nodes.$node_id.indices.indices
-
----
-"Nodes stats unrecognized parameter":
-  - do:
-      catch: bad_request
-      nodes.stats:
-        metric: [ transport ]
-
-  - match: { status: 400 }
-  - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "request [/_nodes/stats/transprot] contains unrecognized metric: [transprot] -> did you mean [transport]?" }
+  - gte:  { nodes.$node_id.indexing_pressure.total_primary_and_coordinating_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total_replica_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.pending_primary_and_coordinating_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.pending_replica_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.primary_and_coordinating_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.replica_rejections_bytes: 0 }

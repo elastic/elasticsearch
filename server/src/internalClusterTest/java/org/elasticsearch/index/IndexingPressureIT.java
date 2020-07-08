@@ -66,7 +66,6 @@ public class IndexingPressureIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            // Need at least two threads because we are going to block one
             .put(unboundedWriteQueue)
             .build();
     }

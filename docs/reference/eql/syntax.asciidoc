@@ -72,6 +72,34 @@ You can specify and combine these criteria using the following operators:
 <   <=   ==   !=   >=   >
 ----
 
+You cannot use comparison operators to compare a variable, such as a field
+value, to another variable, even if those variables are modified using a
+<eql-functions,function>>.
+
+.*Example*
+[%collapsible]
+====
+The following EQL query compares the `process.parent_name` field
+value to a static value, `foo`. This comparison is supported.
+
+However, the query also compares the `process.parent.name` field value to the
+`process.name` field. This comparison is not supported and will return an
+error for the entire query.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.parent.name == process.name
+----
+
+Instead, you can rewrite the query to compare both the `process.parent.name`
+and `process.name` fields to static values.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.name == "foo"
+----
+====
+
 [IMPORTANT]
 ====
 Avoid using the equal operator (`==`) to perform exact matching on `text` field

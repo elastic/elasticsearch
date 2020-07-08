@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -404,17 +405,19 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Finds the next (closest) delay expiration of an delayed shard in nanoseconds based on current time.
-     * Returns 0 if delay is negative.
-     * Returns -1 if no delayed shard is found.
+     * Finds the next (closest) delay expiration of an delayed shard in nanoseconds based on current time and delayed shard count.
+     * Returns (0, n) if delay is negative.
+     * Returns (-1, 0) if no delayed shard is found.
      */
-    public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
+    public static Tuple<Long, Integer> findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
         Metadata metadata = state.metadata();
         RoutingTable routingTable = state.routingTable();
         long nextDelayNanos = Long.MAX_VALUE;
+        int delayShardCount = 0;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
+                delayShardCount++;
                 Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);
@@ -423,7 +426,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
                 }
             }
         }
-        return nextDelayNanos == Long.MAX_VALUE ? -1L : nextDelayNanos;
+        return Tuple.tuple(nextDelayNanos == Long.MAX_VALUE ? -1L : nextDelayNanos, delayShardCount);
     }
 
     public String shortSummary() {

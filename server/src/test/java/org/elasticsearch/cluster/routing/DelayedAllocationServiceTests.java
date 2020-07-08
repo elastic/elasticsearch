@@ -291,7 +291,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         assertFalse(firstDelayedRerouteTask.cancelScheduling.get());
         assertThat(firstDelayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
         assertThat(firstDelayedRerouteTask.nextDelay.nanos(),
-            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithDelayedShards)));
+            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithDelayedShards).v1()));
         assertThat(firstDelayedRerouteTask.nextDelay.nanos(),
             equalTo(shortDelaySetting.nanos() - (clusterChangeEventTimestampNanos - baseTimestampNanos)));
 
@@ -330,7 +330,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         assertFalse(secondDelayedRerouteTask.cancelScheduling.get());
         assertThat(secondDelayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
         assertThat(secondDelayedRerouteTask.nextDelay.nanos(),
-            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithOnlyOneDelayedShard)));
+            equalTo(UnassignedInfo.findNextDelayedAllocation(clusterChangeEventTimestampNanos, stateWithOnlyOneDelayedShard).v1()));
         assertThat(secondDelayedRerouteTask.nextDelay.nanos(),
             equalTo(longDelaySetting.nanos() - (clusterChangeEventTimestampNanos - baseTimestampNanos)));
 

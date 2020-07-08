@@ -384,7 +384,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             clusterState = allocation.reroute(clusterState, "time moved");
         }
 
-        assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState),
+        assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState).v1(),
             equalTo(expectMinDelaySettingsNanos - delta));
     }
 

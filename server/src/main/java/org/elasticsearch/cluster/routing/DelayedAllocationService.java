@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
@@ -182,7 +183,9 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
      */
     private synchronized void scheduleIfNeeded(long currentNanoTime, ClusterState state) {
         assertClusterOrMasterStateThread();
-        long nextDelayNanos = UnassignedInfo.findNextDelayedAllocation(currentNanoTime, state);
+        Tuple<Long, Integer> delayAllocationInfo = UnassignedInfo.findNextDelayedAllocation(currentNanoTime, state);
+        long nextDelayNanos = delayAllocationInfo.v1();
+        int delayShardCount = delayAllocationInfo.v2();
         if (nextDelayNanos < 0) {
             logger.trace("no need to schedule reroute - no delayed unassigned shards");
             removeTaskAndCancel();
@@ -204,8 +207,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
             }
 
             if (earlierRerouteNeeded) {
-                logger.info("scheduling reroute for delayed shards in [{}] ({} delayed shards)", nextDelay,
-                    UnassignedInfo.getNumberOfDelayedUnassigned(state));
+                logger.info("scheduling reroute for delayed shards in [{}] ({} delayed shards)", nextDelay, delayShardCount);
                 DelayedRerouteTask currentTask = delayedRerouteTask.getAndSet(newTask);
                 assert existingTask == currentTask || currentTask == null;
                 newTask.schedule();

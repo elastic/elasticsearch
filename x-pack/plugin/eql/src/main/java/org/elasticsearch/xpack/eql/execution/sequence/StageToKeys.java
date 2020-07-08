@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
 
 /** Dedicated collection for mapping a stage (represented by the index collection) to a set of keys */
 class StageToKeys {
@@ -32,7 +33,10 @@ class StageToKeys {
         return set;
     }
 
-    Set<SequenceKey> completedKeys() {
-        return keys(stageToKey.size() - 1);
+    @Override
+    public String toString() {
+        StringJoiner sj = new StringJoiner(",", "[", "]");
+        stageToKey.forEach(s -> sj.add(s != null ? "" + s.size() : "0"));
+        return sj.toString();
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -82,6 +83,11 @@ public class SequenceStateMachine {
         Sequence sequence = before.v1();
         // eliminate the match and all previous values from the frame
         group.trim(before.v2() + 1);
+
+        // remove the frame and keys early (as the key space is large)
+        if (group.isEmpty()) {
+            stageToKeys.keys(previousStage).remove(key);
+        }
         
         // check maxspan before continuing the sequence
         if (maxSpanInMillis > 0 && (ordinal.timestamp() - sequence.startTimestamp() > maxSpanInMillis)) {
@@ -89,11 +95,6 @@ public class SequenceStateMachine {
         }
 
         sequence.putMatch(stage, hit, ordinal);
-
-        // remove the frame and keys early (as the key space is large)
-        if (group.isEmpty()) {
-            stageToKeys.keys(previousStage).remove(key);
-        }
 
         // bump the stages
         if (stage == completionStage) {
@@ -117,7 +118,27 @@ public class SequenceStateMachine {
         return limitReached;
     }
 
+    /**
+     * Checks whether the rest of the stages have in-flight data.
+     * This method is called when a query returns no data meaning
+     * sequences on previous stages cannot match this window (since there's no new data).
+     * However sequences on higher stages can, hence this check to know whether
+     * it's possible to advance the window early.
+     */
     public boolean hasCandidates(int stage) {
-        return stage < completionStage && stageToKeys.keys(stage).isEmpty() == false;
+        for (int i = stage; i < completionStage; i++) {
+            if (stageToKeys.keys(i).isEmpty() == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public String toString() {
+        return LoggerMessageFormat.format(null, "Tracking [{}] keys with [{}] completed and in-flight {}",
+                keyToSequences.numberOfKeys(),
+                completed.size(),
+                stageToKeys);
     }
 }

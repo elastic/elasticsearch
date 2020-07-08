@@ -839,6 +839,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException, ExecutionException {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
 
         final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
@@ -856,9 +857,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes().stream()
             .filter(nodeInfo -> nodeInfo.getNode().getName().equals(nodeName))
             .collect(Collectors.toList());
+        assertEquals(1, nodeInfos.size());
 
         final ExecutorService executorService = threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME);
-        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final int numberOfThreads = (allocatedProcessors + 1) / 2;
         final CountDownLatch blockingLatch = new CountDownLatch(1);
         final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads);
@@ -872,15 +873,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 }
             });
         }
-        // Fill the whole queue for the crypto thread pool
+        // Make sure above tasks are running
+        readyLatch.await();
+        // Then fill the whole queue for the crypto thread pool
         Future<?> lastTaskFuture = null;
+        int i = 0;
         try {
-            for (int i = 0; i < CRYPTO_THREAD_POOL_QUEUE_SIZE; i++) {
+            for (i = 0; i < CRYPTO_THREAD_POOL_QUEUE_SIZE; i++) {
                 lastTaskFuture = executorService.submit(() -> { });
             }
         } catch (EsRejectedExecutionException e) {
+            logger.info("Attempted to push {} tasks but only pushed {}", CRYPTO_THREAD_POOL_QUEUE_SIZE, i + 1);
         }
-        readyLatch.await();
 
         try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {
             final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(

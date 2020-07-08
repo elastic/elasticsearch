@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -80,6 +81,11 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         internalCluster().startMasterOnlyNodes(2);
         dataNodeNames = internalCluster().startDataOnlyNodes(2);
         ensureGreen();
+    }
+
+    @After
+    public void awaitNoMoreRunningOps() throws Exception {
+        awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }
 
     @Override
@@ -268,27 +274,33 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         // Create a failed snapshot
         AtomicReference<String> failedSnapshotName = new AtomicReference<>();
         {
-            logger.info("-->  stopping random data node, which should cause shards to go missing");
-            internalCluster().stopRandomDataNode();
-            assertBusy(() ->
-                    assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
-                30, TimeUnit.SECONDS);
+            if (partialSuccess) {
+                logger.info("-->  stopping random data node, which should cause shards to go missing");
+                internalCluster().stopRandomDataNode();
+                assertBusy(() -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
+                        30, TimeUnit.SECONDS);
 
-            final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
+                final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
 
-            logger.info("-->  start snapshot");
-            ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()
-                .execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId));
+                logger.info("-->  start snapshot");
+                ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()
+                        .execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId));
 
-            logger.info("--> waiting for block to kick in on " + masterNode);
-            waitForBlock(masterNode, REPO, TimeValue.timeValueSeconds(60));
+                logger.info("--> waiting for block to kick in on " + masterNode);
+                waitForBlock(masterNode, REPO, TimeValue.timeValueSeconds(60));
 
-            logger.info("-->  stopping master node");
-            internalCluster().stopCurrentMasterNode();
+                logger.info("-->  stopping master node");
+                internalCluster().stopCurrentMasterNode();
 
-            logger.info("-->  wait until the snapshot is done");
-            failedSnapshotName.set(snapshotFuture.get().getSnapshotName());
-            assertNotNull(failedSnapshotName.get());
+                logger.info("-->  wait until the snapshot is done");
+                failedSnapshotName.set(snapshotFuture.get().getSnapshotName());
+                assertNotNull(failedSnapshotName.get());
+            } else {
+                final String snapshotName = "failed-snapshot-1";
+                addBwCFailedSnapshot(REPO, snapshotName,
+                        Collections.singletonMap(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, policyId));
+                failedSnapshotName.set(snapshotName);
+            }
 
             logger.info("-->  verify that snapshot [{}] is {}", failedSnapshotName.get(), expectedUnsuccessfulState);
             assertBusy(() -> {
@@ -368,7 +380,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             });
         }
-        awaitNoMoreRunningOperations(internalCluster().getMasterName());
     }
 
     public void testSLMRetentionAfterRestore() throws Exception {

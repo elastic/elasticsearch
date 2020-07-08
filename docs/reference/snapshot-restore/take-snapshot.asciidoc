@@ -112,30 +112,24 @@ snapshot and the list of failures that occurred during the snapshot. The snapsho
 
 [horizontal]
 `IN_PROGRESS`::
-
   The snapshot is currently running.
 
 `SUCCESS`::
-
   The snapshot finished and all shards were stored successfully.
 
 `FAILED`::
-
   The snapshot finished with an error and failed to store any data.
 
 `PARTIAL`::
-
-  The global cluster state was stored, but data of at least one shard wasn't stored successfully.
-  The `failure` section in this case should contain more detailed information about shards
+  The global cluster state was stored, but data of at least one shard was not stored successfully.
+  The `failures` section of the response contains more detailed information about shards
   that were not processed correctly.
 
 `INCOMPATIBLE`::
-
-  The snapshot was created with an old version of Elasticsearch and therefore is incompatible with
+  The snapshot was created with an old version of {es} and is incompatible with
   the current version of the cluster.
 
-
-Similar as for repositories, information about multiple snapshots can be queried in one go, supporting wildcards as well:
+Similar as for repositories, information about multiple snapshots can be queried in a single request, supporting wildcards as well:
 
 [source,console]
 -----------------------------------

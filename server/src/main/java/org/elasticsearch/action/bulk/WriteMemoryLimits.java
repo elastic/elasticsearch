@@ -30,17 +30,19 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class WriteMemoryLimits {
 
-    // TODO: Adjust
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
-        Setting.memorySizeSetting("indices.write.limit", "10%", Setting.Property.NodeScope, Setting.Property.Dynamic);
+        Setting.memorySizeSetting("indexing_limits.memory.limit", "10%", Setting.Property.NodeScope);
 
     private final AtomicLong writeBytes = new AtomicLong(0);
     private final AtomicLong replicaWriteBytes = new AtomicLong(0);
-    private volatile long writeLimits;
+    private final long writeLimits;
+
+    public WriteMemoryLimits(Settings settings) {
+        this.writeLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
+    }
 
     public WriteMemoryLimits(Settings settings, ClusterSettings clusterSettings) {
         this.writeLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
-        clusterSettings.addSettingsUpdateConsumer(MAX_INDEXING_BYTES, value -> writeLimits = value.getBytes());
     }
 
     public Releasable markWriteOperationStarted(long bytes) {

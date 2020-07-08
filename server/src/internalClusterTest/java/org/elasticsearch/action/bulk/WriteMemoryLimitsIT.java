@@ -52,6 +52,8 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
 public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
+    // TODO: Add additional REST tests when metrics are exposed
+
     public static final String INDEX_NAME = "test";
 
     @Override

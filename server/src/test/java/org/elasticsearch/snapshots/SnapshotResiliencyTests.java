@@ -1498,7 +1498,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             threadPool,
                             shardStateAction,
                             actionFilters,
-                            new WriteMemoryLimits(settings, clusterSettings))),
+                            new WriteMemoryLimits(settings))),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
@@ -1513,7 +1513,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         actionFilters, indexNameExpressionResolver
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings, clusterService);
-                final WriteMemoryLimits indexingMemoryLimits = new WriteMemoryLimits(settings, clusterSettings);
+                final WriteMemoryLimits indexingMemoryLimits = new WriteMemoryLimits(settings);
                 mappingUpdatedAction.setClient(client);
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
@@ -1523,7 +1523,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(), client),
                         client, actionFilters, indexNameExpressionResolver,
                         new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver),
-                        new WriteMemoryLimits(settings, clusterSettings)
+                        new WriteMemoryLimits(settings)
                     ));
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),

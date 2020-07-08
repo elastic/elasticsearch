@@ -9,10 +9,6 @@ setup:
         body:
           index_patterns: [simple-data-stream1]
           template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
             settings:
               index.number_of_replicas: 0
           data_stream:
@@ -28,7 +24,7 @@ setup:
             mappings:
               properties:
                 '@timestamp':
-                  type: date
+                  type: date_nanos
           data_stream:
             timestamp_field: '@timestamp'
 
@@ -232,11 +228,6 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream:
             timestamp_field: '@timestamp'
 
@@ -293,11 +284,6 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream:
             timestamp_field: '@timestamp'
 

@@ -67,6 +67,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,6 +87,14 @@ import static org.elasticsearch.indices.cluster.IndicesClusterStateService.Alloc
  */
 public class MetadataIndexTemplateService {
 
+    public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
+    public static final String DEFAULT_TIMESTAMP_MAPPING = "{\n" +
+        "      \"properties\": {\n" +
+        "        \"@timestamp\": {\n" +
+        "          \"type\": \"date\"\n" +
+        "        }\n" +
+        "      }\n" +
+        "    }";
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
     private final ClusterService clusterService;
     private final AliasValidator aliasValidator;
@@ -939,7 +948,8 @@ public class MetadataIndexTemplateService {
      */
     public static List<CompressedXContent> collectMappings(final ClusterState state,
                                                            final String templateName,
-                                                           final String indexName) {
+                                                           final String indexName,
+                                                           final NamedXContentRegistry xContentRegistry) throws Exception {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
         assert template != null : "attempted to resolve mappings for a template [" + templateName +
             "] that did not exist in the cluster state";
@@ -954,11 +964,14 @@ public class MetadataIndexTemplateService {
             .map(ComponentTemplate::template)
             .map(Template::mappings)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .collect(Collectors.toCollection(LinkedList::new));
         // Add the actual index template's mappings, since it takes the highest precedence
         Optional.ofNullable(template.template())
             .map(Template::mappings)
             .ifPresent(mappings::add);
+        // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
+        // straightforward
+        mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
 
         // Only include _timestamp mapping snippet if creating backing index.
         if (indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
@@ -1124,7 +1137,7 @@ public class MetadataIndexTemplateService {
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
                 // Parse mappings to ensure they are valid after being composed
-                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName );
+                List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName, xContentRegistry);
                 try {
                     MapperService mapperService = tempIndexService.mapperService();
                     for (CompressedXContent mapping : mappings) {

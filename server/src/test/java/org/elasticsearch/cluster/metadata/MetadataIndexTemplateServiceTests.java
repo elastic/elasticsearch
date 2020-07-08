@@ -62,6 +62,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -708,7 +709,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index",
+            xContentRegistry());
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -771,10 +773,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index",
+            xContentRegistry());
 
         assertNotNull(mappings);
-        assertThat(mappings.size(), equalTo(3));
+        assertThat(mappings.size(), equalTo(4));
         List<Map<String, Object>> parsedMappings = mappings.stream()
             .map(m -> {
                 try {
@@ -786,12 +789,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 }
             })
             .collect(Collectors.toList());
-
         assertThat(parsedMappings.get(0),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
+            equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
         assertThat(parsedMappings.get(1),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
         assertThat(parsedMappings.get(2),
+            equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
+        assertThat(parsedMappings.get(3),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("field3", Map.of("type", "integer"))))));
     }
 
@@ -1082,16 +1086,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build())
             .build();
 
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-        Template mappingTemplate = new Template(null, new CompressedXContent(mapping), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"),
-            mappingTemplate, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            null, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
 
         state = service.addIndexTemplateV2(state, false, "logs", template);
 
@@ -1134,7 +1130,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Change the pattern to one that doesn't match the data stream
         e = expectThrows(IllegalArgumentException.class, () -> {
-            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), mappingTemplate,
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), null,
                 null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
             service.addIndexTemplateV2(stateWithDS, false, "logs", newTemplate);
         });
@@ -1144,7 +1140,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
 
         // Add an additional template that matches our data stream at a lower priority
-        ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), mappingTemplate,
+        ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), null,
             null, 50L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
         ClusterState stateWithDSAndTemplate = service.addIndexTemplateV2(stateWithDS, false, "logs-mysql", mysqlTemplate);
 

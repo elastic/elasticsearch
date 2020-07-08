@@ -137,8 +137,10 @@ this pattern.
   This timestamp field must be included in every document indexed to the data
   stream.
 
-* A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the
-timestamp field specified in the `timestamp_field` property.
+* Optionally define a <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for
+the timestamp field specified in the `timestamp_field` property. By default a <<date, `date`>>
+mapping is added for the `@timestamp` field, but this will be overwritten by any user defined
+mapping for the `@timestamp` field.
 +
 IMPORTANT: Carefully consider the timestamp field's mapping, including
 <<mapping-params,mapping parameters>> such as <<mapping-date-format,`format`>>.
@@ -173,13 +175,6 @@ PUT /_index_template/logs_data_stream
     "timestamp_field": "@timestamp"
   },
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "index.lifecycle.name": "logs_policy"
     }

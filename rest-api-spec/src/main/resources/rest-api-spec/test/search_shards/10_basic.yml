@@ -113,11 +113,6 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream:
             timestamp_field: '@timestamp'
 

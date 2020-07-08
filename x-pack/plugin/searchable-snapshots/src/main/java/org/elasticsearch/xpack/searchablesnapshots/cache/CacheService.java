@@ -54,19 +54,11 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ByteSizeValue rangeSize;
 
     public CacheService(final Runnable cacheCleaner, final Settings settings) {
-        this(
-            cacheCleaner,
-            SNAPSHOT_CACHE_SIZE_SETTING.get(settings),
-            SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings)
-        );
+        this(cacheCleaner, SNAPSHOT_CACHE_SIZE_SETTING.get(settings), SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings));
     }
 
     // exposed for tests
-    public CacheService(
-        final Runnable cacheCleaner,
-        final ByteSizeValue cacheSize,
-        final ByteSizeValue rangeSize
-    ) {
+    public CacheService(final Runnable cacheCleaner, final ByteSizeValue cacheSize, final ByteSizeValue rangeSize) {
         this.cacheSize = Objects.requireNonNull(cacheSize);
         this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
         this.rangeSize = Objects.requireNonNull(rangeSize);

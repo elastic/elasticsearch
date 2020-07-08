@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -89,7 +90,8 @@ public class SearchableSnapshotsCacheClearingIntegTests extends BaseSearchableSn
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
             // ensure the cache is definitely used
             .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(1L, ByteSizeUnit.GB))
             .build();
@@ -118,8 +120,8 @@ public class SearchableSnapshotsCacheClearingIntegTests extends BaseSearchableSn
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final String dataNode = randomFrom(client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes()
-            .getDataNodes().values().toArray(DiscoveryNode.class)).getName();
+        final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        final String dataNode = randomFrom(discoveryNodes.getDataNodes().values().toArray(DiscoveryNode.class)).getName();
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,

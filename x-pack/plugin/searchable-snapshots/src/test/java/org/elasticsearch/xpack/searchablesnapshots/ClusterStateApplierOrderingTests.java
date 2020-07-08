@@ -22,7 +22,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 

@@ -39,7 +39,7 @@ GET /_snapshot/my_repository/my_snapshot
 
 Use the get snapshot API to return information about one or more snapshots, including:
 
-* Value start and end time
+* Start and end time values
 * Version of {es} that created the snapshot
 * List of included indices
 * Current state of the snapshot

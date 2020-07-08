@@ -1,0 +1,134 @@
+---
+setup:
+  - skip:
+      features: ["headers", "allowed_warnings"]
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "ingest_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["index-managed-admin-ops"], "privileges": ["create_doc", "managed_admin_ops"] },
+              { "names": ["index-limited"], "privileges": ["create_doc"] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "ingest_role" ],
+            "full_name" : "user with privileges on data streams but not backing indices"
+          }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [index*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [index*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "ingest_role"
+        ignore: 404
+
+---
+"Managed_admin_ops permits auto-create of indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: ["headers", "allowed_warnings"]
+
+  # should succeed because test_user is authorized for managed_admin_ops on index-managed-admin-ops
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  index-managed-admin-ops
+        id:       1
+        op_type:  create
+        body:   { foo: bar, "@timestamp": "2020-12-12" }
+
+  # should fail because test_user is not authorized for managed_admin_ops on index-limited
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  index-limited
+        id:       1
+        op_type:  create
+        body:   { "@timestamp": "2020-12-12" }
+
+---
+"Managed_admin_ops permits auto-mapping-put on indices":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: ["headers", "allowed_warnings"]
+
+  - do: # superuser
+      indices.create:
+        index: index-managed-admin-ops
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  # should succeed because index already exists and no mappings are being changed
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  index-managed-admin-ops
+        id:       1
+        op_type:  create
+        body:   { name: foo }
+
+  - do: # superuser
+      indices.create:
+        index: index-limited
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+
+  # should fail because this would change a mapping on the unauthorized index-limited
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  index-limited
+        id:       2
+        op_type:  create
+        body:   { foo: bar }

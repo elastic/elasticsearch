@@ -8,6 +8,7 @@ To set up a data stream, follow these steps:
 . <<create-a-data-stream-template>>.
 . <<create-a-data-stream>>.
 . <<get-info-about-a-data-stream>> to verify it exists.
+. <<secure-a-data-stream>>.
 
 After you set up a data stream, you can <<use-a-data-stream, use the data
 stream>> for indexing, searches, and other supported operations.
@@ -344,6 +345,13 @@ information for the `logs` stream's write index, `.ds-logs-000002`.
 ----
 // TESTRESPONSE[skip:unable to assert responses with top level array]
 ====
+
+[discrete]
+[[secure-a-data-stream]]
+=== Secure a data stream
+
+You can use {es} {security-features} to control access to a data stream and its
+data. See <<data-stream-privileges>>.
 
 [discrete]
 [[delete-a-data-stream]]

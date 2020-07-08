@@ -61,7 +61,6 @@ class Matcher {
         return false;
     }
 
-
     public boolean hasCandidates(int stage) {
         return stateMachine.hasCandidates(stage);
     }
@@ -70,5 +69,10 @@ class Matcher {
         List<Sequence> completed = stateMachine.completeSequences();
         TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
         return new SequencePayload(completed, false, tookTime);
+    }
+
+    @Override
+    public String toString() {
+        return stateMachine.toString();
     }
 }

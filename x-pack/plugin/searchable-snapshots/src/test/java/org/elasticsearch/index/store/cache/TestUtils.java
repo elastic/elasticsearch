@@ -153,6 +153,11 @@ public final class TestUtils {
         }
 
         @Override
+        public boolean blobExists(String blobName) {
+            throw unsupportedException();
+        }
+
+        @Override
         public InputStream readBlob(String blobName) {
             throw unsupportedException();
         }

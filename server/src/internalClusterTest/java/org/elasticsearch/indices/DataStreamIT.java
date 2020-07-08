@@ -763,7 +763,8 @@ public class DataStreamIT extends ESIntegTestCase {
         putComposableIndexTemplate(id, null, patterns, null);
     }
 
-    static void putComposableIndexTemplate(String id, @Nullable String mappings, List<String> patterns, @Nullable Settings settings) throws IOException {
+    static void putComposableIndexTemplate(String id, @Nullable String mappings, List<String> patterns,
+                                           @Nullable Settings settings) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(

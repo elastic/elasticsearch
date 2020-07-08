@@ -239,7 +239,7 @@ public class CompositeRolesStore {
                     },
                     roleActionListener::onFailure
                 ));
-            } else {  // TODO: the else branch is for bwc and can be deleted in 9.0
+            } else {
                 apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
                     final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
                     if (descriptors == null) {

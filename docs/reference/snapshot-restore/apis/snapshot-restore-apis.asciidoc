@@ -25,6 +25,7 @@ content may not be included yet.
 [[snapshot-management-apis]]
 === Snapshot management APIs
 * <<create-snapshot-api,Create snapshot>>
+* <<get-snapshot-api,Get snapshot>>
 * <<delete-snapshot-api,Delete snapshot>>
 
 include::put-repo-api.asciidoc[]
@@ -33,4 +34,5 @@ include::get-repo-api.asciidoc[]
 include::delete-repo-api.asciidoc[]
 include::clean-up-repo-api.asciidoc[]
 include::create-snapshot-api.asciidoc[]
+include::get-snapshot-api.asciidoc[]
 include::delete-snapshot-api.asciidoc[]

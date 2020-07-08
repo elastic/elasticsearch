@@ -288,19 +288,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                     if (missing.isEmpty() == false) {
-                        // TODO: We should just throw here instead of creating a FAILED and hence useless snapshot in the repository
-                        newEntry = new SnapshotsInProgress.Entry(
-                                new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), false,
-                                State.FAILED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
-                                "Indices don't have primary shards " + missing, userMeta, version);
+                        throw new SnapshotException(
+                                new Snapshot(repositoryName, snapshotId), "Indices don't have primary shards " + missing);
                     }
                 }
-                if (newEntry == null) {
-                    newEntry = new SnapshotsInProgress.Entry(
-                            new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
-                            State.STARTED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
-                            null, userMeta, version);
-                }
+                newEntry = new SnapshotsInProgress.Entry(
+                        new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
+                        State.STARTED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
+                        null, userMeta, version);
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,

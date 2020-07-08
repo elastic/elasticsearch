@@ -59,11 +59,11 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
             final long seqNo = j;
             int iterations = randomIntBetween(2, 5);
             for (int i = 0; i < iterations; ++i) {
+                PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                Set<PlainActionFuture<Void>> set = seqToResult.computeIfAbsent(seqNo, (k) -> ConcurrentCollections.newConcurrentSet());
+                set.add(future);
                 threadPool.generic().execute(() -> {
-                    PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                     ActionListener<Void> listener = requestTracker.markReceivedAndCreateListener(seqNo, future);
-                    Set<PlainActionFuture<Void>> set = seqToResult.computeIfAbsent(seqNo, (k) -> ConcurrentCollections.newConcurrentSet());
-                    set.add(future);
                     if (listener != null) {
                         boolean added = seqNosReturned.add(seqNo);
                         // Ensure that we only return 1 future per sequence number

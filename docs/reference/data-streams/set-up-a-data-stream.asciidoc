@@ -21,11 +21,8 @@ and its backing indices.
 === Prerequisites
 
 * {es} data streams are intended for time-series data only. Each document
-indexed to a data stream must contain a shared timestamp field.
-+
-TIP: Data streams work well with most common log formats. While no schema is
-required to use data streams, we recommend the {ecs-ref}[Elastic Common Schema
-(ECS)].
+indexed to a data stream must contain the `@timestamp` field. This field must be
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field data type.
 
 * Data streams are best suited for time-based,
 <<data-streams-append-only,append-only>> use cases. If you frequently need to
@@ -98,7 +95,7 @@ PUT /_ilm/policy/logs_policy
 Each data stream requires an <<indices-templates,index template>>. The data
 stream uses this template to create its backing indices.
 
-Index templates for data streams must contain:
+An index template for a data stream must contain:
 
 * A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
 property.
@@ -133,22 +130,26 @@ this pattern.
 ----
 ====
 
-* A `data_stream` definition containing the `timestamp_field` property.
-  This timestamp field must be included in every document indexed to the data
-  stream.
+* A `data_stream` definition containing `@timestamp` in the `timestamp_field`
+property. The `@timestamp` field must be included in every document indexed to
+the data stream.
 
-* Optionally define a <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for
-the timestamp field specified in the `timestamp_field` property. By default a <<date, `date`>>
-mapping is added for the `@timestamp` field, but this will be overwritten by any user defined
-mapping for the `@timestamp` field.
+The template can also contain:
+
+* An optional field mapping for the `@timestamp` field. Both the <<date,`date`>> and 
+<<date_nanos,`date_nanos`>> field data types are supported. If no mapping is specified,
+the <<date,`date`>> field data type is used by default.
 +
-IMPORTANT: Carefully consider the timestamp field's mapping, including
-<<mapping-params,mapping parameters>> such as <<mapping-date-format,`format`>>.
-Once the stream is created, you can only update the timestamp field's mapping by
-reindexing the data stream. See
+This mapping can include other <<mapping-params,mapping parameters>>, such as
+<<mapping-date-format,`format`>>.
++
+IMPORTANT: Carefully consider the `@timestamp` field's mapping, including
+its <<mapping-params,mapping parameters>>.
+Once the stream is created, you can only update the `@timestamp` field's mapping
+by reindexing the data stream. See
 <<data-streams-use-reindex-to-change-mappings-settings>>.
 
-* If you intend to use {ilm-init}, you must specify the
+* If you intend to use {ilm-init}, the
   <<configure-a-data-stream-ilm-policy,lifecycle policy>> in the
   `index.lifecycle.name` setting.
 

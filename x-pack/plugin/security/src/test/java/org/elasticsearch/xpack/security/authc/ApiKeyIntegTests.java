@@ -841,7 +841,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-//        assumeTrue("Skip test if the node has only a single thread", allocatedProcessors > 1);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
 
         final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);

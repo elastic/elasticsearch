@@ -18,18 +18,18 @@ source or not) and therefore we cannot guarantee their compliance with
 officially supported on clusters with {security-features} enabled.
 
 [float]
-=== Changes in index wildcard behavior
+=== Changes in wildcard behavior
 
 Elasticsearch clusters with the {security-features} enabled apply the `/_all`
-wildcard, and all other wildcards, to the indices that the current user has
-privileges for, not the set of all indices on the cluster.
+wildcard, and all other wildcards, to the data streams, indices, and index aliases that the current user has
+privileges for, not all data streams, indices, and index aliases on the cluster.
 
 [float]
 === Multi document APIs
 
 Multi get and multi term vectors API throw IndexNotFoundException when trying to access non existing indices that the user is
-not authorized for. By doing that they leak information regarding the fact that the index doesn't exist, while the user is not
-authorized to know anything about those indices.
+not authorized for. By doing that they leak information regarding the fact that the data stream or index doesn't exist, while the user is not
+authorized to know anything about those data streams or indices.
 
 [float]
 === Filtered index aliases
@@ -44,14 +44,14 @@ documents through the
 [float]
 === Field and document level security limitations
 
-When a user's role enables document or field level security for an index:
+When a user's role enables document or field level security for a data stream or index:
 
 * The user cannot perform write operations:
 ** The update API isn't supported.
 ** Update requests included in bulk requests aren't supported.
 * The request cache is disabled for search requests.
 
-When a user's role enables document level security for an index:
+When a user's role enables document level security for a data stream or index:
 
 * Document level security isn't applied for APIs that aren't document based.
   An example is the field stats API.

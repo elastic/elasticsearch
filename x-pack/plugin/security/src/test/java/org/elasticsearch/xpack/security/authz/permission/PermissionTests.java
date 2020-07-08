@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
@@ -12,8 +14,10 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.CREATE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.MONITOR;
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ;
 import static org.hamcrest.Matchers.is;
@@ -30,11 +34,31 @@ public class PermissionTests extends ESTestCase {
         builder.add(MONITOR, "test_*", "/foo.*/");
         builder.add(READ, "baz_*foo", "/fool.*bar/");
         builder.add(MONITOR, "/bar.*/");
+        builder.add(CREATE, "ingest_foo*");
         permission = builder.build();
     }
 
     public void testAllowedIndicesMatcherAction() throws Exception {
         testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(GetAction.NAME));
+    }
+
+    public void testAllowedIndicesMatcherForMappingUpdates() throws Exception {
+        for (String mappingUpdateActionName : List.of(PutMappingAction.NAME, AutoPutMappingAction.NAME)) {
+            IndexAbstraction mockIndexAbstraction = mock(IndexAbstraction.class);
+            Predicate<IndexAbstraction> indexPredicate = permission.indices().allowedIndicesMatcher(mappingUpdateActionName);
+            // mapping updates are still permitted on indices and aliases
+            when(mockIndexAbstraction.getName()).thenReturn("ingest_foo" + randomAlphaOfLength(3));
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.ALIAS);
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
+            // mapping updates are NOT permitted on data streams and backing indices
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.DATA_STREAM);
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
+            when(mockIndexAbstraction.getParentDataStream()).thenReturn(mock(IndexAbstraction.DataStream.class));
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
+        }
     }
 
     public void testAllowedIndicesMatcherActionCaching() throws Exception {

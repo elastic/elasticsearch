@@ -442,6 +442,7 @@ public final class IndicesPermission {
             return indexAbstraction -> {
                 return namePredicate.test(indexAbstraction.getName()) ||
                         (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM &&
+                                (indexAbstraction.getParentDataStream() == null) &&
                                 bwcSpecialCaseNamePredicate.test(indexAbstraction.getName()));
             };
         }

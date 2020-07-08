@@ -227,3 +227,22 @@ APIs are not be blocked and can run on any available node.
 ===============================
 
 --
+
+`monitor.fs.health.enabled`::
+
+    (<<cluster-update-settings,Dynamic>>, boolean) If `true`, the node runs
+    periodic <<cluster-fault-detection-filesystem-health,filesystem health
+    checks>>. Defaults to `true`.
+
+`monitor.fs.health.refresh_interval`::
+
+    (<<time-units, Time value>>) Interval between successive
+    <<cluster-fault-detection-filesystem-health,filesystem health checks>>.
+    Defaults to `2m`.
+
+`monitor.fs.health.slow_path_logging_threshold`::
+
+    (<<time-units, Time value>>) If a
+    <<cluster-fault-detection-filesystem-health,filesystem health checks>>
+    takes longer than this threshold then {es} logs a warning. Defaults to
+    `5s`.

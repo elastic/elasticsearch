@@ -47,6 +47,9 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
+        }
         return builder.build();
     }
 
@@ -81,6 +84,15 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
             is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setAllowLazyStart(true).build())));
     }
 
+    public void testMergeWithConfig_UpdatedMaxNumThreads() {
+        String id = randomValidId();
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id).setMaxNumThreads(3).build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setMaxNumThreads(5).build();
+        assertThat(
+            update.mergeWithConfig(config).build(),
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setMaxNumThreads(5).build())));
+    }
+
     public void testMergeWithConfig_UpdatedAllUpdatableProperties() {
         String id = randomValidId();
         DataFrameAnalyticsConfig config =
@@ -88,12 +100,14 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
                 .setDescription("old description")
                 .setModelMemoryLimit(new ByteSizeValue(1024))
                 .setAllowLazyStart(false)
+                .setMaxNumThreads(1)
                 .build();
         DataFrameAnalyticsConfigUpdate update =
             new DataFrameAnalyticsConfigUpdate.Builder(id)
                 .setDescription("new description")
                 .setModelMemoryLimit(new ByteSizeValue(2048))
                 .setAllowLazyStart(true)
+                .setMaxNumThreads(4)
                 .build();
         assertThat(
             update.mergeWithConfig(config).build(),
@@ -102,6 +116,7 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
                     .setDescription("new description")
                     .setModelMemoryLimit(new ByteSizeValue(2048))
                     .setAllowLazyStart(true)
+                    .setMaxNumThreads(4)
                     .build())));
     }
 
@@ -155,9 +170,19 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
         assertThat(update.requiresRestart(config), is(true));
     }
 
+    public void testRequiresRestart_MaxNumThreadsUpdateRequiresRestart() {
+        String id = randomValidId();
+        DataFrameAnalyticsConfig config =
+            DataFrameAnalyticsConfigTests.createRandomBuilder(id).setMaxNumThreads(1).build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setMaxNumThreads(8).build();
+
+        assertThat(update.requiresRestart(config), is(true));
+    }
+
     private boolean isNoop(DataFrameAnalyticsConfig config, DataFrameAnalyticsConfigUpdate update) {
         return (update.getDescription() == null || Objects.equals(config.getDescription(), update.getDescription()))
             && (update.getModelMemoryLimit() == null || Objects.equals(config.getModelMemoryLimit(), update.getModelMemoryLimit()))
-            && (update.isAllowLazyStart() == null || Objects.equals(config.isAllowLazyStart(), update.isAllowLazyStart()));
+            && (update.isAllowLazyStart() == null || Objects.equals(config.isAllowLazyStart(), update.isAllowLazyStart()))
+            && (update.getMaxNumThreads() == null || Objects.equals(config.getMaxNumThreads(), update.getMaxNumThreads()));
     }
 }

@@ -326,6 +326,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 `dest`::
 (Required, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dest]
+
+`max_number_threads`::
+(Optional, integer)
+The maximum number of threads to be used by the analysis.
+The default value is `1`. Using more threads may decrease the time
+necessary to complete the analysis at the cost of using more CPU.
+Note that the process may use a additional threads for operational
+functionality other than the analysis itself.
   
 `model_memory_limit`::
 (Optional, string)

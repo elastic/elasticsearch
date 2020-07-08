@@ -199,7 +199,7 @@ setup:
   - match: { id: "custom-outlier-detection" }
   - match: { source.index: ["index-source"] }
   - match: { source.query: {"match_all" : {} } }
-  - match: { dest.index: "index-dest" }
+  - m atch: { dest.index: "index-dest" }
   - match: { analysis: {
     "outlier_detection":{
       "n_neighbors": 5,

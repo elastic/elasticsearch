@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     LongScriptFieldScript.Factory,
-    LongRuntimeValues,
+    LongRuntimeFieldHelper,
     SortedNumericDocValues,
     Long> {
 
@@ -69,13 +69,13 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testExistsQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        LongRuntimeValues isOne = c.testScript("is_one");
+        LongRuntimeFieldHelper isOne = c.testScript("is_one");
         assertThat(c.collect(isOne.existsQuery("foo"), isOne), equalTo(List.of(1L)));
     }
 
     public void testTermQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        LongRuntimeValues timesTen = c.testScript("times_ten");
+        LongRuntimeFieldHelper timesTen = c.testScript("times_ten");
         assertThat(c.collect(timesTen.termQuery("foo", 1), timesTen), equalTo(List.of()));
         assertThat(c.collect(timesTen.termQuery("foo", 10), timesTen), equalTo(List.of(10L, 20L)));
         assertThat(c.collect(timesTen.termQuery("foo", 20), timesTen), equalTo(List.of(10L, 20L)));
@@ -84,7 +84,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testTermsQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        LongRuntimeValues timesTen = c.testScript("times_ten");
+        LongRuntimeFieldHelper timesTen = c.testScript("times_ten");
         assertThat(c.collect(timesTen.termsQuery("foo", 1, 2), timesTen), equalTo(List.of()));
         assertThat(c.collect(timesTen.termsQuery("foo", 10, 11), timesTen), equalTo(List.of(10L, 20L)));
         assertThat(c.collect(timesTen.termsQuery("foo", 20, 21), timesTen), equalTo(List.of(10L, 20L)));
@@ -94,7 +94,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testRangeQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        LongRuntimeValues timesTen = c.testScript("times_ten");
+        LongRuntimeFieldHelper timesTen = c.testScript("times_ten");
         assertThat(c.collect(timesTen.rangeQuery("foo", 1, 2), timesTen), equalTo(List.of()));
         assertThat(c.collect(timesTen.rangeQuery("foo", 9, 11), timesTen), equalTo(List.of(10L, 20L)));
         assertThat(c.collect(timesTen.rangeQuery("foo", 10, 11), timesTen), equalTo(List.of(10L, 20L)));
@@ -111,7 +111,7 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
          * skip some of them eventually, when we're more comfortable with this.
          */
         TestCase c = multipleValuesInDocValues();
-        LongRuntimeValues timesTen = c.testScript("times_ten");
+        LongRuntimeFieldHelper timesTen = c.testScript("times_ten");
         assertThat(
             c.collect(
                 new ForceNoBulkScoringQuery(
@@ -172,12 +172,12 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected LongRuntimeValues newValues(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
+    protected LongRuntimeFieldHelper newHelper(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
         return factory.newFactory(params, searchLookup).runtimeValues();
     }
 
     @Override
-    protected CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesBuilder(LongRuntimeValues values) {
+    protected CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesBuilder(LongRuntimeFieldHelper values) {
         return values.docValues();
     }
 

@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     DoubleScriptFieldScript.Factory,
-    DoubleRuntimeValues,
+    DoubleRuntimeFieldHelper,
     SortedNumericDoubleValues,
     Double> {
 
@@ -74,13 +74,13 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testExistsQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        DoubleRuntimeValues isOnePointOne = c.testScript("is_one_point_one");
+        DoubleRuntimeFieldHelper isOnePointOne = c.testScript("is_one_point_one");
         assertThat(c.collect(isOnePointOne.existsQuery("foo"), isOnePointOne), equalTo(List.of(1.1)));
     }
 
     public void testTermQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
+        DoubleRuntimeFieldHelper timesTen = c.testScript("times_nine_point_nine");
         assertThat(c.collect(timesTen.termQuery("foo", 1), timesTen), equalTo(List.of()));
         assertThat(c.collect(timesTen.termQuery("foo", 10.89), timesTen), equalTo(List.of(10.89, 21.78)));
         assertThat(c.collect(timesTen.termQuery("foo", 21.78), timesTen), equalTo(List.of(10.89, 21.78)));
@@ -89,7 +89,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testTermsQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
+        DoubleRuntimeFieldHelper timesTen = c.testScript("times_nine_point_nine");
         assertThat(c.collect(timesTen.termsQuery("foo", 1, 2), timesTen), equalTo(List.of()));
         assertThat(c.collect(timesTen.termsQuery("foo", 10.89, 11), timesTen), equalTo(List.of(10.89, 21.78)));
         assertThat(c.collect(timesTen.termsQuery("foo", 21.78, 22), timesTen), equalTo(List.of(10.89, 21.78)));
@@ -99,7 +99,7 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testRangeQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        DoubleRuntimeValues timesTen = c.testScript("times_nine_point_nine");
+        DoubleRuntimeFieldHelper timesTen = c.testScript("times_nine_point_nine");
         assertThat(c.collect(timesTen.rangeQuery("foo", 1, 2), timesTen), equalTo(List.of()));
         assertThat(c.collect(timesTen.rangeQuery("foo", 9, 11), timesTen), equalTo(List.of(10.89, 21.78)));
         assertThat(c.collect(timesTen.rangeQuery("foo", 10.89, 11), timesTen), equalTo(List.of(10.89, 21.78)));
@@ -158,12 +158,13 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected DoubleRuntimeValues newValues(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
+    protected DoubleRuntimeFieldHelper newHelper(Factory factory, Map<String, Object> params, SearchLookup searchLookup)
+        throws IOException {
         return factory.newFactory(params, searchLookup).runtimeValues();
     }
 
     @Override
-    protected CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesBuilder(DoubleRuntimeValues values) {
+    protected CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValuesBuilder(DoubleRuntimeFieldHelper values) {
         return values.docValues();
     }
 

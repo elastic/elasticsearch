@@ -7,68 +7,63 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.function.DoubleConsumer;
 import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
 
 /**
- * Manages the creation of doc values and queries for {@code double} fields.
+ * Manages the creation of doc values and queries for {@code long} fields.
  */
-public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRuntimeValues.SharedValues> {
+public final class LongRuntimeFieldHelper {
     @FunctionalInterface
     public interface NewLeafLoader {
-        IntConsumer leafLoader(LeafReaderContext ctx, DoubleConsumer sync) throws IOException;
+        IntConsumer leafLoader(LeafReaderContext ctx, LongConsumer sync) throws IOException;
     }
 
     private final NewLeafLoader newLeafLoader;
 
-    public DoubleRuntimeValues(NewLeafLoader newLeafLoader) {
+    public LongRuntimeFieldHelper(NewLeafLoader newLeafLoader) {
         this.newLeafLoader = newLeafLoader;
     }
 
-    public CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValues() {
-        return unstarted().docValues();
+    public CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValues() {
+        return new Values().docValues();
     }
 
     public Query existsQuery(String fieldName) {
-        return unstarted().new ExistsQuery(fieldName);
+        return new Values().new ExistsQuery(fieldName);
     }
 
-    public Query rangeQuery(String fieldName, double lowerValue, double upperValue) {
-        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue);
+    public Query rangeQuery(String fieldName, long lowerValue, long upperValue) {
+        return new Values().new RangeQuery(fieldName, lowerValue, upperValue);
     }
 
-    public Query termQuery(String fieldName, double value) {
-        return unstarted().new TermQuery(fieldName, value);
+    public Query termQuery(String fieldName, long value) {
+        return new Values().new TermQuery(fieldName, value);
     }
 
-    public Query termsQuery(String fieldName, double... value) {
-        return unstarted().new TermsQuery(fieldName, value);
+    public Query termsQuery(String fieldName, long... value) {
+        return new Values().new TermsQuery(fieldName, value);
     }
 
-    @Override
-    protected SharedValues newSharedValues() {
-        return new SharedValues();
-    }
-
-    protected class SharedValues extends AbstractRuntimeValues<SharedValues>.SharedValues {
-        private double[] values = new double[1];
+    private class Values extends AbstractRuntimeValues {
+        private long[] values = new long[1];
 
         @Override
         protected IntConsumer newLeafLoader(LeafReaderContext ctx) throws IOException {
             return newLeafLoader.leafLoader(ctx, this::add);
         }
 
-        private void add(double value) {
+        private void add(long value) {
             int newCount = count + 1;
             if (values.length < newCount) {
                 values = Arrays.copyOf(values, ArrayUtil.oversize(newCount, 8));
@@ -82,12 +77,12 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
             Arrays.sort(values, 0, count);
         }
 
-        private CheckedFunction<LeafReaderContext, SortedNumericDoubleValues, IOException> docValues() {
+        private CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValues() {
             alwaysSortResults();
             return DocValues::new;
         }
 
-        private class DocValues extends SortedNumericDoubleValues {
+        private class DocValues extends SortedNumericDocValues {
             private final IntConsumer leafCursor;
             private int next;
 
@@ -96,7 +91,7 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
             }
 
             @Override
-            public double nextValue() throws IOException {
+            public long nextValue() throws IOException {
                 return values[next++];
             }
 
@@ -110,6 +105,34 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
                 leafCursor.accept(target);
                 next = 0;
                 return count > 0;
+            }
+
+            @Override
+            public int docID() {
+                return docId();
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                return advance(docId() + 1);
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                int current = target;
+                while (current < maxDoc()) {
+                    if (advanceExact(current)) {
+                        return current;
+                    }
+                    current++;
+                }
+                return NO_MORE_DOCS;
+            }
+
+            @Override
+            public long cost() {
+                // TODO we have no idea what this should be and no real way to get one
+                return 1000;
             }
         }
 
@@ -130,10 +153,10 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
         }
 
         private class RangeQuery extends AbstractRuntimeQuery {
-            private final double lowerValue;
-            private final double upperValue;
+            private final long lowerValue;
+            private final long upperValue;
 
-            private RangeQuery(String fieldName, double lowerValue, double upperValue) {
+            private RangeQuery(String fieldName, long lowerValue, long upperValue) {
                 super(fieldName);
                 this.lowerValue = lowerValue;
                 this.upperValue = upperValue;
@@ -170,9 +193,9 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
         }
 
         private class TermQuery extends AbstractRuntimeQuery {
-            private final double term;
+            private final long term;
 
-            private TermQuery(String fieldName, double term) {
+            private TermQuery(String fieldName, long term) {
                 super(fieldName);
                 this.term = term;
             }
@@ -189,12 +212,12 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
 
             @Override
             public void visit(QueryVisitor visitor) {
-                visitor.consumeTerms(this, new Term(fieldName, Double.toString(term)));
+                visitor.consumeTerms(this, new Term(fieldName, Long.toString(term)));
             }
 
             @Override
             protected String bareToString() {
-                return Double.toString(term);
+                return Long.toString(term);
             }
 
             @Override
@@ -213,9 +236,9 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
         }
 
         private class TermsQuery extends AbstractRuntimeQuery {
-            private final double[] terms;
+            private final long[] terms;
 
-            private TermsQuery(String fieldName, double[] terms) {
+            private TermsQuery(String fieldName, long[] terms) {
                 super(fieldName);
                 this.terms = terms.clone();
                 Arrays.sort(terms);
@@ -233,8 +256,8 @@ public final class DoubleRuntimeValues extends AbstractRuntimeValues<DoubleRunti
 
             @Override
             public void visit(QueryVisitor visitor) {
-                for (double term : terms) {
-                    visitor.consumeTerms(this, new Term(fieldName, Double.toString(term)));
+                for (long term : terms) {
+                    visitor.consumeTerms(this, new Term(fieldName, Long.toString(term)));
                 }
             }
 

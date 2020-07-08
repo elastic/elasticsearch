@@ -52,7 +52,7 @@ import java.util.function.Function;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase {
+public abstract class ScriptFieldScriptTestCase<F, H, DV, R> extends ESTestCase {
     private final List<Closeable> lazyClose = new ArrayList<>();
     private final ScriptService scriptService;
 
@@ -81,9 +81,9 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
 
     protected abstract ScriptContext<F> scriptContext();
 
-    protected abstract V newValues(F factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException;
+    protected abstract H newHelper(F factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException;
 
-    protected abstract CheckedFunction<LeafReaderContext, DV, IOException> docValuesBuilder(V values);
+    protected abstract CheckedFunction<LeafReaderContext, DV, IOException> docValuesBuilder(H values);
 
     protected abstract void readAllDocValues(DV docValues, int docId, Consumer<R> sync) throws IOException;
 
@@ -113,27 +113,27 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
             }
         }
 
-        protected V script(String script) throws IOException {
+        protected H script(String script) throws IOException {
             return script(new Script(script));
         }
 
-        protected V testScript(String name) throws IOException {
+        protected H testScript(String name) throws IOException {
             return script(new Script(ScriptType.INLINE, "test", name, Map.of()));
         }
 
-        private V script(Script script) throws IOException {
-            return newValues(scriptService.compile(script, scriptContext()), Map.of(), searchLookup);
+        private H script(Script script) throws IOException {
+            return newHelper(scriptService.compile(script, scriptContext()), Map.of(), searchLookup);
         }
 
         protected List<R> collect(String script) throws IOException {
             return collect(new MatchAllDocsQuery(), script(script));
         }
 
-        protected List<R> collect(V values) throws IOException {
+        protected List<R> collect(H values) throws IOException {
             return collect(new MatchAllDocsQuery(), values);
         }
 
-        protected List<R> collect(Query query, V values) throws IOException {
+        protected List<R> collect(Query query, H values) throws IOException {
             // Now run the query and collect the results
             List<R> result = new ArrayList<>();
             CheckedFunction<LeafReaderContext, DV, IOException> docValuesBuilder = docValuesBuilder(values);

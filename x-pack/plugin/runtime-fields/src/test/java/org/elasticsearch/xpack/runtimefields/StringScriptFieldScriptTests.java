@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     StringScriptFieldScript.Factory,
-    StringRuntimeValues,
+    StringRuntimeFieldHelper,
     SortedBinaryDocValues,
     String> {
 
@@ -70,13 +70,13 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testExistsQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues isCat = c.testScript("is_cat");
+        StringRuntimeFieldHelper isCat = c.testScript("is_cat");
         assertThat(c.collect(isCat.existsQuery("foo"), isCat), equalTo(List.of("cat")));
     }
 
     public void testFuzzyQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues addO = c.testScript("add_o");
+        StringRuntimeFieldHelper addO = c.testScript("add_o");
         assertThat(c.collect(addO.fuzzyQuery("foo", "caaaaat", 1, 1, 1, true), addO), equalTo(List.of()));
         assertThat(c.collect(addO.fuzzyQuery("foo", "cat", 1, 1, 1, true), addO), equalTo(List.of("cato", "pigo")));
         assertThat(c.collect(addO.fuzzyQuery("foo", "pig", 1, 1, 1, true), addO), equalTo(List.of("cato", "pigo")));
@@ -85,7 +85,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testTermQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues addO = c.testScript("add_o");
+        StringRuntimeFieldHelper addO = c.testScript("add_o");
         assertThat(c.collect(addO.termQuery("foo", "cat"), addO), equalTo(List.of()));
         assertThat(c.collect(addO.termQuery("foo", "cato"), addO), equalTo(List.of("cato", "pigo")));
         assertThat(c.collect(addO.termQuery("foo", "pigo"), addO), equalTo(List.of("cato", "pigo")));
@@ -94,7 +94,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testTermsQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues addO = c.testScript("add_o");
+        StringRuntimeFieldHelper addO = c.testScript("add_o");
         assertThat(c.collect(addO.termsQuery("foo", "cat", "dog"), addO), equalTo(List.of()));
         assertThat(c.collect(addO.termsQuery("foo", "cato", "piglet"), addO), equalTo(List.of("cato", "pigo")));
         assertThat(c.collect(addO.termsQuery("foo", "pigo", "catington"), addO), equalTo(List.of("cato", "pigo")));
@@ -103,7 +103,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testPrefixQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues addO = c.testScript("add_o");
+        StringRuntimeFieldHelper addO = c.testScript("add_o");
         assertThat(c.collect(addO.prefixQuery("foo", "catdog"), addO), equalTo(List.of()));
         assertThat(c.collect(addO.prefixQuery("foo", "cat"), addO), equalTo(List.of("cato", "pigo")));
         assertThat(c.collect(addO.prefixQuery("foo", "pig"), addO), equalTo(List.of("cato", "pigo")));
@@ -113,7 +113,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testRangeQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues addO = c.testScript("add_o");
+        StringRuntimeFieldHelper addO = c.testScript("add_o");
         assertThat(c.collect(addO.rangeQuery("foo", "catz", "cbat", false, false), addO), equalTo(List.of()));
         assertThat(c.collect(addO.rangeQuery("foo", "c", "cb", false, false), addO), equalTo(List.of("cato", "pigo")));
         assertThat(c.collect(addO.rangeQuery("foo", "p", "q", false, false), addO), equalTo(List.of("cato", "pigo")));
@@ -126,7 +126,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testRegexpQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues addO = c.testScript("add_o");
+        StringRuntimeFieldHelper addO = c.testScript("add_o");
         assertThat(c.collect(addO.regexpQuery("foo", "cat", RegExp.ALL, 100000), addO), equalTo(List.of()));
         assertThat(c.collect(addO.regexpQuery("foo", "cat[aeiou]", RegExp.ALL, 100000), addO), equalTo(List.of("cato", "pigo")));
         assertThat(c.collect(addO.regexpQuery("foo", "p.*", RegExp.ALL, 100000), addO), equalTo(List.of("cato", "pigo")));
@@ -135,7 +135,7 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
 
     public void testWildcardQuery() throws IOException {
         TestCase c = multipleValuesInDocValues();
-        StringRuntimeValues addO = c.testScript("add_o");
+        StringRuntimeFieldHelper addO = c.testScript("add_o");
         assertThat(c.collect(addO.wildcardQuery("foo", "cat"), addO), equalTo(List.of()));
         assertThat(c.collect(addO.wildcardQuery("foo", "cat?"), addO), equalTo(List.of("cato", "pigo")));
         assertThat(c.collect(addO.wildcardQuery("foo", "p*"), addO), equalTo(List.of("cato", "pigo")));
@@ -263,12 +263,13 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected StringRuntimeValues newValues(Factory factory, Map<String, Object> params, SearchLookup searchLookup) throws IOException {
+    protected StringRuntimeFieldHelper newHelper(Factory factory, Map<String, Object> params, SearchLookup searchLookup)
+        throws IOException {
         return factory.newFactory(params, searchLookup).runtimeValues();
     }
 
     @Override
-    protected CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesBuilder(StringRuntimeValues values) {
+    protected CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValuesBuilder(StringRuntimeFieldHelper values) {
         return values.docValues();
     }
 

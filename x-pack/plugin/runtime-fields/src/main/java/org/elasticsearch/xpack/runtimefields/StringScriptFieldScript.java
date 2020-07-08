@@ -51,11 +51,11 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         StringScriptFieldScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
 
         /**
-         * Build an {@link StringRuntimeValues} to manage creation of doc
+         * Build an {@link StringRuntimeFieldHelper} to manage creation of doc
          * values and queries using the script.
          */
-        default StringRuntimeValues runtimeValues() {
-            return new StringRuntimeValues((ctx, sync) -> {
+        default StringRuntimeFieldHelper runtimeValues() {
+            return new StringRuntimeFieldHelper((ctx, sync) -> {
                 StringScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {
                     script.setDocId(docId);

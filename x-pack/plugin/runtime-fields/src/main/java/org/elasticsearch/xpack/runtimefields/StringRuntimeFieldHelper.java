@@ -30,7 +30,7 @@ import java.util.function.IntConsumer;
 /**
  * Manages the creation of doc values and queries for {@link String} fields.
  */
-public final class StringRuntimeValues extends AbstractRuntimeValues<StringRuntimeValues.SharedValues> {
+public final class StringRuntimeFieldHelper {
     @FunctionalInterface
     public interface NewLeafLoader {
         IntConsumer leafLoader(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
@@ -38,52 +38,47 @@ public final class StringRuntimeValues extends AbstractRuntimeValues<StringRunti
 
     private final NewLeafLoader newLeafLoader;
 
-    public StringRuntimeValues(NewLeafLoader newLeafLoader) {
+    public StringRuntimeFieldHelper(NewLeafLoader newLeafLoader) {
         this.newLeafLoader = newLeafLoader;
     }
 
     public CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> docValues() {
-        return unstarted().docValues();
+        return new Values().docValues();
     }
 
     public Query existsQuery(String fieldName) {
-        return unstarted().new ExistsQuery(fieldName);
+        return new Values().new ExistsQuery(fieldName);
     }
 
     public Query fuzzyQuery(String fieldName, String value, int maxEdits, int prefixLength, int maxExpansions, boolean transpositions) {
-        return unstarted().new FuzzyQuery(fieldName, value, maxEdits, prefixLength, maxExpansions, transpositions);
+        return new Values().new FuzzyQuery(fieldName, value, maxEdits, prefixLength, maxExpansions, transpositions);
     }
 
     public Query prefixQuery(String fieldName, String value) {
-        return unstarted().new PrefixQuery(fieldName, value);
+        return new Values().new PrefixQuery(fieldName, value);
     }
 
     public Query rangeQuery(String fieldName, String lowerValue, String upperValue, boolean includeLower, boolean includeUpper) {
-        return unstarted().new RangeQuery(fieldName, lowerValue, upperValue, includeLower, includeUpper);
+        return new Values().new RangeQuery(fieldName, lowerValue, upperValue, includeLower, includeUpper);
     }
 
     public Query regexpQuery(String fieldName, String pattern, int flags, int maxDeterminizedStates) {
-        return unstarted().new RegexpQuery(fieldName, pattern, flags, maxDeterminizedStates);
+        return new Values().new RegexpQuery(fieldName, pattern, flags, maxDeterminizedStates);
     }
 
     public Query termQuery(String fieldName, String value) {
-        return unstarted().new TermQuery(fieldName, value);
+        return new Values().new TermQuery(fieldName, value);
     }
 
     public Query termsQuery(String fieldName, String... values) {
-        return unstarted().new TermsQuery(fieldName, values);
+        return new Values().new TermsQuery(fieldName, values);
     }
 
     public Query wildcardQuery(String fieldName, String pattern) {
-        return unstarted().new WildcardQuery(fieldName, pattern);
+        return new Values().new WildcardQuery(fieldName, pattern);
     }
 
-    @Override
-    protected SharedValues newSharedValues() {
-        return new SharedValues();
-    }
-
-    protected class SharedValues extends AbstractRuntimeValues<SharedValues>.SharedValues {
+    private class Values extends AbstractRuntimeValues {
         private String[] values = new String[1];
 
         @Override

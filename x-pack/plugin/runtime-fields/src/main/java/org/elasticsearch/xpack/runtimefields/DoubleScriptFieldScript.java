@@ -48,11 +48,11 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         DoubleScriptFieldScript newInstance(LeafReaderContext ctx, DoubleConsumer sync) throws IOException;
 
         /**
-         * Build an {@link DoubleRuntimeValues} to manage creation of doc
+         * Build an {@link DoubleRuntimeFieldHelper} to manage creation of doc
          * values and queries using the script.
          */
-        default DoubleRuntimeValues runtimeValues() {
-            return new DoubleRuntimeValues((ctx, sync) -> {
+        default DoubleRuntimeFieldHelper runtimeValues() {
+            return new DoubleRuntimeFieldHelper((ctx, sync) -> {
                 DoubleScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {
                     script.setDocId(docId);

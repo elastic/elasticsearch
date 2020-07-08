@@ -48,11 +48,11 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
         LongScriptFieldScript newInstance(LeafReaderContext ctx, LongConsumer sync) throws IOException;
 
         /**
-         * Build an {@link LongRuntimeValues} to manage creation of doc
+         * Build an {@link LongRuntimeFieldHelper} to manage creation of doc
          * values and queries using the script.
          */
-        default LongRuntimeValues runtimeValues() {
-            return new LongRuntimeValues((ctx, sync) -> {
+        default LongRuntimeFieldHelper runtimeValues() {
+            return new LongRuntimeFieldHelper((ctx, sync) -> {
                 LongScriptFieldScript script = newInstance(ctx, sync);
                 return docId -> {
                     script.setDocId(docId);

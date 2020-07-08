@@ -20,7 +20,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringRuntimeValues;
+import org.elasticsearch.xpack.runtimefields.StringRuntimeFieldHelper;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 
@@ -68,7 +68,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
-    private StringRuntimeValues runtimeValues(QueryShardContext ctx) {
+    private StringRuntimeFieldHelper runtimeValues(QueryShardContext ctx) {
         // TODO cache the runtimeValues in the context somehow
         return scriptFactory.newFactory(script.getParams(), ctx.lookup()).runtimeValues();
     }

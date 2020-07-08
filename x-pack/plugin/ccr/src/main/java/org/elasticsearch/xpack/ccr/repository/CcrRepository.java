@@ -57,7 +57,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.F
 import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.indices.recovery.MultiFileTransfer;
+import org.elasticsearch.indices.recovery.MultiChunkTransfer;
 import org.elasticsearch.indices.recovery.MultiFileWriter;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
@@ -517,7 +517,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         protected void restoreFiles(List<FileInfo> filesToRecover, Store store, ActionListener<Void> allFilesListener) {
             logger.trace("[{}] starting CCR restore of {} files", shardId, filesToRecover);
             final List<StoreFileMetadata> mds = filesToRecover.stream().map(FileInfo::metadata).collect(Collectors.toList());
-            final MultiFileTransfer<FileChunk> multiFileTransfer = new MultiFileTransfer<FileChunk>(
+            final MultiChunkTransfer<StoreFileMetadata, FileChunk> multiFileTransfer = new MultiChunkTransfer<StoreFileMetadata, FileChunk>(
                 logger, threadPool.getThreadContext(), allFilesListener, ccrSettings.getMaxConcurrentFileChunks(), mds) {
 
                 final MultiFileWriter multiFileWriter = new MultiFileWriter(store, recoveryState.getIndex(), "", logger, () -> {
@@ -525,7 +525,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 long offset = 0;
 
                 @Override
-                protected void onNewFile(StoreFileMetadata md) {
+                protected void onNewResource(StoreFileMetadata md) {
                     offset = 0;
                 }
 
@@ -596,7 +596,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 remoteClient.execute(ClearCcrRestoreSessionAction.INSTANCE, clearRequest).actionGet(ccrSettings.getRecoveryActionTimeout());
         }
 
-        private static class FileChunk implements MultiFileTransfer.ChunkRequest {
+        private static class FileChunk implements MultiChunkTransfer.ChunkRequest {
             final StoreFileMetadata md;
             final int bytesRequested;
             final boolean lastChunk;

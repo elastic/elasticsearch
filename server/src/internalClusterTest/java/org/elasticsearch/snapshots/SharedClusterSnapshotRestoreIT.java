@@ -3101,7 +3101,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         String repoName = "test-repo";
         createRepository(repoName, "fs");
         final String snapshot = "test-snap-1";
-        addBwCFailedSnapshot(repoName, snapshot);
+        addBwCFailedSnapshot(repoName, snapshot, Collections.emptyMap());
 
         logger.info("--> creating good index");
         assertAcked(prepareCreate("test-idx-good").setSettings(indexSettingsNoReplicas(1)));

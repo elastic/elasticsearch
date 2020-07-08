@@ -71,6 +71,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -386,8 +387,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      *
      * @param repoName     repository to add snapshot to
      * @param snapshotName name for the new failed snapshot
+     * @param metadata     snapshot metadata to write (as returned by {@link SnapshotInfo#userMetadata()})
      */
-    protected void addBwCFailedSnapshot(String repoName, String snapshotName) throws Exception {
+    protected void addBwCFailedSnapshot(String repoName, String snapshotName, Map<String, Object> metadata) throws Exception {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
         assertNotNull(repositoriesMetadata);
@@ -399,7 +401,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
-                Collections.emptyList(), Collections.emptyList(), SnapshotState.FAILED, SnapshotsService.OLD_SNAPSHOT_FORMAT);
+                Collections.emptyList(), Collections.emptyList(),
+                SnapshotState.FAILED, "failed on purpose",
+                SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L,0L, 0, 0, Collections.emptyList(),
+                randomBoolean(), metadata);
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));

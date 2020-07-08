@@ -605,7 +605,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         @Override
         public Map<String, Long> getPersistedFilesSize() {
-            return Map.copyOf(persistedFiles);
+            return persistedFiles;
         }
     }
 }

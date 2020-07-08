@@ -97,7 +97,7 @@ Recovery stage.
 Returned values include:
 
 `ON_DEMAND`::
-The shard will be recovered on demand as searchs hit the shard.
+The shard will be recovered on demand as searches hit the shard.
 
 `DONE`::
 Complete.

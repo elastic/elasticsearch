@@ -46,6 +46,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
@@ -134,8 +135,8 @@ public class ArchiveTests extends PackagingTestCase {
             throw e;
         }
 
-        final String gcLogName = distribution().hasJdk == false ? "gc.log.0.current" : "gc.log";
-        assertThat(installation.logs.resolve(gcLogName), fileExists());
+        List<Path> gcLogs = FileUtils.lsGlob(installation.logs, "gc.log*");
+        assertThat(gcLogs, is(not(empty())));
         ServerUtils.runElasticsearchTests();
 
         stopElasticsearch();

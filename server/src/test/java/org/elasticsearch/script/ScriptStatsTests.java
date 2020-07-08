@@ -32,7 +32,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptStatsTest extends ESTestCase {
+public class ScriptStatsTests extends ESTestCase {
 
     private ScriptStats generate() {
         int numContents = randomIntBetween(0, 20);

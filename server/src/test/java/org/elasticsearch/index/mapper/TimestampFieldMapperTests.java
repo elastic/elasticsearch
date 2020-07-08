@@ -182,7 +182,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("event.my_timestamp", "2020-12-12")
@@ -190,7 +190,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
         assertThat(doc.rootDoc().getFields("event.my_timestamp").length, equalTo(2));
 
-        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(new SourceToParse("test", "1", BytesReference
+        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(new SourceToParse("test", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("event.timestamp", "2020-12-12")

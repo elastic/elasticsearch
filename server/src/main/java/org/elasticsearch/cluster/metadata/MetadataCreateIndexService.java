@@ -496,7 +496,7 @@ public class MetadataCreateIndexService {
                                                                                     throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
-        final List<Map<String, Object>> mappings =
+        final List<Map<String, Map<String, Object>>> mappings =
             collectV2Mappings(request.mappings(), currentState, templateName, xContentRegistry, request.index());
         final Settings aggregatedIndexSettings =
             aggregateIndexSettings(currentState, request,

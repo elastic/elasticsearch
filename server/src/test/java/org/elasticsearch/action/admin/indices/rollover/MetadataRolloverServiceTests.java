@@ -554,7 +554,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             fieldBuilder.setPath("@timestamp");
             DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder("@timestamp").build(builderContext);
             DocumentFieldMappers documentFieldMappers =
-                new DocumentFieldMappers(List.of(fieldBuilder.build(builderContext), dateFieldMapper), List.of(), new StandardAnalyzer());
+                new DocumentFieldMappers(Arrays.asList(fieldBuilder.build(builderContext), dateFieldMapper),
+                    Collections.emptyList(), new StandardAnalyzer());
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);

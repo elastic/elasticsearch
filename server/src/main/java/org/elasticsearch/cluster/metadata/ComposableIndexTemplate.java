@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
 
 /**
@@ -280,7 +281,8 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
          * @return a mapping snippet for a backing index with `_timestamp` meta field mapper properly configured.
          */
         public Map<String, Object> getDataSteamMappingSnippet() {
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(TimestampFieldMapper.NAME, Map.of("path", timestampField)));
+            return singletonMap(MapperService.SINGLE_MAPPING_NAME, singletonMap(TimestampFieldMapper.NAME,
+                singletonMap("path", timestampField)));
         }
 
         @Override

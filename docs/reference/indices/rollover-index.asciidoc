@@ -233,14 +233,14 @@ PUT _index_template/template
   "template": {
     "mappings": {
       "properties": {
-        "date": {
+        "@timestamp": {
           "type": "date"
         }
       }
     }
   },
   "data_stream": {
-    "timestamp_field": "date"
+    "timestamp_field": "@timestamp"
   }
 }
 -----------------------------------
@@ -255,15 +255,15 @@ PUT /_data_stream/my-data-stream <1>
 POST /my-data-stream/_rollover <2>
 {
   "conditions" : {
-  "max_age": "7d",
-  "max_docs": 1000,
-  "max_size": "5gb"
+    "max_age": "7d",
+    "max_docs": 1000,
+    "max_size": "5gb"
   }
 }
 --------------------------------------------------
 // TEST[continued]
 // TEST[setup:huge_twitter]
-// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"my-data-stream","op_type":"create"}}/]
+// TEST[s/# Add > 1000 documents to my-data-stream/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"my-data-stream","op_type":"create"},"script":{"source":"ctx._source.put('@timestamp',ctx._source.remove('date'))"}}/]
 <1> Creates a data stream called `my-data-stream` with one initial backing index
 named `my-data-stream-000001`.
 <2> This request creates a new backing index, `my-data-stream-000002`, and adds
@@ -305,7 +305,7 @@ The API returns the following response:
 [source,console]
 -----------------------------------
 DELETE /_data_stream/my-data-stream
-DELETE /_index_template/*
+DELETE /_index_template/template
 -----------------------------------
 // TEST[continued]
 ////

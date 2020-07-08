@@ -84,6 +84,8 @@ PUT /_index_template/new_logs_data_stream
 
 PUT /_data_stream/logs
 
+POST /logs/_rollover/
+
 PUT /_data_stream/new_logs
 ----
 // TESTSETUP
@@ -245,7 +247,7 @@ PUT /logs/_mapping
 ====
 
 Except for supported mapping parameters, we don't recommend you change the
-mapping or field datatype of existing fields, even in a data stream's matching
+mapping or field data type of existing fields, even in a data stream's matching
 index template or its backing indices. Changing the mapping of an existing
 field could invalidate any data that’s already indexed.
 
@@ -378,7 +380,7 @@ new data stream and reindex your data into it. See
 === Use reindex to change mappings or settings
 
 You can use a reindex to change the mappings or settings of a data stream. This
-is often required to change the datatype of an existing field or update static
+is often required to change the data type of an existing field or update static
 index settings for backing indices.
 
 To reindex a data stream, first create or update an index template so that it
@@ -447,8 +449,8 @@ uses the `logs_data_stream` template as its basis, with the following changes:
 
 * The `index_patterns` wildcard pattern matches any index or data stream
   starting with `new_logs`.
-* The `@timestamp` field mapping uses the `date_nanos` field datatype rather
-  than the `date` datatype.
+* The `@timestamp` field mapping uses the `date_nanos` field data type rather
+  than the `date` data type.
 * The template includes `sort.field` and `sort.order` index settings, which were
   not in the original `logs_data_stream` template.
 
@@ -475,7 +477,7 @@ PUT /_index_template/new_logs_data_stream
   }
 }
 ----
-<1>  Changes the `@timestamp` field mapping to the `date_nanos` field datatype.
+<1>  Changes the `@timestamp` field mapping to the `date_nanos` field data type.
 <2>  Adds the `sort.field` index setting.
 <3>  Adds the `sort.order` index setting.
 ====
@@ -565,33 +567,46 @@ data stream, including a list of its backing indices.
 ----
 GET /_data_stream/logs
 ----
-// TEST[skip: shard failures]
 
 The API returns the following response. Note the `indices` property contains an
-array of the stream's current backing indices. The oldest backing index,
-`.ds-logs-000001`, is the first item in the array.
+array of the stream's current backing indices. The first item in the array
+contains information about the stream's oldest backing index, `.ds-logs-000001`.
 
 [source,console-result]
 ----
-[
-  {
-    "name": "logs",
-    "timestamp_field": "@timestamp",
-    "indices": [
-      {
-        "index_name": ".ds-logs-000001",
-        "index_uuid": "DXAE-xcCQTKF93bMm9iawA"
+{
+  "data_streams": [
+    {
+      "name": "logs",
+      "timestamp_field": {
+        "name": "@timestamp",
+        "mapping": {
+          "type": "date"
+        }
       },
-      {
-        "index_name": ".ds-logs-000002",
-        "index_uuid": "Wzxq0VhsQKyPxHhaK3WYAg"
-      }
-    ],
-    "generation": 2
-  }
-]
+      "indices": [
+        {
+          "index_name": ".ds-logs-000001",        <1>
+          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
+        },
+        {
+          "index_name": ".ds-logs-000002",
+          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
+        }
+      ],
+      "generation": 2,
+      "status": "GREEN",
+      "template": "logs_data_stream"
+    }
+  ]
+}
 ----
-// TESTRESPONSE[skip:unable to assert responses with top level array]
+// TESTRESPONSE[s/"index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+
+<1> First item in the `indices` array for the `logs` data stream. This item
+contains information about the stream's oldest backing index, `.ds-logs-000001`.
 
 The following <<docs-reindex,reindex API>> request copies documents from
 `.ds-logs-000001` to the `new_logs` data stream. Note the request's `op_type` is

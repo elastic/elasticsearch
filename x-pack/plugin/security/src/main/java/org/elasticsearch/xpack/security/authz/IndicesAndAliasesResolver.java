@@ -132,7 +132,8 @@ class IndicesAndAliasesResolver {
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
-                        if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata)) {
+                        if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata,
+                            indicesRequest.includeDataStreams())) {
                             resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }
                     }
@@ -147,7 +148,7 @@ class IndicesAndAliasesResolver {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
                 List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
-                        authorizedIndices, replaceWildcards);
+                        authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
                 if (indicesOptions.ignoreUnavailable()) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them

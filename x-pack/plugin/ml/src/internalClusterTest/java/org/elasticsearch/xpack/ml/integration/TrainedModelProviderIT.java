@@ -31,8 +31,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
+import static org.elasticsearch.xpack.ml.integration.ChunkedTrainedModelPersisterIT.chunkStringWithSize;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -156,8 +159,8 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
     }
 
-    public void testGetTruncatedModelDefinition() throws Exception {
-        String modelId = "test-get-truncated-model-config";
+    public void testGetTruncatedModelDeprecatedDefinition() throws Exception {
+        String modelId = "test-get-truncated-legacy-model-config";
         TrainedModelConfig config = buildTrainedModelConfig(modelId);
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -188,6 +191,51 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
             assertThat(exceptionHolder.get(), is(nullValue()));
         }
 
+        AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
+        blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
+        assertThat(getConfigHolder.get(), is(nullValue()));
+        assertThat(exceptionHolder.get(), is(not(nullValue())));
+        assertThat(exceptionHolder.get().getMessage(), equalTo(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId)));
+    }
+
+    public void testGetTruncatedModelDefinition() throws Exception {
+        String modelId = "test-get-truncated-model-config";
+        TrainedModelConfig config = buildTrainedModelConfig(modelId);
+        AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(listener -> trainedModelProvider.storeTrainedModel(config, listener), putConfigHolder, exceptionHolder);
+        assertThat(putConfigHolder.get(), is(true));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+
+        List<String> chunks = chunkStringWithSize(config.getCompressedDefinition(), config.getCompressedDefinition().length()/3);
+
+        List<TrainedModelDefinitionDoc.Builder> docBuilders = IntStream.range(0, chunks.size())
+            .mapToObj(i -> new TrainedModelDefinitionDoc.Builder()
+                .setDocNum(i)
+                .setCompressedString(chunks.get(i))
+                .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+                .setDefinitionLength(chunks.get(i).length())
+                .setEos(i == chunks.size() - 1)
+                .setModelId(modelId))
+            .collect(Collectors.toList());
+        boolean missingEos = randomBoolean();
+        docBuilders.get(docBuilders.size() - 1).setEos(missingEos == false);
+        for (int i = missingEos ? 0 : 1 ; i < docBuilders.size(); ++i) {
+            TrainedModelDefinitionDoc doc = docBuilders.get(i).build();
+            try(XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(),
+                new ToXContent.MapParams(Collections.singletonMap(FOR_INTERNAL_STORAGE, "true")))) {
+                AtomicReference<IndexResponse> putDocHolder = new AtomicReference<>();
+                blockingCall(listener -> client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                        .setSource(xContentBuilder)
+                        .setId(TrainedModelDefinitionDoc.docId(modelId, 0))
+                        .execute(listener),
+                    putDocHolder,
+                    exceptionHolder);
+                assertThat(exceptionHolder.get(), is(nullValue()));
+            }
+        }
         AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
         blockingCall(listener -> trainedModelProvider.getTrainedModel(modelId, true, listener), getConfigHolder, exceptionHolder);
         assertThat(getConfigHolder.get(), is(nullValue()));

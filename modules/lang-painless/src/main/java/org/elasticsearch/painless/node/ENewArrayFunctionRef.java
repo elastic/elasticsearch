@@ -29,6 +29,7 @@ import org.elasticsearch.painless.ir.NewArrayNode;
 import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.ir.VariableNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
@@ -50,6 +51,11 @@ public class ENewArrayFunctionRef extends AExpression {
         super(identifier, location);
 
         this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitNewArrayFunctionRef(this, input);
     }
 
     @Override

@@ -38,18 +38,22 @@ public class IndexAbstractionResolver {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
-    public List<String> resolveIndexAbstractions(String[] indices, IndicesOptions indicesOptions, Metadata metadata) {
-        return resolveIndexAbstractions(Arrays.asList(indices), indicesOptions, metadata);
-    }
-
-    public List<String> resolveIndexAbstractions(Iterable<String> indices, IndicesOptions indicesOptions, Metadata metadata) {
-        final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
-        Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
-        return resolveIndexAbstractions(indices, indicesOptions, metadata, availableIndexAbstractions, replaceWildcards);
+    public List<String> resolveIndexAbstractions(String[] indices, IndicesOptions indicesOptions, Metadata metadata,
+                                                 boolean includeDataStreams) {
+        return resolveIndexAbstractions(Arrays.asList(indices), indicesOptions, metadata, includeDataStreams);
     }
 
     public List<String> resolveIndexAbstractions(Iterable<String> indices, IndicesOptions indicesOptions, Metadata metadata,
-                                                  Collection<String> availableIndexAbstractions, boolean replaceWildcards) {
+                                                 boolean includeDataStreams) {
+        final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
+        Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
+        return resolveIndexAbstractions(indices, indicesOptions, metadata, availableIndexAbstractions, replaceWildcards,
+            includeDataStreams);
+    }
+
+    public List<String> resolveIndexAbstractions(Iterable<String> indices, IndicesOptions indicesOptions, Metadata metadata,
+                                                 Collection<String> availableIndexAbstractions, boolean replaceWildcards,
+                                                 boolean includeDataStreams) {
         List<String> finalIndices = new ArrayList<>();
         boolean wildcardSeen = false;
         for (String index : indices) {
@@ -88,7 +92,7 @@ public class IndexAbstractionResolver {
                 Set<String> resolvedIndices = new HashSet<>();
                 for (String authorizedIndex : availableIndexAbstractions) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&
-                        isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata)) {
+                        isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata, includeDataStreams)) {
                         resolvedIndices.add(authorizedIndex);
                     }
                 }
@@ -115,13 +119,17 @@ public class IndexAbstractionResolver {
         return finalIndices;
     }
 
-    public static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, false);
+    public static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
+                                         boolean includeDataStreams) {
+        return isIndexVisible(expression, index, indicesOptions, metadata, includeDataStreams, false);
     }
 
     public static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
-                                          boolean dateMathExpression) {
+                                          boolean includeDataStreams, boolean dateMathExpression) {
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+        if (indexAbstraction == null) {
+            throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
+        }
         final boolean isHidden = indexAbstraction.isHidden();
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
@@ -135,12 +143,7 @@ public class IndexAbstractionResolver {
             }
         }
         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            // If indicesOptions.includeDataStreams() returns false then we fail later in IndexNameExpressionResolver.
-            if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
-                return true;
-            } else {
-                return false;
-            }
+            return includeDataStreams;
         }
         assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
         IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);

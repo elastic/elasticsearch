@@ -91,7 +91,9 @@ public class XPackLicenseState {
 
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),
 
-        ANALYTICS(OperationMode.MISSING, true);
+        ANALYTICS(OperationMode.MISSING, true),
+
+        SEARCHABLE_SNAPSHOTS(OperationMode.PLATINUM, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;
@@ -409,7 +411,6 @@ public class XPackLicenseState {
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
                               Status status) {
-
         this.listeners = listeners;
         this.isSecurityEnabled = isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
@@ -473,6 +474,19 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
+    /**
+     * Checks whether the given feature is allowed, tracking the last usage time.
+     */
+    public boolean checkFeature(Feature feature) {
+        // TODO: usage tracking is not yet implemented
+        return isAllowed(feature);
+    }
+
+    /**
+     * Checks whether the given feature is allowed by the current license.
+     * <p>
+     * This method should only be used when serializing whether a feature is allowed for telemetry.
+     */
     public boolean isAllowed(Feature feature) {
         return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
@@ -549,7 +563,8 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
+        return executeAgainstStatus(status ->
+            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
     }
 
     /**

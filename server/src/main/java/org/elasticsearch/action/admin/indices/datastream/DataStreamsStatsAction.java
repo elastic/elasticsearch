@@ -340,7 +340,7 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
                 requestIndices = new String[]{"*"};
             }
             List<String> abstractionNames = indexAbstractionResolver.resolveIndexAbstractions(requestIndices, request.indicesOptions(),
-                clusterState.getMetadata());
+                clusterState.getMetadata(), true); // Always include data streams for data streams stats api
             SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
             String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {

@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /** Dedicated collection for mapping a key to a list of sequences */
@@ -17,32 +15,39 @@ import java.util.Map;
 class KeyToSequences {
 
     private final int listSize;
-    private final Map<SequenceKey, List<SequenceFrame>> keyToSequences;
+    /** for each key, associate the frame per state (determined by index) */
+    private final Map<SequenceKey, SequenceGroup[]> keyToSequences;
 
     KeyToSequences(int listSize) {
         this.listSize = listSize;
         this.keyToSequences = new LinkedHashMap<>();
     }
 
-    SequenceFrame frame(int stage, SequenceKey key) {
-        return frame(key).get(stage);
-    }
-
-    private List<SequenceFrame> frame(SequenceKey key) {
-        List<SequenceFrame> frames = keyToSequences.get(key);
-        if (frames == null) {
-            frames = new ArrayList<>(listSize);
-            keyToSequences.put(key, frames);
-
-            for (int i = 0; i < listSize; i++) {
-                frames.add(new SequenceFrame());
-            }
+    private SequenceGroup[] group(SequenceKey key) {
+        SequenceGroup[] groups = keyToSequences.get(key);
+        if (groups == null) {
+            groups = new SequenceGroup[listSize];
+            keyToSequences.put(key, groups);
         }
-        return frames;
+        return groups;
     }
 
-    SequenceFrame frameIfPresent(int stage, SequenceKey key) {
-        List<SequenceFrame> list = keyToSequences.get(key);
-        return list == null ? null : list.get(stage);
+    SequenceGroup groupIfPresent(int stage, SequenceKey key) {
+        SequenceGroup[] groups = keyToSequences.get(key);
+        return groups == null ? null : groups[stage];
+    }
+
+    void add(int stage, Sequence sequence) {
+        SequenceKey key = sequence.key();
+        SequenceGroup[] groups = group(key);
+        // create the group on demand
+        if (groups[stage] == null) {
+            groups[stage] = new SequenceGroup(key);
+        }
+        groups[stage].add(sequence);
+    }
+
+    int numberOfKeys() {
+        return keyToSequences.size();
     }
 }

@@ -64,8 +64,8 @@ public class ResolveIndexTests extends ESTestCase {
 
     private final Object[][] dataStreams = new Object[][]{
         // name, timestampField, numBackingIndices
-        {"logs-mysql-prod", "@timestamp1", 4},
-        {"logs-mysql-test", "@timestamp2", 2}
+        {"logs-mysql-prod", "@timestamp", 4},
+        {"logs-mysql-test", "@timestamp", 2}
     };
 
     private Metadata metadata = buildMetadata(dataStreams, indices);
@@ -78,7 +78,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
         validateIndices(indices,
             "logs-pgsql-prod-20200101",
@@ -105,7 +105,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
         validateIndices(indices,
             ".ds-logs-mysql-prod-000001",
             ".ds-logs-mysql-prod-000002",
@@ -137,7 +137,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
 
         validateIndices(indices,
             "logs-pgsql-prod-20200101",
@@ -161,7 +161,7 @@ public class ResolveIndexTests extends ESTestCase {
         List<ResolvedAlias> aliases = new ArrayList<>();
         List<ResolvedDataStream> dataStreams = new ArrayList<>();
 
-        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams);
+        TransportAction.resolveIndices(names, indicesOptions, metadata, resolver, indices, aliases, dataStreams, true);
         validateIndices(indices, ".ds-logs-mysql-prod-000003", "logs-pgsql-test-20200102");
         validateAliases(aliases, "one-off-alias");
         validateDataStreams(dataStreams, "logs-mysql-test");

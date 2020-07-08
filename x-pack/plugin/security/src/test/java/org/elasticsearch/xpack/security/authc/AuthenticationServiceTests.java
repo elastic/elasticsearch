@@ -106,6 +106,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
+import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.security.authc.TokenService.THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -189,12 +191,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAllowed(Feature.SECURITY_AUDITING)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         ReservedRealm reservedRealm = mock(ReservedRealm.class);
         when(reservedRealm.type()).thenReturn("reserved");
         when(reservedRealm.name()).thenReturn("reserved_realm");
@@ -206,8 +208,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
         client = mock(Client.class);
         threadPool = new ThreadPool(settings,
-                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool",
-                    false));
+            new FixedExecutorBuilder(settings, THREAD_POOL_NAME, 1, 1000,
+                "xpack.security.authc.token.thread_pool", false),
+            new FixedExecutorBuilder(Settings.EMPTY, SECURITY_CRYPTO_THREAD_POOL_NAME, 1, 1000,
+                "xpack.security.crypto.thread_pool", false)
+        );
         threadContext = threadPool.getThreadContext();
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);

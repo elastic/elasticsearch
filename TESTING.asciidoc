@@ -84,6 +84,9 @@ password: `elastic-password`.
 
 In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 In order to disable assertions add: `-Dtests.asserts=false`
+In order to use a custom data directory: `--data-dir=/tmp/foo`
+In order to remotely attach a debugger to the process: `--debug-jvm`
+In order to set a different keystore password: `--keystore-password`
 In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 
 === Test case filtering.
@@ -298,22 +301,21 @@ restResources {
 }
 ---------------------------------------------------------------------------
 
-YAML tests that include x-pack specific APIs need to explicitly declare
+YAML REST tests that include x-pack specific APIs need to explicitly declare
 which APIs are required through a similar `includeXpack` configuration.
 
 The REST tests are run automatically when executing the "./gradlew check" command. To run only the
-REST tests use the following command:
+YAML REST tests use the following command (modules and plugins may also include YAML REST tests):
 
 ---------------------------------------------------------------------------
-./gradlew :distribution:archives:integ-test-zip:integTestRunner \
- --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT"
+./gradlew :rest-api-spec:yamlRestTest
 ---------------------------------------------------------------------------
 
 A specific test case can be run with the following command:
 
 ---------------------------------------------------------------------------
-./gradlew ':distribution:archives:integ-test-zip:integTestRunner' \
-  --tests "org.elasticsearch.test.rest.IntegTestZipClientYamlTestSuiteIT" \
+./gradlew ':rest-api-spec:yamlRestTestRunner' \
+  --tests "org.elasticsearch.test.rest.ClientYamlTestSuiteIT" \
   -Dtests.method="test {p0=cat.segments/10_basic/Help}"
 ---------------------------------------------------------------------------
 

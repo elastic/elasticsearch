@@ -30,7 +30,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -41,7 +40,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -53,7 +51,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testStatusApiConsistency() {
         Client client = client();
 
-        createRepository("test-repo", "fs", randomRepoPath());
+        createRepository("test-repo", "fs");
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -66,12 +64,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
         refresh();
 
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        createFullSnapshot("test-repo", "test-snap");
 
         List<SnapshotInfo> snapshotInfos =
             client.admin().cluster().prepareGetSnapshots("test-repo").get().getSnapshots("test-repo");
@@ -91,9 +84,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     public void testStatusAPICallInProgressSnapshot() throws Exception {
         Client client = client();
 
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("mock").setSettings(
-            Settings.builder().put("location", randomRepoPath()).put("block_on_data", true)));
+        createRepository("test-repo", "mock", Settings.builder().put("location", randomRepoPath()).put("block_on_data", true));
 
         createIndex("test-idx-1");
         ensureGreen();
@@ -134,12 +125,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final Path repoPath = randomRepoPath();
         createRepository("test-repo", "fs", repoPath);
 
-        logger.info("--> snapshot");
-        final CreateSnapshotResponse response =
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).get();
-
+        final SnapshotInfo snapshotInfo = createFullSnapshot("test-repo", "test-snap");
         logger.info("--> delete snap-${uuid}.dat file for this snapshot to simulate concurrent delete");
-        IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + response.getSnapshotInfo().snapshotId().getUUID() + ".dat"));
+        IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat"));
 
         GetSnapshotsResponse snapshotsResponse = client().admin().cluster()
             .getSnapshots(new GetSnapshotsRequest(new String[] {"test-repo"}, new String[] {"test-snap"})).actionGet();
@@ -161,21 +149,19 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }
         refresh();
 
-        logger.info("--> snapshot");
-        final CreateSnapshotResponse response =
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).get();
+        final SnapshotInfo snapshotInfo = createFullSnapshot("test-repo", "test-snap");
 
         logger.info("--> delete shard-level snap-${uuid}.dat file for one shard in this snapshot to simulate concurrent delete");
-        final String indexRepoId = getRepositoryData("test-repo").resolveIndexId(response.getSnapshotInfo().indices().get(0)).getId();
+        final String indexRepoId = getRepositoryData("test-repo").resolveIndexId(snapshotInfo.indices().get(0)).getId();
         IOUtils.rm(repoPath.resolve("indices").resolve(indexRepoId).resolve("0").resolve(
-            BlobStoreRepository.SNAPSHOT_PREFIX + response.getSnapshotInfo().snapshotId().getUUID() + ".dat"));
+            BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat"));
 
         expectThrows(SnapshotMissingException.class, () -> client().admin().cluster()
             .prepareSnapshotStatus("test-repo").setSnapshots("test-snap").execute().actionGet());
     }
 
     public void testGetSnapshotsWithoutIndices() {
-        createRepository("test-repo", "fs", randomRepoPath());
+        createRepository("test-repo", "fs");
 
         logger.info("--> snapshot");
         final SnapshotInfo snapshotInfo =
@@ -216,7 +202,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         indexDoc(indexTwo, "some_doc_id", "foo", "bar");
 
         final String repoName = "test-repo";
-        createRepository(repoName, "mock", randomRepoPath());
+        createRepository(repoName, "mock");
 
         blockDataNode(repoName, dataNodeOne);
 
@@ -295,9 +281,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static Settings singleShardOneNode(String node) {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put("index.routing.allocation.include._name", node).build();
+        return indexSettingsNoReplicas(1).put("index.routing.allocation.include._name", node).build();
     }
 }

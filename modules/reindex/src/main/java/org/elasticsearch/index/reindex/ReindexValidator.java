@@ -117,9 +117,9 @@ class ReindexValidator {
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination, true).getName();
+            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
-        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source, true)) {
+        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');

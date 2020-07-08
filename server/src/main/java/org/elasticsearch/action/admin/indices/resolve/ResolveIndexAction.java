@@ -137,6 +137,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.names = indices;
             return this;
         }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
     }
 
     public static class ResolvedIndexAbstraction {
@@ -479,7 +484,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedDataStream> dataStreams = new ArrayList<>();
             if (localIndices != null) {
                 resolveIndices(localIndices.indices(), request.indicesOptions, metadata, indexAbstractionResolver, indices, aliases,
-                    dataStreams);
+                    dataStreams, request.includeDataStreams());
             }
 
             if (remoteClusterIndices.size() > 0) {
@@ -522,8 +527,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          */
         // visible for testing
         static void resolveIndices(String[] names, IndicesOptions indicesOptions, Metadata metadata, IndexAbstractionResolver resolver,
-                                   List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams) {
-            List<String> resolvedIndexAbstractions = resolver.resolveIndexAbstractions(names, indicesOptions, metadata);
+                                   List<ResolvedIndex> indices, List<ResolvedAlias> aliases, List<ResolvedDataStream> dataStreams,
+                                   boolean includeDataStreams) {
+            List<String> resolvedIndexAbstractions = resolver.resolveIndexAbstractions(names, indicesOptions, metadata,
+                includeDataStreams);
             SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
             for (String s : resolvedIndexAbstractions) {
                 enrichIndexAbstraction(s, lookup, indices, aliases, dataStreams);

@@ -278,20 +278,6 @@ PUT /_data_stream/logs_alt
 ====
 --
 
-////
-[source,console]
-----
-DELETE /_data_stream/logs
-
-DELETE /_data_stream/logs_alt
-
-DELETE /_index_template/logs_data_stream
-
-DELETE /_ilm/policy/logs_policy
-----
-// TEST[continued]
-////
-
 [discrete]
 [[get-info-about-a-data-stream]]
 === Get information about a data stream
@@ -303,47 +289,70 @@ information about one or more data streams, including:
 * The current backing indices, which is returned as an array. The last item in
   the array contains information about the stream's current write index.
 * The current generation
+* The data stream's health status
+* The index template used to create the stream's backing indices
+* The current {ilm-init} lifecycle policy in the stream's matching index
+template
 
 This is also handy way to verify that a recently created data stream exists.
 
 .*Example*
 [%collapsible]
 ====
-The following get data stream API request retrieves information about any data
-streams starting with `logs`.
+The following get data stream API request retrieves information about the
+`logs` data stream.
+
+////
+[source,console]
+----
+POST /logs/_rollover/
+----
+// TEST[continued]
+////
 
 [source,console]
 ----
-GET /_data_stream/logs*
+GET /_data_stream/logs
 ----
-// TEST[skip: shard failures]
+// TEST[continued]
 
-The API returns the following response, which includes information about the
-`logs` data stream. Note the `indices` property contains an array of the
-stream's current backing indices. The last item in this array contains
-information for the `logs` stream's write index, `.ds-logs-000002`.
+The API returns the following response. Note the `indices` property contains an
+array of the stream's current backing indices. The last item in this array
+contains information about the stream's write index, `.ds-logs-000002`.
 
 [source,console-result]
 ----
-[
-  {
-    "name": "logs",
-    "timestamp_field": "@timestamp",
-    "indices": [
-      {
-        "index_name": ".ds-logs-000001",
-        "index_uuid": "DXAE-xcCQTKF93bMm9iawA"
+{
+  "data_streams": [
+    {
+      "name": "logs",
+      "timestamp_field": {
+        "name": "@timestamp"
       },
-      {
-        "index_name": ".ds-logs-000002",
-        "index_uuid": "Wzxq0VhsQKyPxHhaK3WYAg"
-      }
-    ],
-    "generation": 2
-  }
-]
+      "indices": [
+        {
+          "index_name": ".ds-logs-000001",
+          "index_uuid": "krR78LfvTOe6gr5dj2_1xQ"
+        },
+        {
+          "index_name": ".ds-logs-000002",        <1>
+          "index_uuid": "C6LWyNJHQWmA08aQGvqRkA"
+        }
+      ],
+      "generation": 2,
+      "status": "GREEN",
+      "template": "logs_data_stream",
+      "ilm_policy": "logs_policy"
+    }
+  ]
+}
 ----
-// TESTRESPONSE[skip:unable to assert responses with top level array]
+// TESTRESPONSE[s/"index_uuid": "krR78LfvTOe6gr5dj2_1xQ"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_uuid": "C6LWyNJHQWmA08aQGvqRkA"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+
+<1> Last item in the `indices` array for the `logs` data stream. This item
+contains information about the stream's current write index, `.ds-logs-000002`.
 ====
 
 [discrete]
@@ -366,30 +375,6 @@ a data stream and its backing indices.
 The following delete data stream API request deletes the `logs` data stream. This
 request also deletes the stream's backing indices and any data they contain.
 
-////
-[source,console]
-----
-PUT /_index_template/logs_data_stream
-{
-  "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
-}
-
-PUT /_data_stream/logs
-----
-////
-
 [source,console]
 ----
 DELETE /_data_stream/logs
@@ -400,7 +385,9 @@ DELETE /_data_stream/logs
 ////
 [source,console]
 ----
-DELETE /_index_template/logs_data_stream
+DELETE /_data_stream/*
+DELETE /_index_template/*
+DELETE /_ilm/policy/logs_policy
 ----
 // TEST[continued]
 ////

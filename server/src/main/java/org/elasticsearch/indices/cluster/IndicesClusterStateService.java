@@ -604,16 +604,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             final long primaryTerm = state.metadata().index(shardRouting.index()).primaryTerm(shardRouting.id());
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
-            RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(
                     shardRouting,
-                    recoveryState,
                     recoveryTargetService,
                     new RecoveryListener(shardRouting, primaryTerm),
                     repositoriesService,
                     failedShardHandler,
                     this::updateGlobalCheckpointForShard,
-                    retentionLeaseSyncer);
+                    retentionLeaseSyncer,
+                    nodes.getLocalNode(),
+                    sourceNode);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
         }
@@ -903,25 +903,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Creates a shard for the specified shard routing and starts recovery.
          *
          * @param shardRouting           the shard routing
-         * @param recoveryState          the recovery state
          * @param recoveryTargetService  recovery service for the target
          * @param recoveryListener       a callback when recovery changes state (finishes or fails)
          * @param repositoriesService    service responsible for snapshot/restore
          * @param onShardFailure         a callback when this shard fails
          * @param globalCheckpointSyncer a callback when this shard syncs the global checkpoint
          * @param retentionLeaseSyncer   a callback when this shard syncs retention leases
+         * @param targetNode             the node where this shard will be recovered
+         * @param sourceNode             the source node to recover this shard from (it might be null)
          * @return a new shard
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         T createShard(
                 ShardRouting shardRouting,
-                RecoveryState recoveryState,
                 PeerRecoveryTargetService recoveryTargetService,
                 PeerRecoveryTargetService.RecoveryListener recoveryListener,
                 RepositoriesService repositoriesService,
                 Consumer<IndexShard.ShardFailure> onShardFailure,
                 Consumer<ShardId> globalCheckpointSyncer,
-                RetentionLeaseSyncer retentionLeaseSyncer) throws IOException;
+                RetentionLeaseSyncer retentionLeaseSyncer,
+                DiscoveryNode targetNode,
+                @Nullable DiscoveryNode sourceNode) throws IOException;
 
         /**
          * Returns shard for the specified id if it exists otherwise returns <code>null</code>.

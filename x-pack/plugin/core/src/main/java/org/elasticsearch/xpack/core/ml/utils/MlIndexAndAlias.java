@@ -9,6 +9,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -18,6 +20,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -69,13 +72,27 @@ public final class MlIndexAndAlias {
      * Adds an {@code alias} to that index if it was created,
      * or to the index with the highest suffix if the index did not have to be created.
      * The listener is notified with a {@code boolean} that informs whether the index or the alias were created.
+     * If the index is created, the listener is not called until the index is ready to use via the supplied alias,
+     * so that a method that receives a success response from this method can safely use the index immediately.
      */
     public static void createIndexAndAliasIfNecessary(Client client,
                                                       ClusterState clusterState,
                                                       IndexNameExpressionResolver resolver,
                                                       String indexPatternPrefix,
                                                       String alias,
-                                                      ActionListener<Boolean> listener) {
+                                                      ActionListener<Boolean> finalListener) {
+
+        // If both the index and alias were successfully created then wait for the shards of the index that the alias points to be ready
+        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
+            created -> {
+                if (created) {
+                    waitForShardsReady(client, alias, finalListener);
+                } else {
+                    finalListener.onResponse(false);
+                }
+            },
+            finalListener::onFailure
+        );
 
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
@@ -89,7 +106,7 @@ public final class MlIndexAndAlias {
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, listener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
                 return;
             }
             logger.error(
@@ -97,7 +114,7 @@ public final class MlIndexAndAlias {
                 indexPattern, alias, indexPointedByCurrentWriteAlias.get());
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, listener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
                 return;
             }
             if (indexPointedByCurrentWriteAlias.get().getIndex().getName().equals(legacyIndexWithoutSuffix)) {
@@ -107,8 +124,8 @@ public final class MlIndexAndAlias {
                     alias,
                     false,
                     ActionListener.wrap(
-                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, listener),
-                        listener::onFailure)
+                        unused -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, indexCreatedListener),
+                        finalListener::onFailure)
                 );
                 return;
             }
@@ -119,12 +136,28 @@ public final class MlIndexAndAlias {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
                 assert concreteIndexNames.length > 0;
                 String latestConcreteIndexName = Arrays.stream(concreteIndexNames).max(INDEX_NAME_COMPARATOR).get();
-                updateWriteAlias(client, alias, null, latestConcreteIndexName, listener);
+                updateWriteAlias(client, alias, null, latestConcreteIndexName, finalListener);
                 return;
             }
         }
         // If the alias is set, there is nothing more to do.
-        listener.onResponse(false);
+        finalListener.onResponse(false);
+    }
+
+    private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {
+        ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(index)
+            .waitForYellowStatus()
+            .waitForNoRelocatingShards(true)
+            .waitForNoInitializingShards(true);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            healthRequest,
+            ActionListener.<ClusterHealthResponse>wrap(
+                response -> listener.onResponse(response.isTimedOut() == false),
+                listener::onFailure),
+            client.admin().cluster()::health
+        );
     }
 
     private static void createFirstConcreteIndex(Client client,

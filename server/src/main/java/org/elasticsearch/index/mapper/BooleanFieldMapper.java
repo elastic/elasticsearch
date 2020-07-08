@@ -74,14 +74,14 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Float> boost = Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
-        private final Parameter<Boolean> docValues
-            = Parameter.boolParam("doc_values", false, m -> m.fieldType().hasDocValues(),  true);
-        private final Parameter<Boolean> indexed
-            = Parameter.boolParam("index", false, m -> m.fieldType().isSearchable(), true);
+        private final Parameter<Boolean> docValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  true);
+        private final Parameter<Boolean> indexed = Parameter.boolParam("index", false, m -> toType(m).indexed, true);
+        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+
         private final Parameter<Boolean> nullValue
             = new Parameter<>("null_value", false, null, (n, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
-        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+
+        private final Parameter<Float> boost = Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
         private final Parameter<Map<String, String>> meta
             = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
 
@@ -96,9 +96,9 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            return new BooleanFieldMapper(name,
-                new BooleanFieldType(buildFullName(context), indexed.getValue(), docValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), docValues.getValue(), meta.getValue());
+            ft.setBoost(boost.getValue());
+            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -214,6 +214,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     private final Boolean nullValue;
+    private final boolean indexed;
+    private final boolean hasDocValues;
     private final boolean stored;
 
     protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
@@ -221,6 +223,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = builder.nullValue.getValue();
         this.stored = builder.stored.getValue();
+        this.indexed = builder.indexed.getValue();
+        this.hasDocValues = builder.docValues.getValue();
     }
 
     @Override
@@ -230,7 +234,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        if (fieldType().isSearchable() == false && stored == false && !fieldType().hasDocValues()) {
+        if (indexed == false && stored == false && hasDocValues == false) {
             return;
         }
 
@@ -249,13 +253,13 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         if (value == null) {
             return;
         }
-        if (fieldType().isSearchable()) {
+        if (indexed) {
             context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
         }
-        if (fieldType().hasDocValues()) {
+        if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
             createFieldNamesField(context);

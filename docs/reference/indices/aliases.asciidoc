@@ -263,8 +263,10 @@ indices that match this pattern are added/removed.
 It is an error to index to an alias which points to more than one index.
 
 It is also possible to swap an index with an alias in one, atomic operation.
-This means there will be no period of downtime where the alias points to no
-index.
+This means there will be no point in time where the alias points to no
+index in the cluster state. However, as indexing and searches involve multiple
+steps, it is possible for the in-flight or queued requests to fail
+due to a temporarily non-existent index.
 
 [source,console]
 --------------------------------------------------

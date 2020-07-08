@@ -53,7 +53,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     private static final long DISTINCT_VALUES = 10;
     /**
-     * The number of buckets to create in the {@link #multiBucket()} case.
+     * The number of buckets to create in the {@link #multiBucket} case.
      * <p>
      * If this is not relatively prime to {@link #DISTINCT_VALUES} then the
      * values won't be scattered evenly across the buckets.
@@ -111,7 +111,7 @@ public class LongKeyedBucketOrdsBenchmark {
     /**
      * Emulates a way that we do <strong>not</strong> use {@link LongKeyedBucketOrds}
      * because it is significantly slower than the
-     * {@link #singleBucketIntoSingleMutableMonmorphicInvocation() monomorphic invocation}.
+     * {@link #singleBucketIntoSingleMutableMonmorphicInvocation monomorphic invocation}.
      */
     @Benchmark
     public void singleBucketIntoSingleMutableBimorphicInvocation(Blackhole bh) {

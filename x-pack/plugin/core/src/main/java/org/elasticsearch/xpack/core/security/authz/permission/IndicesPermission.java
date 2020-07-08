@@ -259,7 +259,7 @@ public final class IndicesPermission {
                     boolean actionCheck = group.checkAction(action);
                     // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
                     // outside of the privilege definition
-                    boolean bwcMappingActionCheck = isMappingUpdateAction && false == isDataStream &&
+                    boolean bwcMappingActionCheck = isMappingUpdateAction && false == isDataStream && false == isBackingIndex &&
                             group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains);
                     if (actionCheck || bwcMappingActionCheck) {
                         // propagate DLS and FLS permissions over the concrete indices

@@ -549,7 +549,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
+            Settings settings = Settings.builder()
+                .put("index.version.created", Version.CURRENT)
+                .build();
+            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(settings, new ContentPath(0));
             TimestampFieldMapper.Builder fieldBuilder = new TimestampFieldMapper.Builder();
             fieldBuilder.setPath("@timestamp");
             DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder("@timestamp").build(builderContext);

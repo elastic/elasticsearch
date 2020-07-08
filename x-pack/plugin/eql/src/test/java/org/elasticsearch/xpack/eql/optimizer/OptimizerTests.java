@@ -87,9 +87,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
 
@@ -110,9 +108,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
@@ -133,9 +129,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
             assertTrue(plan instanceof Filter);
@@ -159,9 +153,7 @@ public class OptimizerTests extends ESTestCase {
         );
 
         for (String q : tests) {
-            LogicalPlan plan = accept(q);
-            assertTrue(plan instanceof OrderBy);
-            plan = ((OrderBy) plan).child();
+            LogicalPlan plan = defaultPipes(accept(q));
             assertTrue(plan instanceof Project);
             plan = ((Project) plan).child();
 
@@ -181,9 +173,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testWildcardEscapes() {
-        LogicalPlan plan = accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'");
-        assertTrue(plan instanceof OrderBy);
-        plan = ((OrderBy) plan).child();
+        LogicalPlan plan = defaultPipes(accept("foo where command_line == '* %bar_ * \\\\ \\n \\r \\t'"));
         assertTrue(plan instanceof Project);
         plan = ((Project) plan).child();
         assertTrue(plan instanceof Filter);
@@ -305,5 +295,12 @@ public class OptimizerTests extends ESTestCase {
         OrderBy orderBy = (OrderBy) plan.child();
         Order order = orderBy.order().get(0);
         assertEquals(direction, order.direction());
+    }
+
+    private LogicalPlan defaultPipes(LogicalPlan plan) {
+        assertTrue(plan instanceof LimitWithOffset);
+        plan = ((LimitWithOffset) plan).child();
+        assertTrue(plan instanceof OrderBy);
+        return ((OrderBy) plan).child();
     }
 }

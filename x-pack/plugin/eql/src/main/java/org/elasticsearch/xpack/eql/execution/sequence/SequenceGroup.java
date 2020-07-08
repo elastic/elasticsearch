@@ -37,6 +37,7 @@ public class SequenceGroup {
         Ordinal ordinal = sequence.ordinal();
         if (start == null) {
             start = ordinal;
+        } else if (stop == null) {
             stop = ordinal;
         } else {
             if (start.compareTo(ordinal) > 0) {
@@ -91,6 +92,7 @@ public class SequenceGroup {
         if (sequences.isEmpty() == false) {
             start = sequences.get(0).ordinal();
         } else {
+            start = null;
             stop = null;
         }
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -90,7 +91,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         boolean remapGlobalOrds,
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
@@ -103,9 +104,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         this.lookupGlobalOrd = values::lookupOrd;
         this.acceptedGlobalOrdinals = includeExclude == null ? ALWAYS_TRUE : includeExclude.acceptedGlobalOrdinals(values)::get;
         if (remapGlobalOrds) {
-            this.collectionStrategy = new RemapGlobalOrds(collectsFromSingleBucket);
+            this.collectionStrategy = new RemapGlobalOrds(cardinality);
         } else {
-            if (false == collectsFromSingleBucket) {
+            if (cardinality == CardinalityUpperBound.MANY) {
                 throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
             }
             this.collectionStrategy = new DenseGlobalOrds();
@@ -284,7 +285,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             Map<String, Object> metadata
         ) throws IOException {
             super(name, factories, a -> a.new StandardTermsResults(), valuesSource, order, format, bucketCountThresholds, null,
-                context, parent, remapGlobalOrds, collectionMode, showTermDocCountError, true, metadata);
+                context, parent, remapGlobalOrds, collectionMode, showTermDocCountError, CardinalityUpperBound.ONE, metadata);
             assert factories == null || factories.countAggregators() == 0;
             this.segmentDocCounts = context.bigArrays().newIntArray(1, true);
         }
@@ -467,8 +468,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     private class RemapGlobalOrds extends CollectionStrategy {
         private final LongKeyedBucketOrds bucketOrds;
 
-        private RemapGlobalOrds(boolean collectsFromSingleBucket) {
-            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        private RemapGlobalOrds(CardinalityUpperBound cardinality) {
+            bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
         }
 
         @Override
@@ -757,9 +758,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
             SignificanceHeuristic significanceHeuristic,
-            boolean collectsFromSingleBucket
+            CardinalityUpperBound cardinality
         ) {
-            backgroundFrequencies = significanceLookup.bytesLookup(context.bigArrays(), collectsFromSingleBucket);
+            backgroundFrequencies = significanceLookup.bytesLookup(context.bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
         }

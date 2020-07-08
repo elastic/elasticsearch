@@ -21,19 +21,13 @@ package org.elasticsearch.http;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Test Indexing Pressure Metrics and Statistics

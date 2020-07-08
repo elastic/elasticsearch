@@ -244,11 +244,15 @@ public final class IndicesPermission {
                 isBackingIndex = isDataStream = false;
             }
 
+            // true if ANY group covers the given index AND the given action
             boolean granted = false;
+            // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for
+            // an index or an alias (but not for a data stream)
             boolean bwcGrantMappingUpdate = false;
             final List<Runnable> bwcDeprecationLogActions = new ArrayList<>();
 
             for (Group group : groups) {
+                // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 final boolean indexCheck = group.checkIndex(indexOrAlias) ||
                         (isBackingIndex && group.checkIndex(indexAbstraction.getParentDataStream().getName()));
                 if (indexCheck) {
@@ -279,12 +283,16 @@ public final class IndicesPermission {
                     granted |= actionCheck;
                     bwcGrantMappingUpdate |= bwcMappingActionCheck;
                     if (false == actionCheck && bwcMappingActionCheck) {
-                        bwcDeprecationLogActions.add(() -> {
-                            deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" + String.join(",",
-                                    group.privilege.name()) + "]", "The mapping update action [" + action + "] for the [" +
-                                    indexOrAlias + "] index, granted by the [" + String.join(",", group.privilege.name()) + "] privilege," +
-                                    " is deprecated and will not be granted in the next major release.");
-                        });
+                        for (String privilegeName : group.privilege.name()) {
+                            if (privilegeNameSetBwcAllowMappingUpdate.contains(privilegeName)) {
+                                bwcDeprecationLogActions.add(() -> {
+                                    deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" +
+                                            privilegeName + "]", "the mapping update action [" + action + "] on the [" +
+                                            indexOrAlias + "] index, is granted by the [" + privilegeName + "] privilege," +
+                                            " but the privilege has been tightened to not allow it in the next major release");
+                                });
+                            }
+                        }
                     }
                 }
             }

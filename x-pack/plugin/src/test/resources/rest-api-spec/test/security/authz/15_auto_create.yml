@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      features: headers
+      features: ["headers", "allowed_warnings"]
 
   - do:
       cluster.health:
@@ -44,6 +44,8 @@ teardown:
 "Test auto index creation":
   # Only auto creation of logs-foobar index works.
   - do:
+      allowed_warnings:
+        - "the mapping update action [indices:admin/mapping/auto_put] on the [logs-foobar] index, is granted by the [create_doc] privilege, but the privilege has been tightened to not allow it in the next major release"
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:
@@ -73,6 +75,8 @@ teardown:
 
   # Ensure that just appending data via both indices work now that the indices have been auto created
   - do:
+      allowed_warnings:
+        - "the mapping update action [indices:admin/mapping/auto_put] on the [logs-barbaz] index, is granted by the [create_doc] privilege, but the privilege has been tightened to not allow it in the next major release"
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       bulk:
         body:

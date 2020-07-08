@@ -1628,7 +1628,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(dataStreamStat, notNullValue());
         assertThat(dataStreamStat.getDataStream(), equalTo(dataStreamName));
         assertThat(dataStreamStat.getBackingIndices(), equalTo(1));
-        assertThat(dataStreamStat.getMaximumTimestamp(), equalTo(0)); // No data in here
+        assertThat(dataStreamStat.getMaximumTimestamp(), equalTo(0L)); // No data in here
         assertThat(dataStreamStat.getStoreSize().getBytes(), not(equalTo(0L))); // but still takes up some space on disk
 
         DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(dataStreamName);

@@ -55,10 +55,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.stream.Stream;
@@ -137,6 +139,38 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         public DataStreamStats[] getDataStreams() {
             return dataStreams;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            Response response = (Response) obj;
+            return dataStreamCount == response.dataStreamCount &&
+                backingIndices == response.backingIndices &&
+                Objects.equals(totalStoreSize, response.totalStoreSize) &&
+                Arrays.equals(dataStreams, response.dataStreams);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(dataStreamCount, backingIndices, totalStoreSize);
+            result = 31 * result + Arrays.hashCode(dataStreams);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Response{" +
+                "dataStreamCount=" + dataStreamCount +
+                ", backingIndices=" + backingIndices +
+                ", totalStoreSize=" + totalStoreSize +
+                ", dataStreams=" + Arrays.toString(dataStreams) +
+                '}';
+        }
     }
 
     public static class DataStreamStats implements ToXContentObject, Writeable {
@@ -192,6 +226,36 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
         public long getMaximumTimestamp() {
             return maximumTimestamp;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            DataStreamStats that = (DataStreamStats) obj;
+            return backingIndices == that.backingIndices &&
+                maximumTimestamp == that.maximumTimestamp &&
+                Objects.equals(dataStream, that.dataStream) &&
+                Objects.equals(storeSize, that.storeSize);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(dataStream, backingIndices, storeSize, maximumTimestamp);
+        }
+
+        @Override
+        public String toString() {
+            return "DataStreamStats{" +
+                "dataStream='" + dataStream + '\'' +
+                ", backingIndices=" + backingIndices +
+                ", storeSize=" + storeSize +
+                ", maximumTimestamp=" + maximumTimestamp +
+                '}';
         }
     }
 

@@ -34,6 +34,7 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.concurrent.TimeUnit;
 
@@ -66,11 +67,12 @@ public class LongKeyedBucketOrdsBenchmark {
      * because it is not needed.
      */
     @Benchmark
-    public void singleBucketIntoSingleImmutableMonmorphicInvocation() {
+    public void singleBucketIntoSingleImmutableMonmorphicInvocation(Blackhole bh) {
         try (LongKeyedBucketOrds.FromSingle ords = new LongKeyedBucketOrds.FromSingle(bigArrays)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }
+            bh.consume(ords);
         }
     }
 
@@ -78,11 +80,12 @@ public class LongKeyedBucketOrdsBenchmark {
      * Emulates the way that most aggregations use {@link LongKeyedBucketOrds}.
      */
     @Benchmark
-    public void singleBucketIntoSingleImmutableBimorphicInvocation() {
+    public void singleBucketIntoSingleImmutableBimorphicInvocation(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, true)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }
+            bh.consume(ords);
         }
     }
 
@@ -90,15 +93,17 @@ public class LongKeyedBucketOrdsBenchmark {
      * Emulates the way that {@link AutoDateHistogramAggregationBuilder} uses {@link LongKeyedBucketOrds}.
      */
     @Benchmark
-    public void singleBucketIntoSingleMutableMonmorphicInvocation() {
+    public void singleBucketIntoSingleMutableMonmorphicInvocation(Blackhole bh) {
         LongKeyedBucketOrds.FromSingle ords = new LongKeyedBucketOrds.FromSingle(bigArrays);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {
                 ords.close();
+                bh.consume(ords);
                 ords = new LongKeyedBucketOrds.FromSingle(bigArrays);
             }
             ords.add(0, i % DISTINCT_VALUES);
         }
+        bh.consume(ords);
         ords.close();
     }
 
@@ -108,16 +113,18 @@ public class LongKeyedBucketOrdsBenchmark {
      * {@link #singleBucketIntoSingleMutableMonmorphicInvocation() monomorphic invocation}.
      */
     @Benchmark
-    public void singleBucketIntoSingleMutableBimorphicInvocation() {
+    public void singleBucketIntoSingleMutableBimorphicInvocation(Blackhole bh) {
         LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, true);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {
                 ords.close();
+                bh.consume(ords);
                 ords = LongKeyedBucketOrds.build(bigArrays, true);
             }
             ords.add(0, i % DISTINCT_VALUES);
 
         }
+        bh.consume(ords);
         ords.close();
     }
 
@@ -127,11 +134,12 @@ public class LongKeyedBucketOrdsBenchmark {
      * aggregation and there is only a single value for that term in the index.
      */
     @Benchmark
-    public void singleBucketIntoMulti() {
+    public void singleBucketIntoMulti(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }
+            bh.consume(ords);
         }
     }
 
@@ -139,11 +147,12 @@ public class LongKeyedBucketOrdsBenchmark {
      * Emulates an aggregation that collects from many buckets.
      */
     @Benchmark
-    public void multiBucket() {
+    public void multiBucket(Blackhole bh) {
         try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(i % DISTINCT_BUCKETS, i % DISTINCT_VALUES);
             }
+            bh.consume(ords);
         }
     }
 }

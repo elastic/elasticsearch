@@ -44,10 +44,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -55,7 +53,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase {
-    private final Set<Integer> visited = new LinkedHashSet<>();
     private final List<Closeable> lazyClose = new ArrayList<>();
     private final ScriptService scriptService;
 
@@ -160,7 +157,6 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
                     };
                 }
             });
-            resetVisitedDocIds();
             return result;
         }
     }
@@ -181,16 +177,5 @@ public abstract class ScriptFieldScriptTestCase<F, V, DV, R> extends ESTestCase 
     public void closeAll() throws IOException {
         Collections.reverse(lazyClose); // Close in the reverse order added so readers close before directory
         IOUtils.close(lazyClose);
-    }
-
-    protected final void onVisitDocId(LeafReaderContext ctx, int docId) {
-        int rebased = ctx.docBase + docId;
-        if (false == visited.add(rebased)) {
-            throw new AssertionError("Visited [" + rebased + "] twice. Order before was " + visited);
-        }
-    }
-
-    private void resetVisitedDocIds() {
-        visited.clear();
     }
 }

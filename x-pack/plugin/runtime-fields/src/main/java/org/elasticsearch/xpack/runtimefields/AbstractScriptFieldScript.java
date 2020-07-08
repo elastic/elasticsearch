@@ -33,13 +33,7 @@ public abstract class AbstractScriptFieldScript {
      */
     public final void setDocId(int docId) {
         leafSearchLookup.setDocument(docId);
-        onSetDocId(docId);
     }
-
-    /**
-     * Optional hook for the script to take extra actions when moving to a document.
-     */
-    protected void onSetDocId(int docId) {}
 
     /**
      * Expose the {@code params} of the script to the script itself.

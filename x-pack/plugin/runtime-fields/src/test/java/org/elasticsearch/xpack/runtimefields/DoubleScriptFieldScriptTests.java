@@ -238,11 +238,6 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
                     public void execute() {
                         impl.accept(getDoc(), sync);
                     }
-
-                    @Override
-                    protected void onSetDocId(int docId) {
-                        onVisitDocId(ctx, docId);
-                    }
                 };
             };
             return leafFactory;

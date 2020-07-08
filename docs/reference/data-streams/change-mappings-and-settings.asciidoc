@@ -579,10 +579,7 @@ contains information about the stream's oldest backing index, `.ds-logs-000001`.
     {
       "name": "logs",
       "timestamp_field": {
-        "name": "@timestamp",
-        "mapping": {
-          "type": "date"
-        }
+        "name": "@timestamp"
       },
       "indices": [
         {

@@ -115,10 +115,6 @@ Contains information about the data stream's `@timestamp` field.
 Name of the data stream's timestamp field, which must be `@timestamp`. The
 `@timestamp` field must be included in every document indexed to the data
 stream.
-
-`mapping`::
-(<<mapping,field mapping object>>)
-Field mapping for the data stream's `@timestamp` field.
 =====
 
 `indices`::
@@ -206,10 +202,7 @@ The API returns the following response:
     {
       "name": "my-data-stream",
       "timestamp_field": {
-        "name": "@timestamp",
-        "mapping": {
-          "type": "date"
-        }
+        "name": "@timestamp"
       },
       "indices": [
         {
@@ -229,10 +222,7 @@ The API returns the following response:
     {
       "name": "my-data-stream_two",
       "timestamp_field": {
-        "name": "@timestamp",
-        "mapping": {
-          "type": "date"
-        }
+        "name": "@timestamp"
       },
       "indices": [
         {

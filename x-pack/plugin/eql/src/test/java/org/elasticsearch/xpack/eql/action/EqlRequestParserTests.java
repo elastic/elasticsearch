@@ -28,6 +28,7 @@ public class EqlRequestParserTests extends ESTestCase {
 
     private static NamedXContentRegistry registry =
         new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
+
     public void testUnknownFieldParsingErrors() throws IOException {
         assertParsingErrorMessage("{\"key\" : \"value\"}", "unknown field [key]", EqlSearchRequest::fromXContent);
     }
@@ -44,20 +45,23 @@ public class EqlRequestParserTests extends ESTestCase {
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"search_after\" : 123}", "search_after doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", "For input string: \"foo\"",
+            EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"query\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
-            EqlSearchRequest::fromXContent);
+            "For input string: \"abc\"", EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"case_sensitive\" : \"whatever\"}", "failed to parse field [case_sensitive]",
+            "Failed to parse value [whatever] as only [true] or [false] are allowed.", EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"default_order\" : 123}", "default_order doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"default_order\" : \"whatever\"}", "failed to parse field [default_order]",
-            EqlSearchRequest::fromXContent);
+        assertParsingErrorMessage("{\"default_order\" : \"xyz\"}", "failed to parse field [default_order]",
+            "invalid default_order value, expected [asc/desc] but got: [xyz]", EqlSearchRequest::fromXContent);
 
         boolean setIsCaseSensitive = randomBoolean();
         boolean isCaseSensitive = randomBoolean();
         boolean setDefaultOrder = randomBoolean();
-        OrderDirection defaultOrder = randomFrom(OrderDirection.values());
+        String defaultOrder = randomFrom(OrderDirection.values()).toString();
 
         EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
@@ -67,7 +71,7 @@ public class EqlRequestParserTests extends ESTestCase {
             + "\"size\" : \"101\","
             + "\"query\" : \"file where user != 'SYSTEM' by file_path\""
             + (setIsCaseSensitive ? (",\"case_sensitive\" : " + isCaseSensitive) : "")
-            + (setDefaultOrder ? (",\"default_order\" : \"" + defaultOrder.toString() + "\"") : "")
+            + (setDefaultOrder ? (",\"default_order\" : \"" + defaultOrder + "\"") : "")
             + "}", EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[]{"endgame-*"}, request.indices());
         assertNotNull(request.query());
@@ -93,9 +97,25 @@ public class EqlRequestParserTests extends ESTestCase {
     }
 
     private void assertParsingErrorMessage(String json, String errorMessage, Consumer<XContentParser> consumer) throws IOException {
+        assertParsingErrorMessage(json, errorMessage, null, consumer);
+    }
+
+    private void assertParsingErrorMessage(String json, String errorMessage, String causeErrorMessage,
+        Consumer<XContentParser> consumer) throws IOException {
         XContentParser parser = parser(json);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> consumer.accept(parser));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> consumer.accept(parser));
         assertThat(e.getMessage(), containsString(errorMessage));
+        if (e.getCause() != null) {
+            if (causeErrorMessage == null) {
+                fail("Exception cause assertion expected");
+            } else {
+                assertThat(e.getCause().getMessage(), containsString(causeErrorMessage));
+            }
+        } else {
+            if (causeErrorMessage != null) {
+                fail("Exception cause assertion expected");
+            }
+        }
     }
 
     private XContentParser parser(String content) throws IOException {

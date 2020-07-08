@@ -35,36 +35,42 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
 
     @Override
     protected EqlSearchRequest createClientTestInstance() {
-        EqlSearchRequest EqlSearchRequest = new EqlSearchRequest("testindex", randomAlphaOfLength(40));
+        EqlSearchRequest eqlSearchRequest = new EqlSearchRequest("testindex", randomAlphaOfLength(40));
         if (randomBoolean()) {
-            EqlSearchRequest.fetchSize(randomIntBetween(1, Integer.MAX_VALUE));
+            eqlSearchRequest.fetchSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.implicitJoinKeyField(randomAlphaOfLength(10));
+            eqlSearchRequest.implicitJoinKeyField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.eventCategoryField(randomAlphaOfLength(10));
+            eqlSearchRequest.eventCategoryField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.query(randomAlphaOfLength(10));
+            eqlSearchRequest.query(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.timestampField(randomAlphaOfLength(10));
+            eqlSearchRequest.timestampField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.tiebreakerField(randomAlphaOfLength(10));
+            eqlSearchRequest.tiebreakerField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.searchAfter(randomArray(1, 4, Object[]::new, () -> randomAlphaOfLength(3)));
+            eqlSearchRequest.searchAfter(randomArray(1, 4, Object[]::new, () -> randomAlphaOfLength(3)));
         }
         if (randomBoolean()) {
             if (randomBoolean()) {
-                EqlSearchRequest.filter(QueryBuilders.matchAllQuery());
+                eqlSearchRequest.filter(QueryBuilders.matchAllQuery());
             } else {
-                EqlSearchRequest.filter(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
+                eqlSearchRequest.filter(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
             }
         }
-        return EqlSearchRequest;
+        if (randomBoolean()) {
+            eqlSearchRequest.isCaseSensitive(randomBoolean());
+        }
+        if (randomBoolean()) {
+            eqlSearchRequest.defaultOrder(randomFrom("asc", "desc"));
+        }
+        return eqlSearchRequest;
     }
 
     @Override
@@ -85,6 +91,8 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
         assertThat(serverInstance.indicesOptions(), equalTo(clientTestInstance.indicesOptions()));
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));
         assertThat(serverInstance.fetchSize(), equalTo(clientTestInstance.fetchSize()));
+        assertThat(serverInstance.isCaseSensitive(), equalTo(clientTestInstance.isCaseSensitive()));
+        assertThat(serverInstance.defaultOrder(), equalTo(clientTestInstance.defaultOrder()));
     }
 
     @Override

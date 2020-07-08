@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
-
 public final class RequestDefaults {
 
     private RequestDefaults() {}
@@ -15,7 +13,7 @@ public final class RequestDefaults {
     public static final String FIELD_TIMESTAMP = "@timestamp";
     public static final String FIELD_EVENT_CATEGORY = "event.category";
     public static final String FIELD_IMPLICIT_JOIN_KEY = "agent.id";
-    public static final OrderDirection FIELD_DEFAULT_ORDER = OrderDirection.DESC;
+    public static final String FIELD_DEFAULT_ORDER = "desc";
 
     public static int SIZE = 10;
     public static int FETCH_SIZE = 1000;

@@ -36,7 +36,8 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             {"{\"query\": \"" + validQuery + "\", \"search_after\": null}", "search_after doesn't support values of type: VALUE_NULL"},
             {"{\"query\": \"" + validQuery + "\", \"search_after\": []}", "must contains at least one value"},
             {"{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL"},
-            {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
+            {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"},
+            {"{\"query\": \"" + validQuery + "\", \"default_order\": \"bla\"}", "failed to parse field [default_order]"}
     };
 
     @BeforeClass

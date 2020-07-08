@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FETCH_SIZE;
@@ -26,7 +27,7 @@ public class ParserParams {
     private String fieldTimestamp = FIELD_TIMESTAMP;
     private String fieldTiebreaker = null;
     private String implicitJoinKey = FIELD_IMPLICIT_JOIN_KEY;
-    private OrderDirection defaultOrder = FIELD_DEFAULT_ORDER;
+    private OrderDirection defaultOrder = OrderDirection.valueOf(FIELD_DEFAULT_ORDER.toUpperCase(Locale.ROOT));
     private int size = SIZE;
     private int fetchSize = FETCH_SIZE;
     private List<Object> queryParams = emptyList();

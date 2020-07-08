@@ -34,9 +34,11 @@ import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -118,7 +120,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .implicitJoinKey(request.implicitJoinKeyField())
             .size(request.size())
             .fetchSize(request.fetchSize())
-            .defaultOrder(request.defaultOrder());
+            .defaultOrder(OrderDirection.valueOf(request.defaultOrder().toUpperCase(Locale.ROOT)));
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, timeout, includeFrozen,
             request.isCaseSensitive(), clientId, new TaskId(nodeId, task.getId()), task);

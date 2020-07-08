@@ -24,7 +24,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -57,7 +56,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private SearchAfterBuilder searchAfterBuilder;
     private String query;
     private boolean isCaseSensitive = false;
-    private OrderDirection defaultOrder = FIELD_DEFAULT_ORDER;
+    private String defaultOrder = FIELD_DEFAULT_ORDER;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -119,7 +118,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             this.keepOnCompletion = in.readBoolean();
         }
         isCaseSensitive = in.readBoolean();
-        defaultOrder = in.readEnum(OrderDirection.class);
+        defaultOrder = in.readOptionalString();
     }
 
     @Override
@@ -170,7 +169,16 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
         }
 
+        if (defaultOrder != null && isValidDefaultOrder(defaultOrder) == false) {
+            validationException =
+                addValidationError("invalid default_order value, expected [asc/desc] but got: [" + defaultOrder + "]", validationException);
+        }
+
         return validationException;
+    }
+
+    private static boolean isValidDefaultOrder(String defaultOrder) {
+        return "asc".equalsIgnoreCase(defaultOrder) || "desc".equalsIgnoreCase(defaultOrder);
     }
 
     @Override
@@ -231,8 +239,12 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareBoolean(EqlSearchRequest::isCaseSensitive, CASE_SENSITIVE);
-        parser.declareString((request, order) -> {
-            request.defaultOrder(OrderDirection.fromString(order));
+        parser.declareString((r, o) -> {
+            if (isValidDefaultOrder(o)) {
+                r.defaultOrder(o);
+            } else {
+                throw new IllegalArgumentException("invalid default_order value, expected [asc/desc] but got: [" + o + "]");
+            }
         }, DEFAULT_ORDER);
         return parser;
     }
@@ -354,9 +366,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public OrderDirection defaultOrder() { return this.defaultOrder; }
+    public String defaultOrder() { return this.defaultOrder; }
 
-    public EqlSearchRequest defaultOrder(OrderDirection defaultOrder) {
+    public EqlSearchRequest defaultOrder(String defaultOrder) {
         this.defaultOrder = defaultOrder;
         return this;
     }
@@ -381,7 +393,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             out.writeBoolean(keepOnCompletion);
         }
         out.writeBoolean(isCaseSensitive);
-        out.writeEnum(defaultOrder);
+        out.writeOptionalString(defaultOrder);
     }
 
     @Override

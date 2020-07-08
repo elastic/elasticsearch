@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
@@ -20,18 +19,6 @@ public class Order extends Expression {
 
     public enum OrderDirection {
         ASC, DESC;
-
-        public static OrderDirection fromString(String direction) {
-            if (direction == null || direction.isEmpty()) {
-                return DESC;
-            }
-            return OrderDirection.valueOf(direction.toUpperCase(Locale.ROOT));
-        }
-
-        @Override
-        public String toString() {
-            return this.name().toLowerCase(Locale.ROOT);
-        }
     }
 
     public enum NullsPosition {

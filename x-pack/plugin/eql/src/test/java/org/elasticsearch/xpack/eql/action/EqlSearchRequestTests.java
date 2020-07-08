@@ -10,10 +10,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
@@ -29,6 +31,10 @@ import java.util.Collections;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_DEFAULT_ORDER;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
+import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
 public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearchRequest> {
 
@@ -43,6 +49,24 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
 
     @Before
     public void setup() {
+    }
+
+    public void testRequestDefaults() throws IOException {
+        String json = "{\"query\": \"process where true\"}";
+        XContentParser parser = parser(json);
+        EqlSearchRequest request = EqlSearchRequest.fromXContent(parser);
+        
+        assertEquals("process where true", request.query());
+        assertNull(request.filter());
+        assertEquals(FIELD_TIMESTAMP, request.timestampField());
+        assertNull(request.tiebreakerField());
+        assertEquals(FIELD_EVENT_CATEGORY, request.eventCategoryField());
+        assertEquals(FIELD_IMPLICIT_JOIN_KEY, request.implicitJoinKeyField());
+        assertEquals(RequestDefaults.SIZE, request.size());
+        assertEquals(RequestDefaults.FETCH_SIZE, request.fetchSize());
+        assertNull(request.searchAfter());
+        assertEquals(false, request.isCaseSensitive());
+        assertEquals(FIELD_DEFAULT_ORDER, request.defaultOrder());
     }
 
     @Override
@@ -69,7 +93,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
                 .implicitJoinKeyField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .isCaseSensitive(randomBoolean())
-                .defaultOrder(randomFrom(OrderDirection.values()))
+                .defaultOrder(randomFrom(OrderDirection.values()).toString())
                 .query(randomAlphaOfLength(10));
 
             if (randomBoolean()) {
@@ -134,5 +158,11 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
         return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
+    }
+
+    private XContentParser parser(String content) throws IOException {
+        XContentType xContentType = XContentType.JSON;
+        return xContentType.xContent().createParser(
+                NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content);
     }
 }

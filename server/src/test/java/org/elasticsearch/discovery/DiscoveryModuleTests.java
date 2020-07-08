@@ -87,7 +87,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
         return new DiscoveryModule(settings, transportService, namedWriteableRegistry, null, masterService,
             clusterApplier, clusterSettings, plugins, null, createTempDir().toAbsolutePath(), gatewayMetaState,
-            mock(RerouteService.class));
+            mock(RerouteService.class), null);
     }
 
     public void testDefaults() {

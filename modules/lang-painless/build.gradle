@@ -87,8 +87,8 @@ sourceSets {
 }
 
 dependencies {
-  docCompile project(':server')
-  docCompile project(':modules:lang-painless')
+  docImplementation project(':server')
+  docImplementation project(':modules:lang-painless')
 }
 
 testClusters {

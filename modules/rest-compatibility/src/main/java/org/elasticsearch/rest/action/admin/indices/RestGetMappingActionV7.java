@@ -44,7 +44,11 @@ public class RestGetMappingActionV7 extends RestGetMappingAction {
             new Route(GET, "/{index}/_mappings/{type}"),
             new Route(GET, "/{index}/_mapping/{type}"),
             new Route(HEAD, "/{index}/_mapping/{type}"),
-            new Route(GET, "/_mapping/{type}")
+            new Route(GET, "/_mapping/{type}"),
+            new Route(GET, "/_mapping"),
+            new Route(GET, "/_mappings"),
+            new Route(GET, "/{index}/_mapping"),
+            new Route(GET, "/{index}/_mappings")
         );
     }
 

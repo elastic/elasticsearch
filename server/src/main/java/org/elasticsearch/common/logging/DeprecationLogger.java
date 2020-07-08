@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -41,13 +42,11 @@ import java.util.List;
  * each additional handler will also be called with a deprecated message and its key.
  */
 public class DeprecationLogger {
-    /** Log handlers are are not tied to this specific <code>DeprecationLogger</code> instance */
-    private static final List<DeprecatedLogHandler> additionalHandlers = new ArrayList<>();
+    /** Log handlers are not tied to this specific <code>DeprecationLogger</code> instance */
+    private static final List<DeprecatedLogHandler> additionalHandlers = Collections.synchronizedList(new ArrayList<>());
+    private static final RateLimiter rateLimiter = new RateLimiter();
 
-    /** Log handlers are are tied to this specific <code>DeprecationLogger</code> instance */
-    private final List<DeprecatedLogHandler> handlers;
-
-    private final RateLimiter rateLimiter;
+    private final WarningLogger warningLogger;
 
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
@@ -56,10 +55,7 @@ public class DeprecationLogger {
      * the "org.elasticsearch" namespace.
      */
     public DeprecationLogger(Logger parentLogger) {
-        this.handlers = new ArrayList<>();
-        this.rateLimiter = new RateLimiter();
-
-        handlers.add(new HeaderWarningLogger(deprecatedLoggerName(parentLogger.getName())));
+        this.warningLogger = new WarningLogger(deprecatedLoggerName(parentLogger.getName()));
     }
 
     public static DeprecationLogger getLogger(Class<?> aClass) {
@@ -93,11 +89,11 @@ public class DeprecationLogger {
     }
 
     public static void addHandler(DeprecatedLogHandler handler) {
-        DeprecationLogger.additionalHandlers.add(handler);
+        additionalHandlers.add(handler);
     }
 
     public static void removeHandler(DeprecatedLogHandler handler) {
-        DeprecationLogger.additionalHandlers.remove(handler);
+        additionalHandlers.remove(handler);
     }
 
     /**
@@ -106,24 +102,36 @@ public class DeprecationLogger {
      * method returns a builder as more methods are expected to be chained.
      */
     public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
-        return new DeprecationLoggerBuilder()
-            .withDeprecation(key, msg, params);
+        return new DeprecationLoggerBuilder().withDeprecation(key, msg, params);
     }
 
     public class DeprecationLoggerBuilder {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
             String opaqueId = HeaderWarning.getXOpaqueId();
+            ESLogMessage deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
+
+            // This is never rate-limited - we always add deprecation messages to response headers.
+            addHeaderWarning(deprecationMessage);
+
             rateLimiter.limit(opaqueId + key, () -> {
-                ESLogMessage deprecationMessage = DeprecatedMessage.of(opaqueId, msg, params);
-                for (DeprecatedLogHandler handler : handlers) {
-                    handler.log(key, opaqueId, deprecationMessage);
-                }
+                warningLogger.log(deprecationMessage);
+
                 for (DeprecatedLogHandler handler : additionalHandlers) {
                     handler.log(key, opaqueId, deprecationMessage);
                 }
             });
             return this;
+        }
+
+        /**
+         * Adds a formatted warning message as a response header on the thread context.
+         */
+        private void addHeaderWarning(ESLogMessage deprecationMessage) {
+            String messagePattern = deprecationMessage.getMessagePattern();
+            Object[] arguments = deprecationMessage.getArguments();
+
+            HeaderWarning.addWarning(messagePattern, arguments);
         }
     }
 }

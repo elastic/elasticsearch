@@ -113,7 +113,6 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         assertThat(payloadMap, hasEntry("message", "a message"));
         // Neither of these should exist since we passed null when writing the message
         assertThat(payloadMap, not(hasKey("x-opaque-id")));
-        assertThat(payloadMap, not(hasKey("params")));
     }
 
     /**
@@ -129,17 +128,15 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     }
 
     /**
-     * Check that if any params are set, then they are added to the index request payload.
+     * Check that if any arguments are set, then they substituted in the log message
      */
-    public void testMessageIncludesParamsWhenSupplied() {
+    public void testMessageSubstitutesArgumentsWhenSupplied() {
         service.start();
         service.clusterChanged(getEvent(true));
 
         final Map<String, Object> payloadMap = getWriteRequest("a key", null, new ESLogMessage("a {} and {} message", "first", "second"));
 
-        // I can't get this to work as a one-liner. Curse you, Hamcrest.
-        assertThat(payloadMap, hasKey("params"));
-        assertThat(payloadMap.get("params"), equalTo(List.of("first", "second")));
+        assertThat(payloadMap, hasEntry("message", "a first and second message"));
     }
 
     private ClusterChangedEvent getEvent(boolean enabled) {

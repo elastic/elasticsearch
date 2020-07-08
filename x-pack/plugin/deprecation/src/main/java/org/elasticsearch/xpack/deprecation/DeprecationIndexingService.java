@@ -22,6 +22,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecatedLogHandler;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 
 import java.time.Instant;
@@ -65,7 +66,7 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
      * @param esLogMessage the message to log
      */
     public void log(String key, String xOpaqueId, ESLogMessage esLogMessage) {
-        if (this.lifecycle.started() == false)  {
+        if (this.lifecycle.started() == false) {
             return;
         }
 
@@ -73,8 +74,9 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
             return;
         }
 
-        String message = esLogMessage.getMessagePattern();
-        Object[] params = esLogMessage.getArguments();
+        String messagePattern = esLogMessage.getMessagePattern();
+        Object[] arguments = esLogMessage.getArguments();
+        String message = LoggerMessageFormat.format(messagePattern, arguments);
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("@timestamp", Instant.now().toString());
@@ -83,10 +85,6 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
 
         if (isNullOrEmpty(xOpaqueId) == false) {
             payload.put("x-opaque-id", xOpaqueId);
-        }
-
-        if (params != null && params.length > 0) {
-            payload.put("params", params);
         }
 
         new IndexRequestBuilder(client, IndexAction.INSTANCE).setIndex(DATA_STREAM_NAME)

@@ -26,28 +26,18 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 /**
- * This class composes {@link HeaderWarning} and {@link Logger}, in order to both log a message
- * and add a header to an API response.
+ * This class writes deprecation messages to a specified logger at <code>WARN</code> level.
  * <p>
  * TODO wrapping logging this way limits the usage of %location. It will think this is used from that class.
  */
-class HeaderWarningLogger implements DeprecatedLogHandler {
+class WarningLogger {
     private final Logger logger;
 
-    HeaderWarningLogger(Logger logger) {
+    WarningLogger(Logger logger) {
         this.logger = logger;
     }
 
-    /**
-     * Logs a deprecation message and adds a formatted warning message as a response
-     * header on the thread context.
-     */
-    @Override
-    public void log(final String key, String xOpaqueId, ESLogMessage message) {
-        String messagePattern = message.getMessagePattern();
-        Object[] arguments = message.getArguments();
-        HeaderWarning.addWarning(messagePattern, arguments);
-
+    public void log(ESLogMessage message) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @SuppressLoggerChecks(reason = "safely delegates to logger")
             @Override

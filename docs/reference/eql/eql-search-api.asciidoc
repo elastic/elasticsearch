@@ -163,7 +163,11 @@ this value is required.
 `fetch_size`::
 (Optional, integer)
 Maximum number of events to search at a time for sequence queries. Defaults to
-`1000`. This value must be greater than `2`.
+`1000`.
++
+This value must be greater than `2` but cannot exceed the value of the
+<<index-max-result-window,`index.max_result_window`>> setting, which defaults to
+`10000`.
 +
 Internally, a sequence query fetches and paginates sets of events to search for
 matches. This parameter controls the size of those sets. This parameter does not

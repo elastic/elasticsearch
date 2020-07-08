@@ -11,61 +11,39 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.cache.PersistentCacheTracker;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class OnDemandRecoveryStateTests extends ESTestCase {
-
-    public void testUnknownFileLengthRecoveryDetails() {
+    public void testSameRangeCanBeReportedMultipleTimes() {
         OnDemandRecoveryState recoveryState = createRecoveryState();
-
         RecoveryState.Index index = recoveryState.getIndex();
 
-        String fileName = randomAlphaOfLength(10);
-        long recoveredBytes = randomLongBetween(1, 1024);
-        index.addRecoveredBytesToFile(fileName, recoveredBytes);
+        long fileLength = randomLongBetween(0, 500);
+        index.addFileDetail("file", fileLength, false);
+        index.setFileDetailsComplete();
 
-        index.addFileDetail(fileName, recoveredBytes * 2, false);
-
-        assertThat(index.recoveredFileCount(), is(0));
-        assertThat((double) index.recoveredBytesPercent(), closeTo(50.0f, 0.0001f));
-
-        index.addRecoveredBytesToFile(fileName, recoveredBytes);
-
-        assertThat(index.recoveredFileCount(), is(1));
-        assertThat((double) index.recoveredBytesPercent(), closeTo(100.0f, 0.0001f));
+        index.addRecoveredBytesToFile("file", fileLength * 2);
+        assertThat(index.getFileDetails("file").recovered(), is(fileLength));
     }
 
-    public void testFilesWithUnknownLengthDoNotCountForRecoveryStatsUntilAllLengthsAreKnown() {
+    public void testFileEvictionIsTracked() {
         OnDemandRecoveryState recoveryState = createRecoveryState();
-
         RecoveryState.Index index = recoveryState.getIndex();
 
-        Map<String, Long> recoveryFiles = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            String fileName = randomAlphaOfLength(10);
-            long recoveredBytes = randomNonNegativeLong();
-            recoveryFiles.put(fileName, recoveredBytes);
+        long fileLength = randomLongBetween(0, 500);
+        index.addFileDetail("file", fileLength, false);
+        index.addRecoveredBytesToFile("file", fileLength);
+        assertThat(index.getFileDetails("file").recovered(), is(fileLength));
 
-            index.addRecoveredBytesToFile(fileName, recoveredBytes);
-        }
+        PersistentCacheTracker tracker = (PersistentCacheTracker) index;
+        tracker.trackFileEviction("file");
 
-        assertThat(index.recoveredFileCount(), is(0));
-        assertThat(index.recoveredBytesPercent(), is(0.0f));
-
-        for (Map.Entry<String, Long> recoveredFiles : recoveryFiles.entrySet()) {
-            index.addFileDetail(recoveredFiles.getKey(), recoveredFiles.getValue(), false);
-        }
-
-        assertThat(index.recoveredFileCount(), is(recoveryFiles.size()));
-        assertThat((double) index.recoveredBytesPercent(), closeTo(100.0f, 0.0001f));
+        assertThat(index.getFileDetails("file").recovered(), is(0L));
     }
 
     public void testLastStageForLazyRecoveriesIsLazyRecovery() {

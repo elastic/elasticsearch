@@ -14,7 +14,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.store.cache.PersistentCacheTracker;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 

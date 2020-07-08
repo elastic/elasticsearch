@@ -55,10 +55,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         if (randomBoolean()) {
             cacheSize = generateCacheSize();
-            builder.put(
-                CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                cacheSize
-            );
+            builder.put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize);
         }
         if (randomBoolean()) {
             builder.put(

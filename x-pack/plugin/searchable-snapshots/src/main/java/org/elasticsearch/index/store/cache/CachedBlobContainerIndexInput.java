@@ -73,7 +73,12 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             stats,
             0L,
             fileInfo.length(),
-            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length(), () -> tracker.trackFileEviction(fileInfo.physicalName())),
+            new CacheFileReference(
+                directory,
+                fileInfo.physicalName(),
+                fileInfo.length(),
+                () -> tracker.trackFileEviction(fileInfo.physicalName())
+            ),
             rangeSize,
             tracker
         );
@@ -453,7 +458,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private int readDirectly(long start, long end, ByteBuffer b) throws IOException {
         final long length = end - start;
         final byte[] copyBuffer = new byte[Math.toIntExact(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.info(() -> new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
+        logger.trace(() -> new ParameterizedMessage("direct reading of range [{}-{}] for cache file [{}]", start, end, cacheFileReference));
 
         int bytesCopied = 0;
         final long startTimeNanos = stats.currentTimeNanos();

@@ -125,5 +125,4 @@ public class IndexInputStatsTests extends ESTestCase {
         assertCounter(inputStats.getBackwardSmallSeeks(), 0L, 0L, 0L, 0L);
         assertCounter(inputStats.getBackwardLargeSeeks(), 0L, 0L, 0L, 0L);
     }
-
 }

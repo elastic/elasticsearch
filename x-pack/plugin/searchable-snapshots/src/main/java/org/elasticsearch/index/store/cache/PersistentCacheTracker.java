@@ -15,12 +15,10 @@ import java.util.Map;
 public interface PersistentCacheTracker {
     PersistentCacheTracker NO_OP = new PersistentCacheTracker() {
         @Override
-        public void trackPersistedBytesForFile(String name, long bytes) {
-        }
+        public void trackPersistedBytesForFile(String name, long bytes) {}
 
         @Override
-        public void trackFileEviction(String name) {
-        }
+        public void trackFileEviction(String name) {}
 
         @Override
         public Map<String, Long> getPersistedFilesSize() {
@@ -29,7 +27,7 @@ public interface PersistentCacheTracker {
     };
 
     /**
-     * Called after {@param bytes} have been written to disk for file {@param name}.
+     * Called after {@code bytes} have been written to disk for file {@code name}.
      * This method can be called multiple times with the same information, as the cache
      * can try to fetch and write the same file range concurrently.
      *
@@ -39,7 +37,7 @@ public interface PersistentCacheTracker {
     void trackPersistedBytesForFile(String name, long bytes);
 
     /**
-     * Called after {@param file} has been evicted from the persistent cache
+     * Called after {@code file} has been evicted from the persistent cache
      * @param name the file being evited from the persistent cache
      */
     void trackFileEviction(String name);

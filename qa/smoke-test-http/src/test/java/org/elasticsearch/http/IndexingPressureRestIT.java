@@ -19,15 +19,25 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.rest.RestStatus.CREATED;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Test Indexing Pressure Metrics and Statistics
@@ -41,30 +51,78 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
+            .put("indexing_limits.memory.limit", "1KB")
             .put(unboundedWriteQueue)
             .build();
     }
 
-    public void testThatRegularExpressionWorksOnMatch() throws IOException {
-        {
-            String corsValue = "http://localhost:9200";
-            Request request = new Request("GET", "/");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("User-Agent", "Mozilla Bar");
-            options.addHeader("Origin", corsValue);
-            request.setOptions(options);
-            Response response = getRestClient().performRequest(request);
+    @SuppressWarnings("unchecked")
+    public void testIndexingPressureStats() throws IOException {
+        Request createRequest = new Request("PUT", "/index_name");
+        createRequest.setJsonEntity("{\"settings\": {\"index\": {\"number_of_shards\": 1, \"number_of_replicas\": 1, " +
+            "\"write.wait_for_active_shards\": 2}}}");
+        final Response indexCreatedResponse = getRestClient().performRequest(createRequest);
+        assertThat(indexCreatedResponse.getStatusLine().getStatusCode(), equalTo(OK.getStatus()));
+
+        Request successfulIndexingRequest = new Request("POST", "/index_name/_doc/");
+        successfulIndexingRequest.setJsonEntity("{\"x\": \"small text\"}");
+        final Response indexSuccessFul = getRestClient().performRequest(successfulIndexingRequest);
+        assertThat(indexSuccessFul.getStatusLine().getStatusCode(), equalTo(CREATED.getStatus()));
+
+        Request getNodeStats = new Request("GET", "/_nodes/stats/indexing_pressure");
+        final Response nodeStats = getRestClient().performRequest(getNodeStats);
+        Map<String, Object> nodeStatsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, nodeStats.getEntity().getContent(), true);
+        ArrayList<Object> values = new ArrayList<>(((Map<Object, Object>) nodeStatsMap.get("nodes")).values());
+        assertThat(values.size(), equalTo(2));
+        XContentTestUtils.JsonMapView node1 = new XContentTestUtils.JsonMapView((Map<String, Object>) values.get(0));
+        Integer node1IndexingBytes = node1.get("indexing_pressure.total_primary_and_coordinating_bytes");
+        Integer node1ReplicaBytes = node1.get("indexing_pressure.total_replica_bytes");
+        Integer node1Rejections = node1.get("indexing_pressure.primary_and_coordinating_rejections");
+        XContentTestUtils.JsonMapView node2 = new XContentTestUtils.JsonMapView((Map<String, Object>) values.get(1));
+        Integer node2IndexingBytes = node2.get("indexing_pressure.total_primary_and_coordinating_bytes");
+        Integer node2ReplicaBytes = node2.get("indexing_pressure.total_replica_bytes");
+        Integer node2Rejections = node2.get("indexing_pressure.primary_and_coordinating_rejections");
+
+        if (node1IndexingBytes == 0) {
+            assertThat(node2IndexingBytes, greaterThan(0));
+            assertThat(node2IndexingBytes, lessThan(1024));
+        } else {
+            assertThat(node1IndexingBytes, greaterThan(0));
+            assertThat(node1IndexingBytes, lessThan(1024));
         }
-        {
-            String corsValue = "https://localhost:9201";
-            Request request = new Request("GET", "/");
-            RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("User-Agent", "Mozilla Bar");
-            options.addHeader("Origin", corsValue);
-            request.setOptions(options);
-            Response response = getRestClient().performRequest(request);
-            assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
+
+        if (node1ReplicaBytes == 0) {
+            assertThat(node2ReplicaBytes, greaterThan(0));
+            assertThat(node2ReplicaBytes, lessThan(1024));
+        } else {
+            assertThat(node2ReplicaBytes, equalTo(0));
+            assertThat(node1ReplicaBytes, lessThan(1024));
         }
-        throw new AssertionError("Failed");
+
+        assertThat(node1Rejections, equalTo(0));
+        assertThat(node2Rejections, equalTo(0));
+
+        Request failedIndexingRequest = new Request("POST", "/index_name/_doc/");
+        String largeString = randomAlphaOfLength(10000);
+        failedIndexingRequest.setJsonEntity("{\"x\": " + largeString + "}");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(failedIndexingRequest));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(TOO_MANY_REQUESTS.getStatus()));
+
+        Request getNodeStats2 = new Request("GET", "/_nodes/stats/indexing_pressure");
+        final Response nodeStats2 = getRestClient().performRequest(getNodeStats2);
+        Map<String, Object> nodeStatsMap2 = XContentHelper.convertToMap(JsonXContent.jsonXContent, nodeStats2.getEntity().getContent(),
+            true);
+        ArrayList<Object> values2 = new ArrayList<>(((Map<Object, Object>) nodeStatsMap2.get("nodes")).values());
+        assertThat(values2.size(), equalTo(2));
+        XContentTestUtils.JsonMapView node1AfterRejection = new XContentTestUtils.JsonMapView((Map<String, Object>) values2.get(0));
+        node1Rejections = node1AfterRejection.get("indexing_pressure.primary_and_coordinating_rejections");
+        XContentTestUtils.JsonMapView node2AfterRejection = new XContentTestUtils.JsonMapView((Map<String, Object>) values2.get(1));
+        node2Rejections = node2AfterRejection.get("indexing_pressure.primary_and_coordinating_rejections");
+
+        if (node1Rejections == 0) {
+            assertThat(node2Rejections, equalTo(1));
+        } else {
+            assertThat(node1Rejections, equalTo(1));
+        }
     }
 }

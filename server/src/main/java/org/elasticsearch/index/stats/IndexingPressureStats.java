@@ -74,7 +74,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field("pending_primary_and_coordinating_bytes", pendingPrimaryAndCoordinatingBytes);
         builder.field("pending_replica_bytes", pendingReplicaBytes);
         builder.field("primary_and_coordinating_rejections", primaryAndCoordinatingRejections);
-        builder.field("replica_rejections_bytes", replicaRejections);
+        builder.field("replica_rejections", replicaRejections);
         return builder.endObject();
     }
 }

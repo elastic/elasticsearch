@@ -216,7 +216,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
         final long bulkRequestSize = bulkRequest.ramBytesUsed();
         final long bulkShardRequestSize = totalRequestSize;
         restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
-            (long)(bulkShardRequestSize * 1.5) + "B").build());
+            (long) (bulkShardRequestSize * 1.5) + "B").build());
 
         assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

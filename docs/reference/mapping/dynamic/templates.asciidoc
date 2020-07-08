@@ -4,11 +4,11 @@
 Dynamic templates allow you to define custom mappings that can be applied to
 dynamically added fields based on:
 
-* the <<dynamic-mapping,datatype>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
+* the <<dynamic-mapping,data type>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
 * the name of the field, with <<match-unmatch,`match` and `unmatch`>> or <<match-pattern,`match_pattern`>>.
 * the full dotted path to the field, with <<path-match-unmatch,`path_match` and `path_unmatch`>>.
 
-The original field name `{name}` and the detected datatype
+The original field name `{name}` and the detected data type
 `{dynamic_type}` <<template-variables,template variables>> can be used in
 the mapping specification as placeholders.
 
@@ -60,12 +60,12 @@ reordered or deleted after they were initially added.
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
-The `match_mapping_type` is the datatype detected by the JSON parser. Since
+The `match_mapping_type` is the data type detected by the JSON parser. Since
 JSON doesn't distinguish a `long` from an `integer` or a `double` from
-a `float`, it will always choose the wider datatype, i.e. `long` for integers
+a `float`, it will always choose the wider data type, i.e. `long` for integers
 and `double` for floating-point numbers.
 
-The following datatypes may be automatically detected:
+The following data types may be automatically detected:
 
  - `boolean` when `true` or `false` are encountered.
  - `date` when <<date-detection,date detection>> is enabled and a string matching
@@ -75,7 +75,7 @@ The following datatypes may be automatically detected:
  - `object` for objects, also called hashes.
  - `string` for character strings.
 
-`*` may also be used in order to match all datatypes.
+`*` may also be used in order to match all data types.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we

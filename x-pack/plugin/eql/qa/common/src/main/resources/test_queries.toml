@@ -690,6 +690,7 @@ expected_event_ids  = [54, 55, 61, 67]
 
 [[queries]]
 name = "fourSequencesByPid"
+default_order = "asc"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid
@@ -702,6 +703,7 @@ expected_event_ids  = [54, 55, 61, 67]
 
 [[queries]]
 name = "fourSequencesByPidAndProcessPath1"
+default_order = "asc"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid,  process_path
@@ -714,6 +716,7 @@ expected_event_ids  = [54, 55, 61, 67]
 
 [[queries]]
 name = "fourSequencesByPidAndProcessPathWithUntil"
+default_order = "asc"
 query = '''
 sequence
   [process where opcode == 1] by unique_pid,  process_path

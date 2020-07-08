@@ -1655,7 +1655,6 @@ SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, VAR_SAMP(salary / 2
        min        |       max        |     varsamp
 ------------------+------------------+----------------
 1055.1666666666667|3124.9583333333335|332278.830154847
-
 // end::aggVarSampScalars
 ;
 

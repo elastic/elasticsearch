@@ -1044,9 +1044,7 @@ public final class NodeEnvironment  implements Closeable {
         final Set<ShardId> shardIds = new HashSet<>();
         final String indexUniquePathId = index.getUUID();
         for (final NodePath nodePath : nodePaths) {
-            if (Files.isDirectory(nodePath.indicesPath)) {
-                shardIds.addAll(findAllShardsForIndex(nodePath.indicesPath.resolve(indexUniquePathId), index));
-            }
+            shardIds.addAll(findAllShardsForIndex(nodePath.indicesPath.resolve(indexUniquePathId), index));
         }
         return shardIds;
     }

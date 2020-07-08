@@ -76,6 +76,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -434,6 +435,33 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected final void assertWarnings(String... expectedWarnings) {
         assertWarnings(true, expectedWarnings);
+    }
+
+    /**
+     * Allow the given warnings, but don't require their presence.
+     */
+    protected final void allowedWarnings(String... allowedWarnings) {
+        if (enableWarningsCheck() == false) {
+            throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
+        }
+        try {
+            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            if (actualWarnings == null) {
+                return;
+            }
+            final Set<String> actualWarningValues =
+                actualWarnings.stream()
+                    .map(s -> DeprecationLogger.extractWarningValueFromWarningHeader(s, true))
+                    .map(DeprecationLogger::escapeAndEncode)
+                    .collect(Collectors.toSet());
+            Set<String> expectedWarnings = new HashSet<>(Arrays.asList(allowedWarnings));
+            final Set<String> warningsNotExpected = Sets.difference(actualWarningValues, expectedWarnings);
+            assertThat("Found " + warningsNotExpected.size() + " unexpected warnings\nExpected: "
+                    + expectedWarnings + "\nActual: " + actualWarningValues,
+                warningsNotExpected.size(), equalTo(0));
+        } finally {
+            resetDeprecationLogger();
+        }
     }
 
     protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {

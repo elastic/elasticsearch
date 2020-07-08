@@ -12,9 +12,11 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -22,12 +24,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -249,6 +253,32 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexed();
+            Query query;
+            try {
+                query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
+            } catch (IllegalArgumentException e) {
+                query = new TermQuery(new Term(name() + ".original", BytesRefs.toBytesRef(value)));
+            }
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            failIfNotIndexed();
+            BytesRef[] bytesRefs = new BytesRef[values.size()];
+            for (int i = 0; i < bytesRefs.length; i++) {
+                bytesRefs[i] = indexedValueForSearch(values.get(i));
+            }
+            return new TermInSetQuery(name(), bytesRefs);
+        }
+
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             // TODO adrien "we'll need to extend it to return proper version strings in scripts".
@@ -365,6 +395,15 @@ public class VersionStringFieldMapper extends FieldMapper {
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(name());
+                // enable exact term searches on hidden field in this case
+                context.doc()
+                    .add(
+                        new KeywordField(
+                            fieldType().name() + ".original",
+                            new BytesRef(versionString),
+                            KeywordFieldMapper.Defaults.FIELD_TYPE
+                        )
+                    );
                 return;
             } else {
                 throw e;

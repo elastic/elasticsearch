@@ -224,6 +224,10 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("2", response.getHits().getAt(1).getId());
         assertNull(response.getHits().getAt(1).field("_ignored"));
         assertEquals("1.2.0", response.getHits().getAt(1).field("version").getValue());
+
+        // exact match for malformed term
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "1...0.0")).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
     }
 
     public void testAggs() throws Exception {

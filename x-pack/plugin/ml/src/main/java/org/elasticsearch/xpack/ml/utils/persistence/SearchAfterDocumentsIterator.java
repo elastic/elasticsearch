@@ -55,6 +55,14 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
         this(client, index, false);
     }
 
+    /**
+     * Constructs an iterator that searches docs using search after
+     *
+     * @param client the client
+     * @param index the index
+     * @param trackTotalHits whether to track total hits. Note this is only done in the first search
+     *                       and the result will only be accurate if the index is not changed between searches.
+     */
     protected SearchAfterDocumentsIterator(OriginSettingClient client, String index, boolean trackTotalHits) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);

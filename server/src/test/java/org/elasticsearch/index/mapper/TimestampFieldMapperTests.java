@@ -164,4 +164,39 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
         assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_timestamp]");
     }
 
+    public void testDifferentTSField() throws IOException {
+        String mapping = "{\n" +
+            "      \"_timestamp\": {\n" +
+            "        \"path\": \"event.my_timestamp\"\n" +
+            "      },\n" +
+            "      \"properties\": {\n" +
+            "        \"event\": {\n" +
+            "          \"properties\": {\n" +
+            "            \"my_timestamp\": {\n" +
+            "              \"type\": \"date\"" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        DocumentMapper docMapper = createIndex("test").mapperService()
+            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("event.my_timestamp", "2020-12-12")
+                .endObject()),
+            XContentType.JSON));
+        assertThat(doc.rootDoc().getFields("event.my_timestamp").length, equalTo(2));
+
+        Exception e = expectThrows(MapperException.class, () -> docMapper.parse(new SourceToParse("test", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("event.timestamp", "2020-12-12")
+                .endObject()),
+            XContentType.JSON)));
+        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [event.my_timestamp] is missing"));
+    }
+
 }

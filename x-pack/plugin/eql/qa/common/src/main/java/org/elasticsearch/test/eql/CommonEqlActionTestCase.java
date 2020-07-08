@@ -155,7 +155,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
         request.tiebreakerField("event.sequence");
         // some queries return more than 10 results
         request.size(50);
-        request.fetchSize(2);
+        request.fetchSize(randomIntBetween(2, 50));
         request.defaultOrder(defaultOrder);
         return eqlClient().search(request, RequestOptions.DEFAULT);
     }

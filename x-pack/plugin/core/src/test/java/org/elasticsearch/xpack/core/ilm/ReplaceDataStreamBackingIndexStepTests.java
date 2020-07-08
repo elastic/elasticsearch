@@ -79,7 +79,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(sourceIndexMetadata, true)
-                .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                     org.elasticsearch.common.collect.List.of(sourceIndexMetadata.getIndex()))).build()
         ).build();
 
@@ -108,7 +108,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
                 .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                 .build()
         ).build();
 
@@ -151,7 +151,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             Metadata.builder()
                 .put(sourceIndexMetadata, true)
                 .put(writeIndexMetadata, true)
-                .put(new DataStream(dataStreamName, createTimestampField("timestamp"), backingIndices))
+                .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                 .put(targetIndexMetadata, true)
                 .build()
         ).build();

@@ -566,7 +566,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) {
         executeTestCase(
-            new CacheService(cacheSize, cacheRangeSize),
+            new CacheService(TestUtils::noOpCacheCleaner, cacheSize, cacheRangeSize),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats

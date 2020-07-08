@@ -27,7 +27,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
-
+import groovy.io.FileType
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -244,6 +244,13 @@ subprojects {
     doFirst {
       project.delete(archiveExtractionDir)
       archiveExtractionDir.mkdirs()
+    }
+    // common sanity checks on extracted archive directly as part of checkExtraction
+    doLast {
+      // check no plain class files are packaged
+      archiveExtractionDir.eachFileRecurse (FileType.FILES) { file ->
+        assert file.name.endsWith(".class") == false
+      }
     }
   }
   tasks.named('check').configure { dependsOn checkExtraction }

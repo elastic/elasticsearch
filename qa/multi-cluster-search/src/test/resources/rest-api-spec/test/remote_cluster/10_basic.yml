@@ -27,10 +27,10 @@
           template:
             mappings:
               properties:
-                '@timestamp2':
+                '@timestamp':
                   type: date
           data_stream:
-            timestamp_field: '@timestamp2'
+            timestamp_field: '@timestamp'
 
   - do:
       indices.create_data_stream:

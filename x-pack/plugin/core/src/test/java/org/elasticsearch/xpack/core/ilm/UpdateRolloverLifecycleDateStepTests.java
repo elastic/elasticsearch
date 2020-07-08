@@ -96,7 +96,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                         org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
                         rolledIndexMeta.getIndex()), 2L))
                     .put(originalIndexMeta, true)

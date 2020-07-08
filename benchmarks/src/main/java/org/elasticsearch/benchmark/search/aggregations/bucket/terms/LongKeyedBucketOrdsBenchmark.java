@@ -22,6 +22,7 @@ package org.elasticsearch.benchmark.search.aggregations.bucket.terms;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -81,7 +82,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoSingleImmutableBimorphicInvocation(Blackhole bh) {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, true)) {
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }
@@ -114,12 +115,12 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoSingleMutableBimorphicInvocation(Blackhole bh) {
-        LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, true);
+        LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
         for (long i = 0; i < LIMIT; i++) {
             if (i % 100_000 == 0) {
                 ords.close();
                 bh.consume(ords);
-                ords = LongKeyedBucketOrds.build(bigArrays, true);
+                ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE);
             }
             ords.add(0, i % DISTINCT_VALUES);
 
@@ -135,7 +136,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void singleBucketIntoMulti(Blackhole bh) {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(0, i % DISTINCT_VALUES);
             }
@@ -148,7 +149,7 @@ public class LongKeyedBucketOrdsBenchmark {
      */
     @Benchmark
     public void multiBucket(Blackhole bh) {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
             for (long i = 0; i < LIMIT; i++) {
                 ords.add(i % DISTINCT_BUCKETS, i % DISTINCT_VALUES);
             }

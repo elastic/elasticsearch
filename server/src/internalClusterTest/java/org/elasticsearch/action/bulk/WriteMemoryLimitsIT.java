@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -49,19 +50,21 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, numClientNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
 public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
     // TODO: Add additional REST tests when metrics are exposed
 
     public static final String INDEX_NAME = "test";
 
+    private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             // Need at least two threads because we are going to block one
-            .put("thread_pool.write.queue_size", -1)
+            .put(unboundedWriteQueue)
             .build();
     }
 
@@ -197,16 +200,6 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
     }
 
     public void testWriteCanBeRejectedAtCoordinatingLevel() throws Exception {
-        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
-        ensureGreen(INDEX_NAME);
-
-        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
-        String primaryName = primaryReplicaNodeNames.v1();
-        String replicaName = primaryReplicaNodeNames.v2();
-        String coordinatingOnlyNode = getCoordinatingOnlyNode();
-
         final BulkRequest bulkRequest = new BulkRequest();
         int totalRequestSize = 0;
         for (int i = 0; i < 80; ++i) {
@@ -219,9 +212,20 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
         final long bulkRequestSize = bulkRequest.ramBytesUsed();
         final long bulkShardRequestSize = totalRequestSize;
+        restartNodesWithSettings(Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(),
+            (long)(bulkShardRequestSize * 1.5) + "B").build());
+
+        assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        ensureGreen(INDEX_NAME);
+
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String replicaName = primaryReplicaNodeNames.v2();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
         final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
-
         try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
             final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
 
@@ -238,21 +242,13 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
                 assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
             });
 
-            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), bulkShardRequestSize + "B");
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            final BulkRequest rejectedBulkRequest = new BulkRequest();
-            rejectedBulkRequest.add(request);
-
             expectThrows(EsRejectedExecutionException.class, () -> {
                 if (randomBoolean()) {
-                    client(coordinatingOnlyNode).bulk(rejectedBulkRequest).actionGet();
+                    client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
                 } else if (randomBoolean()) {
-                    client(primaryName).bulk(rejectedBulkRequest).actionGet();
+                    client(primaryName).bulk(bulkRequest).actionGet();
                 } else {
-                    client(replicaName).bulk(rejectedBulkRequest).actionGet();
+                    client(replicaName).bulk(bulkRequest).actionGet();
                 }
             });
 
@@ -266,13 +262,23 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
             assertEquals(0, coordinatingWriteLimits.getWriteBytes());
             assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
-        } finally {
-            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), (String) null);
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         }
     }
 
     public void testWriteCanBeRejectedAtPrimaryLevel() throws Exception {
+        final BulkRequest bulkRequest = new BulkRequest();
+        int totalRequestSize = 0;
+        for (int i = 0; i < 80; ++i) {
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            totalRequestSize += request.ramBytesUsed();
+            assertTrue(request.ramBytesUsed() > request.source().length());
+            bulkRequest.add(request);
+        }
+        final long bulkShardRequestSize = totalRequestSize;
+        restartNodesWithSettings(Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(),
+            (long)(bulkShardRequestSize * 1.5) + "B").build());
+
         assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
@@ -283,20 +289,7 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
         String replicaName = primaryReplicaNodeNames.v2();
         String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
-        final BulkRequest bulkRequest = new BulkRequest();
-        int totalRequestSize = 0;
-        for (int i = 0; i < 80; ++i) {
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            totalRequestSize += request.ramBytesUsed();
-            assertTrue(request.ramBytesUsed() > request.source().length());
-            bulkRequest.add(request);
-        }
-
-        final long bulkShardRequestSize = totalRequestSize;
-
         final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
-
         try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
             final ActionFuture<BulkResponse> successFuture = client(primaryName).bulk(bulkRequest);
 
@@ -313,15 +306,7 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
                 assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
             });
 
-            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), bulkShardRequestSize + "B");
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-
-            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
-                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
-            final BulkRequest rejectedBulkRequest = new BulkRequest();
-            rejectedBulkRequest.add(request);
-
-            BulkResponse responses = client(coordinatingOnlyNode).bulk(rejectedBulkRequest).actionGet();
+            BulkResponse responses = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
             assertTrue(responses.hasFailures());
             assertThat(responses.getItems()[0].getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
 
@@ -335,28 +320,22 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
             assertEquals(0, coordinatingWriteLimits.getWriteBytes());
             assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
-        } finally {
-            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), (String) null);
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         }
     }
 
     public void testWritesWillSucceedIfBelowThreshold() throws Exception {
+        restartNodesWithSettings(Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), "1MB").build());
         assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
-        String primaryName = primaryReplicaNodeNames.v1();
         String replicaName = primaryReplicaNodeNames.v2();
         String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
         final ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
         try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
-            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), "1MB");
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-
             // The write limits is set to 1MB. We will send up to 800KB to stay below that threshold.
             int thresholdToStopSending = 800 * 1024;
 
@@ -373,10 +352,16 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
             // Would throw exception if one of the operations was rejected
             responses.forEach(ActionFuture::actionGet);
-        } finally {
-            Settings.Builder settings = Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), (String) null);
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         }
+    }
+
+    private void restartNodesWithSettings(Settings settings) throws Exception {
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(unboundedWriteQueue).put(settings).build();
+            }
+        });
     }
 
     private String getCoordinatingOnlyNode() {

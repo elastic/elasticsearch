@@ -35,6 +35,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -201,23 +202,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             });
 
         return s;
-    }
-
-    public static String generateMapping(String timestampFieldName) {
-        return generateMapping(timestampFieldName, "date");
-    }
-
-    static String generateMapping(String timestampFieldName, String type) {
-        return "{\n" +
-            "      \"_timestamp\": {\n" +
-            "        \"path\": \"" + timestampFieldName + "\"\n" +
-            "      }," +
-            "      \"properties\": {\n" +
-            "        \"" + timestampFieldName + "\": {\n" +
-            "          \"type\": \"" + type + "\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
     }
 
     MapperService createMapperService(String mapping) throws IOException {

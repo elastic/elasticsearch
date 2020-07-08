@@ -1,0 +1,20 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+restResources {
+  restApi {
+    includeCore 'bulk', 'search', '_common', 'indices', 'index'
+    includeXpack 'enrich'
+  }
+}
+
+dependencies {
+  testImplementation project(path: xpackModule('data-streams'))
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+}

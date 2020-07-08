@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -119,19 +120,6 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));
         assertThat(sourceAsMap.containsKey("path2"), equalTo(true));
-    }
-
-    static void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
-        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
-        if (conflicts.length == 0) {
-            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
-        } else {
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE));
-            for (String conflict : conflicts) {
-                assertThat(e.getMessage(), containsString(conflict));
-            }
-        }
     }
 
     public void testEnabledNotUpdateable() throws Exception {

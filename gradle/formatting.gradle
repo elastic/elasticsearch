@@ -127,6 +127,8 @@ def projectPathsToExclude = [
   ':x-pack:plugin:ccr',
   ':x-pack:plugin:ccr:qa',
   ':x-pack:plugin:core',
+  // TODO: REMOVE BEFORE MAKING PR REVIEWABLE:
+  ':x-pack:plugin:data-streams',
   ':x-pack:plugin:deprecation',
   ':x-pack:plugin:enrich:qa:common',
   ':x-pack:plugin:eql',

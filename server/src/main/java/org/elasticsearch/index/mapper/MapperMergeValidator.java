@@ -176,8 +176,8 @@ class MapperMergeValidator {
 
     private static void validateTimestampFieldMapper(MetadataFieldMapper[] metadataMappers, DocumentMapper newMapper) {
         for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
-            if (metadataFieldMapper instanceof TimestampFieldMapper) {
-                ((TimestampFieldMapper) metadataFieldMapper).validate(newMapper.mappers());
+            if (metadataFieldMapper instanceof ValidateableMetadataFieldMapper) {
+                ((ValidateableMetadataFieldMapper) metadataFieldMapper).validate(newMapper.mappers());
             }
         }
     }

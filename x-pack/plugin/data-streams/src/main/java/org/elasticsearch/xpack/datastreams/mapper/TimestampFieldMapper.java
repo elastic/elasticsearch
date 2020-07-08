@@ -1,4 +1,10 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -17,7 +23,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.xpack.datastreams.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
@@ -28,6 +34,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.ValidateableMetadataFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -40,7 +56,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class TimestampFieldMapper extends MetadataFieldMapper {
+public class TimestampFieldMapper extends MetadataFieldMapper implements ValidateableMetadataFieldMapper {
 
     public static final String NAME = "_timestamp";
 
@@ -177,10 +193,11 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         // on the field this meta field refers to:
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
-                dateFieldMapper.doXContentBody(builder, false, EMPTY_PARAMS);
+            dateFieldMapper.toXContent(builder, EMPTY_PARAMS);
             builder.endObject();
-            Map<String, Object> configuredSettings =
+            Map<?, ?> configuredSettings =
                 XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
+            configuredSettings = (Map<?, ?>) configuredSettings.values().iterator().next();
 
             // Only type, meta and format attributes are allowed:
             configuredSettings.remove("type");

@@ -665,16 +665,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         return client().admin().indices().prepareGetMappings(indices);
     }
 
-    static PutMappingRequestBuilder putMapping(String source, String... indices) {
-        return client().admin().indices().preparePutMapping(indices).setSource(source, XContentType.JSON);
-    }
-
     static GetSettingsRequestBuilder getSettings(String... indices) {
         return client().admin().indices().prepareGetSettings(indices);
-    }
-
-    static UpdateSettingsRequestBuilder updateSettings(Settings.Builder settings, String... indices) {
-        return client().admin().indices().prepareUpdateSettings(indices).setSettings(settings);
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {
@@ -688,15 +680,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setIndices(indices);
     }
 
-    static ClusterHealthRequestBuilder health(String... indices) {
-        return client().admin().cluster().prepareHealth(indices);
-    }
-
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
         verify(requestBuilder, fail, 0);
     }
 
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();

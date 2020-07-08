@@ -1,4 +1,10 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -16,7 +22,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices;
+package org.elasticsearch.datastreams;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -51,7 +57,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -61,34 +66,24 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT._flush;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.clearCache;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getAliases;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getFieldMapping;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getMapping;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.getSettings;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.health;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.indicesStats;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.msearch;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.putMapping;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.refreshBuilder;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.search;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.segments;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.updateSettings;
-import static org.elasticsearch.indices.IndicesOptionsIntegrationIT.validateQuery;
+import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -98,6 +93,11 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DataStreamIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(DataStreamsPlugin.class);
+    }
 
     @After
     public void deleteAllComposableTemplates() {
@@ -371,27 +371,28 @@ public class DataStreamIT extends ESIntegTestCase {
                 .setSource("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .setOpType(DocWriteRequest.OpType.CREATE),
             false);
-        verifyResolvability(dataStreamName, refreshBuilder(dataStreamName), false);
-        verifyResolvability(dataStreamName, search(dataStreamName), false, 1);
-        verifyResolvability(dataStreamName, msearch(null, dataStreamName), false);
-        verifyResolvability(dataStreamName, clearCache(dataStreamName), false);
-        verifyResolvability(dataStreamName, _flush(dataStreamName),false);
-        verifyResolvability(dataStreamName, segments(dataStreamName), false);
-        verifyResolvability(dataStreamName, indicesStats(dataStreamName), false);
-        verifyResolvability(dataStreamName, IndicesOptionsIntegrationIT.forceMerge(dataStreamName), false);
-        verifyResolvability(dataStreamName, validateQuery(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareRefresh(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().prepareSearch(dataStreamName), false, 1);
+        verifyResolvability(dataStreamName, client().prepareMultiSearch()
+            .add(client().prepareSearch(dataStreamName).setQuery(matchAllQuery())), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareClearCache(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareFlush(dataStreamName),false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareSegments(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareStats(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareForceMerge(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareValidateQuery(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
-        verifyResolvability(dataStreamName, getAliases(dataStreamName), true);
-        verifyResolvability(dataStreamName, getFieldMapping(dataStreamName), false);
-        verifyResolvability(dataStreamName,
-            putMapping("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", dataStreamName), false);
-        verifyResolvability(dataStreamName, getMapping(dataStreamName), false);
-        verifyResolvability(dataStreamName,
-            updateSettings(Settings.builder().put("index.number_of_replicas", 0), dataStreamName), false);
-        verifyResolvability(dataStreamName, getSettings(dataStreamName), false);
-        verifyResolvability(dataStreamName, health(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareGetAliases("dummy").addIndices(dataStreamName), true);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareGetFieldMappings(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().preparePutMapping(dataStreamName)
+            .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareGetMappings(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareUpdateSettings(dataStreamName)
+            .setSettings(Settings.builder().put("index.number_of_replicas", 0)), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareGetSettings(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().cluster().prepareHealth(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().cluster().prepareState().setIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().prepareFieldCaps(dataStreamName).setFields("*"), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetIndex().addIndices(dataStreamName), false);
@@ -407,27 +408,28 @@ public class DataStreamIT extends ESIntegTestCase {
             false);
 
         String wildcardExpression = "logs*";
-        verifyResolvability(wildcardExpression, refreshBuilder(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, search(wildcardExpression), false, 2);
-        verifyResolvability(wildcardExpression, msearch(null, wildcardExpression), false);
-        verifyResolvability(wildcardExpression, clearCache(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, _flush(wildcardExpression),false);
-        verifyResolvability(wildcardExpression, segments(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, indicesStats(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, IndicesOptionsIntegrationIT.forceMerge(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, validateQuery(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareRefresh(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().prepareSearch(wildcardExpression), false, 2);
+        verifyResolvability(wildcardExpression, client().prepareMultiSearch()
+            .add(client().prepareSearch(wildcardExpression).setQuery(matchAllQuery())), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareClearCache(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareFlush(wildcardExpression),false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareSegments(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareStats(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareForceMerge(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareValidateQuery(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, getAliases(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, getFieldMapping(wildcardExpression), false);
-        verifyResolvability(wildcardExpression,
-            putMapping("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", wildcardExpression), false);
-        verifyResolvability(wildcardExpression, getMapping(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, getSettings(wildcardExpression), false);
-        verifyResolvability(wildcardExpression,
-            updateSettings(Settings.builder().put("index.number_of_replicas", 0), wildcardExpression), false);
-        verifyResolvability(wildcardExpression, health(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareGetAliases(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareGetFieldMappings(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().preparePutMapping(wildcardExpression)
+            .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareGetMappings(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareGetSettings(wildcardExpression), false);
+        verifyResolvability(wildcardExpression,client().admin().indices().prepareUpdateSettings(wildcardExpression)
+            .setSettings(Settings.builder().put("index.number_of_replicas", 0)), false);
+        verifyResolvability(wildcardExpression, client().admin().cluster().prepareHealth(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().cluster().prepareState().setIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
@@ -529,16 +531,18 @@ public class DataStreamIT extends ESIntegTestCase {
 
         Map<?, ?> expectedMapping =
             Map.of("properties", Map.of("@timestamp", Map.of("type", "date")), "_timestamp", Map.of("path", "@timestamp"));
-        GetMappingsResponse getMappingsResponse = getMapping("logs-foobar").get();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
 
         expectedMapping = Map.of("properties", Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")),
             "_timestamp", Map.of("path", "@timestamp"));
-        putMapping("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", "logs-foobar").get();
+        client().admin().indices().preparePutMapping("logs-foobar")
+            .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
+            .get();
         // The mappings of all backing indices should be updated:
-        getMappingsResponse = getMapping("logs-foobar").get();
+        getMappingsResponse = client().admin().indices().prepareGetMappings("logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
@@ -557,13 +561,14 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(rolloverResponse.isRolledOver());
 
         // The index settings of all backing indices should be updated:
-        GetSettingsResponse getSettingsResponse = getSettings("logs-foobar").get();
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("1"));
 
-        updateSettings(Settings.builder().put("index.number_of_replicas", 0), "logs-foobar").get();
-        getSettingsResponse = getSettings("logs-foobar").get();
+        client().admin().indices().prepareUpdateSettings("logs-foobar").setSettings(Settings.builder().put("index.number_of_replicas", 0))
+            .get();
+        getSettingsResponse = client().admin().indices().prepareGetSettings("logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("0"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("0"));
@@ -707,11 +712,14 @@ public class DataStreamIT extends ESIntegTestCase {
             equalTo("data stream timestamp field [@timestamp] encountered multiple values"));
     }
 
-    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail) {
+    private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
         verifyResolvability(dataStream, requestBuilder, fail, 0);
     }
 
-    private static void verifyResolvability(String dataStream, ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+    private static void verifyResolvability(String dataStream,
+                                            ActionRequestBuilder<?, ?> requestBuilder,
+                                            boolean fail,
+                                            long expectedCount) {
         if (fail) {
             String expectedErrorMessage = "no such index [" + dataStream + "]";
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
@@ -776,13 +784,13 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public static void putComposableIndexTemplate(String id, String timestampFieldName, List<String> patterns) throws IOException {
-        String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
+        String mapping = generateMapping(timestampFieldName);
         putComposableIndexTemplate(id, timestampFieldName, mapping, patterns, null);
     }
 
     static void putComposableIndexTemplate(String id, String timestampFieldName, List<String> patterns,
                                            Settings settings) throws IOException {
-        String mapping = MetadataCreateDataStreamServiceTests.generateMapping(timestampFieldName);
+        String mapping = generateMapping(timestampFieldName);
         putComposableIndexTemplate(id, timestampFieldName, mapping, patterns, settings);
     }
 

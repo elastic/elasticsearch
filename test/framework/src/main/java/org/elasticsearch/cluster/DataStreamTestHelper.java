@@ -55,4 +55,21 @@ public final class DataStreamTestHelper {
     public static DataStream.TimestampField createTimestampField(String fieldName) {
         return new DataStream.TimestampField(fieldName);
     }
+
+    public static String generateMapping(String timestampFieldName) {
+        return generateMapping(timestampFieldName, "date");
+    }
+
+    public static String generateMapping(String timestampFieldName, String type) {
+        return "{\n" +
+            "      \"_timestamp\": {\n" +
+            "        \"path\": \"" + timestampFieldName + "\"\n" +
+            "      }," +
+            "      \"properties\": {\n" +
+            "        \"" + timestampFieldName + "\": {\n" +
+            "          \"type\": \"" + type + "\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+    }
 }

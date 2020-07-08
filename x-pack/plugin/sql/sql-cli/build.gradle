@@ -30,7 +30,7 @@ dependencies {
   api xpackProject('plugin:sql:sql-action')
   api project(":libs:elasticsearch-cli")
   api project(':libs:elasticsearch-x-content')
-  runtime "org.elasticsearch:jna:${versions.jna}"
+  runtimeOnly "org.elasticsearch:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }
 

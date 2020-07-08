@@ -31,6 +31,7 @@ setup:
   - do:
       search:
         index: test
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -47,7 +48,7 @@ setup:
                     term:
                       num: 4
 
-  - match: { hits.total.value: 3 }
+  - match: { hits.total: 3 }
 
   - length: { aggregations.conns.buckets: 4 }
 

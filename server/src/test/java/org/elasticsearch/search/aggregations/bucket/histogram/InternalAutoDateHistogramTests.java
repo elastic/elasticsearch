@@ -155,7 +155,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         int roundingIndex = reduced.getBucketInfo().roundingIdx;
         RoundingInfo roundingInfo = AutoDateHistogramAggregationBuilder.buildRoundings(null, null)[roundingIndex];
-        Rounding.Prepared prepared = roundingInfo.rounding.prepare(lowest, highest);
+        Rounding.Prepared prepared = totalBucketConut > 0 ? roundingInfo.rounding.prepare(lowest, highest) : null;
 
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
         int innerIntervalIndex = 0;

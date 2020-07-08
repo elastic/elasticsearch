@@ -69,6 +69,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -487,6 +488,7 @@ public class MetadataIndexTemplateService {
         }
 
         validate(name, finalIndexTemplate);
+        validateDataStreamsStillReferenced(currentState, name, finalIndexTemplate);
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
@@ -503,6 +505,54 @@ public class MetadataIndexTemplateService {
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate))
             .build();
+    }
+
+    /**
+     * Validate that by changing or adding {@code newTemplate}, there are
+     * no unreferenced data streams. Note that this scenario is still possible
+     * due to snapshot restores, but this validation is best-effort at template
+     * addition/update time
+     */
+    private static void validateDataStreamsStillReferenced(ClusterState state, String templateName,
+                                                           ComposableIndexTemplate newTemplate) {
+        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
+
+        Function<Metadata, Set<String>> findUnreferencedDataStreams = meta -> {
+            final Set<String> unreferenced = new HashSet<>();
+            // For each data stream that we have, see whether it's covered by a different
+            // template (which is great), or whether it's now uncovered by any template
+            for (String dataStream : dataStreams) {
+                final String matchingTemplate = findV2Template(meta, dataStream, false);
+                if (matchingTemplate == null) {
+                    unreferenced.add(dataStream);
+                } else {
+                    // We found a template that still matches, great! Buuuuttt... check whether it
+                    // is a data stream template, as it's only useful if it has a data stream definition
+                    if (meta.templatesV2().get(matchingTemplate).getDataStreamTemplate() == null) {
+                        unreferenced.add(dataStream);
+                    }
+                }
+            }
+            return unreferenced;
+        };
+
+        // Find data streams that are currently unreferenced
+        final Set<String> currentlyUnreferenced = findUnreferencedDataStreams.apply(state.metadata());
+
+        // Generate a metadata as if the new template were actually in the cluster state
+        final Metadata updatedMetadata = Metadata.builder(state.metadata()).put(templateName, newTemplate).build();
+        // Find the data streams that would be unreferenced now that the template is updated/added
+        final Set<String> newlyUnreferenced = findUnreferencedDataStreams.apply(updatedMetadata);
+
+        // If we found any data streams that used to be covered, but will no longer be covered by
+        // changing this template, then blow up with as much helpful information as we can muster
+        if (newlyUnreferenced.size() > currentlyUnreferenced.size()) {
+            throw new IllegalArgumentException("composable template [" + templateName + "] with index patterns " +
+                newTemplate.indexPatterns() + ", priority [" + newTemplate.priority() + "] " +
+                (newTemplate.getDataStreamTemplate() == null ? "and no data stream configuration " : "") +
+                "would cause data streams " +
+                newlyUnreferenced + " to no longer match a data stream template");
+        }
     }
 
     /**

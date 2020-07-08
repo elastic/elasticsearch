@@ -649,6 +649,6 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
 
     @Override
     boolean supportsInference() {
-        return false;
+        return true;
     }
 }

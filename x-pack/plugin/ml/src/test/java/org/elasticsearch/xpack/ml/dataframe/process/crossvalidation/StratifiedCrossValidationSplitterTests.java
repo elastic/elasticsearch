@@ -199,10 +199,10 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
                 }
 
                 String[] processedRow = Arrays.copyOf(row, row.length);
-                boolean istraining = crossValidationSplitter.isTraining(processedRow);
+                boolean isTraining = crossValidationSplitter.isTraining(processedRow);
                 assertThat(Arrays.equals(processedRow, row), is(true));
 
-                if (istraining) {
+                if (isTraining) {
                     trainingCountPerRow[i]++;
                 }
             }

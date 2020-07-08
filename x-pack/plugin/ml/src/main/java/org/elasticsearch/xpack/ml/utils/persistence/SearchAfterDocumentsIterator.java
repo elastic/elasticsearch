@@ -47,7 +47,7 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
     private final OriginSettingClient client;
     private final String index;
     private final boolean trackTotalHits;
-    private AtomicLong totalHits = new AtomicLong();
+    private final AtomicLong totalHits = new AtomicLong();
     private final AtomicBoolean lastSearchReturnedResults;
     private int batchSize = BATCH_SIZE;
 

@@ -57,7 +57,7 @@ public class AnalyticsResultProcessor {
     private volatile String failure;
     private volatile boolean isCancelled;
 
-    private volatile String currentModelId;
+    private volatile String latestModelId;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
@@ -154,7 +154,7 @@ public class AnalyticsResultProcessor {
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();
         if (modelSize != null) {
-            currentModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelSize);
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelSize);
         }
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
         if (trainedModelDefinitionChunk != null) {
@@ -194,6 +194,6 @@ public class AnalyticsResultProcessor {
 
     @Nullable
     public String getLatestModelId() {
-        return currentModelId;
+        return latestModelId;
     }
 }

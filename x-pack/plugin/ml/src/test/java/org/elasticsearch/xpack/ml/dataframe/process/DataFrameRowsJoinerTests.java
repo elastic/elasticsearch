@@ -195,7 +195,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         String[] dataValues = {"42.0"};
         DataFrameDataExtractor.Row testRow = newTestRow(newHit(dataDoc), dataValues, 1);
         DataFrameDataExtractor.Row normalRow = newTrainingRow(newHit(dataDoc), dataValues, 2);
-        givenDataFrameBatches(List.of(Arrays.asList(testRow, normalRow)));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(testRow, normalRow)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");
@@ -225,7 +225,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         DataFrameDataExtractor.Row normalRow2 = newTrainingRow(newHit(dataDoc), dataValues, 2);
         DataFrameDataExtractor.Row testRow = newTestRow(newHit(dataDoc), dataValues, 3);
         DataFrameDataExtractor.Row normalRow3 = newTrainingRow(newHit(dataDoc), dataValues, 4);
-        givenDataFrameBatches(List.of(Arrays.asList(normalRow1, normalRow2, testRow), Arrays.asList(normalRow3)));
+        givenDataFrameBatches(Arrays.asList(Arrays.asList(normalRow1, normalRow2, testRow), Arrays.asList(normalRow3)));
 
         Map<String, Object> resultFields = new HashMap<>();
         resultFields.put("a", "1");

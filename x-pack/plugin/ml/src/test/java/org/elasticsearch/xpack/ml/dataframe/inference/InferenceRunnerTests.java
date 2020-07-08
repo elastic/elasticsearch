@@ -132,7 +132,6 @@ public class InferenceRunnerTests extends ESTestCase {
 
         inferenceRunner.inferTestDocs(localModel, infiniteDocsIterator);
 
-
         Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));
     }

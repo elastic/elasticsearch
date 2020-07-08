@@ -42,6 +42,4 @@ queries that contain:
 ** {eql-ref}/pipes.html#unique[`unique`]
 ** {eql-ref}/pipes.html#unique-count[`unique_count`]
 
-* {eql-ref}/sequences.html[State and timespan-related sequence keywords]:
-** `with maxspan`
-** `until`
+* The `until` {eql-ref}/sequences.html[sequence keyword]

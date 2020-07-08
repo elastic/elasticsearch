@@ -28,7 +28,7 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+        return Version.V_7_9_0;
     }
 
     @Override

@@ -253,7 +253,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     State.STARTED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
                     null, userMeta, version);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                    SnapshotsInProgress.of(List.of(newEntry))).build();
+                        SnapshotsInProgress.of(List.of(newEntry))).build();
             }
 
             @Override

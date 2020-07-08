@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
  */
 public class TumblingWindow implements Executable {
 
-    private final Logger log = LogManager.getLogger(Matcher.class);
+    private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
     private final QueryClient client;
     private final List<Criterion<BoxedQueryRequest>> criteria;
@@ -72,7 +72,7 @@ public class TumblingWindow implements Executable {
 
     @Override
     public void execute(ActionListener<Payload> listener) {
-        log.info("Starting sequence window...");
+        log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
         advance(0, listener);
     }
@@ -83,7 +83,8 @@ public class TumblingWindow implements Executable {
         // remove any potential upper limit (if a criteria has been promoted)
         base.queryRequest().to(null);
 
-        log.info("Querying base stage [{}] {}", base.stage(), base.queryRequest());
+        log.trace("{}", matcher);
+        log.trace("Querying base stage [{}] {}", base.stage(), base.queryRequest());
 
         client.query(base.queryRequest(), wrap(p -> baseCriterion(baseStage, p, listener), listener::onFailure));
     }
@@ -119,7 +120,7 @@ public class TumblingWindow implements Executable {
         // update current query for the next request
         base.queryRequest().nextAfter(end);
 
-        log.info("Found base [{}] window {} {}", base.stage(), begin, end);
+        log.trace("Found base [{}] window {}->{}", base.stage(), begin, end);
 
         // find until ordinals
         //NB: not currently implemented
@@ -153,11 +154,12 @@ public class TumblingWindow implements Executable {
             request.to(window.end);
         }
 
-        log.info("Querying (secondary) stage [{}] {}", criterion.stage(), request);
+        log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, wrap(p -> {
             List<SearchHit> hits = p.values();
 
+            log.trace("Found [{}] hits", hits.size());
             // no more results for this query
             if (hits.isEmpty()) {
                 // put the markers in place before the next call
@@ -169,7 +171,7 @@ public class TumblingWindow implements Executable {
 
                 // if there are no candidates, advance the window
                 if (matcher.hasCandidates(criterion.stage()) == false) {
-                    log.info("Advancing window...");
+                    log.trace("Advancing window...");
                     advance(window.baseStage, listener);
                     return;
                 }

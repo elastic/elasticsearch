@@ -107,16 +107,6 @@ public class BinaryFieldMapper extends FieldMapper {
             this(name, true, Collections.emptyMap());
         }
 
-        protected BinaryFieldType(BinaryFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new BinaryFieldType(this);
-        }
-
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

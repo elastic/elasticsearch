@@ -120,29 +120,6 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             this(name, value, Collections.emptyMap());
         }
 
-        protected ConstantKeywordFieldType(ConstantKeywordFieldType ref) {
-            super(ref);
-            this.value = ref.value;
-        }
-
-        public ConstantKeywordFieldType clone() {
-            return new ConstantKeywordFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            ConstantKeywordFieldType other = (ConstantKeywordFieldType) o;
-            return Objects.equals(value, other.value);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Objects.hashCode(value);
-        }
-
         /** Return the value that this field wraps. This may be {@code null} if the field is not configured yet. */
         public String value() {
             return value;
@@ -152,11 +129,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-        
+
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
-        }        
+        }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.index.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
@@ -61,7 +60,7 @@ public class NodeService implements Closeable {
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
     private final SearchTransportService searchTransportService;
-    private final WriteMemoryLimits writeMemoryLimits;
+    private final IndexingPressure indexingPressure;
 
     private final Discovery discovery;
 
@@ -70,7 +69,7 @@ public class NodeService implements Closeable {
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
-                SearchTransportService searchTransportService, WriteMemoryLimits writeMemoryLimits) {
+                SearchTransportService searchTransportService, IndexingPressure indexingPressure) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -85,7 +84,7 @@ public class NodeService implements Closeable {
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
-        this.writeMemoryLimits = writeMemoryLimits;
+        this.indexingPressure = indexingPressure;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -126,9 +125,7 @@ public class NodeService implements Closeable {
                 ingest ? ingestService.stats() : null,
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
                 scriptCache ? scriptService.cacheStats() : null,
-                // TODO: Update with more metrics (including totals) after rejections merged.
-                indexingPressure ? new IndexingPressureStats(-1L, -1L, writeMemoryLimits.getPrimaryAndCoordinatingBytes(),
-                    writeMemoryLimits.getReplicaBytes()) : null);
+                indexingPressure ? this.indexingPressure.stats() : null);
     }
 
     public IngestService getIngestService() {

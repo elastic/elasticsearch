@@ -30,7 +30,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.index.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -538,7 +538,7 @@ public class Node implements Closeable {
             final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
-            final WriteMemoryLimits indexingLimits = new WriteMemoryLimits(settings);
+            final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
@@ -603,7 +603,7 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptService);
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
-                    b.bind(WriteMemoryLimits.class).toInstance(indexingLimits);
+                    b.bind(IndexingPressure.class).toInstance(indexingLimits);
                     b.bind(UsageService.class).toInstance(usageService);
                     b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);

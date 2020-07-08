@@ -20,7 +20,7 @@ package org.elasticsearch.action.resync;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.index.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -145,7 +145,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
 
                 final TransportResyncReplicationAction action = new TransportResyncReplicationAction(Settings.EMPTY, transportService,
                     clusterService, indexServices, threadPool, shardStateAction, new ActionFilters(new HashSet<>()),
-                    new WriteMemoryLimits(Settings.EMPTY));
+                    new IndexingPressure(Settings.EMPTY));
 
                 assertThat(action.globalBlockLevel(), nullValue());
                 assertThat(action.indexBlockLevel(), nullValue());

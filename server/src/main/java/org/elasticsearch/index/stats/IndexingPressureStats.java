@@ -29,42 +29,52 @@ import java.io.IOException;
 
 public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
-    private final long totalCoordinatingAndPrimaryBytes;
+    private final long totalPrimaryAndCoordinatingBytes;
     private final long totalReplicaBytes;
-    private final long pendingCoordinatingAndPrimaryBytes;
+    private final long pendingPrimaryAndCoordinatingBytes;
     private final long pendingReplicaBytes;
+    private final long primaryAndCoordinatingRejections;
+    private final long replicaRejections;
 
     public IndexingPressureStats(StreamInput in) throws IOException {
-        totalCoordinatingAndPrimaryBytes = in.readVLong();
+        totalPrimaryAndCoordinatingBytes = in.readVLong();
         totalReplicaBytes = in.readVLong();
-        pendingCoordinatingAndPrimaryBytes = in.readVLong();
+        pendingPrimaryAndCoordinatingBytes = in.readVLong();
         pendingReplicaBytes = in.readVLong();
+        primaryAndCoordinatingRejections = in.readVLong();
+        replicaRejections = in.readVLong();
     }
 
-    public IndexingPressureStats(long totalCoordinatingAndPrimaryBytes, long totalReplicaBytes, long pendingCoordinatingAndPrimaryBytes,
-                                 long pendingReplicaBytes) {
-        this.totalCoordinatingAndPrimaryBytes = totalCoordinatingAndPrimaryBytes;
+    public IndexingPressureStats(long totalPrimaryAndCoordinatingBytes, long totalReplicaBytes, long pendingPrimaryAndCoordinatingBytes,
+                                 long pendingReplicaBytes, long primaryAndCoordinatingRejections, long replicaRejections) {
+        this.totalPrimaryAndCoordinatingBytes = totalPrimaryAndCoordinatingBytes;
         this.totalReplicaBytes = totalReplicaBytes;
-        this.pendingCoordinatingAndPrimaryBytes = pendingCoordinatingAndPrimaryBytes;
+        this.pendingPrimaryAndCoordinatingBytes = pendingPrimaryAndCoordinatingBytes;
         this.pendingReplicaBytes = pendingReplicaBytes;
+        this.primaryAndCoordinatingRejections = primaryAndCoordinatingRejections;
+        this.replicaRejections = replicaRejections;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // TODO: Add total
-        out.writeVLong(totalCoordinatingAndPrimaryBytes);
+        out.writeVLong(totalPrimaryAndCoordinatingBytes);
         out.writeVLong(totalReplicaBytes);
-        out.writeVLong(pendingCoordinatingAndPrimaryBytes);
+        out.writeVLong(pendingPrimaryAndCoordinatingBytes);
         out.writeVLong(pendingReplicaBytes);
+        out.writeVLong(primaryAndCoordinatingRejections);
+        out.writeVLong(replicaRejections);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("indexing_pressure");
-        builder.field("total_coordinating_and_primary_bytes", totalCoordinatingAndPrimaryBytes);
+        builder.field("total_primary_and_coordinating_bytes", totalPrimaryAndCoordinatingBytes);
         builder.field("total_replica_bytes", totalReplicaBytes);
-        builder.field("pending_coordinating_and_primary_bytes", pendingCoordinatingAndPrimaryBytes);
+        builder.field("pending_primary_and_coordinating_bytes", pendingPrimaryAndCoordinatingBytes);
         builder.field("pending_replica_bytes", pendingReplicaBytes);
+        builder.field("primary_and_coordinating_rejections", primaryAndCoordinatingRejections);
+        builder.field("replica_rejections_bytes", replicaRejections);
         return builder.endObject();
     }
 }

@@ -41,7 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -234,7 +234,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     actionFilters,
                     indexNameExpressionResolver,
                     autoCreateIndex,
-                    new WriteMemoryLimits(Settings.EMPTY),
+                    new IndexingPressure(Settings.EMPTY),
                     relativeTimeProvider);
         }
 

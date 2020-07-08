@@ -36,7 +36,7 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.index.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -1171,13 +1171,13 @@ public final class InternalTestCluster extends TestCluster {
     private void assertAllPendingWriteLimitsReleased() throws Exception {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
-                WriteMemoryLimits writeMemoryLimits = getInstance(WriteMemoryLimits.class, nodeAndClient.name);
-                final long writeBytes = writeMemoryLimits.getPrimaryAndCoordinatingBytes();
+                IndexingPressure indexingPressure = getInstance(IndexingPressure.class, nodeAndClient.name);
+                final long writeBytes = indexingPressure.getPendingPrimaryAndCoordinatingBytes();
                 if (writeBytes > 0) {
                     throw new AssertionError("pending write bytes [" + writeBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long replicaWriteBytes = writeMemoryLimits.getReplicaBytes();
+                final long replicaWriteBytes = indexingPressure.getPendingReplicaBytes();
                 if (replicaWriteBytes > 0) {
                     throw new AssertionError("pending replica write bytes [" + writeBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");

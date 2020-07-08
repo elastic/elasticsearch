@@ -24,36 +24,43 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-public class WriteMemoryLimits {
+public class IndexingPressure {
 
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
         Setting.memorySizeSetting("indexing_limits.memory.limit", "10%", Setting.Property.NodeScope);
 
-    private final AtomicLong primaryAndCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong replicaBytes = new AtomicLong(0);
+    private final AtomicLong pendingPrimaryAndCoordinatingBytes = new AtomicLong(0);
+    private final AtomicLong pendingReplicaBytes = new AtomicLong(0);
+    private final AtomicLong totalPrimaryAndCoordinatingBytes = new AtomicLong(0);
+    private final AtomicLong totalReplicaBytes = new AtomicLong(0);
+    private final AtomicLong primaryAndCoordinatingRejections = new AtomicLong(0);
+    private final AtomicLong replicaRejections = new AtomicLong(0);
+
     private final long primaryAndCoordinatingLimits;
     private final long replicaLimits;
 
-    public WriteMemoryLimits(Settings settings) {
+    public IndexingPressure(Settings settings) {
         this.primaryAndCoordinatingLimits = MAX_INDEXING_BYTES.get(settings).getBytes();
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
-    public Releasable markWriteOperationStarted(long bytes) {
-        return markWriteOperationStarted(bytes, false);
+    public Releasable markIndexingOperationStarted(long bytes) {
+        return markIndexingOperationStarted(bytes, false);
     }
 
-    public Releasable markWriteOperationStarted(long bytes, boolean forceExecution) {
-        long writeBytes = this.primaryAndCoordinatingBytes.addAndGet(bytes);
-        long replicaWriteBytes = this.replicaBytes.get();
+    public Releasable markIndexingOperationStarted(long bytes, boolean forceExecution) {
+        long writeBytes = this.pendingPrimaryAndCoordinatingBytes.addAndGet(bytes);
+        long replicaWriteBytes = this.pendingReplicaBytes.get();
         long totalBytes = writeBytes + replicaWriteBytes;
         if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
             long bytesWithoutOperation = writeBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
-            this.primaryAndCoordinatingBytes.getAndAdd(-bytes);
+            this.pendingPrimaryAndCoordinatingBytes.getAndAdd(-bytes);
+            this.primaryAndCoordinatingRejections.getAndIncrement();
             throw new EsRejectedExecutionException("rejected execution of operation [" +
                 "primary_and_coordinating_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
@@ -61,27 +68,44 @@ public class WriteMemoryLimits {
                 "current_operation_bytes=" + bytes + ", " +
                 "max_primary_and_coordinating_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
-        return () -> this.primaryAndCoordinatingBytes.getAndAdd(-bytes);
+        totalPrimaryAndCoordinatingBytes.getAndAdd(bytes);
+        return () -> this.pendingPrimaryAndCoordinatingBytes.getAndAdd(-bytes);
     }
 
-    public long getPrimaryAndCoordinatingBytes() {
-        return primaryAndCoordinatingBytes.get();
-    }
-
-    public Releasable markReplicaWriteStarted(long bytes, boolean forceExecution) {
-        long replicaWriteBytes = this.replicaBytes.getAndAdd(bytes);
+    public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
+        long replicaWriteBytes = this.pendingReplicaBytes.getAndAdd(bytes);
         if (forceExecution == false && replicaWriteBytes > replicaLimits) {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
-            this.replicaBytes.getAndAdd(-bytes);
+            this.pendingReplicaBytes.getAndAdd(-bytes);
+            this.replicaRejections.getAndIncrement();
             throw new EsRejectedExecutionException("rejected execution of replica operation [" +
                 "replica_bytes=" + replicaBytesWithoutOperation + ", " +
                 "current_replica_operation_bytes=" + bytes + ", " +
                 "max_replica_bytes=" + replicaLimits + "]", false);
         }
-        return () -> this.replicaBytes.getAndAdd(-bytes);
+        totalReplicaBytes.getAndAdd(bytes);
+        return () -> this.pendingReplicaBytes.getAndAdd(-bytes);
     }
 
-    public long getReplicaBytes() {
-        return replicaBytes.get();
+    public long getPendingPrimaryAndCoordinatingBytes() {
+        return pendingPrimaryAndCoordinatingBytes.get();
+    }
+
+    public long getPendingReplicaBytes() {
+        return pendingReplicaBytes.get();
+    }
+
+    public long getTotalPrimaryAndCoordinatingBytes() {
+        return totalPrimaryAndCoordinatingBytes.get();
+    }
+
+    public long getTotalReplicaBytes() {
+        return totalReplicaBytes.get();
+    }
+
+    public IndexingPressureStats stats() {
+        return new IndexingPressureStats(totalPrimaryAndCoordinatingBytes.get(), totalReplicaBytes.get(),
+            pendingPrimaryAndCoordinatingBytes.get(), pendingReplicaBytes.get(), primaryAndCoordinatingRejections.get(),
+            replicaRejections.get());
     }
 }

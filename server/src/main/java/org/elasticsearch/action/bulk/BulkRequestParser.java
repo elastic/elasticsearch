@@ -168,7 +168,7 @@ public final class BulkRequestParser {
                 long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
-                boolean requireAlias = defaultRequireAlias == null && defaultRequireAlias;
+                boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters

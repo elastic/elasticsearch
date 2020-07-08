@@ -108,7 +108,7 @@ public class NodeStatsTests extends ESTestCase {
                         nodeStats.getOs().getCgroup().getMemoryUsageInBytes(),
                         deserializedNodeStats.getOs().getCgroup().getMemoryUsageInBytes());
                     assertArrayEquals(nodeStats.getOs().getCpu().getLoadAverage(),
-                        deserializedNodeStats.getOs().getCpu().getLoadAverage(), 0);
+                            deserializedNodeStats.getOs().getCpu().getLoadAverage(), 0);
                 }
                 if (nodeStats.getProcess() == null) {
                     assertNull(deserializedNodeStats.getProcess());
@@ -117,11 +117,11 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(nodeStats.getProcess().getCpu().getTotal(), deserializedNodeStats.getProcess().getCpu().getTotal());
                     assertEquals(nodeStats.getProcess().getCpu().getPercent(), deserializedNodeStats.getProcess().getCpu().getPercent());
                     assertEquals(nodeStats.getProcess().getMem().getTotalVirtual(),
-                        deserializedNodeStats.getProcess().getMem().getTotalVirtual());
+                            deserializedNodeStats.getProcess().getMem().getTotalVirtual());
                     assertEquals(nodeStats.getProcess().getMaxFileDescriptors(),
-                        deserializedNodeStats.getProcess().getMaxFileDescriptors());
+                            deserializedNodeStats.getProcess().getMaxFileDescriptors());
                     assertEquals(nodeStats.getProcess().getOpenFileDescriptors(),
-                        deserializedNodeStats.getProcess().getOpenFileDescriptors());
+                            deserializedNodeStats.getProcess().getOpenFileDescriptors());
                 }
                 JvmStats jvm = nodeStats.getJvm();
                 JvmStats deserializedJvm = deserializedNodeStats.getJvm();

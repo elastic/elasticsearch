@@ -600,7 +600,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         ScriptStats stats() {
-            ArrayList<ScriptContextStats> stats = new ArrayList<>(contextCache.size());
+            List<ScriptContextStats> stats = new ArrayList<>(contextCache.size());
             for (Map.Entry<String, AtomicReference<ScriptCache>> entry: contextCache.entrySet()) {
                 stats.add(entry.getValue().get().stats(entry.getKey()));
             }

@@ -325,10 +325,7 @@ contains information about the stream's write index, `.ds-logs-000002`.
     {
       "name": "logs",
       "timestamp_field": {
-        "name": "@timestamp",
-        "mapping": {
-          "type": "date"
-        }
+        "name": "@timestamp"
       },
       "indices": [
         {

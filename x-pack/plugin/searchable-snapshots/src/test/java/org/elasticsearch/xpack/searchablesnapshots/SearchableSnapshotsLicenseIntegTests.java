@@ -68,10 +68,7 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
 
     @Before
     public void createAndMountSearchableSnapshot() throws Exception {
-        final Path repo = randomRepoPath();
-        assertAcked(
-            client().admin().cluster().preparePutRepository(repoName).setType("fs").setSettings(Settings.builder().put("location", repo))
-        );
+        createRepo(repoName);
 
         createIndex(indexName);
 

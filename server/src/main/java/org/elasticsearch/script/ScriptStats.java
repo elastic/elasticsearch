@@ -27,22 +27,52 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class ScriptStats implements Writeable, ToXContentFragment {
+    private final List<ScriptContextStats> contextStats;
     private final long compilations;
     private final long cacheEvictions;
     private final long compilationLimitTriggered;
 
-    public ScriptStats(long compilations, long cacheEvictions, long compilationLimitTriggered) {
+    public ScriptStats(List<ScriptContextStats> contextStats) {
+        ArrayList<ScriptContextStats> ctxStats = new ArrayList<>(contextStats.size());
+        ctxStats.addAll(contextStats);
+        ctxStats.sort(ScriptContextStats::compareTo);
+        this.contextStats = Collections.unmodifiableList(ctxStats);
+        long compilations = 0;
+        long cacheEvictions = 0;
+        long compilationLimitTriggered = 0;
+        for (ScriptContextStats stats: contextStats) {
+            compilations += stats.getCompilations();
+            cacheEvictions += stats.getCacheEvictions();
+            compilationLimitTriggered += stats.getCompilationLimitTriggered();
+        }
         this.compilations = compilations;
         this.cacheEvictions = cacheEvictions;
         this.compilationLimitTriggered = compilationLimitTriggered;
+    }
+
+    public ScriptStats(long compilations, long cacheEvictions, long compilationLimitTriggered) {
+        this.contextStats = Collections.emptyList();
+        this.compilations = compilations;
+        this.cacheEvictions = cacheEvictions;
+        this.compilationLimitTriggered = compilationLimitTriggered;
+    }
+
+    public ScriptStats(ScriptContextStats context) {
+        this(context.getCompilations(), context.getCacheEvictions(), context.getCompilationLimitTriggered());
     }
 
     public ScriptStats(StreamInput in) throws IOException {
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.getVersion().onOrAfter(Version.V_7_0_0) ? in.readVLong() : 0;
+        contextStats = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readList(ScriptContextStats::new) : Collections.emptyList();
     }
 
     @Override
@@ -52,6 +82,13 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeVLong(compilationLimitTriggered);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeList(contextStats);
+        }
+    }
+
+    public List<ScriptContextStats> getContextStats() {
+        return contextStats;
     }
 
     public long getCompilations() {
@@ -66,36 +103,37 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         return compilationLimitTriggered;
     }
 
+    public ScriptCacheStats toScriptCacheStats() {
+        if (contextStats.isEmpty()) {
+            return new ScriptCacheStats(this);
+        }
+        Map<String, ScriptStats> contexts = new HashMap<>(contextStats.size());
+        for (ScriptContextStats contextStats : contextStats) {
+            contexts.put(contextStats.getContext(), new ScriptStats(contextStats));
+        }
+        return new ScriptCacheStats(contexts);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SCRIPT_STATS);
-        builder.field(Fields.COMPILATIONS, getCompilations());
-        builder.field(Fields.CACHE_EVICTIONS, getCacheEvictions());
-        builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, getCompilationLimitTriggered());
+        builder.field(Fields.COMPILATIONS, compilations);
+        builder.field(Fields.CACHE_EVICTIONS, cacheEvictions);
+        builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
+        builder.startArray(Fields.CONTEXTS);
+        for (ScriptContextStats contextStats: contextStats) {
+            contextStats.toXContent(builder, params);
+        }
+        builder.endArray();
         builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final String SCRIPT_STATS = "script";
+        static final String CONTEXTS = "contexts";
         static final String COMPILATIONS = "compilations";
         static final String CACHE_EVICTIONS = "cache_evictions";
         static final String COMPILATION_LIMIT_TRIGGERED = "compilation_limit_triggered";
-    }
-
-    public static ScriptStats sum(Iterable<ScriptStats> stats) {
-        long compilations = 0;
-        long cacheEvictions = 0;
-        long compilationLimitTriggered = 0;
-        for (ScriptStats stat: stats) {
-            compilations += stat.compilations;
-            cacheEvictions += stat.cacheEvictions;
-            compilationLimitTriggered += stat.compilationLimitTriggered;
-        }
-        return new ScriptStats(
-            compilations,
-            cacheEvictions,
-            compilationLimitTriggered
-        );
     }
 }

@@ -118,7 +118,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             adaptiveSelectionStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
+            if (in.getVersion().before(Version.V_7_9_0)) {
+                scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
+            } else {
+                scriptCacheStats = scriptStats.toScriptCacheStats();
+            }
         } else {
             scriptCacheStats = null;
         }
@@ -271,8 +275,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(ingestStats);
         if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
             out.writeOptionalWriteable(adaptiveSelectionStats);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+        } if (out.getVersion().onOrAfter(Version.V_7_8_0) && out.getVersion().before(Version.V_7_9_0)) {
             out.writeOptionalWriteable(scriptCacheStats);
         }
     }

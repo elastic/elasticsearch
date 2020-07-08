@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,22 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.inference;
+
+package org.elasticsearch.client.ml.inference.results;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
-public class TrainedModelInputTests extends AbstractXContentTestCase<TrainedModelInput> {
+public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImportance> {
 
     @Override
-    protected TrainedModelInput doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelInput.fromXContent(parser);
+    protected FeatureImportance createTestInstance() {
+        return new FeatureImportance(
+            randomAlphaOfLength(10),
+            randomDoubleBetween(-10.0, 10.0, false),
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10))
+                    .limit(randomLongBetween(2, 10))
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomDoubleBetween(-10, 10, false))));
+
+    }
+
+    @Override
+    protected FeatureImportance doParseInstance(XContentParser parser) throws IOException {
+        return FeatureImportance.fromXContent(parser);
     }
 
     @Override
@@ -41,17 +54,6 @@ public class TrainedModelInputTests extends AbstractXContentTestCase<TrainedMode
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
-    }
-
-    public static TrainedModelInput createRandomInput() {
-        return new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(randomLongBetween(1, 10))
-            .collect(Collectors.toList()));
-    }
-
-    @Override
-    protected TrainedModelInput createTestInstance() {
-        return createRandomInput();
+        return field -> field.equals(FeatureImportance.CLASS_IMPORTANCE);
     }
 }

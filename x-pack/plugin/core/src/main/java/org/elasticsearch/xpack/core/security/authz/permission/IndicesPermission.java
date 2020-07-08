@@ -61,21 +61,24 @@ public final class IndicesPermission {
         this.groups = groups;
     }
 
-    public static Predicate<String> indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
-        final Predicate<String> namePredicate;
-        if (restrictedIndices.isEmpty()) {
-            namePredicate = indexMatcher(ordinaryIndices)
-                    .and(index -> false == RestrictedIndicesNames.isRestricted(index));
-        } else if (ordinaryIndices.isEmpty()) {
+    private static Predicate<String> indexMatcher(Collection<String> ordinaryIndices, Collection<String> restrictedIndices) {
+        Predicate<String> namePredicate;
+        if (ordinaryIndices.isEmpty()) {
             namePredicate = indexMatcher(restrictedIndices);
         } else {
-            namePredicate = indexMatcher(restrictedIndices)
-                    .or(indexMatcher(ordinaryIndices)
-                            .and(index -> false == RestrictedIndicesNames.isRestricted(index)));
+            namePredicate = indexMatcher(ordinaryIndices)
+                    .and(index -> false == RestrictedIndicesNames.isRestricted(index));
+            if (restrictedIndices.isEmpty() == false) {
+                namePredicate = indexMatcher(restrictedIndices).or(namePredicate);
+            }
         }
         return namePredicate;
     }
 
+    /**
+     * Given a collection of index names and patterns, this constructs a {@code Predicate} that tests
+     * {@code true} for the names in the collection as well as for any names matching the patterns in the collection.
+     */
     public static Predicate<String> indexMatcher(Collection<String> indices) {
         Set<String> exactMatch = new HashSet<>();
         List<String> nonExactMatch = new ArrayList<>();

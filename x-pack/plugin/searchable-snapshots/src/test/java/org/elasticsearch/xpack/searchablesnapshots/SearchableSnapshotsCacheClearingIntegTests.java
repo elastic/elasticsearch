@@ -74,7 +74,7 @@ public class SearchableSnapshotsCacheClearingIntegTests extends BaseSearchableSn
         AtomicBoolean injectFailures = new AtomicBoolean();
 
         DeleteBlockingFileSystemProvider(FileSystem inner) {
-            super("writeblocking://", inner);
+            super("deleteblocking://", inner);
         }
 
         @Override

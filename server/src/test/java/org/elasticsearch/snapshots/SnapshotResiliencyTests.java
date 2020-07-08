@@ -1483,7 +1483,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             threadPool,
                             shardStateAction,
                             actionFilters,
-                            new WriteMemoryLimits())),
+                            new WriteMemoryLimits(settings))),
                     new GlobalCheckpointSyncAction(
                         settings,
                         transportService,
@@ -1509,7 +1509,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 mappingUpdatedAction.setClient(client);
             final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                 clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                actionFilters, new WriteMemoryLimits());
+                actionFilters, new WriteMemoryLimits(settings));
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
                         new IngestService(
@@ -1517,7 +1517,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(), client),
                     transportShardBulkAction, client, actionFilters, indexNameExpressionResolver,
-                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver), new WriteMemoryLimits()
+                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver), new WriteMemoryLimits(settings)
                     ));
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,

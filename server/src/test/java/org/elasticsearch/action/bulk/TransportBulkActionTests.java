@@ -81,7 +81,7 @@ public class TransportBulkActionTests extends ESTestCase {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()),
-                    new WriteMemoryLimits());
+                    new WriteMemoryLimits(Settings.EMPTY));
         }
 
         @Override

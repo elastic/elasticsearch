@@ -245,7 +245,7 @@ public class IndicesPermissionTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
                 "a1");
-        IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.ALL,
+        IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.READ,
                 new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), "a1");
         IndicesPermission core = new IndicesPermission(group1, group2);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
@@ -394,6 +394,71 @@ public class IndicesPermissionTests extends ESTestCase {
                 lookup,
                 fieldPermissionsCache);
 
+        for (IndexMetadata im : backingIndices) {
+            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(false));
+        }
+    }
+
+    public void testAuthorizationForMappingUpdates() {
+        final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        final Metadata.Builder metadata = new Metadata.Builder()
+                .put(new IndexMetadata.Builder("test1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+                .put(new IndexMetadata.Builder("test_write1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true);
+
+        int numBackingIndices = randomIntBetween(1, 3);
+        List<IndexMetadata> backingIndices = new ArrayList<>();
+        for (int backingIndexNumber = 1; backingIndexNumber <= numBackingIndices; backingIndexNumber++) {
+            backingIndices.add(createIndexMetadata(DataStream.getDefaultBackingIndexName("test_write2", backingIndexNumber)));
+        }
+        DataStream ds = new DataStream("test_write2", createTimestampField("@timestamp"),
+                backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()));
+        metadata.put(ds);
+        for (IndexMetadata index : backingIndices) {
+            metadata.put(index, false);
+        }
+
+        SortedMap<String, IndexAbstraction> lookup = metadata.build().getIndicesLookup();
+
+        FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.INDEX, new FieldPermissions(), null, randomBoolean(),
+                "test*");
+        IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.WRITE,
+                new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), "test_write*");
+        IndicesPermission core = new IndicesPermission(group1, group2);
+        Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
+                core.authorize(PutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
+        assertThat(authzMap.get("test1").isGranted(), is(true));
+        assertThat(authzMap.get("test_write1").isGranted(), is(true));
+        assertWarnings("the mapping update action [" + PutMappingAction.NAME + "] on the [test1] index, is granted by the " +
+                        "[index] privilege, but the privilege has been tightened to not allow it in the next major release",
+                "the mapping update action [" + PutMappingAction.NAME + "] on the [test_write1] index, is granted by the " +
+                        "[index] privilege, but the privilege has been tightened to not allow it in the next major release",
+                "the mapping update action [" + PutMappingAction.NAME + "] on the [test_write1] index, is granted by the " +
+                        "[write] privilege, but the privilege has been tightened to not allow it in the next major release"
+        );
+        authzMap = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
+        assertThat(authzMap.get("test1").isGranted(), is(true));
+        assertThat(authzMap.get("test_write1").isGranted(), is(true));
+        assertWarnings("the mapping update action [" + AutoPutMappingAction.NAME + "] on the [test1] index, is granted by the " +
+                        "[index] privilege, but the privilege has been tightened to not allow it in the next major release");
+
+        authzMap = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
+        assertThat(authzMap.get("test_write2").isGranted(), is(true));
+        authzMap = core.authorize(PutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);
+        assertThat(authzMap.get("test_write2").isGranted(), is(false));
+        authzMap = core.authorize(
+                AutoPutMappingAction.NAME,
+                Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
+                lookup,
+                fieldPermissionsCache);
+        for (IndexMetadata im : backingIndices) {
+            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(true));
+        }
+        authzMap = core.authorize(
+                PutMappingAction.NAME,
+                Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
+                lookup,
+                fieldPermissionsCache);
         for (IndexMetadata im : backingIndices) {
             assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(false));
         }

@@ -46,4 +46,8 @@ class KeyToSequences {
         }
         groups[stage].add(sequence);
     }
+
+    int numberOfKeys() {
+        return keyToSequences.size();
+    }
 }

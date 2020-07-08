@@ -84,6 +84,9 @@ password: `elastic-password`.
 
 In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 In order to disable assertions add: `-Dtests.asserts=false`
+In order to use a custom data directory: `--data-dir=/tmp/foo`
+In order to remotely attach a debugger to the process: `--debug-jvm`
+In order to set a different keystore password: `--keystore-password`
 In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
 
 === Test case filtering.

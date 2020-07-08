@@ -17,6 +17,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.index.recoveries.PersistentCacheTracker;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
@@ -50,6 +51,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
     private final int defaultRangeSize;
+    private final PersistentCacheTracker tracker;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
@@ -61,7 +63,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
-        int rangeSize
+        int rangeSize,
+        PersistentCacheTracker tracker
     ) {
         this(
             "CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
@@ -71,8 +74,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             stats,
             0L,
             fileInfo.length(),
-            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length(), stats::incrementEvictionCount),
-            rangeSize
+            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length(), () -> tracker.trackFileEviction(fileInfo.physicalName())),
+            rangeSize,
+            tracker
         );
         stats.incrementOpenCount();
     }
@@ -86,7 +90,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long offset,
         long length,
         CacheFileReference cacheFileReference,
-        int rangeSize
+        int rangeSize,
+        PersistentCacheTracker tracker
     ) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
@@ -94,6 +99,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
+        this.tracker = tracker;
     }
 
     @Override
@@ -267,7 +273,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                         remainingBytes -= bytesRead;
                     }
                     final long endTimeNanos = stats.currentTimeNanos();
-                    stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
+                    addCachedBytesWritten(totalBytesWritten, endTimeNanos - startTimeNanos);
                 }
 
                 assert totalBytesRead == rangeLength;
@@ -275,6 +281,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }
+    }
+
+    private void addCachedBytesWritten(AtomicLong totalBytesWritten, long totalTime) {
+        tracker.trackPersistedBytesToFile(fileInfo.physicalName(), totalBytesWritten.get());
+        stats.addCachedBytesWritten(totalBytesWritten.get(), totalTime);
     }
 
     @SuppressForbidden(reason = "Use positional writes on purpose")
@@ -417,7 +428,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             this.offset + offset,
             length,
             cacheFileReference,
-            defaultRangeSize
+            defaultRangeSize,
+            tracker
         );
         slice.isClone = true;
         return slice;

@@ -17,7 +17,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SingleInstanceLockFactory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -33,7 +32,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.recoveries.RecoveryTracker;
+import org.elasticsearch.index.recoveries.PersistentCacheTracker;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -114,12 +113,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
     private final AtomicBoolean closed;
+    private final PersistentCacheTracker.FilterPersistentCacheTracker cacheTracker;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
     private volatile BlobContainer blobContainer;
     private volatile boolean loaded;
-    private final SetOnce<RecoveryTracker> recoveryTracker;
 
     public SearchableSnapshotDirectory(
         Supplier<BlobContainer> blobContainer,
@@ -150,7 +149,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.threadPool = threadPool;
         this.loaded = false;
-        this.recoveryTracker = new SetOnce<>();
+        this.cacheTracker = new PersistentCacheTracker.FilterPersistentCacheTracker(useCache ? new PersistentCacheTracker.AccumulatingRecoveryTracker() : PersistentCacheTracker.NO_OP);
         assert invariant();
     }
 
@@ -310,11 +309,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
     }
 
-    protected IndexInputStats createIndexInputStats(final String fileName, final long fileLength) {
-        IndexInputStats indexInputStats = new IndexInputStats(fileName, fileLength, statsCurrentTimeNanosSupplier);
-        indexInputStats.setRecoveryTracker(recoveryTracker.get());
-
-        return indexInputStats;
+    protected IndexInputStats createIndexInputStats(final long fileLength) {
+        return new IndexInputStats(fileLength, statsCurrentTimeNanosSupplier);
     }
 
     public CacheKey createCacheKey(String fileName) {
@@ -348,10 +344,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final IndexInputStats inputStats = stats.computeIfAbsent(
             name,
-            n -> createIndexInputStats(fileInfo.physicalName(), fileInfo.length())
+            n -> createIndexInputStats(fileInfo.length())
         );
         if (useCache && isExcludedFromCache(name) == false) {
-            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize());
+            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize(), cacheTracker);
         } else {
             return new DirectBlobContainerIndexInput(
                 blobContainer(),
@@ -529,12 +525,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return null;
     }
 
-    public void setRecoveryTracker(RecoveryTracker tracker) {
-        recoveryTracker.set(tracker);
-        for (Map.Entry<String, IndexInputStats> statsEntry : stats.entrySet()) {
-            IndexInputStats indexInputStats = statsEntry.getValue();
-            indexInputStats.setRecoveryTracker(tracker);
-        }
+    public void setCacheTracker(PersistentCacheTracker newTracker) {
+        ensureOpen();
+        cacheTracker.setNewDelegate(newTracker);
     }
 
     /**

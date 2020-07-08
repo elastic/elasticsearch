@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 public final class OnDemandRecoveryState extends RecoveryState {
@@ -43,7 +44,7 @@ public final class OnDemandRecoveryState extends RecoveryState {
         return super.setStage(stage);
     }
 
-    public static class OnDemandIndex extends Index implements RecoveryTracker {
+    public static class OnDemandIndex extends Index implements PersistentCacheTracker {
         public OnDemandIndex() {}
 
         public OnDemandIndex(StreamInput in) throws IOException {
@@ -53,6 +54,11 @@ public final class OnDemandRecoveryState extends RecoveryState {
         @Override
         public synchronized void addFileDetail(String name, long length, boolean reused) {
             super.addFileDetail(name, length, false);
+        }
+
+        @Override
+        public synchronized void trackPersistedBytesToFile(String name, long bytes) {
+            addRecoveredBytesToFile(name, bytes);
         }
 
         public synchronized void trackFileEviction(String name) {
@@ -67,15 +73,16 @@ public final class OnDemandRecoveryState extends RecoveryState {
         }
 
         @Override
-        public synchronized void merge(RecoveryTracker recoveryTracker) {
+        public synchronized PersistentCacheTracker merge(PersistentCacheTracker recoveryTracker) {
             for (Map.Entry<String, Long> fileSize : recoveryTracker.getValues().entrySet()) {
                 addRecoveredBytesToFile(fileSize.getKey(), fileSize.getValue());
             }
+            return this;
         }
 
         @Override
         public Map<String, Long> getValues() {
-            return null;
+            return Collections.emptyMap();
         }
     }
 }

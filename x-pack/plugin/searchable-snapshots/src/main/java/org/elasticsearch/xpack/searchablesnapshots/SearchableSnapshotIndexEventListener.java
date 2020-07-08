@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.recoveries.RecoveryTracker;
+import org.elasticsearch.index.recoveries.PersistentCacheTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -40,8 +40,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
 
-        RecoveryTracker tracker = (RecoveryTracker) indexShard.recoveryState().getIndex();
-        directory.setRecoveryTracker(tracker);
+        PersistentCacheTracker tracker = (PersistentCacheTracker) indexShard.recoveryState().getIndex();
+        directory.setCacheTracker(tracker);
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {

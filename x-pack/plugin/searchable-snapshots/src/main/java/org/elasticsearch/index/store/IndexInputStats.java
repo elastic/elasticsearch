@@ -8,11 +8,9 @@ package org.elasticsearch.index.store;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.recoveries.RecoveryTracker;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
 
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -25,13 +23,11 @@ public class IndexInputStats {
     /* A threshold beyond which an index input seeking is counted as "large" */
     static final ByteSizeValue SEEKING_THRESHOLD = new ByteSizeValue(8, ByteSizeUnit.MB);
 
-    private final String fileName;
     private final long fileLength;
     private final long seekingThreshold;
     private final LongSupplier currentTimeNanos;
 
     private final LongAdder opened = new LongAdder();
-    private final LongAdder evicted = new LongAdder();
     private final LongAdder closed = new LongAdder();
 
     private final Counter forwardSmallSeeks = new Counter();
@@ -48,16 +44,12 @@ public class IndexInputStats {
 
     private final Counter cachedBytesRead = new Counter();
     private final TimedCounter cachedBytesWritten = new TimedCounter();
-    private final LongAdder cachePhysicalUsageInBytes = new LongAdder();
 
-    private final AtomicReference<RecoveryTracker> tracker = new AtomicReference<>(new RecoveryTracker.AccumulatingRecoveryTracker());
-
-    public IndexInputStats(String fileName, long fileLength, LongSupplier currentTimeNanos) {
-        this(fileName, fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
+    public IndexInputStats(long fileLength, LongSupplier currentTimeNanos) {
+        this(fileLength, SEEKING_THRESHOLD.getBytes(), currentTimeNanos);
     }
 
-    public IndexInputStats(String fileName, long fileLength, long seekingThreshold, LongSupplier currentTimeNanos) {
-        this.fileName = fileName;
+    public IndexInputStats(long fileLength, long seekingThreshold, LongSupplier currentTimeNanos) {
         this.fileLength = fileLength;
         this.seekingThreshold = seekingThreshold;
         this.currentTimeNanos = currentTimeNanos;
@@ -78,20 +70,12 @@ public class IndexInputStats {
         closed.increment();
     }
 
-    public void incrementEvictionCount() {
-        evicted.increment();
-        cachePhysicalUsageInBytes.reset();
-        tracker.get().trackFileEviction(fileName);
-    }
-
     public void addCachedBytesRead(int bytesRead) {
         cachedBytesRead.add(bytesRead);
     }
 
     public void addCachedBytesWritten(long bytesWritten, long nanoseconds) {
         cachedBytesWritten.add(bytesWritten, nanoseconds);
-        cachePhysicalUsageInBytes.add(bytesWritten);
-        tracker.get().addRecoveredBytesToFile(fileName, bytesWritten);
     }
 
     public void addDirectBytesRead(int bytesRead, long nanoseconds) {
@@ -140,10 +124,6 @@ public class IndexInputStats {
         return closed;
     }
 
-    public LongAdder getEvicted() {
-        return evicted;
-    }
-
     public Counter getForwardSmallSeeks() {
         return forwardSmallSeeks;
     }
@@ -184,19 +164,9 @@ public class IndexInputStats {
         return cachedBytesWritten;
     }
 
-    public long getCachePhysicalUsageInBytes() {
-        return cachePhysicalUsageInBytes.sum();
-    }
-
     @SuppressForbidden(reason = "Handles Long.MIN_VALUE before using Math.abs()")
     public boolean isLargeSeek(long delta) {
         return delta != Long.MIN_VALUE && Math.abs(delta) > seekingThreshold;
-    }
-
-    public synchronized void setRecoveryTracker(RecoveryTracker newTracker) {
-        assert newTracker != null;
-        RecoveryTracker oldTracker = tracker.getAndSet(newTracker);
-        newTracker.merge(oldTracker);
     }
 
     public static class Counter {

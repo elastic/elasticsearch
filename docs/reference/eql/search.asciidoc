@@ -256,8 +256,8 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
 constrain a sequence to a specified timespan.
 
-The following EQL search request adds `with maxspan=1h` to the previous query.
-This ensures all events in a matching sequence occur within one hour (`1h`) of
+The following EQL search request adds `with maxspan=2d` to the previous query.
+This ensures all events in a matching sequence occur within two days (`2d`) of
 the first event's timestamp.
 
 [source,console]
@@ -265,7 +265,7 @@ the first event's timestamp.
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence with maxspan=1h
+    sequence with maxspan=2d
       [ file where file.name == "cmd.exe" ]
       [ process where stringContains(process.name, "regsvr32") ]
   """
@@ -284,7 +284,7 @@ ensures events matching the sequence share the same `agent.id` field value.
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence with maxspan=1h
+    sequence with maxspan=2d
       [ file where file.name == "cmd.exe" ] by agent.id
       [ process where stringContains(process.name, "regsvr32") ] by agent.id
   """
@@ -300,7 +300,7 @@ prior one.
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence by agent.id with maxspan=1h
+    sequence by agent.id with maxspan=2d
       [ file where file.name == "cmd.exe" ]
       [ process where stringContains(process.name, "regsvr32") ]
   """

@@ -375,16 +375,27 @@ public class IndicesPermissionTests extends ESTestCase {
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
-        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false,
-            dataStreamName);
+        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.READ, new FieldPermissions(), null, false,
+                dataStreamName);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(
-            SearchAction.NAME,
-            Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
-            lookup,
-            fieldPermissionsCache);
+                SearchAction.NAME,
+                Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
+                lookup,
+                fieldPermissionsCache);
 
         for (IndexMetadata im : backingIndices) {
             assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(true));
+        }
+
+        group = new IndicesPermission.Group(IndexPrivilege.CREATE_DOC, new FieldPermissions(), null, false, dataStreamName);
+        authzMap = new IndicesPermission(group).authorize(
+                randomFrom(PutMappingAction.NAME, AutoPutMappingAction.NAME),
+                Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
+                lookup,
+                fieldPermissionsCache);
+
+        for (IndexMetadata im : backingIndices) {
+            assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(false));
         }
     }
 

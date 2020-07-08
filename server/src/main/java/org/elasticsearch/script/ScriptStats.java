@@ -84,7 +84,6 @@ public class ScriptStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.SCRIPT_STATS);
-
         builder.field(Fields.COMPILATIONS, compilations);
         builder.field(Fields.CACHE_EVICTIONS, cacheEvictions);
         builder.field(Fields.COMPILATION_LIMIT_TRIGGERED, compilationLimitTriggered);
@@ -93,7 +92,6 @@ public class ScriptStats implements Writeable, ToXContentFragment {
             contextStats.toXContent(builder, params);
         }
         builder.endArray();
-
         builder.endObject();
         return builder;
     }

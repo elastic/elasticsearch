@@ -22,6 +22,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -39,6 +40,7 @@ import java.util.Arrays;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
 
 public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
@@ -74,7 +76,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
     public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {
         internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNodes(1);
+        internalCluster().startDataOnlyNode();
         final String repoNameOnFirstCluster = "test-repo";
         final String repoNameOnSecondCluster = randomBoolean() ? "test-repo" : "other-repo";
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
@@ -94,9 +96,13 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-1").get();
         secondCluster.client().admin().cluster().prepareDeleteSnapshot(repoNameOnSecondCluster, "snap-2").get();
 
-        expectThrows(SnapshotException.class, () ->
+        final SnapshotException sne = expectThrows(SnapshotException.class, () ->
                 client().admin().cluster().prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true)
                         .execute().actionGet());
+        assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
+        final RepositoryException cause = (RepositoryException) sne.getCause();
+        assertThat(cause.getMessage(), containsString("[" + repoNameOnFirstCluster +
+                "] concurrent modification of the index-N file, expected current generation [2] but it was not found in the repository"));
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");

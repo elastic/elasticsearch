@@ -74,6 +74,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      */
     @Override
     public boolean blobExists(String blobName) {
+        assert false : "should never be called for a read-only url repo";
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 

@@ -83,7 +83,7 @@ If `true`, returns all available information about a snapshot. Defaults to `true
 +
 If `false`, omits additional information about the snapshot, such as version information, start and end times, and the number of snapshotted shards.
 
-[role="child-attributes"]
+[role="child_attributes"]
 [[get-snapshot-api-response-body]]
 ==== {api-response-body-title}
 

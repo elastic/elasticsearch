@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
@@ -79,7 +80,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
 
                 ExecutionMode execution = null;
@@ -100,7 +101,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
 
                 return execution.create(name, factories, valuesSource, format, bucketCountThresholds, includeExclude, context, parent,
-                    significanceHeuristic, lookup, collectsFromSingleBucket, metadata);
+                    significanceHeuristic, lookup, cardinality, metadata);
             }
         };
     }
@@ -123,7 +124,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -143,9 +144,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
 
                 return new NumericTermsAggregator(name, factories,
-                    agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
+                    agg -> agg.new SignificantLongTermsResults(lookup, significanceHeuristic, cardinality),
                     numericValuesSource, format, null, bucketCountThresholds, context, parent, SubAggCollectionMode.BREADTH_FIRST,
-                    longFilter, collectsFromSingleBucket, metadata);
+                    longFilter, cardinality, metadata);
             }
         };
     }
@@ -200,7 +201,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             SignificantTermsAggregationBuilder.NAME);
@@ -236,7 +237,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
-            significanceHeuristic, lookup, collectsFromSingleBucket, metadata);
+            significanceHeuristic, lookup, cardinality, metadata);
     }
 
     public enum ExecutionMode {
@@ -254,7 +255,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
-                              boolean collectsFromSingleBucket,
+                              CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
@@ -262,7 +263,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     name,
                     factories,
                     new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSource),
-                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
+                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
                     null,
                     format,
                     bucketCountThresholds,
@@ -271,7 +272,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     parent,
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
-                    collectsFromSingleBucket,
+                    cardinality,
                     metadata
                 );
 
@@ -291,12 +292,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
-                              boolean collectsFromSingleBucket,
+                              CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrd = true;
-                if (collectsFromSingleBucket && factories == AggregatorFactories.EMPTY && includeExclude == null) {
+                if (cardinality == CardinalityUpperBound.ONE && factories == AggregatorFactories.EMPTY && includeExclude == null) {
                     /*
                      * We don't need to remap global ords iff this aggregator:
                      *    - collects from a single bucket AND
@@ -309,7 +310,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,
-                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, collectsFromSingleBucket),
+                    a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
                     (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource,
                     null,
                     format,
@@ -320,7 +321,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     remapGlobalOrd,
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
-                    collectsFromSingleBucket,
+                    cardinality,
                     metadata
                 );
             }
@@ -355,7 +356,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                    Aggregator parent,
                                    SignificanceHeuristic significanceHeuristic,
                                    SignificanceLookup lookup,
-                                   boolean collectsFromSingleBucket,
+                                   CardinalityUpperBound cardinality,
                                    Map<String, Object> metadata) throws IOException;
 
         @Override

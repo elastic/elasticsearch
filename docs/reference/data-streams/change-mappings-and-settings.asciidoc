@@ -84,6 +84,8 @@ PUT /_index_template/new_logs_data_stream
 
 PUT /_data_stream/logs
 
+POST /logs/_rollover/
+
 PUT /_data_stream/new_logs
 ----
 // TESTSETUP
@@ -565,33 +567,46 @@ data stream, including a list of its backing indices.
 ----
 GET /_data_stream/logs
 ----
-// TEST[skip: shard failures]
 
 The API returns the following response. Note the `indices` property contains an
-array of the stream's current backing indices. The oldest backing index,
-`.ds-logs-000001`, is the first item in the array.
+array of the stream's current backing indices. The first item in the array
+contains information about the stream's oldest backing index, `.ds-logs-000001`.
 
 [source,console-result]
 ----
-[
-  {
-    "name": "logs",
-    "timestamp_field": "@timestamp",
-    "indices": [
-      {
-        "index_name": ".ds-logs-000001",
-        "index_uuid": "DXAE-xcCQTKF93bMm9iawA"
+{
+  "data_streams": [
+    {
+      "name": "logs",
+      "timestamp_field": {
+        "name": "@timestamp",
+        "mapping": {
+          "type": "date"
+        }
       },
-      {
-        "index_name": ".ds-logs-000002",
-        "index_uuid": "Wzxq0VhsQKyPxHhaK3WYAg"
-      }
-    ],
-    "generation": 2
-  }
-]
+      "indices": [
+        {
+          "index_name": ".ds-logs-000001",        <1>
+          "index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"
+        },
+        {
+          "index_name": ".ds-logs-000002",
+          "index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"
+        }
+      ],
+      "generation": 2,
+      "status": "GREEN",
+      "template": "logs_data_stream"
+    }
+  ]
+}
 ----
-// TESTRESPONSE[skip:unable to assert responses with top level array]
+// TESTRESPONSE[s/"index_uuid": "Gpdiyq8sRuK9WuthvAdFbw"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_uuid": "_eEfRrFHS9OyhqWntkgHAQ"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+
+<1> First item in the `indices` array for the `logs` data stream. This item
+contains information about the stream's oldest backing index, `.ds-logs-000001`.
 
 The following <<docs-reindex,reindex API>> request copies documents from
 `.ds-logs-000001` to the `new_logs` data stream. Note the request's `op_type` is

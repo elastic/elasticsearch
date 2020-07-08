@@ -245,6 +245,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-bytes-exceeded]
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-anomaly-jobs]
 
+`peak_model_bytes`:::
+(long)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=peak-model-bytes]
+
 `rare_category_count`:::
 (long)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=rare-category-count]

@@ -45,8 +45,13 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
-    public EqlSearchRequestBuilder fetchSize(int size) {
-        request.fetchSize(size);
+    public EqlSearchRequestBuilder size(int size) {
+        request.size(size);
+        return this;
+    }
+
+    public EqlSearchRequestBuilder fetchSize(int fetchSize) {
+        request.fetchSize(fetchSize);
         return this;
     }
 

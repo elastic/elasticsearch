@@ -42,7 +42,7 @@ public class MeanSquaredLogarithmicErrorTests extends AbstractSerializingTestCas
 
     public void testEvaluate() {
         Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("regression_mean_squared_logarithmic_error", 0.8123),
+            mockSingleValue("regression_msle", 0.8123),
             mockSingleValue("some_other_single_metric_agg", 0.2377)
         ));
 

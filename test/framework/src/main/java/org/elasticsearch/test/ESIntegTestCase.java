@@ -117,6 +117,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -655,6 +656,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         internalCluster().setDisruptionScheme(scheme);
+    }
+
+    /**
+     * Creates a disruption that isolates the current master node from all other nodes in the cluster.
+     *
+     * @param disruptionType type of disruption to create
+     * @return disruption
+     */
+    protected static NetworkDisruption isolateMasterDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
+        final String masterNode = internalCluster().getMasterName();
+        return new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(
+                Collections.singleton(masterNode),
+                Arrays.stream(internalCluster().getNodeNames()).filter(name -> name.equals(masterNode) == false)
+                    .collect(Collectors.toSet())), disruptionType);
     }
 
     /**
@@ -1886,7 +1902,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 mocks.add(MockFieldFilterPlugin.class);
             }
         }
-
+        if (randomBoolean()) {
+            mocks.add(RecoverySettingsChunkSizePlugin.class);
+        }
         if (addMockTransportService()) {
             mocks.add(getTestTransportPlugin());
         }

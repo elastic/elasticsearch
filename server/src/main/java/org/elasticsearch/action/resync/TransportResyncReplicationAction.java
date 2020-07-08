@@ -20,7 +20,7 @@ package org.elasticsearch.action.resync;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.WriteMemoryLimits;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;

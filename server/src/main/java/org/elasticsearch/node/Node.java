@@ -30,7 +30,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.WriteMemoryLimits;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;

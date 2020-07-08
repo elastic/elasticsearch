@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.WriteMemoryLimits;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -122,7 +122,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             assertBusy(() -> {
                 // The actual write bytes will be greater due to other request fields. However, this test is
                 // just spot checking that the bytes are incremented at all.
-                assertTrue(memoryLimits.getWriteBytes() > finalSourceSize);
+                assertTrue(memoryLimits.getPrimaryAndCoordinatingBytes() > finalSourceSize);
             });
             blocker.countDown();
             assertBusy(() -> {

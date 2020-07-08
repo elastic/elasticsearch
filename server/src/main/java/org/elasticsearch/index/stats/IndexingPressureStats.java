@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.write.stats;
+package org.elasticsearch.index.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.WriteMemoryLimits;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.index.write.stats.IndexingPressureStats;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.IngestService;
@@ -127,8 +127,8 @@ public class NodeService implements Closeable {
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
                 scriptCache ? scriptService.cacheStats() : null,
                 // TODO: Update with more metrics (including totals) after rejections merged.
-                indexingPressure ? new IndexingPressureStats(-1L, -1L, writeMemoryLimits.getWriteBytes(),
-                    writeMemoryLimits.getReplicaWriteBytes()) : null);
+                indexingPressure ? new IndexingPressureStats(-1L, -1L, writeMemoryLimits.getPrimaryAndCoordinatingBytes(),
+                    writeMemoryLimits.getReplicaBytes()) : null);
     }
 
     public IngestService getIngestService() {

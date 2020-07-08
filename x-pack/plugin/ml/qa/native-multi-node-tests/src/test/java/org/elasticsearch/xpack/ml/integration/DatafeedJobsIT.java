@@ -108,10 +108,13 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             "      \"properties\": {\n" +
             "        \"time\": {\n" +
             "          \"type\": \"date\"\n" +
+            "        }," +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
             "        }" +
             "      }\n" +
             "    }";
-        createDataStreamAndTemplate("datafeed_data_stream", "time", mapping);
+        createDataStreamAndTemplate("datafeed_data_stream", "@timestamp", mapping);
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;

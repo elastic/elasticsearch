@@ -135,7 +135,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(
-                        dataStreamName, createTimestampField("timestamp"),
+                        dataStreamName, createTimestampField("@timestamp"),
                         org.elasticsearch.common.collect.List.of(indexMetadata.getIndex()), 1L)
                     )
                     .put(indexMetadata, true)

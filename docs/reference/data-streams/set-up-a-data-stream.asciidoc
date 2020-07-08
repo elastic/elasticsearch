@@ -283,7 +283,7 @@ PUT /_data_stream/logs_alt
 You can use the <<indices-get-data-stream,get data stream API>> to get
 information about one or more data streams, including:
 
-* The timestamp field and its mapping
+* The timestamp field
 * The current backing indices, which is returned as an array. The last item in
   the array contains information about the stream's current write index.
 * The current generation

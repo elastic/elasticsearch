@@ -400,6 +400,11 @@ public class RecoverySourceHandler {
         return Releasables.releaseOnce(() -> runWithGenericThreadPool(store::decRef));
     }
 
+    /**
+     * Releasing a safe commit can access some commit files. It's better not to use {@link CancellableThreads} to interact
+     * with the file systems due to interrupt (see {@link org.apache.lucene.store.NIOFSDirectory} javadocs for more detail).
+     * This method acquires a safe commit and wraps it to make sure that it will be released using the generic thread pool.
+     */
     private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
         final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
         final AtomicBoolean closed = new AtomicBoolean(false);

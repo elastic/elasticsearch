@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      features: headers
+      features: ["headers", "allowed_warnings"]
 
   - do:
       indices.create:
@@ -84,6 +84,8 @@ teardown:
             }
 
   - do:
+      allowed_warnings:
+        - "the mapping update action [indices:admin/mapping/auto_put] on the [shared_logs] index, is granted by the [create] privilege, but the privilege has been tightened to not allow it in the next major release"
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
@@ -152,6 +154,8 @@ teardown:
             }
 
   - do:
+      allowed_warnings:
+        - "the mapping update action [indices:admin/mapping/auto_put] on the [shared_logs] index, is granted by the [create] privilege, but the privilege has been tightened to not allow it in the next major release"
       headers:
         Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:

@@ -6,13 +6,16 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -21,6 +24,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -46,12 +52,17 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.ml.inference.aggs.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -666,6 +677,56 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             false
         ), listener);
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
+    }
+
+    public void testInferenceAggRestricted() throws ExecutionException, InterruptedException {
+        String modelId = "inference-agg-restricted";
+        assertMLAllowed(true);
+        putInferenceModel(modelId);
+
+        // index some data
+        String index = "inference-agg-licence-test";
+        client().admin().indices().prepareCreate(index).setMapping("feature1", "type=double", "feature2", "type=keyword").get();
+        client().prepareBulk(index)
+            .add(new IndexRequest().source("feature1", "10.0", "feature2", "foo"))
+            .add(new IndexRequest().source("feature1", "20.0", "feature2", "foo"))
+            .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
+            .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("foobar").field("feature2");
+        AvgAggregationBuilder avgAgg = new AvgAggregationBuilder("avg_feature1").field("feature1");
+        termsAgg.subAggregation(avgAgg);
+
+        XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class);
+
+        Map<String, String> bucketPaths = new HashMap<>();
+        bucketPaths.put("feature1", "avg_feature1");
+        InferencePipelineAggregationBuilder inferenceAgg =
+            new InferencePipelineAggregationBuilder("infer_agg", null, null, bucketPaths);
+        inferenceAgg.setModelId(modelId);
+
+        termsAgg.subAggregation(inferenceAgg);
+
+        SearchRequest search = new SearchRequest(index);
+        search.source().aggregation(termsAgg);
+        client().search(search).get();
+
+        // Pick a license that does not allow machine learning
+        License.OperationMode mode = randomInvalidLicenseType();
+        enableLicensing(mode);
+        assertMLAllowed(false);
+
+        // inferring against a model should now fail
+        SearchRequest invalidSearch = new SearchRequest(index);
+        search.source().aggregation(termsAgg);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+            () -> client().search(invalidSearch).get());
+
+        assertThat(e.status(), is(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString("non-compliant -FOO"));
+        assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackField.MACHINE_LEARNING));
     }
 
     private void putInferenceModel(String modelId) {

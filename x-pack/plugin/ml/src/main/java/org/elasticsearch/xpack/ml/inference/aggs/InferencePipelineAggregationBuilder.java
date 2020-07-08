@@ -137,11 +137,11 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         this.licenseState = licenseState;
     }
 
-    void setModelId(String modelId) {
+    public void setModelId(String modelId) {
         this.modelId = modelId;
     }
 
-    void setInferenceConfig(InferenceConfigUpdate inferenceConfig) {
+    public void setInferenceConfig(InferenceConfigUpdate inferenceConfig) {
         this.inferenceConfig = inferenceConfig;
     }
 

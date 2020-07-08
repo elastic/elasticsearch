@@ -307,7 +307,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Set<Long> receivedSeqNos = ConcurrentCollections.newConcurrentSet();
         long maxSeenAutoIdTimestamp = randomBoolean() ? -1 : randomNonNegativeLong();
         long maxSeqNoOfUpdatesOrDeletes = randomBoolean() ? -1 : randomNonNegativeLong();
-        RetentionLeases retentionLeases = new RetentionLeases(randomNonNegativeLong(), randomNonNegativeLong(), List.of());
+        RetentionLeases retentionLeases = new RetentionLeases(randomNonNegativeLong(), randomNonNegativeLong(), Collections.emptySet());
         long mappingVersion = randomNonNegativeLong();
         AtomicLong localCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         int numOps = randomIntBetween(0, 1000);
@@ -932,9 +932,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final long seqNo = randomValueOtherThanMany(n -> seqNos.add(n) == false, ESTestCase::randomNonNegativeLong);
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
+                op = new Translog.Index("_doc", "id", seqNo, randomNonNegativeLong(), randomNonNegativeLong(), source, null, -1);
             } else if (randomBoolean()) {
-                op = new Translog.Delete("id", seqNo, randomNonNegativeLong(), randomNonNegativeLong());
+                op = new Translog.Delete("_doc", "id", new Term("_id", Uid.encodeId("id")),
+                    seqNo, randomNonNegativeLong(), randomNonNegativeLong());
             } else {
                 op = new Translog.NoOp(seqNo, randomNonNegativeLong(), "test");
             }

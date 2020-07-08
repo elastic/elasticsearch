@@ -194,17 +194,17 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         "events": [
           {
             "_index": "sec_logs",
-            "_id": "4",
+            "_id": "2",
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "@timestamp": "2020-12-06T11:04:07.000Z",
               "agent": {
                 "id": "8a4f500d"
               },
               "event": {
                 "category": "file",
-                "id": "bYA7gPay",
-                "sequence": 4
+                "id": "dGCHwoeS",
+                "sequence": 2
               },
               "file": {
                 "accessed": "2020-12-07T11:07:08.000Z",
@@ -219,7 +219,7 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
               }
             },
             "sort": [
-              1607339228000
+              1607252647000
             ]
           },
           {
@@ -310,17 +310,17 @@ contains the shared `agent.id` value for each matching event.
         "events": [
           {
             "_index": "sec_logs",
-            "_id": "4",
+            "_id": "2",
             "_score": null,
             "_source": {
-              "@timestamp": "2020-12-07T11:07:08.000Z",
+              "@timestamp": "2020-12-06T11:04:07.000Z",
               "agent": {
                 "id": "8a4f500d"
               },
               "event": {
                 "category": "file",
-                "id": "bYA7gPay",
-                "sequence": 4
+                "id": "dGCHwoeS",
+                "sequence": 2
               },
               "file": {
                 "accessed": "2020-12-07T11:07:08.000Z",
@@ -335,7 +335,7 @@ contains the shared `agent.id` value for each matching event.
               }
             },
             "sort": [
-              1607339228000
+              1607252647000
             ]
           },
           {

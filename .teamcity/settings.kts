@@ -7,8 +7,6 @@ version = "2020.1"
 val developmentBranches = listOf("master", "7.x", "7.8", "6.8")
 
 project {
-    vcsRoot(TeamCityVcsRoot)
-
     developmentBranches.forEach { devBranch ->
         subProject {
             id(devBranch.replace('.', '_'))
@@ -24,10 +22,3 @@ project {
         }
     }
 }
-
-object TeamCityVcsRoot : GitVcsRoot({
-    name = "Elasticsearch Kotlin DSL"
-
-    url = "https://github.com/elastic/elasticsearch.git"
-    branch = "refs/heads/teamcity"
-})

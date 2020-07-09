@@ -62,7 +62,7 @@ that might occur in a document. When dynamic mapping is enabled, {es}
 automatically detects and adds new fields to the index. This default
 behavior makes it easy to index and explore your data--just start
 indexing documents and {es} will detect and map booleans, floating point and
-integer values, dates, and strings to the appropriate {es} datatypes.
+integer values, dates, and strings to the appropriate {es} data types.
 
 Ultimately, however, you know more about your data and how you want to use it
 than {es} can. You can define rules to control dynamic mapping and explicitly

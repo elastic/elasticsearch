@@ -42,8 +42,10 @@
 ** <<sql-functions-aggs-percentile-rank>>
 ** <<sql-functions-aggs-skewness>>
 ** <<sql-functions-aggs-stddev-pop>>
+** <<sql-functions-aggs-stddev-samp>>
 ** <<sql-functions-aggs-sum-squares>>
 ** <<sql-functions-aggs-var-pop>>
+** <<sql-functions-aggs-var-samp>>
 * <<sql-functions-grouping>>
 ** <<sql-functions-grouping-histogram>>
 * <<sql-functions-datetime-interval, Date-Time Operators>>

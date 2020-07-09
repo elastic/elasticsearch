@@ -89,15 +89,6 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             super(NAME, Collections.emptyMap());
         }
 
-        protected TypeFieldType(TypeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new TypeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

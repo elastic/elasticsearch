@@ -59,11 +59,6 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MappedFieldType clone() {
-            return new TimestampFieldType();
-        }
-
-        @Override
         public String typeName() {
             return NAME;
         }

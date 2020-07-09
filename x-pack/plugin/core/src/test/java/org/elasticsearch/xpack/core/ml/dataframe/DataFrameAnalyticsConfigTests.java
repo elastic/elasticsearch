@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -494,6 +495,32 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-data_frame_analytics_config-foo"),
             equalTo("data_frame_analytics_config-foo"));
         assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("foo"), is(nullValue()));
+    }
+
+    public void testCtor_GivenMaxNumThreadsIsZero() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(new Regression("foo"))
+            .setMaxNumThreads(0)
+            .build());
+
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
+    }
+
+    public void testCtor_GivenMaxNumThreadsIsNegative() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
+            .setId("test_config")
+            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null))
+            .setDest(new DataFrameAnalyticsDest("dest_index", null))
+            .setAnalysis(new Regression("foo"))
+            .setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0))
+            .build());
+
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
     }
 
     private static void assertTooSmall(ElasticsearchStatusException e) {

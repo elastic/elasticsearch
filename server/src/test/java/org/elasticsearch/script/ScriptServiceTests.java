@@ -515,7 +515,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .build());
         });
         assertEquals("Cannot set custom general compilation rates [script.max_compilations_rate] " +
-                "to [Tuple [v1=76, v2=10m]] if compile " +
+                "to [76/10m] if compile " +
                 "rates disabled via [script.disable_max_compilations_rate]",
                 illegal.getMessage());
 
@@ -636,7 +636,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertNotNull(holder.contextCache.get(name));
         assertNotNull(holder.contextCache.get(name).get());
 
-        assertEquals(ingest.maxCompilationRateDefault, holder.contextCache.get(name).get().rate);
+        assertEquals(ingest.maxCompilationRateDefault, holder.contextCache.get(name).get().rate.asTuple());
         assertEquals(ingest.cacheSizeDefault, holder.contextCache.get(name).get().cacheSize);
         assertEquals(ingest.cacheExpireDefault, holder.contextCache.get(name).get().cacheExpire);
 

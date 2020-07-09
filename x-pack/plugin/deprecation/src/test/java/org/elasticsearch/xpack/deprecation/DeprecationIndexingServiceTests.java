@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecatedMessage;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -61,7 +62,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * "started" lifecycle state.
      */
     public void testDoesNotWriteMessageWhenServiceNotStarted() {
-        service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
+        service.log("a key", DeprecatedMessage.of(null, "a message"));
 
         verify(consumer, never()).accept(any());
     }
@@ -73,7 +74,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     public void testDoesNotWriteMessageWhenServiceDisabled() {
         service.start();
 
-        service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
+        service.log("a key", DeprecatedMessage.of(null, "a message"));
 
         verify(consumer, never()).accept(any());
     }
@@ -86,7 +87,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         service.clusterChanged(getEvent(true));
         service.clusterChanged(getEvent(false));
 
-        service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
+        service.log("a key", DeprecatedMessage.of(null, "a message"));
 
         verify(consumer, never()).accept(any());
     }
@@ -98,7 +99,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         service.start();
         service.clusterChanged(getEvent(true));
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", null, new ESLogMessage("a message"));
+        final Map<String, Object> payloadMap = getWriteRequest("a key", DeprecatedMessage.of(null, "a message"));
 
         assertThat(payloadMap, hasKey("@timestamp"));
         assertThat(payloadMap, hasEntry("key", "a key"));
@@ -114,7 +115,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         service.start();
         service.clusterChanged(getEvent(true));
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", "an ID", new ESLogMessage("a message"));
+        final Map<String, Object> payloadMap = getWriteRequest("a key", DeprecatedMessage.of("an ID", "a message"));
 
         assertThat(payloadMap, hasEntry("x-opaque-id", "an ID"));
     }
@@ -126,7 +127,10 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         service.start();
         service.clusterChanged(getEvent(true));
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", null, new ESLogMessage("a {} and {} message", "first", "second"));
+        final Map<String, Object> payloadMap = getWriteRequest(
+            "a key",
+            DeprecatedMessage.of(null, "a {} and {} message", "first", "second")
+        );
 
         assertThat(payloadMap, hasEntry("message", "a first and second message"));
     }
@@ -142,8 +146,8 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     /*
      * Wraps up the steps for extracting an index request payload from the mocks.
      */
-    private Map<String, Object> getWriteRequest(String key, String xOpaqueId, ESLogMessage message) {
-        service.log(key, xOpaqueId, message);
+    private Map<String, Object> getWriteRequest(String key, ESLogMessage message) {
+        service.log(key, message);
 
         ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
 

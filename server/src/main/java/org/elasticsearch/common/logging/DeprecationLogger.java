@@ -118,7 +118,7 @@ public class DeprecationLogger {
                 warningLogger.log(deprecationMessage);
 
                 for (DeprecatedLogHandler handler : additionalHandlers) {
-                    handler.log(key, opaqueId, deprecationMessage);
+                    handler.log(key, deprecationMessage);
                 }
             });
             return this;

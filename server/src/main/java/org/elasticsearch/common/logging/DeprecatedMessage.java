@@ -28,7 +28,7 @@ import org.elasticsearch.common.SuppressLoggerChecks;
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
  */
 public class DeprecatedMessage  {
-    private static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
+    public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage of(String xOpaqueId, String messagePattern, Object... args){

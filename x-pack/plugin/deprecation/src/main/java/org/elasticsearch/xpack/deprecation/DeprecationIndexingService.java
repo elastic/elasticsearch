@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
+import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
 /**
  * This service is responsible for writing deprecation messages to a data stream.
@@ -55,7 +56,7 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
      *                     Useful when aggregating the recorded messages.
      * @param esLogMessage the message to log
      */
-    public void log(String key, String xOpaqueId, ESLogMessage esLogMessage) {
+    public void log(String key, ESLogMessage esLogMessage) {
         if (this.lifecycle.started() == false) {
             return;
         }
@@ -72,6 +73,8 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
         payload.put("@timestamp", Instant.now().toString());
         payload.put("key", key);
         payload.put("message", message);
+
+        String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
 
         if (isNullOrEmpty(xOpaqueId) == false) {
             payload.put("x-opaque-id", xOpaqueId);

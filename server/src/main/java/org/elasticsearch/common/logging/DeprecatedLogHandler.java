@@ -27,10 +27,7 @@ public interface DeprecatedLogHandler {
     /**
      * Handle a single deprecation log message.
      * @param key       a value that should uniquely identify the deprecation
-     * @param xOpaqueId the value of any <code>X-Opaque-Id</code> header that was submitted
-     *                  with a REST request. This allows deprecation messages to be linked to
-     *                  whatever triggered the deprecation behaviour in the first place.
      * @param message   the deprecation message itself
      */
-    void log(String key, String xOpaqueId, ESLogMessage message);
+    void log(String key, ESLogMessage message);
 }

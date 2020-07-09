@@ -560,6 +560,7 @@ You can search for a sequence of events with the same PID value using the `by`
 and `sequence by` keywords.
 
 .*Example*
+[%collapsible]
 =====
 The following EQL query uses the `sequence by` keyword to match a sequence of
 events that share the same `process.pid` value.
@@ -578,6 +579,7 @@ use the `until` keyword to end matching sequences before a process termination
 event.
 
 .*Example*
+[%collapsible]
 =====
 The following EQL query uses the `until` keyword to end sequences before
 `process` events with an `event.type` of `termination`. These events indicate a

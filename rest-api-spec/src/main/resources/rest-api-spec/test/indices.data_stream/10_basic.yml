@@ -299,8 +299,7 @@ setup:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: {}
+          data_stream: {}
 
   - do:
       catch: bad_request

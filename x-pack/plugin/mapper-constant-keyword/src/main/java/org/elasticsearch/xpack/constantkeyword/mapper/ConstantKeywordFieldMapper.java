@@ -102,7 +102,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             if (value != null) {
                 builder.setValue(value.toString());
             }
-            TypeParsers.parseMeta(builder, name, node);
+            if (node.containsKey("meta")) {
+                builder.meta(TypeParsers.parseMeta(name, node.remove("meta")));
+            }
             return builder;
         }
     }
@@ -152,11 +154,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-        
+
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
-        }        
+        }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {

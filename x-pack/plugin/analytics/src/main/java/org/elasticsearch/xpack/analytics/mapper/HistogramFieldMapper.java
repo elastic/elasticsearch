@@ -170,18 +170,9 @@ public class HistogramFieldMapper extends FieldMapper {
             super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
-        HistogramFieldType(HistogramFieldType ref) {
-            super(ref);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new HistogramFieldType(this);
         }
 
         @Override

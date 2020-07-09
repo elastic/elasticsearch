@@ -15,7 +15,7 @@ setup:
         body:  >
           {
             "indices": [
-              { "names": ["simple*"], "privileges": ["read", "write", "view_index_metadata"] }
+              { "names": ["simple*"], "privileges": ["read", "write", "view_index_metadata", "monitor"] }
             ]
           }
 

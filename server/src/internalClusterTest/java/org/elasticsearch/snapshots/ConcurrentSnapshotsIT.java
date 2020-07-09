@@ -1152,12 +1152,13 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String indexFast = "index-fast";
         createIndexWithContent(indexFast, dataNode2, dataNode);
 
-        assertSuccessful(client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot")
-                .setIndices(indexFast).setWaitForCompletion(true).execute());
+        final ActionFuture<CreateSnapshotResponse> createFastSnapshot =
+                client().admin().cluster().prepareCreateSnapshot(repoName, "fast-snapshot").setWaitForCompletion(true).execute();
 
         assertThat(createSlowFuture.isDone(), is(false));
         unblockNode(repoName, dataNode);
 
+        assertSuccessful(createFastSnapshot);
         assertSuccessful(createSlowFuture);
 
         final RepositoryData repositoryData = getRepositoryData(repoName);

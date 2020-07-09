@@ -1759,7 +1759,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         try {
-            final String generation = ShardGenerations.fixShardGeneration(snapshotStatus.generation());
+            final String generation = snapshotStatus.generation();
             logger.debug("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
             final Set<String> blobs;
@@ -2238,8 +2238,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private Tuple<BlobStoreIndexShardSnapshots, String> buildBlobStoreIndexShardSnapshots(Set<String> blobs,
                                                                                           BlobContainer shardContainer,
                                                                                           @Nullable String generation) throws IOException {
-        assert ShardGenerations.fixShardGeneration(generation) == generation
-                : "Generation must not be numeric but received [" + generation + "]";
         if (generation != null) {
             if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                 return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);

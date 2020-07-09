@@ -70,6 +70,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
@@ -166,12 +167,14 @@ public class CompositeRolesStore {
                                     rolesRetrievalResult.getMissingRoles()));
                         }
                         final Set<RoleDescriptor> effectiveDescriptors;
-                        if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS)) {
-                            effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors();
+                        Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
+                        if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity) &&
+                            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                            effectiveDescriptors = roleDescriptors.stream()
+                                .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
+                                .collect(Collectors.toSet());
                         } else {
-                            effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors().stream()
-                                    .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
-                                    .collect(Collectors.toSet());
+                            effectiveDescriptors = roleDescriptors;
                         }
                         logger.trace(() -> new ParameterizedMessage("Exposing effective role descriptors [{}] for role names [{}]",
                                 effectiveDescriptors, roleNames));

@@ -83,6 +83,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -131,6 +132,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
+    private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(
             final Settings settings,
@@ -140,7 +142,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
 
-        setLicenseState(new XPackLicenseState(settings));
+        setLicenseState(new XPackLicenseState(settings, () -> epochMillisSupplier.get().getAsLong()));
 
         this.licensing = new Licensing(settings);
     }
@@ -239,6 +241,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
+
+        epochMillisSupplier.set(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);

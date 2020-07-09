@@ -35,7 +35,7 @@ public class RollupInfoTransportActionTests extends ESTestCase {
         RollupInfoTransportAction featureSet = new RollupInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP)).thenReturn(available);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.ROLLUP)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

@@ -31,7 +31,7 @@ public class SLMInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.ILM);
+        return licenseState.checkFeature(XPackLicenseState.Feature.ILM);
     }
 
     @Override

@@ -35,7 +35,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.EQL);
+        return licenseState.checkFeature(XPackLicenseState.Feature.EQL);
     }
 
     @Override

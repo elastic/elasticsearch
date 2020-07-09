@@ -19,7 +19,7 @@
             },
             "block":{
               "type":"string",
-              "description":"The block to add (one of read, write, read_only, metadata, read_only_allow_delete)"
+              "description":"The block to add (one of read, write, read_only or metadata)"
             }
           }
         }

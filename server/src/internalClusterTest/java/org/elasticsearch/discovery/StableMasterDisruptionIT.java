@@ -37,9 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkUnresponsive;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -91,9 +89,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
 
-        NetworkDisruption networkDisconnect = new NetworkDisruption(
-            new NetworkDisruption.TwoPartitions(masterNode, unluckyNode),
-            new NetworkDisruption.NetworkDisconnect());
+        NetworkDisruption networkDisconnect =
+            new NetworkDisruption(new NetworkDisruption.TwoPartitions(masterNode, unluckyNode), NetworkDisruption.DISCONNECT);
         setDisruptionScheme(networkDisconnect);
         networkDisconnect.startDisrupting();
 
@@ -123,14 +120,14 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
      * Verify that nodes fault detection detects a disconnected node after master reelection
      */
     public void testFollowerCheckerDetectsDisconnectedNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(new NetworkDisconnect(), Settings.EMPTY);
+        testFollowerCheckerAfterMasterReelection(NetworkDisruption.DISCONNECT, Settings.EMPTY);
     }
 
     /**
      * Verify that nodes fault detection detects an unresponsive node after master reelection
      */
     public void testFollowerCheckerDetectsUnresponsiveNodeAfterMasterReelection() throws Exception {
-        testFollowerCheckerAfterMasterReelection(new NetworkUnresponsive(), Settings.builder()
+        testFollowerCheckerAfterMasterReelection(NetworkDisruption.UNRESPONSIVE, Settings.builder()
             .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
             .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), "4")
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "1s")

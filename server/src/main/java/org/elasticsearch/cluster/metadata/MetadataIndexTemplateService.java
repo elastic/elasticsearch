@@ -50,6 +50,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -1136,7 +1137,15 @@ public class MetadataIndexTemplateService {
                         validateTimestampFieldMapping(tsFieldName, mapperService);
                     }
                 } catch (Exception e) {
-                    throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
+                    final String expectedMessageIfDataStreamsIsUsedAndNotSupported =
+                        "Failed to parse mapping: Root mapping definition has unsupported parameters:  [_timestamp : {path=@timestamp}]";
+                    if (expectedMessageIfDataStreamsIsUsedAndNotSupported.equals(e.getMessage())) {
+                        // Fail like a parsing expection, since we will be moving data_stream template out of server module and
+                        // then we would fail with the same error message, like we do here.
+                        throw new XContentParseException("[index_template] unknown field [@timestamp]");
+                    } else {
+                        throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
+                    }
                 }
                 return null;
             });

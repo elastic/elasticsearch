@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionModule;
@@ -65,7 +64,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/1349")
 public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String BOOLEAN_FIELD = "boolean-field";
@@ -696,7 +694,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private static void createIndex(String index, boolean isDatastream) {
         String mapping = "{\n" +
             "      \"properties\": {\n" +
-            "        \"time\": {\n" +
+            "        \"@timestamp\": {\n" +
             "          \"type\": \"date\"\n" +
             "        }," +
             "        \""+ BOOLEAN_FIELD + "\": {\n" +
@@ -729,7 +727,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "    }";
         if (isDatastream) {
             try {
-                createDataStreamAndTemplate(index, "time", mapping);
+                createDataStreamAndTemplate(index, "@timestamp", mapping);
             } catch (IOException ex) {
                 throw new ElasticsearchException(ex);
             }
@@ -745,6 +743,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {
             List<Object> source = List.of(
+                "@timestamp", "2020-12-12",
                 BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                 NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
                 DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
@@ -775,6 +774,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             if (NESTED_FIELD.equals(dependentVariable) == false) {
                 source.addAll(List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
+            source.addAll(List.of("@timestamp", "2020-12-12"));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
@@ -889,5 +889,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private String expectedDestIndexAuditMessage() {
         return (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]";
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

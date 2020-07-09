@@ -60,7 +60,7 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    private final boolean forceExecutionOnPrimary;
+    private final boolean forceExecution;
     private final WriteMemoryLimits writeMemoryLimits;
     private final String executor;
 
@@ -74,18 +74,24 @@ public abstract class TransportWriteAction<
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
+        this.forceExecution = forceExecutionOnPrimary;
         this.writeMemoryLimits = writeMemoryLimits;
     }
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return writeMemoryLimits.markCoordinatingOperationStarted(primaryOperationSize(request));
+        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecution);
     }
 
     @Override
-    protected Releasable checkPrimaryLimits(Request request) {
-        return writeMemoryLimits.markPrimaryOperationStarted(primaryOperationSize(request));
+    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal) {
+        // If this primary request was submitted by a reroute performed on this local node, we have already
+        // accounted the bytes.
+        if (rerouteWasLocal) {
+            return () -> {};
+        } else {
+            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecution);
+        }
     }
 
     protected long primaryOperationSize(Request request) {
@@ -94,7 +100,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return writeMemoryLimits.markReplicaOperationStarted(replicaOperationSize(request));
+        return writeMemoryLimits.markReplicaWriteStarted(replicaOperationSize(request), forceExecution);
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
@@ -150,7 +156,7 @@ public abstract class TransportWriteAction<
 
             @Override
             public boolean isForceExecution() {
-                return forceExecutionOnPrimary;
+                return forceExecution;
             }
         });
     }

@@ -391,6 +391,8 @@ public final class InternalTestCluster extends TestCluster {
                 RandomNumbers.randomIntBetween(random, 20, 50)));
         builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(),
             RandomNumbers.randomIntBetween(random, 1, 5));
+        builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING.getKey(),
+            RandomNumbers.randomIntBetween(random, 1, 4));
         defaultSettings = builder.build();
         executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                 EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
@@ -1164,19 +1166,14 @@ public final class InternalTestCluster extends TestCluster {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 WriteMemoryLimits writeMemoryLimits = getInstance(WriteMemoryLimits.class, nodeAndClient.name);
-                final long coordinatingBytes = writeMemoryLimits.getCoordinatingBytes();
-                if (coordinatingBytes > 0) {
-                    throw new AssertionError("pending coordinating write bytes [" + coordinatingBytes + "] bytes on node ["
+                final long writeBytes = writeMemoryLimits.getWriteBytes();
+                if (writeBytes > 0) {
+                    throw new AssertionError("pending write bytes [" + writeBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
-                final long primaryBytes = writeMemoryLimits.getPrimaryBytes();
-                if (primaryBytes > 0) {
-                    throw new AssertionError("pending primary write bytes [" + coordinatingBytes + "] bytes on node ["
-                        + nodeAndClient.name + "].");
-                }
-                final long replicaBytes = writeMemoryLimits.getReplicaBytes();
-                if (replicaBytes > 0) {
-                    throw new AssertionError("pending replica write bytes [" + coordinatingBytes + "] bytes on node ["
+                final long replicaWriteBytes = writeMemoryLimits.getReplicaWriteBytes();
+                if (replicaWriteBytes > 0) {
+                    throw new AssertionError("pending replica write bytes [" + writeBytes + "] bytes on node ["
                         + nodeAndClient.name + "].");
                 }
             }

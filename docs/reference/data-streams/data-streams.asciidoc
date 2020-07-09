@@ -1,3 +1,4 @@
+[role="xpack"]
 [[data-streams]]
 = Data streams
 ++++

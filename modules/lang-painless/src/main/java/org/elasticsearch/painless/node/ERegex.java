@@ -20,7 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubNode;
@@ -32,6 +31,11 @@ import org.elasticsearch.painless.ir.MemberFieldStoreNode;
 import org.elasticsearch.painless.ir.StatementExpressionNode;
 import org.elasticsearch.painless.ir.StaticNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -63,13 +67,18 @@ public class ERegex extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitRegex(this, input);
+    }
+
+    @Override
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
@@ -95,8 +104,9 @@ public class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
+        semanticScope.putDecoration(this, new ValueType(Pattern.class));
+
         String name = semanticScope.getScriptScope().getNextSyntheticName("regex");
-        output.actual = Pattern.class;
 
         FieldNode fieldNode = new FieldNode();
         fieldNode.setLocation(getLocation());
@@ -173,7 +183,6 @@ public class ERegex extends AExpression {
         memberFieldLoadNode.setExpressionType(Pattern.class);
         memberFieldLoadNode.setName(name);
         memberFieldLoadNode.setStatic(true);
-
         output.expressionNode = memberFieldLoadNode;
 
         return output;

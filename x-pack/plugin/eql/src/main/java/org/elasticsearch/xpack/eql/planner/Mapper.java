@@ -78,7 +78,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                         map(s.until().child()),
                         s.timestamp(),
                         s.tiebreaker(),
-                        s.direction(), s.maxSpan());
+                        s.direction(), 
+                        s.maxSpan());
             }
 
             if (p instanceof LocalRelation) {

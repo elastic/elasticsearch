@@ -155,10 +155,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         static BinaryFieldMapper createQueryBuilderFieldBuilder(BuilderContext context) {
-            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME);
-            builder.docValues(true);
-            builder.indexOptions(IndexOptions.NONE);
-            builder.store(false);
+            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME, true);
             return builder.build(context);
         }
 
@@ -400,6 +397,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     private static final FieldType INDEXED_KEYWORD = new FieldType();
     static {
         INDEXED_KEYWORD.setTokenized(false);
+        INDEXED_KEYWORD.setOmitNorms(true);
         INDEXED_KEYWORD.setIndexOptions(IndexOptions.DOCS);
         INDEXED_KEYWORD.freeze();
     }

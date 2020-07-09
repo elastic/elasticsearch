@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
@@ -81,7 +82,7 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
         MeanSquaredError.Result mseResult = (MeanSquaredError.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredError.NAME.getPreferredName()));
-        assertThat(mseResult.getError(), equalTo(1000000.0));
+        assertThat(mseResult.getValue(), equalTo(1000000.0));
     }
 
     public void testEvaluate_MeanSquaredLogarithmicError() {
@@ -95,7 +96,21 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
 
         MeanSquaredLogarithmicError.Result msleResult = (MeanSquaredLogarithmicError.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(msleResult.getMetricName(), equalTo(MeanSquaredLogarithmicError.NAME.getPreferredName()));
-        assertThat(msleResult.getError(), closeTo(Math.pow(Math.log(1001), 2), 10E-6));
+        assertThat(msleResult.getValue(), closeTo(Math.pow(Math.log(1000 + 1), 2), 10E-6));
+    }
+
+    public void testEvaluate_Huber() {
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
+            evaluateDataFrame(
+                HOUSES_DATA_INDEX,
+                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new Huber((Double) null))));
+
+        assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
+        assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
+
+        Huber.Result huberResult = (Huber.Result) evaluateDataFrameResponse.getMetrics().get(0);
+        assertThat(huberResult.getMetricName(), equalTo(Huber.NAME.getPreferredName()));
+        assertThat(huberResult.getValue(), closeTo(Math.sqrt(1000000 + 1) - 1, 10E-6));
     }
 
     public void testEvaluate_RSquared() {
@@ -132,5 +147,10 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
         if (bulkResponse.hasFailures()) {
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

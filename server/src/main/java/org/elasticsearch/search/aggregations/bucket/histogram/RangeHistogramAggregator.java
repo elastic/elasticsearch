@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -53,7 +54,7 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         super(
@@ -69,7 +70,7 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             valuesSourceConfig.format(),
             context,
             parent,
-            collectsFromSingleBucket,
+            cardinality,
             metadata
         );
         // TODO: Stop using nulls here

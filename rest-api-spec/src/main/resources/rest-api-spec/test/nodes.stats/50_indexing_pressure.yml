@@ -1,6 +1,8 @@
 ---
 "Indexing pressure stats":
   - skip:
+      version: " - 7.99.99"
+      reason: "indexing_pressure not in prior versions"
       features: [arbitrary_key]
 
   - do:
@@ -18,3 +20,7 @@
   - gte:  { nodes.$node_id.indexing_pressure.pending_replica_bytes: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.primary_and_coordinating_rejections: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.replica_rejections: 0 }
+
+# TODO:
+#
+# Change skipped version after backport

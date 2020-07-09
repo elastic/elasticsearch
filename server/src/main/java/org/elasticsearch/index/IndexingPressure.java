@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class IndexingPressure {
 
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
-        Setting.memorySizeSetting("indexing_limits.memory.limit", "10%", Setting.Property.NodeScope);
+        Setting.memorySizeSetting("indexing_pressure.memory.limit", "10%", Setting.Property.NodeScope);
 
     private final AtomicLong pendingPrimaryAndCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong pendingReplicaBytes = new AtomicLong(0);

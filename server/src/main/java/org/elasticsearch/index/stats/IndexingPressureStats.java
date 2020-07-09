@@ -57,7 +57,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // TODO: Add total
         out.writeVLong(totalPrimaryAndCoordinatingBytes);
         out.writeVLong(totalReplicaBytes);
         out.writeVLong(pendingPrimaryAndCoordinatingBytes);

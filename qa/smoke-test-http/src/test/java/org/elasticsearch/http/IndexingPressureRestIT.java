@@ -24,6 +24,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.XContentTestUtils;
@@ -51,7 +52,7 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put("indexing_limits.memory.limit", "1KB")
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1KB")
             .put(unboundedWriteQueue)
             .build();
     }

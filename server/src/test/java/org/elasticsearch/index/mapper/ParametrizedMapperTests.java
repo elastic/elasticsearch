@@ -99,7 +99,10 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             = Parameter.stringParam("variable", true, m -> toType(m).variable, "default").acceptsNull();
         final Parameter<StringWrapper> wrapper
             = new Parameter<>("wrapper", true, new StringWrapper("default"),
-            (n, c, o) -> { if (o == null) return null; return new StringWrapper(o.toString()); },
+            (n, c, o) -> {
+                if (o == null) return null;
+                return new StringWrapper(o.toString());
+                },
             m -> toType(m).wrapper).setSerializer((b, n, v) -> b.field(n, v.name));
         final Parameter<Integer> intValue = Parameter.intParam("int_value", true, m -> toType(m).intValue, 5)
             .setValidator(n -> {

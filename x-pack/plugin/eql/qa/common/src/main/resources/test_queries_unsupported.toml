@@ -345,35 +345,8 @@ process where true
 | sort serial_event_id
 '''
 
-
 [[queries]]
 name = "fourSequencesByPidWithUntil1"
-query = '''
-sequence
-  [process where opcode == 1] by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-until
-  [file where opcode == 2]    by unique_pid
-'''
-expected_event_ids  = []
-
-[[queries]]
-name = "fourSequencesByPidWithUntil2"
-query = '''
-sequence
-  [process where opcode == 1] by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-  [file where opcode == 0]    by unique_pid
-until
-  [file where opcode == 200]  by unique_pid
-'''
-expected_event_ids  = [54, 55, 61, 67]
-
-[[queries]]
-name = "doubleSameSequenceWithByAndFilter"
 query = '''
 sequence
   [file where opcode=0] by unique_pid
@@ -384,17 +357,6 @@ expected_event_ids  = [87, 92]
 
 [[queries]]
 name = "doubleSameSequenceWithByUntilAndHead2"
-query = '''
-sequence
-  [file where opcode=0 and file_name="*.exe"] by unique_pid
-  [file where opcode=0 and file_name="*.exe"] by unique_pid
-until [process where opcode=1] by unique_ppid
-| head 1
-'''
-expected_event_ids = []
-
-[[queries]]
-name = "doubleJoinWithByUntilAndHead"
 query = '''
 join
   [file where opcode=0 and file_name="*.exe"] by unique_pid
@@ -697,29 +659,6 @@ expected_event_ids  = [48, 50, 51, 54, 93]
 
 [[queries]]
 name = "twoSequencesWithTwoKeysAndUntil"
-query = '''
-sequence by user_name
-  [file where opcode=0] by pid,file_path
-  [file where opcode=2] by pid,file_path
-until
-  [process where opcode == 2] by ppid,process_path
-'''
-expected_event_ids = []
-
-[[queries]]
-name = "twoSequencesWithUntil"
-query = '''
-sequence by user_name
-  [file where opcode=0] by pid,file_path
-  [file where opcode=2] by pid,file_path
-until
-  [process where opcode == 5] by ppid,process_path
-| head 2
-'''
-expected_event_ids  = [55, 59, 61, 65]
-
-[[queries]]
-name = "twoSequencesWithHead"
 query = '''
 join by user_name
   [file where true] by pid,file_path

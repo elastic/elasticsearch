@@ -16,14 +16,14 @@ file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
 '''
 
 [[queries]]
-name = "cidrMatchAdditional1"
+name = "stringCidrMatch1"
 expected_event_ids = [75304, 75305]
 query = '''
 network where cidrMatch(source_address, "10.6.48.157/8") == true
 '''
 
 [[queries]]
-name = "stringCidrMatch"
+name = "stringCidrMatch2"
 expected_event_ids = [75304, 75305]
 query = '''
 network where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
@@ -133,7 +133,7 @@ expected_event_ids = [11]
 
 
 [[queries]]
-name = "mathcWithCharacterClasses1"
+name = "matchWithCharacterClasses1"
 expected_event_ids  = [98]
 notes = "regexp doesn't support character classes"
 query = '''
@@ -150,7 +150,7 @@ process where matchLite(command_line, ?'.*?net1.*?')
 '''
 
 [[queries]]
-name = "mathcWithCharacterClasses2"
+name = "matchWithCharacterClasses2"
 expected_event_ids  = [98]
 notes = "regexp doesn't support predefined character classes (like \\s)"
 query = '''

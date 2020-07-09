@@ -154,19 +154,12 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
             this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, defaultAnalyzer);
-            this.searchAnalyzer = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, defaultAnalyzer)
-                .setValidator(this::validateAnalyzers);
+            this.searchAnalyzer = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, defaultAnalyzer);
         }
 
         private static void validateInputLength(int maxInputLength) {
             if (maxInputLength <= 0) {
                 throw new IllegalArgumentException("[max_input_length] must be > 0 but was [" + maxInputLength + "]");
-            }
-        }
-
-        private void validateAnalyzers(NamedAnalyzer searchAnalyzer) {
-            if (this.searchAnalyzer.isSet() && this.analyzer.isSet() == false) {
-                throw new MapperParsingException("analyzer on completion field [" + name + "] must be set when search_analyzer is set");
             }
         }
 

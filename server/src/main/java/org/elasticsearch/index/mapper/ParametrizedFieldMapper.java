@@ -134,7 +134,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
         private T value;
-        private boolean set = false;
 
         /**
          * Creates a new Parameter
@@ -166,14 +165,6 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public void setValue(T value) {
             this.value = value;
-            this.set = true;
-        }
-
-        /**
-         * @return {@code true} if this parameter has been set
-         */
-        public boolean isSet() {
-            return this.set;
         }
 
         /**
@@ -230,7 +221,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             if (updateable == false && Objects.equals(this.value, value) == false) {
                 conflicts.addConflict(name, this.value.toString(), value.toString());
             } else {
-                this.value = value;
+                setValue(value);
             }
         }
 

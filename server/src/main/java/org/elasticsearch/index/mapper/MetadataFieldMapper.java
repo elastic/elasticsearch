@@ -66,6 +66,10 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
+    public void validate(DocumentFieldMappers lookup) {
+        // noop by default
+    }
+
     /**
      * Called before {@link FieldMapper#parse(ParseContext)} on the {@link RootObjectMapper}.
      */

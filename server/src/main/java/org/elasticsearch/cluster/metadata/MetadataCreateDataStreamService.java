@@ -37,7 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ValidateableMetadataFieldMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -173,8 +173,8 @@ public class MetadataCreateDataStreamService {
     }
 
     public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
-        ValidateableMetadataFieldMapper fieldMapper =
-            (ValidateableMetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_timestamp");
+        MetadataFieldMapper fieldMapper =
+            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_timestamp");
         assert fieldMapper != null : "[_timestamp] meta field mapper must exist";
 
         Map<String, Object> parsedTemplateMapping =

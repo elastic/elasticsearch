@@ -43,7 +43,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.script.ScriptService.CacheHolder;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
@@ -368,19 +367,6 @@ public class ScriptServiceTests extends ESTestCase {
         });
         assertEquals("script.max_size_in_bytes cannot be set to [2], stored script [test1] exceeds the new value with a size of [3]",
                 iae.getMessage());
-    }
-
-    public void testUseContextSettingValue() {
-        Settings s = Settings.builder()
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("foo").getKey(),
-                 ScriptService.USE_CONTEXT_RATE_KEY)
-            .build();
-
-        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
-            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getAsMap(s);
-        });
-
-        assertEquals("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [use-context]", illegal.getMessage());
     }
 
     public void testCacheHolderContextConstructor() throws IOException {

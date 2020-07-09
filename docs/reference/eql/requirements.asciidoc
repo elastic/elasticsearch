@@ -36,7 +36,7 @@ mapped as a <<date,`date`>> field.
 
 [NOTE]
 ====
-You cannot use a <<nested,`nested`>> field datatype or the sub-fields of a
+You cannot use a <<nested,`nested`>> field data type or the sub-fields of a
 `nested` field dataype as the timestamp or event category field. See
 <<eql-nested-fields>>.
 ====

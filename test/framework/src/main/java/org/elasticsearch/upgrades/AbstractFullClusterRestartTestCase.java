@@ -76,4 +76,9 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
     protected boolean preserveSLMPoliciesUponCompletion() {
         return true;
     }
+
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
 }

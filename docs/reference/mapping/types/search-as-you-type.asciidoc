@@ -1,5 +1,5 @@
 [[search-as-you-type]]
-=== Search-as-you-type datatype
+=== Search-as-you-type data type
 ++++
 <titleabbrev>Search-as-you-type</titleabbrev>
 ++++
@@ -180,7 +180,7 @@ More subfields enables more specific queries but increases index size.
 
 The following parameters are accepted in a mapping for the `search_as_you_type`
 field due to its nature as a text-like field, and behave similarly to their
-behavior when configuring a field of the <<text,`text`>> datatype. Unless
+behavior when configuring a field of the <<text,`text`>> data type. Unless
 otherwise noted, these options configure the root fields subfields in
 the same way.
 

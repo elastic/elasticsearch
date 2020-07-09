@@ -58,7 +58,7 @@ public class AggregatorBaseTests extends ESSingleNodeTestCase {
 
     class BogusAggregator extends AggregatorBase {
         BogusAggregator(SearchContext searchContext, Aggregator parent) throws IOException {
-            super("bogus", AggregatorFactories.EMPTY, searchContext, parent, Map.of());
+            super("bogus", AggregatorFactories.EMPTY, searchContext, parent, CardinalityUpperBound.NONE, Map.of());
         }
 
         @Override

@@ -969,9 +969,9 @@ public class MetadataIndexTemplateService {
         Optional.ofNullable(template.template())
             .map(Template::mappings)
             .ifPresent(mappings::add);
-        if (template.getDataStreamTemplate() != null) {
+        if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
-            // straightforward
+            // straightforward as all backing indices are required to have a timestamp field
             mappings.add(0, new CompressedXContent(wrapMappingsIfNecessary(DEFAULT_TIMESTAMP_MAPPING, xContentRegistry)));
         }
 

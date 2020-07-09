@@ -41,6 +41,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -811,81 +812,189 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "    }"), null), null, null);
 
         state = service.addComponentTemplate(state, true, "ct1", ct1);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"),
-            new Template(null,
-                new CompressedXContent("{\n" +
-                    "    \"properties\": {\n" +
-                    "      \"field2\": {\n" +
-                    "        \"type\": \"integer\"\n" +
-                    "      }\n" +
-                    "    }\n" +
-                    "  }"), null),
-            List.of("ct1"), 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
-        state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index",
-            xContentRegistry());
+        {
+            ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs*"),
+                new Template(null,
+                    new CompressedXContent("{\n" +
+                        "    \"properties\": {\n" +
+                        "      \"field2\": {\n" +
+                        "        \"type\": \"integer\"\n" +
+                        "      }\n" +
+                        "    }\n" +
+                        "  }"), null),
+                List.of("ct1"), 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+            state = service.addIndexTemplateV2(state, true, "logs-data-stream-template", it);
 
-        assertNotNull(mappings);
-        assertThat(mappings.size(), equalTo(3));
-        List<Map<String, Object>> parsedMappings = mappings.stream()
-            .map(m -> {
-                try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
-                } catch (Exception e) {
-                    logger.error(e);
-                    fail("failed to parse mappings: " + m.string());
-                    return null;
-                }
-            })
-            .collect(Collectors.toList());
+            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-data-stream-template",
+                DataStream.getDefaultBackingIndexName("logs", 1L), xContentRegistry());
 
-        assertThat(parsedMappings.get(0),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
-        assertThat(parsedMappings.get(1),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
-        assertThat(parsedMappings.get(2),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
+            assertNotNull(mappings);
+            assertThat(mappings.size(), equalTo(4));
+            List<Map<String, Object>> parsedMappings = mappings.stream()
+                .map(m -> {
+                    try {
+                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    } catch (Exception e) {
+                        logger.error(e);
+                        fail("failed to parse mappings: " + m.string());
+                        return null;
+                    }
+                })
+                .collect(Collectors.toList());
+
+            assertThat(parsedMappings.get(0),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
+            assertThat(parsedMappings.get(1),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
+            assertThat(parsedMappings.get(2),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
+            assertThat(parsedMappings.get(3),
+                equalTo(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", DEFAULT_TIMESTAMP_FIELD)))));
+        }
+
+        {
+            // indices matched by templates without the data stream field defined don't get the default @timestamp mapping
+            ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("timeseries*"),
+                new Template(null,
+                    new CompressedXContent("{\n" +
+                        "    \"properties\": {\n" +
+                        "      \"field2\": {\n" +
+                        "        \"type\": \"integer\"\n" +
+                        "      }\n" +
+                        "    }\n" +
+                        "  }"), null),
+                List.of("ct1"), 0L, 1L, null, null);
+            state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
+
+            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template", "timeseries",
+                xContentRegistry());
+
+            assertNotNull(mappings);
+            assertThat(mappings.size(), equalTo(2));
+            List<Map<String, Object>> parsedMappings = mappings.stream()
+                .map(m -> {
+                    try {
+                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    } catch (Exception e) {
+                        logger.error(e);
+                        fail("failed to parse mappings: " + m.string());
+                        return null;
+                    }
+                })
+                .collect(Collectors.toList());
+
+            assertThat(parsedMappings.get(0),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
+            assertThat(parsedMappings.get(1),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
+
+            // a default @timestamp mapping will not be added if the matching template doesn't have the data stream field configured, even
+            // if the index name matches that of a data stream backing index
+            mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template",
+                DataStream.getDefaultBackingIndexName("timeseries", 1L), xContentRegistry());
+
+            assertNotNull(mappings);
+            assertThat(mappings.size(), equalTo(2));
+            parsedMappings = mappings.stream()
+                .map(m -> {
+                    try {
+                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    } catch (Exception e) {
+                        logger.error(e);
+                        fail("failed to parse mappings: " + m.string());
+                        return null;
+                    }
+                })
+                .collect(Collectors.toList());
+
+            assertThat(parsedMappings.get(0),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
+            assertThat(parsedMappings.get(1),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
+        }
     }
 
     public void testUserDefinedMappingTakesPrecedenceOverDefault() throws Exception {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
-            new CompressedXContent("{\n" +
+        {
+            // user defines a @timestamp mapping as part of a component template
+            ComponentTemplate ct1 = new ComponentTemplate(new Template(null,
+                new CompressedXContent("{\n" +
+                    "      \"properties\": {\n" +
+                    "        \"@timestamp\": {\n" +
+                    "          \"type\": \"date_nanos\"\n" +
+                    "        }\n" +
+                    "      }\n" +
+                    "    }"), null), null, null);
+
+            state = service.addComponentTemplate(state, true, "ct1", ct1);
+            ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs*"), null, List.of("ct1"), 0L, 1L, null,
+                new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+            state = service.addIndexTemplateV2(state, true, "logs-template", it);
+
+            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-template",
+                DataStream.getDefaultBackingIndexName("logs", 1L), xContentRegistry());
+
+            assertNotNull(mappings);
+            assertThat(mappings.size(), equalTo(3));
+            List<Map<String, Object>> parsedMappings = mappings.stream()
+                .map(m -> {
+                    try {
+                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    } catch (Exception e) {
+                        logger.error(e);
+                        fail("failed to parse mappings: " + m.string());
+                        return null;
+                    }
+                })
+                .collect(Collectors.toList());
+            assertThat(parsedMappings.get(0),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
+            assertThat(parsedMappings.get(1),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date_nanos"))))));
+            assertThat(parsedMappings.get(2),
+                equalTo(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", DEFAULT_TIMESTAMP_FIELD)))));
+        }
+
+        {
+            // user defines a @timestamp mapping as part of a composable index template
+            Template template = new Template(null, new CompressedXContent("{\n" +
                 "      \"properties\": {\n" +
                 "        \"@timestamp\": {\n" +
                 "          \"type\": \"date_nanos\"\n" +
                 "        }\n" +
                 "      }\n" +
-                "    }"), null), null, null);
+                "    }"), null);
+            ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("timeseries*"), template, null, 0L, 1L, null,
+                new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+            state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
-        state = service.addComponentTemplate(state, true, "ct1", ct1);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), null, List.of("ct1"), 0L, 1L, null,
-            new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
-        state = service.addIndexTemplateV2(state, true, "my-template", it);
+            List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template",
+                DataStream.getDefaultBackingIndexName("timeseries-template", 1L), xContentRegistry());
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index",
-            xContentRegistry());
-
-        assertNotNull(mappings);
-        assertThat(mappings.size(), equalTo(2));
-        List<Map<String, Object>> parsedMappings = mappings.stream()
-            .map(m -> {
-                try {
-                    return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
-                } catch (Exception e) {
-                    logger.error(e);
-                    fail("failed to parse mappings: " + m.string());
-                    return null;
-                }
-            })
-            .collect(Collectors.toList());
-        assertThat(parsedMappings.get(0),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
-        assertThat(parsedMappings.get(1),
-            equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date_nanos"))))));
+            assertNotNull(mappings);
+            assertThat(mappings.size(), equalTo(3));
+            List<Map<String, Object>> parsedMappings = mappings.stream()
+                .map(m -> {
+                    try {
+                        return MapperService.parseMapping(new NamedXContentRegistry(List.of()), m.string());
+                    } catch (Exception e) {
+                        logger.error(e);
+                        fail("failed to parse mappings: " + m.string());
+                        return null;
+                    }
+                })
+                .collect(Collectors.toList());
+            assertThat(parsedMappings.get(0),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
+            assertThat(parsedMappings.get(1),
+                equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date_nanos"))))));
+            assertThat(parsedMappings.get(2),
+                equalTo(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", DEFAULT_TIMESTAMP_FIELD)))));
+        }
     }
 
     public void testResolveSettings() throws Exception {

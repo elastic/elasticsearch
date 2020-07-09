@@ -473,7 +473,7 @@ public class AnalyticsProcessManager {
                                                            ExtractedFields extractedFields) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
             Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
-            int threads = config.getMaxNumThreads() == null ? 1 : Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
+            int threads = Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
             return new AnalyticsProcessConfig(
                 config.getId(),
                 dataSummary.rows,

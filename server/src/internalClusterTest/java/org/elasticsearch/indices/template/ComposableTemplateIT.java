@@ -107,7 +107,7 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(template)).actionGet());
         Exception actualException = (Exception) e.getCause();
         assertThat(actualException.getMessage(),
-            equalTo(expectedException.getMessage().replace("[1:32] ", "").replace("my_field", "@timestamp")));
-        assertThat(actualException.getMessage(), equalTo("[index_template] unknown field [@timestamp]"));
+            equalTo(expectedException.getMessage().replace("[1:32] ", "").replace("my_field", "data_stream")));
+        assertThat(actualException.getMessage(), equalTo("[index_template] unknown field [data_stream]"));
     }
 }

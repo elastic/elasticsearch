@@ -1142,7 +1142,7 @@ public class MetadataIndexTemplateService {
                     if (expectedMessageIfDataStreamsIsUsedAndNotSupported.equals(e.getMessage())) {
                         // Fail like a parsing expection, since we will be moving data_stream template out of server module and
                         // then we would fail with the same error message, like we do here.
-                        throw new XContentParseException("[index_template] unknown field [@timestamp]");
+                        throw new XContentParseException("[index_template] unknown field [data_stream]");
                     } else {
                         throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
                     }

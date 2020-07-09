@@ -227,7 +227,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
                 List.of("logs-foo*"),
                 new Template(null, new CompressedXContent(generateMapping("@timestamp")), null),
                 null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+                new ComposableIndexTemplate.DataStreamTemplate())
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet();
 

@@ -269,7 +269,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 new Template(null,
                     new CompressedXContent(mapping), null),
                 null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+                new ComposableIndexTemplate.DataStreamTemplate())
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
 
@@ -329,7 +329,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 List.of("logs-*"),
                 new Template(null, new CompressedXContent("{}"), null),
                 null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+                new ComposableIndexTemplate.DataStreamTemplate())
         );
 
         Exception e = expectThrows(IllegalArgumentException.class,
@@ -352,7 +352,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 List.of("logs-*"),
                 new Template(null, new CompressedXContent(mapping), null),
                 null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+                new ComposableIndexTemplate.DataStreamTemplate())
         );
 
         Exception e = expectThrows(IllegalArgumentException.class,

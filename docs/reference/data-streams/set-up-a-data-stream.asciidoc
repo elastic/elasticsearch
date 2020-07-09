@@ -131,8 +131,9 @@ this pattern.
 ----
 ====
 
-* A `data_stream` definition containing `@timestamp` in the `timestamp_field`
-property. The `@timestamp` field must be included in every document indexed to
+* A `data_stream` definition, optionally containing `@timestamp` in the `timestamp_field`
+property. If the `@timestamp` field definition is omitted {es} will default to it.
+The `@timestamp` field must be included in every document indexed to
 the data stream.
 
 * A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the

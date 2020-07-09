@@ -1,6 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
   - do:
       allowed_warnings:
         - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
@@ -29,14 +31,13 @@ setup:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
 ---
 "Create data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.create_data_stream:
@@ -112,7 +113,7 @@ setup:
 ---
 "Get data stream":
   - skip:
-      version: " - 7.8.99"
+      version: " - 7.9.99"
       reason: "change to 7.8.99 after backport"
 
   - do:
@@ -221,8 +222,8 @@ setup:
 ---
 "append-only writes to backing indices prohobited":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -237,8 +238,8 @@ setup:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
+
 
   - do:
       index:
@@ -299,7 +300,7 @@ setup:
                 '@timestamp':
                   type: date
           data_stream:
-            timestamp_field: '@timestamp'
+            timestamp_field: {}
 
   - do:
       catch: bad_request

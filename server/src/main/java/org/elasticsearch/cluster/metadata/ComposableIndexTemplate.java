@@ -250,11 +250,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
-            args -> new DataStreamTemplate((String) args[0])
+            args -> new DataStreamTemplate(args[0] != null ? (String) args[0] : FIXED_TIMESTAMP_FIELD)
         );
 
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), DataStream.TIMESTAMP_FIELD_FIELD);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DataStream.TIMESTAMP_FIELD_FIELD);
         }
 
         private final String timestampField;
@@ -265,6 +265,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             }
 
             this.timestampField = timestampField;
+        }
+
+        public DataStreamTemplate() {
+            this(FIXED_TIMESTAMP_FIELD);
         }
 
         public String getTimestampField() {

@@ -1091,7 +1091,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             "    }";
         Template mappingTemplate = new Template(null, new CompressedXContent(mapping), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"),
-            mappingTemplate, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            mappingTemplate, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate());
 
         state = service.addIndexTemplateV2(state, false, "logs", template);
 
@@ -1135,7 +1135,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Change the pattern to one that doesn't match the data stream
         e = expectThrows(IllegalArgumentException.class, () -> {
             ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), mappingTemplate,
-                null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+                null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate());
             service.addIndexTemplateV2(stateWithDS, false, "logs", newTemplate);
         });
 
@@ -1145,7 +1145,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Add an additional template that matches our data stream at a lower priority
         ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), mappingTemplate,
-            null, 50L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            null, 50L, null, null, new ComposableIndexTemplate.DataStreamTemplate());
         ClusterState stateWithDSAndTemplate = service.addIndexTemplateV2(stateWithDS, false, "logs-mysql", mysqlTemplate);
 
         // We should be able to replace the "logs" template, because we have the "logs-mysql" template that can handle the data stream

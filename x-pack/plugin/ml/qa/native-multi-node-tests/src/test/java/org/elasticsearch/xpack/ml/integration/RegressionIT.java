@@ -540,4 +540,9 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     protected String stateDocId() {
         return jobId + "_regression_state#1";
     }
+
+    @Override
+    boolean supportsInference() {
+        return true;
+    }
 }

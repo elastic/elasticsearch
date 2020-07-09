@@ -155,4 +155,9 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
     }
+
+    @Override
+    boolean supportsInference() {
+        return true;
+    }
 }

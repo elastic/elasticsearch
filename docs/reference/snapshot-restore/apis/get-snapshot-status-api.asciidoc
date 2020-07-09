@@ -1,0 +1,88 @@
+[[get-snapshot-status-api]]
+=== Get snapshot status API
+++++
+<titleabbrev>Get snapshot status</titleabbrev>
+++++
+
+Returns a complete breakdown of the current state for each shard participating in the snapshot.
+
+////
+[source,console]
+----
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+
+PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+GET /_snapshot/my_repository/my_snapshot/_status
+----
+
+[[get-snapshot-status-api-request]]
+==== {api-request-title}
+
+`GET /_snapshot/<repository>/<snapshot>/_status`
+
+[[get-snapshot-status-api-desc]]
+==== {api-description-title}
+
+Use the get snapshot status API to return detailed information about snapshots currently running in the cluster.
+
+If you specify both the repository name and snapshot, the request returns detailed status information for the given snapshot, even if not currently running.
+
+[[get-snapshot-status-api-example]]
+==== {api-example-title}
+
+The following request returns information for `snapshot_2` in the `my_repository` repository.
+
+[source,console]
+----
+GET /_snapshot/my_repository/snapshot_2/_status
+----
+
+[source,console-result]
+----
+{
+  "snapshots" : [
+    {
+      "snapshot" : "snapshot_2",
+      "repository" : "my_repository",
+      "uuid" : "9A-ovGyBTFKj7C98VleZNQ",
+      "state" : "SUCCESS",
+      "include_global_state" : false,
+      "shards_stats" : {
+        "initializing" : 0,
+        "started" : 0,
+        "finalizing" : 0,
+        "done" : 0,
+        "failed" : 0,
+        "total" : 0
+      },
+      "stats" : {
+        "incremental" : {
+          "file_count" : 0,
+          "size_in_bytes" : 0
+        },
+        "total" : {
+          "file_count" : 0,
+          "size_in_bytes" : 0
+        },
+        "start_time_in_millis" : 1594158151205,
+        "time_in_millis" : 0
+      },
+      "indices" : { }
+    }
+  ]
+}
+----

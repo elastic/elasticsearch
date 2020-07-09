@@ -407,9 +407,9 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
         assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(aCompilationRate),
-            scriptService.cacheHolder.get().contextCache.get(a).get().rate);
+                     scriptService.cacheHolder.get().contextCache.get(a).get().rate);
         assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(bCompilationRate),
-            scriptService.cacheHolder.get().contextCache.get(b).get().rate);
+                     scriptService.cacheHolder.get().contextCache.get(b).get().rate);
     }
 
     public void testDisableCompilationRateSetting() throws IOException {

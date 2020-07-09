@@ -5,19 +5,15 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -65,13 +61,9 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
                 .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
                 .eventCategoryField(randomAlphaOfLength(10))
-                .implicitJoinKeyField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .query(randomAlphaOfLength(10));
 
-            if (randomBoolean()) {
-                request.searchAfter(randomJsonSearchFromBuilder());
-            }
             return request;
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
@@ -103,24 +95,6 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
             () -> new Text(randomAlphaOfLengthBetween(5, 20)),
             () -> null));
         return value.get();
-    }
-
-    private Object[] randomJsonSearchFromBuilder() throws IOException {
-        int numSearchAfter = randomIntBetween(1, 10);
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.startArray("search_after");
-        for (int i = 0; i < numSearchAfter; i++) {
-            jsonBuilder.value(randomValue());
-        }
-        jsonBuilder.endArray();
-        jsonBuilder.endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(jsonBuilder))) {
-            parser.nextToken();
-            parser.nextToken();
-            parser.nextToken();
-            return SearchAfterBuilder.fromXContent(parser).getSortValues();
-        }
     }
 
     @Override

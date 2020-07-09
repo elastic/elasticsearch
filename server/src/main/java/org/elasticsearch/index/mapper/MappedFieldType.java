@@ -68,17 +68,6 @@ public abstract class MappedFieldType {
     private boolean eagerGlobalOrdinals;
     private Map<String, String> meta;
 
-    protected MappedFieldType(MappedFieldType ref) {
-        this.name = ref.name();
-        this.boost = ref.boost();
-        this.isIndexed = ref.isIndexed;
-        this.docValues = ref.hasDocValues();
-        this.indexAnalyzer = ref.indexAnalyzer();
-        this.eagerGlobalOrdinals = ref.eagerGlobalOrdinals;
-        this.meta = ref.meta;
-        this.textSearchInfo = ref.textSearchInfo;
-    }
-
     public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         setBoost(1.0f);
         this.name = Objects.requireNonNull(name);
@@ -87,9 +76,6 @@ public abstract class MappedFieldType {
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
     }
-
-    @Override
-    public abstract MappedFieldType clone();
 
     /**
      * Return a fielddata builder for this field
@@ -104,32 +90,9 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        MappedFieldType fieldType = (MappedFieldType) o;
-
-        return boost == fieldType.boost &&
-            docValues == fieldType.docValues &&
-            Objects.equals(name, fieldType.name) &&
-            Objects.equals(indexAnalyzer, fieldType.indexAnalyzer) &&
-            Objects.equals(eagerGlobalOrdinals, fieldType.eagerGlobalOrdinals) &&
-            Objects.equals(meta, fieldType.meta);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, boost, docValues, indexAnalyzer,
-            eagerGlobalOrdinals, meta);
-    }
-
-    // TODO: we need to override freeze() and add safety checks that all settings are actually set
-
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
-    
+
     /** Returns the field family type, as used in field capabilities */
     public String familyTypeName() {
         return typeName();

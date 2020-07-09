@@ -130,15 +130,6 @@ public class ExternalMapper extends FieldMapper {
             super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        protected ExternalFieldType(ExternalFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new ExternalFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return "faketype";

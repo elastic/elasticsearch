@@ -90,14 +90,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
             super(name, false, false, TextSearchInfo.NONE, meta);
         }
 
-        protected SparseVectorFieldType(SparseVectorFieldType ref) {
-            super(ref);
-        }
-
-        public SparseVectorFieldType clone() {
-            return new SparseVectorFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

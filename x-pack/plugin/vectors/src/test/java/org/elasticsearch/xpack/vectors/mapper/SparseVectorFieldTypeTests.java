@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-import java.util.Map;
+import java.util.Collections;
 
-public class SparseVectorFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
+public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new SparseVectorFieldMapper.SparseVectorFieldType(name, meta);
+    public void testDocValuesDisabled() {
+        MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
+        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder("index"));
     }
 }

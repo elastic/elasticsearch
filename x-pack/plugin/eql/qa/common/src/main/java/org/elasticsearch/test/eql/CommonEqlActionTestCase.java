@@ -25,6 +25,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -159,7 +160,10 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
     protected void assertSearchHits(List<SearchHit> events) {
         assertNotNull(events);
-        assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]", spec.expectedEventIds(), extractIds(events));
+        long[] expected = spec.expectedEventIds();
+        long[] actual = extractIds(events);
+        assertArrayEquals("unexpected result for spec: [" + spec.toString() + "]" + Arrays.toString(expected) + " vs " + Arrays.toString(
+                actual), expected, actual);
     }
 
     private static long[] extractIds(List<SearchHit> events) {

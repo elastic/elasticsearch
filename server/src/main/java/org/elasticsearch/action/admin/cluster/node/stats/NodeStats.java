@@ -117,14 +117,13 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             adaptiveSelectionStats = null;
         }
+        scriptCacheStats = null;
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             if (in.getVersion().before(Version.V_7_9_0)) {
                 scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
-            } else {
+            } else if (scriptStats == null) {
                 scriptCacheStats = scriptStats.toScriptCacheStats();
             }
-        } else {
-            scriptCacheStats = null;
         }
     }
 

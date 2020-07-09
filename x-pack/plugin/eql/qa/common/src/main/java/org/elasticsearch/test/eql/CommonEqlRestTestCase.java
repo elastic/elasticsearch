@@ -30,11 +30,8 @@ public abstract class CommonEqlRestTestCase extends ESRestTestCase {
             {"{\"query\": \"\"}", "query is null or empty"},
             {"{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty"},
             {"{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty"},
-            {"{\"query\": \"" + validQuery + "\", \"implicit_join_key_field\": \"\"}", "implicit join key field is null or empty"},
             {"{\"query\": \"" + validQuery + "\", \"size\": 0}", "size must be greater than 0"},
             {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than 0"},
-            {"{\"query\": \"" + validQuery + "\", \"search_after\": null}", "search_after doesn't support values of type: VALUE_NULL"},
-            {"{\"query\": \"" + validQuery + "\", \"search_after\": []}", "must contains at least one value"},
             {"{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL"},
             {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
     };

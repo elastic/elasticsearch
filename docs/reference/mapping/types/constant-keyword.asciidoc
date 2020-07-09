@@ -2,7 +2,7 @@
 [testenv="basic"]
 
 [[constant-keyword]]
-=== Constant keyword datatype
+=== Constant keyword data type
 ++++
 <titleabbrev>Constant keyword</titleabbrev>
 ++++

@@ -34,46 +34,6 @@ publishing {
 
 archivesBaseName = 'elasticsearch'
 
-// we want to keep the JDKs in our IDEs set to JDK 11 until minimum JDK is bumped to 17 so we do not include this source set in our IDEs
-if (!isEclipse) {
-  sourceSets {
-    java12 {
-      java {
-        srcDirs = ['src/main/java12']
-      }
-    }
-  }
-
-  configurations {
-    java12Api.extendsFrom(api)
-  }
-
-  dependencies {
-    java12Api sourceSets.main.output
-  }
-
-  compileJava12Java {
-    sourceCompatibility = 12
-    targetCompatibility = 12
-  }
-
-  tasks.named('forbiddenApisJava12').configure {
-    doFirst {
-      if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_12) {
-        targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
-      }
-    }
-  }
-
-  jar {
-    metaInf {
-      into 'versions/12'
-      from sourceSets.java12.output
-    }
-    manifest.attributes('Multi-Release': 'true')
-  }
-}
-
 dependencies {
 
   api project(':libs:elasticsearch-core')
@@ -126,10 +86,6 @@ dependencies {
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
-
-  if (!isEclipse) {
-    java12Api sourceSets.main.output
-  }
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

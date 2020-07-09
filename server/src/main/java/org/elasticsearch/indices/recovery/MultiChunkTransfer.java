@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
-import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -57,64 +56,64 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * one of the networking threads which receive/handle the responses of the current pending file chunk requests. This process will continue
  * until all chunk requests are sent/responded.
  */
-public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkRequest> implements Closeable {
+public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTransfer.ChunkRequest> implements Closeable {
     private Status status = Status.PROCESSING;
     private final Logger logger;
     private final ActionListener<Void> listener;
     private final LocalCheckpointTracker requestSeqIdTracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
-    private final AsyncIOProcessor<FileChunkResponseItem> processor;
-    private final int maxConcurrentFileChunks;
-    private StoreFileMetadata currentFile = null;
-    private final Iterator<StoreFileMetadata> remainingFiles;
-    private Tuple<StoreFileMetadata, Request> readAheadRequest = null;
+    private final AsyncIOProcessor<FileChunkResponseItem<Source>> processor;
+    private final int maxConcurrentChunks;
+    private Source currentSource = null;
+    private final Iterator<Source> remainingSources;
+    private Tuple<Source, Request> readAheadRequest = null;
 
-    protected MultiFileTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
-                                int maxConcurrentFileChunks, List<StoreFileMetadata> files) {
+    protected MultiChunkTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
+                                 int maxConcurrentChunks, List<Source> sources) {
         this.logger = logger;
-        this.maxConcurrentFileChunks = maxConcurrentFileChunks;
+        this.maxConcurrentChunks = maxConcurrentChunks;
         this.listener = listener;
-        this.processor = new AsyncIOProcessor<>(logger, maxConcurrentFileChunks, threadContext) {
+        this.processor = new AsyncIOProcessor<>(logger, maxConcurrentChunks, threadContext) {
             @Override
-            protected void write(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
+            protected void write(List<Tuple<FileChunkResponseItem<Source>, Consumer<Exception>>> items) {
                 handleItems(items);
             }
         };
-        this.remainingFiles = files.iterator();
+        this.remainingSources = sources.iterator();
     }
 
     public final void start() {
         addItem(UNASSIGNED_SEQ_NO, null, null); // put a dummy item to start the processor
     }
 
-    private void addItem(long requestSeqId, StoreFileMetadata md, Exception failure) {
-        processor.put(new FileChunkResponseItem(requestSeqId, md, failure), e -> { assert e == null : e; });
+    private void addItem(long requestSeqId, Source resource, Exception failure) {
+        processor.put(new FileChunkResponseItem<>(requestSeqId, resource, failure), e -> { assert e == null : e; });
     }
 
-    private void handleItems(List<Tuple<FileChunkResponseItem, Consumer<Exception>>> items) {
+    private void handleItems(List<Tuple<FileChunkResponseItem<Source>, Consumer<Exception>>> items) {
         if (status != Status.PROCESSING) {
             assert status == Status.FAILED : "must not receive any response after the transfer was completed";
             // These exceptions will be ignored as we record only the first failure, log them for debugging purpose.
             items.stream().filter(item -> item.v1().failure != null).forEach(item ->
-                logger.debug(new ParameterizedMessage("failed to transfer a file chunk request {}", item.v1().md), item.v1().failure));
+                logger.debug(new ParameterizedMessage("failed to transfer a chunk request {}", item.v1().source), item.v1().failure));
             return;
         }
         try {
-            for (Tuple<FileChunkResponseItem, Consumer<Exception>> item : items) {
-                final FileChunkResponseItem resp = item.v1();
+            for (Tuple<FileChunkResponseItem<Source>, Consumer<Exception>> item : items) {
+                final FileChunkResponseItem<Source> resp = item.v1();
                 if (resp.requestSeqId == UNASSIGNED_SEQ_NO) {
                     continue; // not an actual item
                 }
                 requestSeqIdTracker.markSeqNoAsProcessed(resp.requestSeqId);
                 if (resp.failure != null) {
-                    handleError(resp.md, resp.failure);
+                    handleError(resp.source, resp.failure);
                     throw resp.failure;
                 }
             }
-            while (requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentFileChunks) {
-                final Tuple<StoreFileMetadata, Request> request = readAheadRequest != null ? readAheadRequest : getNextRequest();
+            while (requestSeqIdTracker.getMaxSeqNo() - requestSeqIdTracker.getProcessedCheckpoint() < maxConcurrentChunks) {
+                final Tuple<Source, Request> request = readAheadRequest != null ? readAheadRequest : getNextRequest();
                 readAheadRequest = null;
                 if (request == null) {
-                    assert currentFile == null && remainingFiles.hasNext() == false;
+                    assert currentSource == null && remainingSources.hasNext() == false;
                     if (requestSeqIdTracker.getMaxSeqNo() == requestSeqIdTracker.getProcessedCheckpoint()) {
                         onCompleted(null);
                     }
@@ -149,48 +148,50 @@ public abstract class MultiFileTransfer<Request extends MultiFileTransfer.ChunkR
         listener.onResponse(null);
     }
 
-    private Tuple<StoreFileMetadata, Request> getNextRequest() throws Exception {
+    private Tuple<Source, Request> getNextRequest() throws Exception {
         try {
-            if (currentFile == null) {
-                if (remainingFiles.hasNext()) {
-                    currentFile = remainingFiles.next();
-                    onNewFile(currentFile);
+            if (currentSource == null) {
+                if (remainingSources.hasNext()) {
+                    currentSource = remainingSources.next();
+                    onNewResource(currentSource);
                 } else {
                     return null;
                 }
             }
-            final StoreFileMetadata md = currentFile;
+            final Source md = currentSource;
             final Request request = nextChunkRequest(md);
             if (request.lastChunk()) {
-                currentFile = null;
+                currentSource = null;
             }
             return Tuple.tuple(md, request);
         } catch (Exception e) {
-            handleError(currentFile, e);
+            handleError(currentSource, e);
             throw e;
         }
     }
 
     /**
-     * This method is called when starting sending/requesting a new file. Subclasses should override
+     * This method is called when starting sending/requesting a new source. Subclasses should override
      * this method to reset the file offset or close the previous file and open a new file if needed.
      */
-    protected abstract void onNewFile(StoreFileMetadata md) throws IOException;
+    protected void onNewResource(Source resource) throws IOException {
 
-    protected abstract Request nextChunkRequest(StoreFileMetadata md) throws IOException;
+    }
+
+    protected abstract Request nextChunkRequest(Source resource) throws IOException;
 
     protected abstract void executeChunkRequest(Request request, ActionListener<Void> listener);
 
-    protected abstract void handleError(StoreFileMetadata md, Exception e) throws Exception;
+    protected abstract void handleError(Source resource, Exception e) throws Exception;
 
-    private static class FileChunkResponseItem {
+    private static class FileChunkResponseItem<Source> {
         final long requestSeqId;
-        final StoreFileMetadata md;
+        final Source source;
         final Exception failure;
 
-        FileChunkResponseItem(long requestSeqId, StoreFileMetadata md, Exception failure) {
+        FileChunkResponseItem(long requestSeqId, Source source, Exception failure) {
             this.requestSeqId = requestSeqId;
-            this.md = md;
+            this.source = source;
             this.failure = failure;
         }
     }

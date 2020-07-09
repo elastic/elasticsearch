@@ -63,8 +63,8 @@ public class ResolveIndexTests extends ESTestCase {
 
     private final Object[][] dataStreams = new Object[][]{
         // name, timestampField, numBackingIndices
-        {"logs-mysql-prod", "@timestamp1", 4},
-        {"logs-mysql-test", "@timestamp2", 2}
+        {"logs-mysql-prod", "@timestamp", 4},
+        {"logs-mysql-test", "@timestamp", 2}
     };
 
     private Metadata metadata = buildMetadata(dataStreams, indices);

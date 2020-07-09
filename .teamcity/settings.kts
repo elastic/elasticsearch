@@ -9,7 +9,7 @@ project {
     vcsRoot(GitVcsRoot {
         name = "Elasticsearch Kotlin DSL"
 
-        id(name)
+        id("Kotlin_DSL")
         url = "https://github.com/elastic/elasticsearch.git"
         branch = "refs/heads/teamcity"
     })

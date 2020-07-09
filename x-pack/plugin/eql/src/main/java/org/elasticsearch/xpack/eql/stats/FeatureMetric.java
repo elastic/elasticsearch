@@ -11,7 +11,24 @@ import java.util.Locale;
 public enum FeatureMetric {
     SEQUENCE,
     JOIN,
-    PIPE;
+    EVENT,
+    UNTIL,
+    HEAD,
+    TAIL,
+    SEQUENCE_MAXSPAN,
+    SEQUENCE_TWO_QUERIES,
+    SEQUENCE_THREE_QUERIES,
+    SEQUENCE_FOUR_QUERIES,
+    SEQUENCE_FIVE_OR_MORE_QUERIES,
+    JOIN_TWO_QUERIES,
+    JOIN_THREE_QUERIES,
+    JOIN_FOUR_QUERIES,
+    JOIN_FIVE_OR_MORE_QUERIES,
+    JOIN_KEYS_ONE,
+    JOIN_KEYS_TWO,
+    JOIN_KEYS_THREE,
+    JOIN_KEYS_FOUR,
+    JOIN_KEYS_FIVE_OR_MORE;
 
     @Override
     public String toString() {

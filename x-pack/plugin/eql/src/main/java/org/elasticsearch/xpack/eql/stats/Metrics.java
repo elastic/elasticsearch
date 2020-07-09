@@ -27,20 +27,32 @@ public class Metrics {
             return this.name().toLowerCase(Locale.ROOT);
         }
     }
-    
-    // map that holds total/failed counters for each eql "feature" (join, pipe, sequence...)
-    private final Map<FeatureMetric, Map<OperationType, CounterMetric>> featuresMetrics;
+
+    // map that holds total/failed counters for all queries, atm
+    private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
+    // map that holds counters for each eql "feature" (join, pipe, sequence...)
+    private final Map<FeatureMetric, CounterMetric> featuresMetrics;
+    protected static String QPREFIX = "queries.";
     protected static String FPREFIX = "features.";
+    protected static String SEQUENCE_PREFIX = "sequences.";
+    protected static String JOIN_PREFIX = "joins.";
+    protected static String KEYS_PREFIX = "keys.";
     
     public Metrics() {
-        Map<FeatureMetric, Map<OperationType, CounterMetric>> fMap = new LinkedHashMap<>();
-        for (FeatureMetric metric : FeatureMetric.values()) {
+        Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
+        for (QueryMetric metric : QueryMetric.values()) {
             Map<OperationType, CounterMetric> metricsMap = new LinkedHashMap<>(OperationType.values().length);
             for (OperationType type : OperationType.values()) {
                 metricsMap.put(type,  new CounterMetric());
             }
             
-            fMap.put(metric, Collections.unmodifiableMap(metricsMap));
+            qMap.put(metric, Collections.unmodifiableMap(metricsMap));
+        }
+        opsByTypeMetrics = Collections.unmodifiableMap(qMap);
+
+        Map<FeatureMetric, CounterMetric> fMap = new LinkedHashMap<>(FeatureMetric.values().length);
+        for (FeatureMetric featureMetric : FeatureMetric.values()) {
+            fMap.put(featureMetric,  new CounterMetric());
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
     }
@@ -49,37 +61,59 @@ public class Metrics {
      * Increments the "total" counter for a metric
      * This method should be called only once per query.
      */
-    public void total(FeatureMetric metric) {
+    public void total(QueryMetric metric) {
         inc(metric, OperationType.TOTAL);
     }
     
     /**
      * Increments the "failed" counter for a metric
      */
-    public void failed(FeatureMetric metric) {
+    public void failed(QueryMetric metric) {
         inc(metric, OperationType.FAILED);
     }
 
-    private void inc(FeatureMetric metric, OperationType op) {
-        this.featuresMetrics.get(metric).get(op).inc();
+    private void inc(QueryMetric metric, OperationType op) {
+        this.opsByTypeMetrics.get(metric).get(op).inc();
+    }
+
+    /**
+     * Increments the counter for a "features" metric
+     */
+    public void inc(FeatureMetric metric) {
+        this.featuresMetrics.get(metric).inc();
     }
 
     public Counters stats() {
         Counters counters = new Counters();
-        
+
         // queries metrics
-        for (Entry<FeatureMetric, Map<OperationType, CounterMetric>> entry : featuresMetrics.entrySet()) {
+        for (Entry<QueryMetric, Map<OperationType, CounterMetric>> entry : opsByTypeMetrics.entrySet()) {
             String metricName = entry.getKey().toString();
             
             for (OperationType type : OperationType.values()) {
                 long metricCounter = entry.getValue().get(type).count();
                 String operationTypeName = type.toString();
                 
-                counters.inc(FPREFIX + metricName + "." + operationTypeName, metricCounter);
-                counters.inc(FPREFIX + "_all." + operationTypeName, metricCounter);
+                counters.inc(QPREFIX + metricName + "." + operationTypeName, metricCounter);
+                counters.inc(QPREFIX + "_all." + operationTypeName, metricCounter);
             }
         }
-        
+
+        // features metrics
+        for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
+            String featureName = entry.getKey().toString();
+            String prefix = FPREFIX;
+
+            if (featureName.startsWith("sequence_")) {
+                prefix += SEQUENCE_PREFIX;
+            } else if (featureName.startsWith("join_k")) {
+                prefix += KEYS_PREFIX;
+            } else if (featureName.startsWith("join_")) {
+                prefix += JOIN_PREFIX;
+            }
+            counters.inc(prefix + featureName, entry.getValue().count());
+        }
+
         return counters;
     }
 }

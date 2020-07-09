@@ -4,7 +4,7 @@
 <titleabbrev>Get snapshot status</titleabbrev>
 ++++
 
-Returns a complete breakdown of the current state for each shard participating in the snapshot.
+Retrieves a complete breakdown of the current state for each shard participating in the snapshot.
 
 ////
 [source,console]
@@ -37,9 +37,144 @@ GET /_snapshot/my_repository/my_snapshot/_status
 [[get-snapshot-status-api-desc]]
 ==== {api-description-title}
 
-Use the get snapshot status API to return detailed information about snapshots currently running in the cluster.
+Use the get snapshot status API to retrieve detailed information about snapshots currently running in the cluster.
 
-If you specify both the repository name and snapshot, the request returns detailed status information for the given snapshot, even if not currently running.
+If you specify both the repository name and snapshot, the request retrieves detailed status information for the given snapshot, even if not currently running.
+
+[[get-snapshot-status-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Snapshot repository name used to limit the request.
++
+Omitting a repository name retrieves a list of all snapshots currently running in the cluster.
+
+`<snapshot>`::
+(Required, string)
+Comma-separated list of snapshot names to retrieve status for.
+
+[role="child_attributes"]
+[[get-snapshot-status-api-request-body]]
+==== {api-request-body-title}
+
+`ignore_unavailable`::
+(Optional, boolean)
+If `false`, the request returns an error for any snapshots that are unavailable. Defaults to `false`.
++
+If `true`, the request ignores snapshots that are unavailable, such as those that are corrupted or temporarily cannot be returned.
+
+[role="child_attributes"]
+[[get-snapshot-status-api-response-body]]
+==== {api-response-body-title}
+
+`snapshot`::
+(string)
+Name of the snapshot.
+
+`uuid`::
+(string)
+Universally unique identifier (UUID) of the snapshot.
+
+`state`::
++
+--
+(string)
+The snapshot `state` can be one of the following values:
+
+.Values for `state`
+[%collapsible%open]
+====
+`IN_PROGRESS`::
+  The snapshot is currently running.
+
+`SUCCESS`::
+  The snapshot finished and all shards were stored successfully.
+
+`FAILED`::
+  The snapshot finished with an error and failed to store any data.
+
+`PARTIAL`::
+  The global cluster state was stored, but data of at least one shard was not stored successfully.
+  The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
+  that were not processed correctly.
+====
+--
+
+`include_global_state`::
+(boolean)
+Indicates whether the current cluster state is included in the snapshot.
+
+`shards_stats`::
+(object)
+Contains a count of shards in the snapshot.
++
+.Properties of `shards`
+[%collapsible%open]
+====
+`initializing`::
+(integer)
+Number of shards that are still initializing.
+
+`started`::
+(integer)
+Number of shards that have started but not are not finalized.
+
+`finalizing`::
+(integer)
+Number of shards that are finalizing but are not done.
+
+`done`::
+(integer)
+Number of shards that initialized, started, and finalized successfully.
+
+`failed`::
+(integer)
+Number of shards that failed to be included in the snapshot.
+
+`total`::
+(integer)
+Total number of shards included in the snapshot.
+====
+
+`stats`::
+(object)
+Provides details on the number (`file_count`) and size (`size_in_bytes`) of files included in the snapshot.
++
+.Properties of `stats`
+[%collapsible%open]
+====
+`incremental`::
+(object)
+Number and size of files that are not already in the repository and need to be copied as part of the incremental snapshot.
+
+`processed`::
+(object)
+Number and size of files that are still being copied.
+
+`total`::
+(object)
+Total number and size of files that are referenced by the snapshot.
+
+`start_time_in_millis`::
+(long)
+The time, in milliseconds, when the snapshot creation process started.
+
+`time_in_millis`::
+(long)
+The total time, in milliseconds, that
+====
+
+`indices`::
+(list of objects)
+List of objects containing information about the
+indices included in the snapshot.
++
+Detailed information for each index includes:
+
+* `shards_stats`
+* `stats`
+* `shards`
 
 [[get-snapshot-status-api-example]]
 ==== {api-example-title}
@@ -51,6 +186,8 @@ The following request returns information for `snapshot_2` in the `my_repository
 GET /_snapshot/my_repository/snapshot_2/_status
 ----
 
+The API returns the following response:
+
 [source,console-result]
 ----
 {
@@ -58,9 +195,9 @@ GET /_snapshot/my_repository/snapshot_2/_status
     {
       "snapshot" : "snapshot_2",
       "repository" : "my_repository",
-      "uuid" : "9A-ovGyBTFKj7C98VleZNQ",
+      "uuid" : "ITWHQY2fR2OqX-TYt6mUNA",
       "state" : "SUCCESS",
-      "include_global_state" : false,
+      "include_global_state" : true,
       "shards_stats" : {
         "initializing" : 0,
         "started" : 0,
@@ -86,3 +223,6 @@ GET /_snapshot/my_repository/snapshot_2/_status
   ]
 }
 ----
+// TESTRESPONSE[s/"uuid": "ITWHQY2fR2OqX-TYt6mUNA"/"uuid": $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"start_time_in_millis": 1594158151205/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis": 0/"time_in_millis": $body.snapshots.0.time_in_millis/]

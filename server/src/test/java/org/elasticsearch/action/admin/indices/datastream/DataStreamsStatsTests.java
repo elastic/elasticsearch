@@ -44,13 +44,8 @@ import java.util.concurrent.TimeUnit;
 
 public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
-    private String timestampFieldName;
+    private String timestampFieldName = "@timestamp";
     private final Set<String> createdDataStreams = new HashSet<>();
-
-    @Before
-    public void createResourceNames() {
-        this.timestampFieldName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-    }
 
     @Override
     @After

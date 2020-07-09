@@ -6,9 +6,11 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-public class SequenceGroup extends OrdinalGroup<Sequence> {
+import org.elasticsearch.xpack.eql.execution.assembler.KeyAndOrdinal;
 
-    SequenceGroup(SequenceKey key) {
-        super(key, Sequence::ordinal);
+public class UntilGroup extends OrdinalGroup<KeyAndOrdinal> {
+
+    UntilGroup(SequenceKey key) {
+        super(key, KeyAndOrdinal::ordinal);
     }
 }

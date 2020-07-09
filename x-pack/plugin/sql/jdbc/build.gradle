@@ -46,3 +46,8 @@ thirdPartyAudit.ignoreMissingClasses(
   'com.fasterxml.jackson.databind.ObjectMapper',
   'com.fasterxml.jackson.databind.cfg.MapperBuilder'
 )
+
+tasks.named("test").configure {
+  // reset the unit test classpath as using the shadow jar won't work due to relocated packages
+  classpath = sourceSets.test.runtimeClasspath
+}

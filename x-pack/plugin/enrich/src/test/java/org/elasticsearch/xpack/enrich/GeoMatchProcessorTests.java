@@ -14,12 +14,16 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -34,7 +38,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -51,16 +54,41 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeoMatchProcessorTests extends ESTestCase {
 
     public void testBasics() {
+        // point
         Point expectedPoint = new Point(-122.084110, 37.386637);
-        testBasicsForFieldValue(mapOf("lat", 37.386637, "lon", -122.084110), expectedPoint);
+        testBasicsForFieldValue(Map.of("lat", 37.386637, "lon", -122.084110), expectedPoint);
         testBasicsForFieldValue("37.386637, -122.084110", expectedPoint);
         testBasicsForFieldValue("POINT (-122.084110 37.386637)", expectedPoint);
-        testBasicsForFieldValue(Arrays.asList(-122.084110, 37.386637), expectedPoint);
+        testBasicsForFieldValue(List.of(-122.084110, 37.386637), expectedPoint);
+        testBasicsForFieldValue(Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)), expectedPoint);
+        // line
+        Line expectedLine = new Line(new double[] { 0, 1 }, new double[] { 0, 1 });
+        testBasicsForFieldValue("LINESTRING(0 0, 1 1)", expectedLine);
+        testBasicsForFieldValue(Map.of("type", "LineString", "coordinates", List.of(List.of(0, 0), List.of(1, 1))), expectedLine);
+        // polygon
+        Polygon expectedPolygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0, 0 }, new double[] { 0, 0, 1, 1, 0 }));
+        testBasicsForFieldValue("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", expectedPolygon);
         testBasicsForFieldValue(
-            Arrays.asList(Arrays.asList(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)"),
-            new MultiPoint(Arrays.asList(expectedPoint, expectedPoint, expectedPoint))
+            Map.of(
+                "type",
+                "Polygon",
+                "coordinates",
+                List.of(List.of(List.of(0, 0), List.of(1, 0), List.of(1, 1), List.of(0, 1), List.of(0, 0)))
+            ),
+            expectedPolygon
         );
-
+        // geometry collection
+        testBasicsForFieldValue(
+            List.of(
+                List.of(-122.084110, 37.386637),
+                "37.386637, -122.084110",
+                "POINT (-122.084110 37.386637)",
+                Map.of("type", "Point", "coordinates", List.of(-122.084110, 37.386637)),
+                Map.of("type", "LineString", "coordinates", List.of(List.of(0, 0), List.of(1, 1))),
+                "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+            ),
+            new GeometryCollection<>(List.of(expectedPoint, expectedPoint, expectedPoint, expectedPoint, expectedLine, expectedPolygon))
+        );
         testBasicsForFieldValue("not a point", null);
     }
 
@@ -78,7 +106,8 @@ public class GeoMatchProcessorTests extends ESTestCase {
             false,
             "shape",
             maxMatches,
-            ShapeRelation.INTERSECTS
+            ShapeRelation.INTERSECTS,
+            ShapeBuilder.Orientation.CCW
         );
         IngestDocument ingestDocument = new IngestDocument(
             "_index",

@@ -26,11 +26,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Tests for {@link GeometryParser}
@@ -172,5 +178,64 @@ public class GeometryParserTests extends ESTestCase {
                 () -> new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
             assertEquals("shape must be an object consisting of type and coordinates", ex.getMessage());
         }
+    }
+
+    public void testBasics() {
+        GeometryParser parser = new GeometryParser(true, randomBoolean(), randomBoolean());
+        // point
+        Point expectedPoint = new Point(-122.084110, 37.386637);
+        testBasics(parser, mapOf("lat", 37.386637, "lon", -122.084110), expectedPoint);
+        testBasics(parser, "37.386637, -122.084110", expectedPoint);
+        testBasics(parser, "POINT (-122.084110 37.386637)", expectedPoint);
+        testBasics(parser, Arrays.asList(-122.084110, 37.386637), expectedPoint);
+        testBasics(parser, mapOf("type", "Point", "coordinates", Arrays.asList(-122.084110, 37.386637)), expectedPoint);
+        // line
+        Line expectedLine = new Line(new double[] { 0, 1 }, new double[] { 0, 1 });
+        testBasics(parser, "LINESTRING(0 0, 1 1)", expectedLine);
+        testBasics(parser,
+            mapOf("type", "LineString", "coordinates", Arrays.asList(Arrays.asList(0, 0), Arrays.asList(1, 1))),
+            expectedLine
+        );
+        // polygon
+        Polygon expectedPolygon = new Polygon(new LinearRing(new double[] { 0, 1, 1, 0, 0 }, new double[] { 0, 0, 1, 1, 0 }));
+        testBasics(parser, "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", expectedPolygon);
+        testBasics(parser,
+            mapOf(
+                "type",
+                "Polygon",
+                "coordinates",
+                Arrays.asList(
+                    Arrays.asList(Arrays.asList(0, 0), Arrays.asList(1, 0), Arrays.asList(1, 1), Arrays.asList(0, 1), Arrays.asList(0, 0))
+                )
+            ),
+            expectedPolygon
+        );
+        // geometry collection
+        testBasics(parser,
+            Arrays.asList(
+                Arrays.asList(-122.084110, 37.386637),
+                "37.386637, -122.084110",
+                "POINT (-122.084110 37.386637)",
+                mapOf("type", "Point", "coordinates", Arrays.asList(-122.084110, 37.386637)),
+                mapOf("type", "LineString", "coordinates", Arrays.asList(Arrays.asList(0, 0), Arrays.asList(1, 1))),
+                "POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"
+            ),
+            new GeometryCollection<>(
+                Arrays.asList(expectedPoint, expectedPoint, expectedPoint, expectedPoint, expectedLine, expectedPolygon)
+            )
+        );
+        expectThrows(ElasticsearchParseException.class, () -> testBasics(parser, "not a geometry", null));
+    }
+
+    private void testBasics(GeometryParser parser, Object value, Geometry expected) {
+        Geometry geometry = parser.parseGeometry(value);
+        assertEquals(expected, geometry);
+    }
+
+    private static <K, V> Map<K, V> mapOf(K key1, V value1, K key2, V value2) {
+        Map<K, V> map = new HashMap<>();
+        map.put(key1, value1);
+        map.put(key2, value2);
+        return map;
     }
 }

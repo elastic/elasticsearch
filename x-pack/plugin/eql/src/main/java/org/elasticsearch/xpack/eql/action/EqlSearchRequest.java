@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -33,7 +32,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
-import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_IMPLICIT_JOIN_KEY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
 public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
@@ -49,10 +47,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String timestampField = FIELD_TIMESTAMP;
     private String tiebreakerField = null;
     private String eventCategoryField = FIELD_EVENT_CATEGORY;
-    private String implicitJoinKeyField = FIELD_IMPLICIT_JOIN_KEY;
     private int size = RequestDefaults.SIZE;
     private int fetchSize = RequestDefaults.FETCH_SIZE;
-    private SearchAfterBuilder searchAfterBuilder;
     private String query;
     private boolean isCaseSensitive = false;
 
@@ -65,10 +61,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
     static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
-    static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
     static final String KEY_SIZE = "size";
     static final String KEY_FETCH_SIZE = "fetch_size";
-    static final String KEY_SEARCH_AFTER = "search_after";
     static final String KEY_QUERY = "query";
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
@@ -79,10 +73,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
     static final ParseField TIEBREAKER_FIELD = new ParseField(KEY_TIEBREAKER_FIELD);
     static final ParseField EVENT_CATEGORY_FIELD = new ParseField(KEY_EVENT_CATEGORY_FIELD);
-    static final ParseField IMPLICIT_JOIN_KEY_FIELD = new ParseField(KEY_IMPLICIT_JOIN_KEY_FIELD);
     static final ParseField SIZE = new ParseField(KEY_SIZE);
     static final ParseField FETCH_SIZE = new ParseField(KEY_FETCH_SIZE);
-    static final ParseField SEARCH_AFTER = new ParseField(KEY_SEARCH_AFTER);
     static final ParseField QUERY = new ParseField(KEY_QUERY);
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField(KEY_WAIT_FOR_COMPLETION_TIMEOUT);
     static final ParseField KEEP_ALIVE = new ParseField(KEY_KEEP_ALIVE);
@@ -103,10 +95,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         timestampField = in.readString();
         tiebreakerField = in.readOptionalString();
         eventCategoryField = in.readString();
-        implicitJoinKeyField = in.readString();
         size = in.readVInt();
         fetchSize = in.readVInt();
-        searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         query = in.readString();
         if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
             this.waitForCompletionTimeout = in.readOptionalTimeValue();
@@ -147,10 +137,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("event category field is null or empty", validationException);
         }
 
-        if (implicitJoinKeyField == null || implicitJoinKeyField.isEmpty()) {
-            validationException = addValidationError("implicit join key field is null or empty", validationException);
-        }
-
         if (size <= 0) {
             validationException = addValidationError("size must be greater than 0", validationException);
         }
@@ -177,16 +163,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             builder.field(KEY_TIEBREAKER_FIELD, tiebreakerField());
         }
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
-        if (implicitJoinKeyField != null) {
-            builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
-        }
         builder.field(KEY_SIZE, size());
         builder.field(KEY_FETCH_SIZE, fetchSize());
-
-        if (searchAfterBuilder != null) {
-            builder.array(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
-        }
-
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
             builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout);
@@ -211,11 +189,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
         parser.declareString(EqlSearchRequest::tiebreakerField, TIEBREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
-        parser.declareString(EqlSearchRequest::implicitJoinKeyField, IMPLICIT_JOIN_KEY_FIELD);
         parser.declareInt(EqlSearchRequest::size, SIZE);
         parser.declareInt(EqlSearchRequest::fetchSize, FETCH_SIZE);
-        parser.declareField(EqlSearchRequest::setSearchAfter, SearchAfterBuilder::fromXContent, SEARCH_AFTER,
-            ObjectParser.ValueType.OBJECT_ARRAY);
         parser.declareString(EqlSearchRequest::query, QUERY);
         parser.declareField(EqlSearchRequest::waitForCompletionTimeout,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT), WAIT_FOR_COMPLETION_TIMEOUT,
@@ -261,13 +236,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public String implicitJoinKeyField() { return this.implicitJoinKeyField; }
-
-    public EqlSearchRequest implicitJoinKeyField(String implicitJoinKeyField) {
-        this.implicitJoinKeyField = implicitJoinKeyField;
-        return this;
-    }
-
     public int size() {
         return this.size;
     }
@@ -283,23 +251,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     public EqlSearchRequest fetchSize(int fetchSize) {
         this.fetchSize = fetchSize;
-        return this;
-    }
-
-    public Object[] searchAfter() {
-        if (searchAfterBuilder == null) {
-            return null;
-        }
-        return searchAfterBuilder.getSortValues();
-    }
-
-    public EqlSearchRequest searchAfter(Object[] values) {
-        this.searchAfterBuilder = new SearchAfterBuilder().setSortValues(values);
-        return this;
-    }
-
-    private EqlSearchRequest setSearchAfter(SearchAfterBuilder builder) {
-        this.searchAfterBuilder = builder;
         return this;
     }
 
@@ -353,10 +304,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeString(timestampField);
         out.writeOptionalString(tiebreakerField);
         out.writeString(eventCategoryField);
-        out.writeString(implicitJoinKeyField);
         out.writeVInt(size);
         out.writeVInt(fetchSize);
-        out.writeOptionalWriteable(searchAfterBuilder);
         out.writeString(query);
         if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
             out.writeOptionalTimeValue(waitForCompletionTimeout);
@@ -383,8 +332,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
-                Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
@@ -402,8 +349,6 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             timestampField,
             tiebreakerField,
             eventCategoryField,
-            implicitJoinKeyField,
-            searchAfterBuilder,
             query,
             waitForCompletionTimeout,
             keepAlive,

@@ -56,7 +56,6 @@ setup:
   - do:
       indices.data_streams_stats: {}
   - match: { data_stream_count: 1 }
-  - match: { data_stream_count: 1 }
   - match: { backing_indices: 1 }
   - length: { data_streams: 1 }
   - match: { data_streams.0.data_stream: 'simple-data-stream1' }

@@ -118,6 +118,57 @@ teardown:
   - is_true: acknowledged
 
 ---
+"Test that requests do not resolve data streams they do not have access to":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [restricted-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: restricted-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 1 }
+  - match: { backing_indices: 1 }
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
+  - match: { data_streams.0.backing_indices: 1 }
+  - match: { data_streams.0.maximum_timestamp: 0 }
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: restricted-data-stream1
+  - is_true: acknowledged
+
+---
 "Test that requests not supporting data streams do not include data streams among authorized indices":
   - skip:
       version: " - 7.99.99"

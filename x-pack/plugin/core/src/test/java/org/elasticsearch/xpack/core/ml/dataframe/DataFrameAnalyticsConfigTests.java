@@ -124,9 +124,6 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             builder.setCreateTime(null);
             builder.setVersion(null);
         }
-        if (version.before(Version.V_8_0_0)) {
-            builder.setMaxNumThreads(null);
-        }
         return builder.build();
     }
 

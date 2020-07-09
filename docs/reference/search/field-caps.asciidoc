@@ -2,7 +2,7 @@
 === Field Capabilities API
 
 Allows you to retrieve the capabilities of fields among multiple indices.
-For data streams, the API returns field capabilities for the stream's backing
+For data streams, the API returns field capabilities among the stream's backing
 indices.
 
 [source,console]

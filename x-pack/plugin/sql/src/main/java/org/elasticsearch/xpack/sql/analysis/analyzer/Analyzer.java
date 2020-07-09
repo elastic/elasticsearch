@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
+import org.elasticsearch.xpack.ql.expression.AttributeAlias;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
+import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -181,7 +182,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                              // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
                              || Objects.equals(u.name(), attribute.qualifiedName()));
                 if (match) {
-                    matches.add(attribute.withLocation(u.source()));
+                    matches.add(attribute);
                 }
             }
         }
@@ -192,16 +193,24 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            return handleSpecialFields(u, matches.get(0), allowCompound);
+            Attribute match = matches.get(0).withLocation(u.source());
+            return handleSpecialFields(u, match, allowCompound);
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
                 + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
                  matches.stream()
-                 .map(a -> "\"" + a.qualifier() + "\".\"" + a.name() + "\"")
                  .sorted()
+                 .map(Analyzer::buildUnresolvedMessagesMatchesList)
                  .collect(toList())
                 );
+
+    }
+
+    private static String buildUnresolvedMessagesMatchesList(Attribute a) {
+        Location location = a.sourceLocation();
+        String locationString = "line " + location.getLineNumber() + ":" + location.getColumnNumber();
+        return locationString + " [" + (a.qualifier() != null ? "\"" + a.qualifier() + "\"." : "") + "\"" + a.name() + "\"]";
     }
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
@@ -333,16 +342,25 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (!a.expressionsResolved() && Resolvables.resolved(a.aggregates())) {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
-                    AttributeMap<Expression> resolved = Expressions.aliases(a.aggregates());
+                    List<AttributeAlias> resolved = Expressions.aliases(a.aggregates());
 
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
-                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping, resolved.keySet());
+                            Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping,
+                                resolved.stream().map(AttributeAlias::getAttribute).collect(toList()));
                             if (maybeResolved != null) {
                                 changed = true;
-                                // use the matched expression (not its attribute)
-                                grouping = resolved.get(maybeResolved);
+                                if (maybeResolved.resolved()) {
+                                    // use the matched expression (not its attribute)
+                                    grouping = resolved.stream()
+                                        .filter(attributeAlias -> attributeAlias.getAttribute().equals(maybeResolved))
+                                        .map(AttributeAlias::getExpression)
+                                        .findAny()
+                                        .orElse(maybeResolved);
+                                } else {
+                                    grouping = maybeResolved;
+                                }
                             }
                         }
                         newGroupings.add(grouping);

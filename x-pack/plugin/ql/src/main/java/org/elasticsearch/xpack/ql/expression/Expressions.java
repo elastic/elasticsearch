@@ -14,10 +14,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -164,14 +162,14 @@ public final class Expressions {
         return true;
     }
 
-    public static AttributeMap<Expression> aliases(List<? extends NamedExpression> named) {
-        Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+    public static List<AttributeAlias> aliases(List<? extends NamedExpression> named) {
+        List<AttributeAlias> aliases = new ArrayList<>();
         for (NamedExpression ne : named) {
             if (ne instanceof Alias) {
-                aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+                aliases.add(new AttributeAlias(ne.toAttribute(), ((Alias) ne).child()));
             }
         }
-        return new AttributeMap<>(aliasMap);
+        return aliases;
     }
 
     public static boolean hasReferenceAttribute(Collection<Attribute> output) {

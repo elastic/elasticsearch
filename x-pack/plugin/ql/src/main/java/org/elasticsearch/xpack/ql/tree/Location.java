@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ql.tree;
 
 import java.util.Objects;
 
-public final class Location {
+public final class Location implements Comparable<Location>{
     private final int line;
     private final int charPositionInLine;
 
@@ -24,6 +24,15 @@ public final class Location {
 
     public int getColumnNumber() {
         return charPositionInLine + 1;
+    }
+
+    @Override
+    public int compareTo(Location other) {
+        int result = this.line - other.line;
+        if (result == 0) {
+            result = this.charPositionInLine - other.charPositionInLine;
+        }
+        return result;
     }
 
     @Override

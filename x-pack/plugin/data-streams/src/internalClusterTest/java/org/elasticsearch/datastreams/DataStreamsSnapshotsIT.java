@@ -1,4 +1,10 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -17,9 +23,10 @@
  * under the License.
  */
 
-package org.elasticsearch.snapshots;
+package org.elasticsearch.datastreams;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -33,9 +40,17 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.indices.DataStreamIT;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.snapshots.SnapshotState;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -45,7 +60,10 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -351,7 +369,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setIndices("does-not-exist-*")
                 .setIncludeGlobalState(true)
                 .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), Matchers.is(SnapshotState.SUCCESS));
 
         assertThat(client().admin().indices()
                 .deleteDataStream(new DeleteDataStreamAction.Request(new String[]{"*"})).get().isAcknowledged(), is(true));
@@ -359,5 +377,55 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final RestoreSnapshotResponse restoreSnapshotResponse =
                 client().admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().indices(), empty());
+    }
+
+    public void testDeleteDataStreamDuringSnapshot() throws Exception {
+        Client client = client();
+
+        createRepository("test-repo", "mock", Settings.builder()
+            .put("location", randomRepoPath()).put("compress", randomBoolean())
+            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+            .put("block_on_data", true));
+
+
+        String dataStream = "datastream";
+        DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", List.of(dataStream));
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            client.prepareIndex(dataStream)
+                .setOpType(DocWriteRequest.OpType.CREATE)
+                .setId(Integer.toString(i))
+                .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
+                .execute().actionGet();
+        }
+        refresh();
+        assertDocCount(dataStream, 100L);
+
+        logger.info("--> snapshot");
+        ActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setIndices(dataStream).setWaitForCompletion(true).setPartial(false).execute();
+        logger.info("--> wait for block to kick in");
+        waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
+
+        // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
+        try {
+            logger.info("--> delete index while non-partial snapshot is running");
+            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{dataStream})).actionGet();
+            fail("Expected deleting index to fail during snapshot");
+        } catch (SnapshotInProgressException e) {
+            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: ["+dataStream));
+        } finally {
+            logger.info("--> unblock all data nodes");
+            unblockAllDataNodes("test-repo");
+        }
+        logger.info("--> waiting for snapshot to finish");
+        CreateSnapshotResponse createSnapshotResponse = future.get();
+
+        logger.info("Snapshot successfully completed");
+        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo((SnapshotState.SUCCESS)));
+        assertThat(snapshotInfo.dataStreams(), contains(dataStream));
+        assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName(dataStream, 1)));
     }
 }

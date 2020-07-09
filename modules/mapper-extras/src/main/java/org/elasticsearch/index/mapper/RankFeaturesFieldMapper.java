@@ -80,14 +80,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected RankFeaturesFieldType(RankFeaturesFieldType ref) {
-            super(ref);
-        }
-
-        public RankFeaturesFieldType clone() {
-            return new RankFeaturesFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

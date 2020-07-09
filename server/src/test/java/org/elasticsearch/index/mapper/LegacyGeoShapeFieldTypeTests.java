@@ -21,13 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 
-import java.util.Map;
-
-public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new GeoShapeFieldType(name, true, true, meta);
-    }
+public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
 
     /**
      * Test for {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#setStrategy(SpatialStrategy)} that checks

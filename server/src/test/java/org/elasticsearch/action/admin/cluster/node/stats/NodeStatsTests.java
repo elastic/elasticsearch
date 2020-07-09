@@ -316,7 +316,7 @@ public class NodeStatsTests extends ESTestCase {
                 ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
                 if (scriptCacheStats == null) {
                     assertNull(deserializedScriptCacheStats);
-                } else {
+                } else if (deserializedScriptCacheStats.getContextStats() != null) {
                     Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
                     long evictions = 0;
                     long limited = 0;
@@ -514,16 +514,7 @@ public class NodeStatsTests extends ESTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
-        ScriptCacheStats scriptCacheStats = null;
-        if (frequently()) {
-            int numContents = randomIntBetween(0, 20);
-            Map<String,ScriptStats> stats = new HashMap<>(numContents);
-            for (int i = 0; i < numContents; i++) {
-                String context = randomValueOtherThanMany(stats::containsKey, () -> randomAlphaOfLength(12));
-                stats.put(context, new ScriptStats(randomLongBetween(0, 1024), randomLongBetween(0, 1024), randomLongBetween(0, 1024)));
-            }
-            scriptCacheStats = new ScriptCacheStats(stats);
-        }
+        ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
                 fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,

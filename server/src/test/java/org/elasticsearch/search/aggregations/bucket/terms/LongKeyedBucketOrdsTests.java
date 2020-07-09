@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
@@ -36,11 +37,11 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
     private final MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public void testExplicitCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, true));
+        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.ONE));
     }
 
     public void testSurpriseCollectsFromSingleBucket() {
-        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, false));
+        collectsFromSingleBucketCase(LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY));
     }
 
     private void collectsFromSingleBucketCase(LongKeyedBucketOrds ords) {
@@ -105,7 +106,7 @@ public class LongKeyedBucketOrdsTests extends ESTestCase {
     }
 
     public void testCollectsFromManyBuckets() {
-        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, false)) {
+        try (LongKeyedBucketOrds ords = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY)) {
             // Test a few explicit values
             assertThat(ords.add(0, 0), equalTo(0L));
             assertThat(ords.add(1, 0), equalTo(1L));

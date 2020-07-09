@@ -65,6 +65,10 @@ ext.expansions = [
 
 processResources {
   from(sourceSets.main.resources.srcDirs) {
+    // we need to have duplicate strategy here as
+    // we cannot apply the filter on root level due
+    // to wrong behaviour with binary files.
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     exclude '**/public.key'
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)

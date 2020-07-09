@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchModule;
@@ -68,31 +69,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         result.checkConsistency();
         return result;
     }
-
-    protected void checkConsistency() {
-        if ((filters == null) || (filters.size() == 0)) {
-            throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
-        }
-    }
-
-    protected void setFiltersAsMap(Map<String, QueryBuilder> filters) {
-        // Convert uniquely named objects into internal KeyedFilters
-        this.filters = new ArrayList<>(filters.size());
-        for (Entry<String, QueryBuilder> kv : filters.entrySet()) {
-            this.filters.add(new KeyedFilter(kv.getKey(), kv.getValue()));
-        }
-        // internally we want to have a fixed order of filters, regardless of
-        // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
-    }
-
-    protected void setFiltersAsList(List<KeyedFilter> filters) {
-        this.filters = new ArrayList<>(filters);
-        // internally we want to have a fixed order of filters, regardless of
-        // the order of the filters in the request
-        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
-    }
-
 
     /**
      * @param name
@@ -163,6 +139,33 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
     }
 
+    private void checkConsistency() {
+        if ((filters == null) || (filters.size() == 0)) {
+            throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
+        }
+    }
+
+    private void setFiltersAsMap(Map<String, QueryBuilder> filters) {
+        // Convert uniquely named objects into internal KeyedFilters
+        this.filters = new ArrayList<>(filters.size());
+        for (Entry<String, QueryBuilder> kv : filters.entrySet()) {
+            this.filters.add(new KeyedFilter(kv.getKey(), kv.getValue()));
+        }
+        // internally we want to have a fixed order of filters, regardless of
+        // the order of the filters in the request
+        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+    }
+
+    private AdjacencyMatrixAggregationBuilder setFiltersAsList(List<KeyedFilter> filters) {
+        this.filters = new ArrayList<>(filters);
+        // internally we want to have a fixed order of filters, regardless of
+        // the order of the filters in the request
+        Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
+        return this;
+    }
+
+
+
     /**
      * Set the separator used to join pairs of bucket keys
      */
@@ -192,6 +195,20 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         return result;
     }
 
+    @Override
+    protected AdjacencyMatrixAggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        boolean modified = false;
+        List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
+        for (KeyedFilter kf : filters) {
+            QueryBuilder rewritten = Rewriteable.rewrite(kf.filter(), queryShardContext);
+            modified = modified || rewritten != kf.filter();
+            rewrittenFilters.add(new KeyedFilter(kf.key(), rewritten));
+        }
+        if (modified) {
+            return new AdjacencyMatrixAggregationBuilder(name).separator(separator).setFiltersAsList(rewrittenFilters);
+        }
+        return this;
+    }
 
     @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
@@ -204,13 +221,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
                             + "This limit can be set by changing the [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
                             + "] setting.");
         }
-
-        List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
-        for (KeyedFilter kf : filters) {
-            rewrittenFilters.add(new KeyedFilter(kf.key(), Rewriteable.rewrite(kf.filter(), queryShardContext, true)));
-        }
-
-        return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, queryShardContext, parent,
+        return new AdjacencyMatrixAggregatorFactory(name, filters, separator, queryShardContext, parent,
                 subFactoriesBuilder, metadata);
     }
 

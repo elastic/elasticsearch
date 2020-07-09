@@ -745,4 +745,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started writing results",
             "Finished analysis");
     }
+
+    @Override
+    boolean supportsInference() {
+        return false;
+    }
 }

@@ -71,6 +71,8 @@ import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 public class DistroTestPlugin implements Plugin<Project> {
+    private static final String SYSTEM_JDK_VERSION = "8u242+b08";
+    private static final String SYSTEM_JDK_VENDOR = "adoptopenjdk";
     private static final String GRADLE_JDK_VERSION = "14+36@076bab302c7b4508975440c56f6cc26a";
     private static final String GRADLE_JDK_VENDOR = "openjdk";
 
@@ -231,11 +233,13 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
+        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, platform, "x64");
         Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, platform, "x64");
 
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         vagrant.setBox(box);
+        vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
         vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
         // pass these along to get correct build scans
         if (System.getenv("JENKINS_URL") != null) {
@@ -243,7 +247,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
         vagrant.setIsWindowsVM(isWindows(project));
 
-        return Arrays.asList(gradleJdk);
+        return Arrays.asList(systemJdk, gradleJdk);
     }
 
     private static Object convertPath(Project project, VagrantExtension vagrant, Jdk jdk, String additionaLinux, String additionalWindows) {

@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -51,7 +49,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        return new DataStream(dataStreamName, createTimestampField(randomAlphaOfLength(10)), indices, generation);
+        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
     }
 
     @Override
@@ -166,25 +164,5 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(indices.get(writeIndexPosition), newBackingIndex));
-    }
-
-    public void testGetTimestampFieldMapping() {
-        TimestampField field = new TimestampField("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")));
-        java.util.Map<String, java.util.Map<String, Object>> mappings = field.getTimestampFieldMapping();
-        java.util.Map<String, java.util.Map<String, Object>> expectedMapping = Map.of("_doc", Map.of("properties",
-            Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")))));
-        assertThat(mappings, equalTo(expectedMapping));
-
-        TimestampField nestedField = new TimestampField("event.attr.@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")));
-        mappings = nestedField.getTimestampFieldMapping();
-        expectedMapping = Map.of("_doc", Map.of("properties", Map.of("event", Map.of("properties", Map.of("attr",
-            Map.of("properties", Map.of("@timestamp", Map.of("type", "date", "meta", Map.of("x", "y")))))))));
-        assertThat(mappings, equalTo(expectedMapping));
-    }
-
-    public void testDataStreamsAreImmutable() {
-        DataStream ds = randomInstance();
-        expectThrows(UnsupportedOperationException.class, () -> ds.getIndices().clear());
-        expectThrows(UnsupportedOperationException.class, () -> ds.getTimeStampField().getFieldMapping().clear());
     }
 }

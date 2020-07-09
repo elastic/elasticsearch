@@ -178,7 +178,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         // on the field this meta field refers to:
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
-            dateFieldMapper.doXContentBody(builder, false, EMPTY_PARAMS);
+                dateFieldMapper.doXContentBody(builder, false, EMPTY_PARAMS);
             builder.endObject();
             Map<String, Object> configuredSettings =
                 XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
@@ -195,6 +195,10 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public String getPath() {
+        return path;
     }
 
     @Override

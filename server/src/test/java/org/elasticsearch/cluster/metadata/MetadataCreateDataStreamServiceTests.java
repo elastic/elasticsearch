@@ -163,46 +163,21 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> validateTimestampFieldMapping("@timestamp", createMapperService("{}")));
         assertThat(e.getMessage(),
-            equalTo("expected timestamp field [@timestamp], but found no timestamp field"));
+            equalTo("[_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
 
         String mapping = generateMapping("@timestamp2", "date");
         e = expectThrows(IllegalArgumentException.class,
             () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
         assertThat(e.getMessage(),
-            equalTo("expected timestamp field [@timestamp], but found no timestamp field"));
+            equalTo("[_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
     }
 
     public void testValidateTimestampFieldMappingInvalidFieldType() {
         String mapping = generateMapping("@timestamp", "keyword");
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
-        assertThat(e.getMessage(), equalTo("expected timestamp field [@timestamp] to be of types [date, date_nanos], " +
-            "but instead found type [keyword]"));
-    }
-
-    public void testValidateNestedTimestampFieldMapping() throws Exception {
-        String fieldType = randomBoolean() ? "date" : "date_nanos";
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"event\": {\n" +
-            "          \"properties\": {\n" +
-            "             \"@timestamp\": {\n" +
-            "               \"type\": \"" + fieldType + "\"\n" +
-            "              },\n" +
-            "             \"another_field\": {\n" +
-            "               \"type\": \"keyword\"\n" +
-            "              }\n" +
-            "            }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-        MapperService mapperService = createMapperService(mapping);
-
-        validateTimestampFieldMapping("event.@timestamp", mapperService);
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("event.another_field", mapperService));
-        assertThat(e.getMessage(), equalTo("expected timestamp field [event.another_field] to be of types [date, date_nanos], " +
-            "but instead found type [keyword]"));
+        assertThat(e.getMessage(), equalTo("the configured timestamp field [@timestamp] is of type [keyword], " +
+            "but [date,date_nanos] is expected"));
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
@@ -234,6 +209,9 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     static String generateMapping(String timestampFieldName, String type) {
         return "{\n" +
+            "      \"_timestamp\": {\n" +
+            "        \"path\": \"" + timestampFieldName + "\"\n" +
+            "      }," +
             "      \"properties\": {\n" +
             "        \"" + timestampFieldName + "\": {\n" +
             "          \"type\": \"" + type + "\"\n" +

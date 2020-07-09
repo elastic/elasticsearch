@@ -27,7 +27,9 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.stream.Collectors.toList;
@@ -62,9 +64,10 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     public static List<Object[]> readTestSpecs() throws Exception {
 
         // Load EQL validation specs
-        List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true);
-        specs.addAll(EqlSpecLoader.load("/additional_test_queries.toml", true));
-        List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false);
+        Set<String> uniqueTestNames = new HashSet<>();
+        List<EqlSpec> specs = EqlSpecLoader.load("/test_queries.toml", true, uniqueTestNames);
+        specs.addAll(EqlSpecLoader.load("/additional_test_queries.toml", true, uniqueTestNames));
+        List<EqlSpec> unsupportedSpecs = EqlSpecLoader.load("/test_queries_unsupported.toml", false, uniqueTestNames);
 
         // Validate only currently supported specs
         List<EqlSpec> filteredSpecs = new ArrayList<>();
@@ -90,7 +93,7 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
     private static List<Object[]> asArray(List<EqlSpec> specs) {
         AtomicInteger counter = new AtomicInteger();
         return specs.stream().map(spec -> {
-            String name = spec.description();
+            String name = spec.name();
             if (Strings.isNullOrEmpty(name)) {
                 name = spec.note();
             }

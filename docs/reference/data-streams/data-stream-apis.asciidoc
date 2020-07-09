@@ -1,3 +1,4 @@
+[role="xpack"]
 [[data-stream-apis]]
 == Data stream APIs
 

@@ -6,10 +6,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,42 +15,37 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
-import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationIndexingService.WRITE_DEPRECATION_LOGS_TO_INDEX;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 public class DeprecationIndexingServiceTests extends ESTestCase {
 
     private DeprecationIndexingService service;
     private ClusterService clusterService;
-    private Client client;
+    private Consumer<IndexRequest> consumer;
 
     @Before
     public void initialize() {
+        consumer = getConsumer();
         clusterService = mock(ClusterService.class);
-        client = spy(new NoOpClient(this.getTestName()));
-        service = new DeprecationIndexingService(clusterService, client);
+        service = new DeprecationIndexingService(clusterService, consumer);
     }
 
-    @After
-    public void cleanup() {
-        client.close();
+    @SuppressWarnings("unchecked")
+    private Consumer<IndexRequest> getConsumer() {
+        return mock(Consumer.class);
     }
 
     /**
@@ -71,7 +63,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     public void testDoesNotWriteMessageWhenServiceNotStarted() {
         service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
 
-        verify(client, never()).execute(any(), any(), anyListener());
+        verify(consumer, never()).accept(any());
     }
 
     /**
@@ -83,7 +75,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
 
         service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
 
-        verify(client, never()).execute(any(), any(), anyListener());
+        verify(consumer, never()).accept(any());
     }
 
     /**
@@ -96,7 +88,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
 
         service.log("a key", "xOpaqueId", new ESLogMessage("a message"));
 
-        verify(client, never()).execute(eq(IndexAction.INSTANCE), any(), anyListener());
+        verify(consumer, never()).accept(any());
     }
 
     /**
@@ -147,11 +139,6 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         return new ClusterChangedEvent("test", clusterState, clusterState);
     }
 
-    // This exists to silence a generics warning
-    private <T> ActionListener<T> anyListener() {
-        return any();
-    }
-
     /*
      * Wraps up the steps for extracting an index request payload from the mocks.
      */
@@ -160,7 +147,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
 
         ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
 
-        verify(client).execute(eq(IndexAction.INSTANCE), argument.capture(), anyListener());
+        verify(consumer).accept(argument.capture());
 
         return argument.getValue().sourceAsMap();
     }

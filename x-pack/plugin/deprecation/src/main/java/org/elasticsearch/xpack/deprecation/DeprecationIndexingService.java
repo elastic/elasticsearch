@@ -6,15 +6,8 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -28,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
 
@@ -37,11 +31,7 @@ import static org.elasticsearch.common.Strings.isNullOrEmpty;
  * {@link #WRITE_DEPRECATION_LOGS_TO_INDEX} setting.
  */
 public class DeprecationIndexingService extends AbstractLifecycleComponent implements ClusterStateListener, DeprecatedLogHandler {
-    private static final Logger LOGGER = LogManager.getLogger(DeprecationIndexingService.class);
-
     private static final String DATA_STREAM_NAME = "logs-deprecation-elasticsearch";
-
-    private static final String DEPRECATION_ORIGIN = "deprecation";
 
     public static final Setting<Boolean> WRITE_DEPRECATION_LOGS_TO_INDEX = Setting.boolSetting(
         "cluster.deprecation_indexing.enabled",
@@ -49,12 +39,12 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+    private final Consumer<IndexRequest> requestConsumer;
 
-    private final Client client;
     private volatile boolean isEnabled = false;
 
-    public DeprecationIndexingService(ClusterService clusterService, Client client) {
-        this.client = new OriginSettingClient(client, DEPRECATION_ORIGIN);
+    public DeprecationIndexingService(ClusterService clusterService, Consumer<IndexRequest> requestConsumer) {
+        this.requestConsumer = requestConsumer;
 
         clusterService.addListener(this);
     }
@@ -87,20 +77,9 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
             payload.put("x-opaque-id", xOpaqueId);
         }
 
-        new IndexRequestBuilder(client, IndexAction.INSTANCE).setIndex(DATA_STREAM_NAME)
-            .setOpType(DocWriteRequest.OpType.CREATE)
-            .setSource(payload)
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(IndexResponse indexResponse) {
-                    // Nothing to do
-                }
+        final IndexRequest request = new IndexRequest(DATA_STREAM_NAME).source(payload).opType(DocWriteRequest.OpType.CREATE);
 
-                @Override
-                public void onFailure(Exception e) {
-                    LOGGER.error("Failed to index deprecation message", e);
-                }
-            });
+        this.requestConsumer.accept(request);
     }
 
     /**

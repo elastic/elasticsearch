@@ -50,7 +50,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     private final SearchableSnapshotDirectory directory;
     private final CacheFileReference cacheFileReference;
     private final int defaultRangeSize;
-    private final PersistentCacheTracker tracker;
 
     // last read position is kept around in order to detect (non)contiguous reads for stats
     private long lastReadPosition;
@@ -62,8 +61,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         FileInfo fileInfo,
         IOContext context,
         IndexInputStats stats,
-        int rangeSize,
-        PersistentCacheTracker tracker
+        int rangeSize
     ) {
         this(
             "CachedBlobContainerIndexInput(" + fileInfo.physicalName() + ")",
@@ -73,14 +71,8 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             stats,
             0L,
             fileInfo.length(),
-            new CacheFileReference(
-                directory,
-                fileInfo.physicalName(),
-                fileInfo.length(),
-                () -> tracker.trackFileEviction(fileInfo.physicalName())
-            ),
-            rangeSize,
-            tracker
+            new CacheFileReference(directory, fileInfo.physicalName(), fileInfo.length()),
+            rangeSize
         );
         stats.incrementOpenCount();
     }
@@ -94,8 +86,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         long offset,
         long length,
         CacheFileReference cacheFileReference,
-        int rangeSize,
-        PersistentCacheTracker tracker
+        int rangeSize
     ) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
@@ -103,7 +94,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
-        this.tracker = tracker;
     }
 
     @Override
@@ -288,7 +278,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
     }
 
     private void addCachedBytesWritten(long totalBytesWritten, long totalTime) {
-        tracker.trackPersistedBytesForFile(fileInfo.physicalName(), totalBytesWritten);
+        directory.trackPersistedBytesForFile(fileInfo.physicalName(), totalBytesWritten);
         stats.addCachedBytesWritten(totalBytesWritten, totalTime);
     }
 
@@ -432,8 +422,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             this.offset + offset,
             length,
             cacheFileReference,
-            defaultRangeSize,
-            tracker
+            defaultRangeSize
         );
         slice.isClone = true;
         return slice;
@@ -495,13 +484,11 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
         private final CacheKey cacheKey;
         private final SearchableSnapshotDirectory directory;
         private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // null if evicted or not yet acquired
-        private final Runnable evictionListener;
 
-        private CacheFileReference(SearchableSnapshotDirectory directory, String fileName, long fileLength, Runnable evictionListener) {
+        private CacheFileReference(SearchableSnapshotDirectory directory, String fileName, long fileLength) {
             this.cacheKey = directory.createCacheKey(fileName);
             this.fileLength = fileLength;
             this.directory = directory;
-            this.evictionListener = evictionListener;
         }
 
         @Nullable
@@ -531,7 +518,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             synchronized (this) {
                 if (cacheFile.compareAndSet(evictedCacheFile, null)) {
                     evictedCacheFile.release(this);
-                    notifyEvictionListener();
                 }
             }
         }
@@ -542,14 +528,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 if (currentCacheFile != null) {
                     currentCacheFile.release(this);
                 }
-            }
-        }
-
-        void notifyEvictionListener() {
-            try {
-                evictionListener.run();
-            } catch (Exception e) {
-                logger.warn("Unable to notify CacheFile eviction listener ", e);
             }
         }
 

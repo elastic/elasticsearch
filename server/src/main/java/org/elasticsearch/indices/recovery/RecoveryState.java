@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -727,8 +728,8 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class RecoveryFilesDetails implements ToXContentFragment, Writeable {
-        private final Map<String, File> fileDetails = new HashMap<>();
-        private boolean complete;
+        protected final Map<String, File> fileDetails = new HashMap<>();
+        protected boolean complete;
 
         public RecoveryFilesDetails() {
         }
@@ -818,7 +819,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class Index extends Timer implements ToXContentFragment, Writeable {
-        private final RecoveryFilesDetails fileDetails;
+        protected final RecoveryFilesDetails fileDetails;
 
         public static final long UNKNOWN = -1L;
 
@@ -826,12 +827,21 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         private long targetThrottleTimeInNanos = UNKNOWN;
 
         public Index() {
-            this.fileDetails = new RecoveryFilesDetails();
+            this(new RecoveryFilesDetails());
+        }
+
+        public Index(RecoveryFilesDetails recoveryFilesDetails) {
+            this.fileDetails = recoveryFilesDetails;
         }
 
         public Index(StreamInput in) throws IOException {
+            this(in, RecoveryFilesDetails::new);
+        }
+
+        public Index(StreamInput in,
+                     CheckedFunction<StreamInput, RecoveryFilesDetails, IOException> recoveryFilesFactory) throws IOException {
             super(in);
-            fileDetails = new RecoveryFilesDetails(in);
+            fileDetails = recoveryFilesFactory.apply(in);
             sourceThrottlingInNanos = in.readLong();
             targetThrottleTimeInNanos = in.readLong();
         }

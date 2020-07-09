@@ -12,6 +12,7 @@ import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.recoveries.OnDemandRecoveryState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
@@ -101,7 +102,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         threadPool
                     )
                 ) {
-                    final boolean loaded = directory.loadSnapshot();
+                    final boolean loaded = directory.loadSnapshot(new OnDemandRecoveryState.Index());
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
@@ -173,7 +174,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     threadPool
                 )
             ) {
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot();
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(new OnDemandRecoveryState.Index());
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -33,7 +34,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.cache.PersistentCacheTracker;
+import org.elasticsearch.index.recoveries.OnDemandRecoveryState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -59,7 +60,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +108,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ShardId shardId;
     private final LongSupplier statsCurrentTimeNanosSupplier;
     private final Map<String, IndexInputStats> stats;
+    private final Set<String> recoveryStateRegisteredEvictionListeners;
     private final ThreadPool threadPool;
     private final CacheService cacheService;
     private final boolean useCache;
@@ -116,12 +117,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final long uncachedChunkSize; // if negative use BlobContainer#readBlobPreferredLength, see #getUncachedChunkSize()
     private final Path cacheDir;
     private final AtomicBoolean closed;
-    private final DelegatingPersistentCacheTracker cacheTracker;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
     private volatile BlobContainer blobContainer;
     private volatile boolean loaded;
+    private volatile OnDemandRecoveryState.Index recoveryStateIndex;
 
     public SearchableSnapshotDirectory(
         Supplier<BlobContainer> blobContainer,
@@ -142,6 +143,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.indexId = Objects.requireNonNull(indexId);
         this.shardId = Objects.requireNonNull(shardId);
         this.stats = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        this.recoveryStateRegisteredEvictionListeners = ConcurrentCollections.newConcurrentSet();
         this.statsCurrentTimeNanosSupplier = Objects.requireNonNull(currentTimeNanosSupplier);
         this.cacheService = Objects.requireNonNull(cacheService);
         this.cacheDir = Objects.requireNonNull(cacheDir);
@@ -152,7 +154,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.threadPool = threadPool;
         this.loaded = false;
-        this.cacheTracker = new DelegatingPersistentCacheTracker(useCache ? new PreWarmingCacheTracker() : PersistentCacheTracker.NO_OP);
         assert invariant();
     }
 
@@ -174,10 +175,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     /**
      * Loads the snapshot if and only if it the snapshot is not loaded yet.
      *
+     * @param recoveryStateIndex the recovery state index tracker
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot() {
+    public boolean loadSnapshot(OnDemandRecoveryState.Index recoveryStateIndex) {
         assert assertCurrentThreadMayLoadSnapshot();
+        assert recoveryStateIndex != null;
         boolean alreadyLoaded = this.loaded;
         if (alreadyLoaded == false) {
             synchronized (this) {
@@ -186,12 +189,20 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.blobContainer = blobContainerSupplier.get();
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
+                    this.recoveryStateIndex = recoveryStateIndex;
+                    loadFileDetails();
                     prewarmCache();
                 }
             }
         }
         assert invariant();
         return alreadyLoaded == false;
+    }
+
+    private void loadFileDetails() {
+        for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
+            recoveryStateIndex.addSnapshotFile(file.physicalName(), file.length());
+        }
     }
 
     @Nullable
@@ -347,7 +358,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache && isExcludedFromCache(name) == false) {
-            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize(), cacheTracker);
+            registerEvictionListener(fileInfo);
+            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize());
         } else {
             return new DirectBlobContainerIndexInput(
                 blobContainer(),
@@ -357,6 +369,41 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 getUncachedChunkSize(),
                 bufferSize(context)
             );
+        }
+    }
+
+    private void registerEvictionListener(BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
+        if (recoveryStateRegisteredEvictionListeners.add(fileInfo.physicalName())) {
+            try {
+                CacheFile cacheFile = getCacheFile(createCacheKey(fileInfo.physicalName()), fileInfo.length());
+                RecoveryStateEvictionListener listener = new RecoveryStateEvictionListener(fileInfo.physicalName());
+                cacheFile.acquire(listener);
+            } catch (AlreadyClosedException e) {
+                // The file was evicted in between
+                boolean removed = recoveryStateRegisteredEvictionListeners.remove(fileInfo.physicalName());
+                assert removed;
+            } catch (Exception e) {
+                throw new IOException("Unable to acquire a CacheFile for " + fileInfo.physicalName(), e);
+            }
+        }
+    }
+
+    private class RecoveryStateEvictionListener implements CacheFile.EvictionListener {
+        private final String fileName;
+        private final AtomicBoolean notified = new AtomicBoolean(false);
+
+        RecoveryStateEvictionListener(String fileName) {
+            this.fileName = fileName;
+        }
+
+        @Override
+        public void onEviction(CacheFile evictedCacheFile) {
+            if (notified.compareAndSet(false, true)) {
+                evictedCacheFile.release(this);
+                recoveryStateIndex.resetRecoveredBytesOfFile(fileName);
+                boolean removed = recoveryStateRegisteredEvictionListeners.remove(fileName);
+                assert removed;
+            }
         }
     }
 
@@ -444,6 +491,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             Thread.currentThread().interrupt();
             logger.warn(() -> new ParameterizedMessage("{} prewarming worker has been interrupted", shardId), e);
         }
+    }
+
+    public void trackPersistedBytesForFile(String name, long bytes) {
+        recoveryStateIndex.addRecoveredBytesToFile(name, bytes);
     }
 
     public static Directory create(
@@ -548,11 +599,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return null;
     }
 
-    public void setCacheTracker(PersistentCacheTracker newTracker) {
-        ensureOpen();
-        cacheTracker.setNewDelegate(newTracker);
-    }
-
     /**
      * A {@link FilterBlobContainer} that uses {@link BlobStoreRepository#maybeRateLimitRestores(InputStream)} to limit the rate at which
      * blobs are read from the repository.
@@ -579,58 +625,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         @Override
         public InputStream readBlob(String blobName, long position, long length) throws IOException {
             return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
-        }
-    }
-
-    /**
-     * A {@link PersistentCacheTracker} that delegates all the method calls to a delegate instance
-     * and allows changing the delegate instance after construction, merging all the information
-     * tracked by the previous delegate after setting the new one.
-     */
-    private static class DelegatingPersistentCacheTracker implements PersistentCacheTracker {
-        private PersistentCacheTracker delegate;
-
-        private DelegatingPersistentCacheTracker(PersistentCacheTracker delegate) {
-            this.delegate = delegate;
-        }
-
-        public synchronized void trackPersistedBytesForFile(String name, long bytes) {
-            delegate.trackPersistedBytesForFile(name, bytes);
-        }
-
-        public synchronized void trackFileEviction(String name) {
-            delegate.trackFileEviction(name);
-        }
-
-        public synchronized Map<String, Long> getPersistedFilesSize() {
-            return delegate.getPersistedFilesSize();
-        }
-
-        private synchronized void setNewDelegate(PersistentCacheTracker newDelegate) {
-            for (Map.Entry<String, Long> persistedFileSize : delegate.getPersistedFilesSize().entrySet()) {
-                newDelegate.trackPersistedBytesForFile(persistedFileSize.getKey(), persistedFileSize.getValue());
-            }
-            this.delegate = newDelegate;
-        }
-    }
-
-    private static class PreWarmingCacheTracker implements PersistentCacheTracker {
-        private final Map<String, Long> persistedFiles = new HashMap<>();
-
-        @Override
-        public void trackPersistedBytesForFile(String name, long bytes) {
-            long storedBytes = persistedFiles.getOrDefault(name, 0L);
-            persistedFiles.put(name, storedBytes + bytes);
-        }
-
-        @Override
-        public void trackFileEviction(String name) {
-            persistedFiles.put(name, 0L);
-        }
-
-        @Override
-        public Map<String, Long> getPersistedFilesSize() {
-            return persistedFiles;
         }
     }
 }

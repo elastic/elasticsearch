@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.cache.PersistentCacheTracker;
+import org.elasticsearch.index.recoveries.OnDemandRecoveryState;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -31,24 +31,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         associateNewEmptyTranslogWithIndex(indexShard);
     }
 
-    @Override
-    public void afterIndexShardStarted(IndexShard indexShard) {
-        setRecoveryTracker(indexShard);
-    }
-
-    private static void setRecoveryTracker(IndexShard indexShard) {
-        final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
-        assert directory != null;
-
-        PersistentCacheTracker tracker = (PersistentCacheTracker) indexShard.recoveryState().getIndex();
-        directory.setCacheTracker(tracker);
-    }
-
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
         final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
         assert directory != null;
 
-        final boolean success = directory.loadSnapshot();
+        OnDemandRecoveryState.Index index = (OnDemandRecoveryState.Index) indexShard.recoveryState().getIndex();
+        final boolean success = directory.loadSnapshot(index);
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
         assert success
             || indexShard.routingEntry()

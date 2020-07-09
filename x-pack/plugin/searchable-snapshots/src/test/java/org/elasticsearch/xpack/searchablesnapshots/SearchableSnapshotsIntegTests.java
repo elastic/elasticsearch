@@ -11,6 +11,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -28,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -64,6 +66,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -619,6 +622,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
             for (RecoveryState recoveryState : recoveryStates) {
                 logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
+                ByteSizeValue cacheSize = getCacheSizeForShard(recoveryState.getShardId());
                 boolean largeCache = cacheSize.compareTo(new ByteSizeValue(1, ByteSizeUnit.MB)) >= 0;
                 assertThat(
                     Strings.toString(recoveryState),
@@ -627,7 +631,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     // When the cache is enabled it's possible that depending on the cache size
                     // some or even all files won't fit on the cache, meaning that effectively there
                     // are 0 recovered files.
-                    cacheEnabled && largeCache ? greaterThan(0) : lessThanOrEqualTo(1)
+                    cacheEnabled && largeCache ? greaterThan(0) : greaterThanOrEqualTo(0)
                 );
 
                 assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.ON_DEMAND));
@@ -736,4 +740,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
     }
 
+    private ByteSizeValue getCacheSizeForShard(ShardId shardId) {
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setRoutingTable(true).setNodes(true).get();
+        ClusterState clusterStateResponseState = clusterStateResponse.getState();
+        String nodeId = clusterStateResponseState.getRoutingTable().shardRoutingTable(shardId).primaryShard().currentNodeId();
+        DiscoveryNode discoveryNode = clusterStateResponseState.nodes().get(nodeId);
+
+        final Settings nodeSettings = internalCluster().getInstance(Environment.class, discoveryNode.getName()).settings();
+        return CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(nodeSettings);
+    }
 }

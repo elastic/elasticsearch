@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.recoveries.OnDemandRecoveryState;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -229,7 +230,7 @@ public class CachePreWarmingTests extends ESTestCase {
                     assertThat(filterBlobContainer.totalFilesRead(), equalTo(0L));
                     assertThat(filterBlobContainer.totalBytesRead(), equalTo(0L));
 
-                    final boolean loaded = snapshotDirectory.loadSnapshot();
+                    final boolean loaded = snapshotDirectory.loadSnapshot(new OnDemandRecoveryState.Index());
                     assertThat("Failed to load snapshot", loaded, is(true));
 
                     final ExecutorService executor = threadPool.executor(SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);

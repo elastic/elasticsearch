@@ -40,11 +40,10 @@ abstract class AbstractReservoirCrossValidationSplitter implements CrossValidati
     }
 
     @Override
-    public void process(String[] row, Runnable incrementTrainingDocs, Runnable incrementTestDocs) {
+    public boolean isTraining(String[] row) {
 
         if (canBeUsedForTraining(row) == false) {
-            incrementTestDocs.run();
-            return;
+            return false;
         }
 
         SampleInfo sample = getSampleInfo(row);
@@ -62,11 +61,10 @@ abstract class AbstractReservoirCrossValidationSplitter implements CrossValidati
         sample.observed++;
         if (isTraining) {
             sample.training++;
-            incrementTrainingDocs.run();
-        } else {
-            row[dependentVariableIndex] = DataFrameDataExtractor.NULL_VALUE;
-            incrementTestDocs.run();
+            return true;
         }
+
+        return false;
     }
 
     private boolean canBeUsedForTraining(String[] row) {

@@ -568,7 +568,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.mappers()).thenReturn(documentFieldMappers);
             when(documentMapper.type()).thenReturn("_doc");
-            CompressedXContent mapping = new CompressedXContent(generateMapping(dataStream.getTimeStampField().getName()));
+            CompressedXContent mapping =
+                new CompressedXContent("{\"_doc\":" + generateMapping(dataStream.getTimeStampField().getName()) + "}");
             when(documentMapper.mappingSource()).thenReturn(mapping);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);

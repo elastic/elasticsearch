@@ -34,7 +34,7 @@ public class OnDemandRecoveryStateTests extends ESTestCase {
 
     public void testFileEvictionIsTracked() {
         OnDemandRecoveryState recoveryState = createRecoveryState();
-        RecoveryState.Index index = recoveryState.getIndex();
+        OnDemandRecoveryState.Index index = (OnDemandRecoveryState.Index) recoveryState.getIndex();
 
         long fileLength = randomLongBetween(0, 500);
         index.addFileDetail("file", fileLength, false);

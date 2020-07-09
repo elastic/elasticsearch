@@ -40,6 +40,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +80,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         Settings settings = Settings.builder().put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), timeValueSeconds(5)).build();
         request.indexTemplate(
             new ComposableIndexTemplate(
-                List.of("ds"),
+                Collections.singletonList("ds"),
                 new Template(settings, new CompressedXContent(mapping), null),
                 null, null, null, null,
                 new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))

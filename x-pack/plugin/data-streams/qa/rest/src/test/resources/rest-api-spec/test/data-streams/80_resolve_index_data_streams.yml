@@ -6,6 +6,47 @@ setup:
       features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp2':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp2'
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream2"
+
+  - do:
       indices.create:
         index: test_index1
         body:
@@ -58,7 +99,13 @@ setup:
   - match: {aliases.1.indices.1: test_index3}
   - match: {aliases.2.name: test_clias}
   - match: {aliases.2.indices.0: test_index1}
-  - length: {data_streams: 0}
+  - match: {data_streams.0.name: simple-data-stream1}
+  - match: {data_streams.0.backing_indices.0: .ds-simple-data-stream1-000001}
+  - match: {data_streams.0.timestamp_field: "@timestamp"}
+  - match: {data_streams.1.name: simple-data-stream2}
+  - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
+  - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
+  - match: {data_streams.1.timestamp_field: "@timestamp"}
 
   - do:
       indices.delete_data_stream:
@@ -112,4 +159,20 @@ setup:
   - match: {aliases.1.indices.1: test_index3}
   - match: {aliases.2.name: test_clias}
   - match: {aliases.2.indices.0: test_index1}
-  - length: {data_streams: 0}
+  - match: {data_streams.0.name: simple-data-stream1}
+  - match: {data_streams.0.backing_indices.0: .ds-simple-data-stream1-000001}
+  - match: {data_streams.0.timestamp_field: "@timestamp"}
+  - match: {data_streams.1.name: simple-data-stream2}
+  - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
+  - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
+  - match: {data_streams.1.timestamp_field: "@timestamp"}
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged

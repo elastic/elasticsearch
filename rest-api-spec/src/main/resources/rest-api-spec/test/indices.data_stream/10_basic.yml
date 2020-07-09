@@ -62,6 +62,18 @@ setup:
   - match: { data_streams.1.template: 'my-template2' }
 
   - do:
+      indices.get_mapping:
+        index: .ds-simple-data-stream1-000001
+        expand_wildcards: hidden
+  - match: { \.ds-simple-data-stream1-000001.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_mapping:
+        index: .ds-simple-data-stream2-000001
+        expand_wildcards: hidden
+  - match: { \.ds-simple-data-stream2-000001.mappings.properties.@timestamp.type: 'date_nanos' }
+
+  - do:
       index:
         index:  simple-data-stream1
         body:

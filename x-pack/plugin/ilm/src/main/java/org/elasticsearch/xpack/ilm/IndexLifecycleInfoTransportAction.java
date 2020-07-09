@@ -31,7 +31,7 @@ public class IndexLifecycleInfoTransportAction extends XPackInfoFeatureTransport
 
     @Override
     public boolean available() {
-        return licenseState.checkFeature(XPackLicenseState.Feature.ILM);
+        return licenseState.isAllowed(XPackLicenseState.Feature.ILM);
     }
 
     @Override

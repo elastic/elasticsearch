@@ -63,7 +63,7 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
         boolean available = randomBoolean();
-        when(licenseState.checkFeature(XPackLicenseState.Feature.ANALYTICS)).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class), clusterService, null,

@@ -4,7 +4,7 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.version
 
 version = "2020.1"
 
-val developmentBranches = listOf("master", "7.x", "7.8", "6.8")
+val developmentBranches = listOf("6.8", "7.8", "7.x", "master")
 
 project {
     developmentBranches.forEach { devBranch ->

@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
@@ -51,6 +54,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
     private IntArray docCounts;
+    private DocCountProvider fieldDocCountProvider = DocCountProvider.DEFAULT_PROVIDER;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             Map<String, Object> metadata) throws IOException {
@@ -90,7 +94,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        if (docCounts.increment(bucketOrd, 1) == 1) {
+        int docCount = fieldDocCountProvider.getDocCount(doc);
+        if (docCounts.increment(bucketOrd, docCount) == 1) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
             // trigger bucket consumer from time to time in order to give it a chance to check available memory and break
             // the execution if we are running out. To achieve that we are passing 0 as a bucket count.
@@ -391,4 +396,21 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return false;
     }
 
+    @Override
+    protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
+        super.preGetSubLeafCollectors(ctx);
+        // Check index mappings to find a field of type doc_count. If one is found
+        // use that one to retrieve the doc count for the bucket
+
+        // In agg tests fieldTypes is null. TODO: Fix test fixtures so that fieldTypes is not null
+        if (context.getQueryShardContext().getMapperService().fieldTypes() != null) {
+            for (MappedFieldType fieldType : context.getQueryShardContext().getMapperService().fieldTypes()) {
+                if (DocCountFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
+                    // If a field of type doc_count has been found, use it to provide the bucket doc_count values
+                    fieldDocCountProvider = new FieldDocCountProvider(ctx, fieldType.name());
+                    break;
+                }
+            }
+        }
+    }
 }

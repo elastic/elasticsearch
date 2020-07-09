@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.versionfield;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.VersionParts;
 
@@ -14,45 +13,42 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.decodeVersion;
+import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 
 public class VersionEncoderTests extends ESTestCase {
 
     public void testEncodingOrderingSemver() {
         VersionEncoder.strictSemverCheck = false;
-        assertTrue(encSemver("1").compareTo(encSemver("1.0")) < 0);
-        assertTrue(encSemver("1.0").compareTo(encSemver("1.0.0.0.0.0.0.0.0.1")) < 0);
-        assertTrue(encSemver("1.0.0").compareTo(encSemver("1.0.0.0.0.0.0.0.0.1")) < 0);
-        assertTrue(encSemver("1.0.0").compareTo(encSemver("2.0.0")) < 0);
-        assertTrue(encSemver("2.0.0").compareTo(encSemver("11.0.0")) < 0);
-        assertTrue(encSemver("2.0.0").compareTo(encSemver("2.1.0")) < 0);
-        assertTrue(encSemver("2.1.0").compareTo(encSemver("2.1.1")) < 0);
-        assertTrue(encSemver("2.1.1").compareTo(encSemver("2.1.1.0")) < 0);
-        assertTrue(encSemver("2.0.0").compareTo(encSemver("11.0.0")) < 0);
-        assertTrue(encSemver("1.0.0").compareTo(encSemver("2.0")) < 0);
-        assertTrue(encSemver("1.0.0-a").compareTo(encSemver("1.0.0-b")) < 0);
-        assertTrue(encSemver("1.0.0-1.0.0").compareTo(encSemver("1.0.0-2.0")) < 0);
-        assertTrue(encSemver("1.0.0-alpha").compareTo(encSemver("1.0.0-alpha.1")) < 0);
-        assertTrue(encSemver("1.0.0-alpha.1").compareTo(encSemver("1.0.0-alpha.beta")) < 0);
-        assertTrue(encSemver("1.0.0-alpha.beta").compareTo(encSemver("1.0.0-beta")) < 0);
-        assertTrue(encSemver("1.0.0-beta").compareTo(encSemver("1.0.0-beta.2")) < 0);
-        assertTrue(encSemver("1.0.0-beta.2").compareTo(encSemver("1.0.0-beta.11")) < 0);
-        assertTrue(encSemver("1.0.0-beta11").compareTo(encSemver("1.0.0-beta2")) < 0); // correct according to Semver specs
-        assertTrue(encSemver("1.0.0-beta.11").compareTo(encSemver("1.0.0-rc.1")) < 0);
-        assertTrue(encSemver("1.0.0-rc.1").compareTo(encSemver("1.0.0")) < 0);
-        assertTrue(encSemver("1.0.0").compareTo(encSemver("2.0.0-pre127")) < 0);
-        assertTrue(encSemver("2.0.0-pre127").compareTo(encSemver("2.0.0-pre128")) < 0);
-        assertTrue(encSemver("2.0.0-pre128").compareTo(encSemver("2.0.0-pre128-somethingelse")) < 0);
-        assertTrue(encSemver("2.0.0-pre20201231z110026").compareTo(encSemver("2.0.0-pre227")) < 0);
+        assertTrue(encodeVersion("1").compareTo(encodeVersion("1.0")) < 0);
+        assertTrue(encodeVersion("1.0").compareTo(encodeVersion("1.0.0.0.0.0.0.0.0.1")) < 0);
+        assertTrue(encodeVersion("1.0.0").compareTo(encodeVersion("1.0.0.0.0.0.0.0.0.1")) < 0);
+        assertTrue(encodeVersion("1.0.0").compareTo(encodeVersion("2.0.0")) < 0);
+        assertTrue(encodeVersion("2.0.0").compareTo(encodeVersion("11.0.0")) < 0);
+        assertTrue(encodeVersion("2.0.0").compareTo(encodeVersion("2.1.0")) < 0);
+        assertTrue(encodeVersion("2.1.0").compareTo(encodeVersion("2.1.1")) < 0);
+        assertTrue(encodeVersion("2.1.1").compareTo(encodeVersion("2.1.1.0")) < 0);
+        assertTrue(encodeVersion("2.0.0").compareTo(encodeVersion("11.0.0")) < 0);
+        assertTrue(encodeVersion("1.0.0").compareTo(encodeVersion("2.0")) < 0);
+        assertTrue(encodeVersion("1.0.0-a").compareTo(encodeVersion("1.0.0-b")) < 0);
+        assertTrue(encodeVersion("1.0.0-1.0.0").compareTo(encodeVersion("1.0.0-2.0")) < 0);
+        assertTrue(encodeVersion("1.0.0-alpha").compareTo(encodeVersion("1.0.0-alpha.1")) < 0);
+        assertTrue(encodeVersion("1.0.0-alpha.1").compareTo(encodeVersion("1.0.0-alpha.beta")) < 0);
+        assertTrue(encodeVersion("1.0.0-alpha.beta").compareTo(encodeVersion("1.0.0-beta")) < 0);
+        assertTrue(encodeVersion("1.0.0-beta").compareTo(encodeVersion("1.0.0-beta.2")) < 0);
+        assertTrue(encodeVersion("1.0.0-beta.2").compareTo(encodeVersion("1.0.0-beta.11")) < 0);
+        assertTrue(encodeVersion("1.0.0-beta11").compareTo(encodeVersion("1.0.0-beta2")) < 0); // correct according to Semver specs
+        assertTrue(encodeVersion("1.0.0-beta.11").compareTo(encodeVersion("1.0.0-rc.1")) < 0);
+        assertTrue(encodeVersion("1.0.0-rc.1").compareTo(encodeVersion("1.0.0")) < 0);
+        assertTrue(encodeVersion("1.0.0").compareTo(encodeVersion("2.0.0-pre127")) < 0);
+        assertTrue(encodeVersion("2.0.0-pre127").compareTo(encodeVersion("2.0.0-pre128")) < 0);
+        assertTrue(encodeVersion("2.0.0-pre128").compareTo(encodeVersion("2.0.0-pre128-somethingelse")) < 0);
+        assertTrue(encodeVersion("2.0.0-pre20201231z110026").compareTo(encodeVersion("2.0.0-pre227")) < 0);
         // some rare ones that fail strict validation
-        // assertTrue(encSemver("12.el2").compareTo(encSemver("12.el11")) < 0);
-        // assertTrue(encSemver("12.el2-1.0-rc5").compareTo(encSemver("12.el2")) < 0);
+        // assertTrue(encodeVersion("12.el2").compareTo(encodeVersion("12.el11")) < 0);
+        // assertTrue(encodeVersion("12.el2-1.0-rc5").compareTo(encodeVersion("12.el2")) < 0);
     }
 
-    private BytesRef encSemver(String s) {
-        return VersionEncoder.encodeVersion(s);
-    };
-
-    public void testDecodingSemver() {
+    public void testDecoding() {
         for (String version : List.of(
             "1.0.0",
             "1.2.34",
@@ -62,29 +58,14 @@ public class VersionEncoderTests extends ESTestCase {
             "1.0.0-beta+someBuildNumber-123456-open",
             "1.3.0+build1234567"
         )) {
-            String decoded = decodeVersion(encSemver(version));
-            assertEquals(version, decoded);
-        }
-    }
-
-    public void testDecodingHonourNumeral() {
-        for (String version : List.of(
-            "1.0.0",
-            "1.2.345",
-            "1.0.0-alpha",
-            "1.0.0-alpha.11",
-            "1.0.0-a1234.12.13278.beta",
-            "1.0.0-beta+someBuildNumber-123456-open",
-            "1.3.0+build1234567"
-        )) {
-            String decoded = decodeVersion(encSemver(version));
+            String decoded = decodeVersion(encodeVersion(version));
             assertEquals(version, decoded);
         }
     }
 
     public void testMaxDigitGroupLength() {
         String versionString = "1.0." + "1".repeat(128);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decodeVersion(encSemver(versionString)));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decodeVersion(encodeVersion(versionString)));
         assertEquals("Groups of digits cannot be longer than 127, but found: 128", ex.getMessage());
     }
 
@@ -94,7 +75,7 @@ public class VersionEncoderTests extends ESTestCase {
     public void testRandomRoundtrip() {
         VersionEncoder.strictSemverCheck = false;
         String versionString = randomVersionString();
-        assertEquals(versionString, decodeVersion(encSemver(versionString)));
+        assertEquals(versionString, decodeVersion(encodeVersion(versionString)));
     }
 
     private String randomVersionString() {
@@ -175,6 +156,9 @@ public class VersionEncoderTests extends ESTestCase {
             "1.0.0-0A.is.legal" };
         for (String version : validSemverVersions) {
             assertTrue("should be valid: " + version, VersionEncoder.legalVersionString(VersionParts.ofVersion(version)));
+            // since we're here, also check encoding / decoding rountrip
+            assertEquals(version, decodeVersion(encodeVersion(version)));
+
         }
 
         String[] invalidSemverVersions = new String[] {

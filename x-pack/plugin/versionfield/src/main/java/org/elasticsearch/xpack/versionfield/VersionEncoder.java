@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 
-import java.util.Arrays;
 import java.util.regex.Pattern;
 
 /**
@@ -175,26 +174,11 @@ public class VersionEncoder {
     }
 
     public static String decodeVersion(BytesRef version) {
-        int pos = 0;
-        StringBuilder sb = new StringBuilder();
-        while (pos < version.length && version.bytes[pos] != BUILD_SEPARATOR_BYTE) {
-            pos++;
-        }
-        sb.append(decodeVersionString(version.bytes, 0, pos));
-
-        // add build part if present
-        if (pos < version.length && version.bytes[pos] == BUILD_SEPARATOR_BYTE) {
-            sb.append(new BytesRef(version.bytes, pos, version.length - pos).utf8ToString());
-        }
-        return sb.toString();
-    }
-
-    private static char[] decodeVersionString(byte[] input, int startPos, int endPos) {
-        int inputPos = startPos;
+        int inputPos = version.offset;
         int resultPos = 0;
-        char[] result = new char[input.length];
-        while (inputPos < endPos) {
-            byte inputByte = input[inputPos];
+        char[] result = new char[version.length];
+        while (inputPos < version.offset + version.length) {
+            byte inputByte = version.bytes[inputPos];
             if (inputByte >= 0x30 && ((inputByte & 0x80) == 0)) {
                 result[resultPos] = (char) inputByte;
                 resultPos++;
@@ -210,7 +194,7 @@ public class VersionEncoder {
             }
             inputPos++;
         }
-        return Arrays.copyOf(result, resultPos);
+        return new String(result, 0, resultPos);
     }
 
     static boolean legalVersionString(VersionParts versionParts) {

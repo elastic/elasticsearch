@@ -78,6 +78,7 @@ import org.junit.BeforeClass;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1899,12 +1900,12 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testExtendedStatsAggsStddevAndVar() {
-        final Map<String, String> metricToAgg =  Map.of(
-            "STDDEV_POP", "std_deviation",
-            "STDDEV_SAMP", "std_deviation_sampling",
-            "VAR_POP", "variance",
-            "VAR_SAMP", "variance_sampling"
-        );
+        final Map<String, String> metricToAgg =  new HashMap<String, String>() {{
+            put("STDDEV_POP", "std_deviation");
+            put("STDDEV_SAMP", "std_deviation_sampling");
+            put("VAR_POP", "variance");
+            put("VAR_SAMP", "variance_sampling");
+        }};
         for (String funcName: metricToAgg.keySet()) {
             PhysicalPlan p = optimizeAndPlan("SELECT " + funcName + "(int) FROM test");
             assertEquals(EsQueryExec.class, p.getClass());

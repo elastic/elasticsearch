@@ -166,7 +166,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * {@link SnapshotsInProgress#entries()} and {@link SnapshotDeletionsInProgress#getEntries()}.
      */
     public static final Setting<Integer> MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING =
-        Setting.intSetting("snapshot.max_concurrent_operations", 10, 1, Setting.Property.NodeScope, Setting.Property.Dynamic);
+        Setting.intSetting("snapshot.max_concurrent_operations", 1000, 1, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     private volatile int maxConcurrentOperations;
 

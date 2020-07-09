@@ -1,3 +1,8 @@
+setup:
+  - skip:
+      version: "all"
+      reason:  "Until backport of https://github.com/elastic/elasticsearch/pull/67950"
+
 ---
 "Get old cluster outlier_detection job":
 

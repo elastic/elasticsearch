@@ -121,7 +121,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
             if (in.getVersion().before(Version.V_7_9_0)) {
                 scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
-            } else if (scriptStats == null) {
+            } else if (scriptStats != null) {
                 scriptCacheStats = scriptStats.toScriptCacheStats();
             }
         }

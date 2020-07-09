@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Test Indexing Pressure Metrics and Statistics
  */
-@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 public class IndexingPressureRestIT extends HttpSmokeTestCase {
 
     private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();

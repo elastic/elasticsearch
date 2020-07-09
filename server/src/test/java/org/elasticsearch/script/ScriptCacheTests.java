@@ -42,7 +42,8 @@ public class ScriptCacheTests extends ESTestCase {
         ScriptCache.CompilationRate rate =
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         String rateSettingName = rateSetting.getKey();
-        ScriptCache cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(1, TimeValue.timeValueMinutes(1)), rateSettingName);
+        ScriptCache cache = new ScriptCache(size, expire,
+            new ScriptCache.CompilationRate(1, TimeValue.timeValueMinutes(1)), rateSettingName);
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(2, TimeValue.timeValueMinutes(1)), rateSettingName);

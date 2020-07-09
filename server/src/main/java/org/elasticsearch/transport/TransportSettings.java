@@ -18,13 +18,11 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.util.Arrays;
 import java.util.List;
@@ -84,17 +82,20 @@ public final class TransportSettings {
         affixKeySetting("transport.profiles.", "tcp.keep_alive",
             key -> boolSetting(key, TCP_KEEP_ALIVE, Setting.Property.NodeScope));
     public static final Setting<Integer> TCP_KEEP_IDLE =
-        intSetting("transport.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE, SET_EXTRA_KEEP_ALIVE_OPTIONS ? 60 : -1, Setting.Property.NodeScope);
+        intSetting("transport.tcp.keep_idle", NetworkService.TCP_KEEP_IDLE,
+            SET_EXTRA_KEEP_ALIVE_OPTIONS ? 60 : -1, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> TCP_KEEP_IDLE_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.keep_idle",
             key -> intSetting(key, TCP_KEEP_IDLE, SET_EXTRA_KEEP_ALIVE_OPTIONS ? 60 : -1, Setting.Property.NodeScope));
     public static final Setting<Integer> TCP_KEEP_INTERVAL =
-        intSetting("transport.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL, SET_EXTRA_KEEP_ALIVE_OPTIONS ? 10 : -1, Setting.Property.NodeScope);
+        intSetting("transport.tcp.keep_interval", NetworkService.TCP_KEEP_INTERVAL,
+            SET_EXTRA_KEEP_ALIVE_OPTIONS ? 10 : -1, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> TCP_KEEP_INTERVAL_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.keep_interval",
             key -> intSetting(key, TCP_KEEP_INTERVAL, SET_EXTRA_KEEP_ALIVE_OPTIONS ? 10 : -1, Setting.Property.NodeScope));
     public static final Setting<Integer> TCP_KEEP_COUNT =
-        intSetting("transport.tcp.keep_count", NetworkService.TCP_KEEP_COUNT, SET_EXTRA_KEEP_ALIVE_OPTIONS ? 3 : -1, Setting.Property.NodeScope);
+        intSetting("transport.tcp.keep_count", NetworkService.TCP_KEEP_COUNT,
+            SET_EXTRA_KEEP_ALIVE_OPTIONS ? 3 : -1, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> TCP_KEEP_COUNT_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.keep_count",
             key -> intSetting(key, TCP_KEEP_COUNT, SET_EXTRA_KEEP_ALIVE_OPTIONS ? 3 : -1, Setting.Property.NodeScope));

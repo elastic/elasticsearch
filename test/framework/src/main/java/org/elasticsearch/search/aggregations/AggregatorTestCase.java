@@ -32,7 +32,6 @@ import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.AssertingIndexSearcher;
@@ -129,7 +128,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -546,22 +544,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<V> verify,
         MappedFieldType... fieldTypes) throws IOException {
-        testCase(aggregationBuilder, Optional.empty(), query, buildIndex, verify, fieldTypes);
-    }
-
-    protected <T extends AggregationBuilder, V extends InternalAggregation> void testCase(
-        T aggregationBuilder,
-        Optional<IndexWriterConfig> indexWriterConfig, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<V> verify,
-        MappedFieldType... fieldTypes) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter;
-            if (indexWriterConfig.isPresent()) {
-                indexWriter = new RandomIndexWriter(random(), directory, indexWriterConfig.get());
-            } else {
-                indexWriter = new RandomIndexWriter(random(), directory);
-            }
+            indexWriter = new RandomIndexWriter(random(), directory);
             buildIndex.accept(indexWriter);
             indexWriter.close();
 

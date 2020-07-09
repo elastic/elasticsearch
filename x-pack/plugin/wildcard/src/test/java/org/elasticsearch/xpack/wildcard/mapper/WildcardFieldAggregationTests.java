@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.wildcard.mapper;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -28,24 +27,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 public class WildcardFieldAggregationTests extends AggregatorTestCase {
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
     private static final int MAX_FIELD_LENGTH = 30;
 
-    private Optional<IndexWriterConfig> iwc;
     private WildcardFieldMapper wildcardFieldMapper;
     private WildcardFieldMapper.WildcardFieldType wildcardFieldType;
 
 
     @Before
     public void setup() {
-        // These settings are lifted out of WildcardFieldMapperTests
-        IndexWriterConfig iwc = newIndexWriterConfig(WildcardFieldMapper.WILDCARD_ANALYZER);
-        iwc.setMergePolicy(newTieredMergePolicy(random()));
-        this.iwc = Optional.of(iwc);
-
         WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
         wildcardFieldMapper = builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
@@ -85,7 +77,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
             .order(BucketOrder.key(true));
 
         testCase(aggregationBuilder,
-            iwc, new MatchAllDocsQuery(),
+            new MatchAllDocsQuery(),
             iw -> {
                 indexStrings(iw, "a");
                 indexStrings(iw, "a");
@@ -117,7 +109,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
         );
 
         testCase(aggregationBuilder,
-            iwc, new MatchAllDocsQuery(),
+            new MatchAllDocsQuery(),
             iw -> {
                 indexStrings(iw, "a");
                 indexStrings(iw, "c");
@@ -146,7 +138,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder("name", Collections.singletonList(terms))
             .aggregateAfter(Collections.singletonMap("terms_key", "a"));
 
-        testCase(aggregationBuilder, iwc, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             indexStrings(iw, "a");
             indexStrings(iw, "c");
             indexStrings(iw, "a");

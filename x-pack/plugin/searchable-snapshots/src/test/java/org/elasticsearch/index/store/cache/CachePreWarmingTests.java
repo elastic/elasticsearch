@@ -200,7 +200,7 @@ public class CachePreWarmingTests extends ESTestCase {
                 future.actionGet();
 
                 final Path cacheDir = createTempDir();
-                final CacheService cacheService = new CacheService(Settings.EMPTY);
+                final CacheService cacheService = TestUtils.createDefaultCacheService();
                 releasables.add(cacheService);
                 cacheService.start();
 

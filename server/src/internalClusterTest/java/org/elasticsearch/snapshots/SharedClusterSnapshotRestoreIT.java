@@ -2269,7 +2269,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {
             logger.info("--> delete index while non-partial snapshot is running");
-            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(dataStream)).actionGet();
+            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{dataStream})).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
             assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [test-ds"));

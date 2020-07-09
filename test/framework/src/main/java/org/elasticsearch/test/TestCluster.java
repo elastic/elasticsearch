@@ -143,7 +143,7 @@ public abstract class TestCluster implements Closeable {
         // Feature flag may not be enabled in all gradle modules that use ESIntegTestCase
         if (size() > 0 && ActionModule.DATASTREAMS_FEATURE_ENABLED) {
             AcknowledgedResponse response =
-                client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("*")).actionGet();
+                client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{"*"})).actionGet();
             assertAcked(response);
         }
     }

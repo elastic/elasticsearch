@@ -32,28 +32,19 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
-    public static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
-        new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -157,13 +148,7 @@ public class MetadataCreateDataStreamService {
         assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
         String fieldName = template.getDataStreamTemplate().getTimestampField();
-        Map<String, Object> mapping = firstBackingIndex.mapping().getSourceAsMap();
-        Map<String, Object> timeStampFieldMapping = ObjectPath.eval(convertFieldPathToMappingPath(fieldName), mapping);
-
-        DataStream.TimestampField timestampField = new DataStream.TimestampField(
-            fieldName,
-            timeStampFieldMapping
-        );
+        DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         DataStream newDataStream = new DataStream(request.name, timestampField,
                 Collections.singletonList(firstBackingIndex.getIndex()));
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
@@ -185,31 +170,16 @@ public class MetadataCreateDataStreamService {
     }
 
     public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) {
-        MappedFieldType timestampFieldMapper = mapperService.fieldType(timestampFieldName);
-        if (timestampFieldMapper == null) {
-            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "], but found no timestamp field");
-        }
-        String type = timestampFieldMapper.typeName();
-        if (ALLOWED_TIMESTAMPFIELD_TYPES.contains(type) == false) {
-            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types " +
-                ALLOWED_TIMESTAMPFIELD_TYPES + ", but instead found type [" + type  + "]");
-        }
-    }
+        TimestampFieldMapper fieldMapper = (TimestampFieldMapper) mapperService.documentMapper().mappers().getMapper("_timestamp");
+        assert fieldMapper != null : "[_timestamp] meta field mapper must exist";
 
-    public static String convertFieldPathToMappingPath(String fieldPath) {
-        // The mapping won't allow such fields, so this is a sanity check:
-        assert Arrays.stream(fieldPath.split("\\.")).filter(String::isEmpty).count() == 0L ||
-            fieldPath.startsWith(".") ||
-            fieldPath.endsWith(".") : "illegal field path [" + fieldPath + "]";
-
-        String mappingPath;
-        if (fieldPath.indexOf('.') == -1) {
-            mappingPath = "properties." + fieldPath;
-        } else {
-            mappingPath = "properties." + fieldPath.replace(".", ".properties.");
+        if (timestampFieldName.equals(fieldMapper.getPath()) == false) {
+            throw new IllegalArgumentException("[_timestamp] meta field doesn't point to data stream timestamp field [" +
+                timestampFieldName + "]");
         }
 
-        return mappingPath;
+        // Sanity check (this validation logic should already have been executed when merging mappings):
+        fieldMapper.validate(mapperService.documentMapper().mappers());
     }
 
 }

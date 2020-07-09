@@ -29,24 +29,17 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.ALLOWED_TIMESTAMPFIELD_TYPES;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.convertFieldPathToMappingPath;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
-    public static final String DATA_STREAMS_METADATA_FIELD = "data-streams";
 
     private final String name;
     private final TimestampField timeStampField;
@@ -213,68 +206,42 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public static final class TimestampField implements Writeable, ToXContentObject {
 
+        public static final String FIXED_TIMESTAMP_FIELD = "@timestamp";
+
         static ParseField NAME_FIELD = new ParseField("name");
-        static ParseField FIELD_MAPPING_FIELD = new ParseField("mapping");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
             "timestamp_field",
-            args -> new TimestampField((String) args[0], (Map<String, Object>) args[1])
+            args -> new TimestampField((String) args[0])
         );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.mapOrdered(), FIELD_MAPPING_FIELD);
         }
 
         private final String name;
-        private final Map<String, Object> fieldMapping;
 
-        public TimestampField(String name, Map<String, Object> fieldMapping) {
-            assert fieldMapping.containsKey("type") : "no type defined for mapping of timestamp_field";
-            assert ALLOWED_TIMESTAMPFIELD_TYPES.contains(fieldMapping.get("type")) :
-                "invalid type defined for mapping of timestamp_field";
-
+        public TimestampField(String name) {
+            if (FIXED_TIMESTAMP_FIELD.equals(name) == false) {
+                throw new IllegalArgumentException("unexpected timestamp field [" + name + "]");
+            }
             this.name = name;
-            this.fieldMapping = Collections.unmodifiableMap(fieldMapping);
         }
 
         public TimestampField(StreamInput in) throws IOException {
-            this(in.readString(), in.readMap());
-        }
-
-        /**
-         * Creates a map representing the full timestamp field mapping, taking into
-         * account if the timestamp field is nested under object mappers (its path
-         * contains dots).
-         */
-        public Map<String, Map<String, Object>> getTimestampFieldMapping() {
-            String mappingPath = convertFieldPathToMappingPath(name);
-            String parentObjectFieldPath = mappingPath.substring(0, mappingPath.lastIndexOf('.'));
-            String leafFieldName = mappingPath.substring(mappingPath.lastIndexOf('.') + 1);
-
-            Map<String, Object> result = new HashMap<>();
-            Map<String, Object> current = result;
-            for (String key : parentObjectFieldPath.split("\\.")) {
-                Map<String, Object> map = new HashMap<>();
-                current.put(key, map);
-                current = map;
-            }
-            current.put(leafFieldName, fieldMapping);
-            return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, result);
+            this(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeMap(fieldMapping);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.field(FIELD_MAPPING_FIELD.getPreferredName(), fieldMapping);
             builder.endObject();
             return builder;
         }
@@ -283,22 +250,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             return name;
         }
 
-        public Map<String, Object> getFieldMapping() {
-            return fieldMapping;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TimestampField that = (TimestampField) o;
-            return name.equals(that.name) &&
-                fieldMapping.equals(that.fieldMapping);
+            return name.equals(that.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name, fieldMapping);
+            return Objects.hash(name);
         }
     }
 }

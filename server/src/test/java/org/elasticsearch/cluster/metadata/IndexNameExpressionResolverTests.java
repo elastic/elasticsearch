@@ -1710,7 +1710,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
-            .put(new DataStream(dataStreamName, createTimestampField("ts"),
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                 org.elasticsearch.common.collect.List.of(backingIndex.getIndex()), 1));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
@@ -1819,7 +1819,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(index1, false)
             .put(index2, false)
-            .put(new DataStream(dataStreamName, createTimestampField("ts"),
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                 org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex()), 2));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
@@ -1912,6 +1912,17 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true,
+                randomFrom(new String[]{"*"}, new String[]{"_all"}, new String[0]));
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(4));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 1)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
+            assertThat(result[2].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 1)));
+            assertThat(result[3].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));;
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-m*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
@@ -1922,6 +1933,41 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN; // without include data streams
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, "logs-*");
             assertThat(result.length, equalTo(0));
+        }
+    }
+
+    public void testDataStreamsWithClosedBackingIndicesAndWildcardExpressions() {
+        final String dataStream1 = "logs-mysql";
+        final String dataStream2 = "logs-redis";
+        IndexMetadata index1 = createBackingIndex(dataStream1, 1).state(State.CLOSE).build();
+        IndexMetadata index2 = createBackingIndex(dataStream1, 2).build();
+        IndexMetadata index3 = createBackingIndex(dataStream2, 1).state(State.CLOSE).build();
+        IndexMetadata index4 = createBackingIndex(dataStream2, 2).build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(index1, false)
+            .put(index2, false)
+            .put(index3, false)
+            .put(index4, false)
+            .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
+                org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex())))
+            .put(new DataStream(dataStream2, createTimestampField("@timestamp"),
+                org.elasticsearch.common.collect.List.of(index3.getIndex(), index4.getIndex())));
+
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+        IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "logs-*");
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));
+        }
+        {
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "*");
+            Arrays.sort(result, Comparator.comparing(Index::getName));
+            assertThat(result.length, equalTo(2));
+            assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));
         }
     }
 
@@ -1975,10 +2021,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(index3, false)
                 .put(index4, false)
                 .put(justAnIndex, false)
-                .put(new DataStream(dataStream1, createTimestampField("ts"), Arrays.asList(index1.getIndex(), index2.getIndex())))
-                .put(new DataStream(dataStream2, createTimestampField("ts"), Arrays.asList(index3.getIndex(), index4.getIndex())))).build();
+                .put(new DataStream(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex())))
+                .put(new DataStream(dataStream2, createTimestampField("@timestamp"), Arrays.asList(index3.getIndex(), index4.getIndex()))))
+            .build();
 
         List<String> names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "log*");
+        assertEquals(Collections.singletonList(dataStream1), names);
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), dataStream1);
         assertEquals(Collections.singletonList(dataStream1), names);
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "other*");
@@ -1991,6 +2041,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(names, empty());
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), index3.getIndex().getName());
+        assertThat(names, empty());
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-logs-foobar");
+        assertThat(names, containsInAnyOrder(dataStream2));
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-*");
         assertThat(names, empty());
     }
 }

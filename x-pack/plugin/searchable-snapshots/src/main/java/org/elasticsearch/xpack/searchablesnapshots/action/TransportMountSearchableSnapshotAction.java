@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -157,6 +158,9 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             // by one with the same name while we are restoring it) or else the index metadata might bear no relation to the snapshot we're
             // searching.
 
+            final String[] ignoreIndexSettings = Arrays.copyOf(request.ignoreIndexSettings(), request.ignoreIndexSettings().length + 1);
+            ignoreIndexSettings[ignoreIndexSettings.length - 1] = IndexMetadata.SETTING_DATA_PATH;
+
             client.admin()
                 .cluster()
                 .restoreSnapshot(
@@ -176,7 +180,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                                 .build()
                         )
                         // Pass through ignored index settings
-                        .ignoreIndexSettings(request.ignoreIndexSettings())
+                        .ignoreIndexSettings(ignoreIndexSettings)
                         // Don't include global state
                         .includeGlobalState(false)
                         // Don't include aliases

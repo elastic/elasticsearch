@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -31,7 +32,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -47,7 +47,9 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsFeatureSet;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.RepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
@@ -56,6 +58,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchab
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportRepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.NodeEnvironmentCacheCleaner;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestRepositoryStatsAction;
@@ -137,12 +140,15 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final Settings settings;
 
+    private final boolean transportClientMode;
+
     public SearchableSnapshots(final Settings settings) {
         this.settings = settings;
+        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     public static void ensureValidLicense(XPackLicenseState licenseState) {
-        if (licenseState.isAllowedByLicense(License.OperationMode.PLATINUM) == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }
@@ -182,7 +188,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            final CacheService cacheService = new CacheService(settings);
+            final CacheService cacheService = new CacheService(new NodeEnvironmentCacheCleaner(nodeEnvironment), settings);
             this.cacheService.set(cacheService);
             this.repositoriesServiceSupplier = repositoriesServiceSupplier;
             this.threadPool.set(threadPool);
@@ -192,6 +198,19 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 assert false : "searchable snapshots are disabled";
                 return null;
             };
+            return org.elasticsearch.common.collect.List.of();
+        }
+    }
+
+    @Override
+    public Collection<Module> createGuiceModules() {
+        if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            if (transportClientMode) {
+                return Collections.emptyList();
+            }
+
+            return Collections.singleton(b -> XPackPlugin.bindFeatureSet(b, SearchableSnapshotsFeatureSet.class));
+        } else {
             return org.elasticsearch.common.collect.List.of();
         }
     }

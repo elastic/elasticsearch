@@ -57,6 +57,8 @@ public final class XPackField {
     public static final String ENRICH = "enrich";
     /** Name constant for the constant-keyword plugin. */
     public static final String CONSTANT_KEYWORD = "constant_keyword";
+    /** Name constant for the searchable snapshots feature. */
+    public static final String SEARCHABLE_SNAPSHOTS = "searchable_snapshots";
 
     private XPackField() {}
 

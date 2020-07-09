@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
@@ -61,6 +62,12 @@ subprojects {
 configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
+}
+
+restResources {
+  restApi {
+    includeCore '*'
+  }
 }
 
 artifacts {

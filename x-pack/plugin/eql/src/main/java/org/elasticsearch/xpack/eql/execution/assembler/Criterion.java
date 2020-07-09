@@ -86,4 +86,9 @@ public class Criterion<Q extends QueryRequest> {
         }
         return new Ordinal(timestamp, tbreaker);
     }
+
+    @Override
+    public String toString() {
+        return "[" + stage + "][" + reverse + "]";
+    }
 }

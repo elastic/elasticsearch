@@ -58,14 +58,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static java.util.Collections.unmodifiableList;
-
 public class IndexNameExpressionResolver {
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
-    private final List<ExpressionResolver> expressionResolvers = unmodifiableList(Arrays.asList(
-            dateMathExpressionResolver,
-            new WildcardExpressionResolver()));
+    private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
+    private final List<ExpressionResolver> expressionResolvers =
+        org.elasticsearch.common.collect.List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options
@@ -114,10 +112,16 @@ public class IndexNameExpressionResolver {
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
-        Context context = new Context(state, options, false, false, true);
-        return Arrays.stream(indexExpressions)
-            .flatMap(expression -> WildcardExpressionResolver.matches(context, state.metadata(), expression).values().stream())
-            .filter(i -> i.getType() == IndexAbstraction.Type.DATA_STREAM)
+        Context context = new Context(state, options, false, false, true, true);
+        if (indexExpressions == null || indexExpressions.length == 0) {
+            indexExpressions = new String[]{"*"};
+        }
+
+        List<String> dataStreams = wildcardExpressionResolver.resolve(context, Arrays.asList(indexExpressions));
+        return ((dataStreams == null) ? org.elasticsearch.common.collect.List.<String>of() : dataStreams).stream()
+            .map(x -> state.metadata().getIndicesLookup().get(x))
+            .filter(Objects::nonNull)
+            .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
             .collect(Collectors.toList());
     }
@@ -157,7 +161,7 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
-        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams());
+        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false);
         return concreteIndices(context, request.indices());
     }
 
@@ -176,7 +180,6 @@ public class IndexNameExpressionResolver {
         }
         Metadata metadata = context.getState().metadata();
         IndicesOptions options = context.getOptions();
-        final boolean failClosed = options.forbidClosedIndices() && options.ignoreUnavailable() == false;
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
@@ -260,20 +263,8 @@ public class IndexNameExpressionResolver {
                 }
 
                 for (IndexMetadata index : indexAbstraction.getIndices()) {
-                    if (index.getState() == IndexMetadata.State.CLOSE) {
-                        if (failClosed) {
-                            throw new IndexClosedException(index.getIndex());
-                        } else {
-                            if (options.forbidClosedIndices() == false && addIndex(index, context)) {
-                                concreteIndices.add(index.getIndex());
-                            }
-                        }
-                    } else if (index.getState() == IndexMetadata.State.OPEN) {
-                        if (addIndex(index, context)) {
-                            concreteIndices.add(index.getIndex());
-                        }
-                    } else {
-                        throw new IllegalStateException("index state [" + index.getState() + "] not supported");
+                    if (shouldTrackConcreteIndex(context, options, index)) {
+                        concreteIndices.add(index.getIndex());
                     }
                 }
             }
@@ -285,6 +276,20 @@ public class IndexNameExpressionResolver {
             throw infe;
         }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
+    }
+
+    private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
+        if (index.getState() == IndexMetadata.State.CLOSE) {
+            if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
+                throw new IndexClosedException(index.getIndex());
+            } else {
+                return options.forbidClosedIndices() == false && addIndex(index, context);
+            }
+        } else if (index.getState() == IndexMetadata.State.OPEN) {
+            return addIndex(index, context);
+        } else {
+            throw new IllegalStateException("index state [" + index.getState() + "] not supported");
+        }
     }
 
     private static boolean addIndex(IndexMetadata metadata, Context context) {
@@ -646,6 +651,7 @@ public class IndexNameExpressionResolver {
         private final boolean preserveAliases;
         private final boolean resolveToWriteIndex;
         private final boolean includeDataStreams;
+        private final boolean preserveDataStreams;
 
         Context(ClusterState state, IndicesOptions options) {
             this(state, options, System.currentTimeMillis());
@@ -653,21 +659,27 @@ public class IndexNameExpressionResolver {
 
         Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex,
                 boolean includeDataStreams) {
-            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams);
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, false);
+        }
+
+        Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex,
+                boolean includeDataStreams, boolean preserveDataStreams) {
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, preserveDataStreams);
         }
 
         Context(ClusterState state, IndicesOptions options, long startTime) {
-           this(state, options, startTime, false, false, false);
+           this(state, options, startTime, false, false, false, false);
         }
 
-        protected Context(ClusterState state, IndicesOptions options, long startTime,
-                          boolean preserveAliases, boolean resolveToWriteIndex, boolean includeDataStreams) {
+        protected Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex,
+                          boolean includeDataStreams, boolean preserveDataStreams) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
             this.preserveAliases = preserveAliases;
             this.resolveToWriteIndex = resolveToWriteIndex;
             this.includeDataStreams = includeDataStreams;
+            this.preserveDataStreams = preserveDataStreams;
         }
 
         public ClusterState getState() {
@@ -701,6 +713,10 @@ public class IndexNameExpressionResolver {
 
         public boolean includeDataStreams() {
             return includeDataStreams;
+        }
+
+        public boolean isPreserveDataStreams() {
+            return preserveDataStreams;
         }
     }
 
@@ -941,7 +957,9 @@ public class IndexNameExpressionResolver {
                                 expand.add(meta.getIndex().getName());
                             }
                         }
-
+                        if (context.isPreserveDataStreams() && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                            expand.add(indexAbstraction.getName());
+                        }
                     }
                 }
             }

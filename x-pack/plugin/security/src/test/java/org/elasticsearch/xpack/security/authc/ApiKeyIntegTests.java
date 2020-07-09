@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -63,9 +64,9 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -82,6 +83,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
+    private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
@@ -90,6 +92,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(ApiKeyService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(DELETE_INTERVAL_MILLIS))
             .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
+            .put("xpack.security.crypto.thread_pool.queue_size", CRYPTO_THREAD_POOL_QUEUE_SIZE)
             .build();
     }
 
@@ -855,9 +858,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertApiKeyNotCreated(client,"key-5");
     }
 
-    public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException {
+    public void testAuthenticationReturns429WhenThreadPoolIsSaturated() throws IOException, InterruptedException, ExecutionException {
         final String nodeName = randomFrom(internalCluster().getNodeNames());
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
 
         final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
@@ -876,13 +880,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes().stream()
             .filter(nodeInfo -> nodeInfo.getNode().getName().equals(nodeName))
             .collect(Collectors.toList());
+        assertEquals(1, nodeInfos.size());
 
         final ExecutorService executorService = threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME);
-        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final int numberOfThreads = (allocatedProcessors + 1) / 2;
         final CountDownLatch blockingLatch = new CountDownLatch(1);
         final CountDownLatch readyLatch = new CountDownLatch(numberOfThreads);
-
         for (int i = 0; i < numberOfThreads; i++) {
             executorService.submit(() -> {
                 readyLatch.countDown();
@@ -893,10 +896,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 }
             });
         }
-        // Fill the whole queue for the crypto thread pool
-        final int queueSize = 1000;
-        IntStream.range(0, queueSize).forEach(i -> executorService.submit(() -> {}));
+        // Make sure above tasks are running
         readyLatch.await();
+        // Then fill the whole queue for the crypto thread pool
+        Future<?> lastTaskFuture = null;
+        int i = 0;
+        try {
+            for (i = 0; i < CRYPTO_THREAD_POOL_QUEUE_SIZE; i++) {
+                lastTaskFuture = executorService.submit(() -> { });
+            }
+        } catch (EsRejectedExecutionException e) {
+            logger.info("Attempted to push {} tasks but only pushed {}", CRYPTO_THREAD_POOL_QUEUE_SIZE, i + 1);
+        }
 
         try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {
             final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
@@ -910,6 +921,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(responseException.getResponse().getStatusLine().getStatusCode(), is(429));
         } finally {
             blockingLatch.countDown();
+            if (lastTaskFuture != null) {
+                lastTaskFuture.get();
+            }
         }
     }
 

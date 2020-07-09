@@ -66,6 +66,10 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
     }
 
+    /**
+     * Called when mapping gets merged. Provides the opportunity to validate other fields a metadata field mapper
+     * is supposed to work with before a mapping update is completed.
+     */
     public void validate(DocumentFieldMappers lookup) {
         // noop by default
     }

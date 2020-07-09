@@ -5,7 +5,7 @@ setup:
       allowed_warnings:
         - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
       indices.put_index_template:
-        name: my-tempate1
+        name: my-template1
         body:
           index_patterns: [simple-data-stream1]
           template:
@@ -13,6 +13,8 @@ setup:
               properties:
                 '@timestamp':
                   type: date
+            settings:
+              index.number_of_replicas: 0
           data_stream:
             timestamp_field: '@timestamp'
   - do:
@@ -25,10 +27,10 @@ setup:
           template:
             mappings:
               properties:
-                '@timestamp2':
+                '@timestamp':
                   type: date
           data_stream:
-            timestamp_field: '@timestamp2'
+            timestamp_field: '@timestamp'
 
 ---
 "No data streams":
@@ -171,7 +173,7 @@ setup:
       index:
         index: simple-data-stream2
         op_type: "create"
-        body:  { "@timestamp2": 1593639450943 }
+        body:  { "@timestamp": 1593639450943 }
         refresh: true
 
   - do:

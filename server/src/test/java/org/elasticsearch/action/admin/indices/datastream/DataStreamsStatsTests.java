@@ -186,8 +186,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     }
 
     private void deleteDataStream(String dataStreamName) throws InterruptedException, java.util.concurrent.ExecutionException {
-        assertTrue(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(dataStreamName)).get()
-            .isAcknowledged());
+        assertTrue(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[]{dataStreamName}))
+            .get().isAcknowledged());
         assertTrue(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request(
             dataStreamName + "_template")).actionGet().isAcknowledged());
     }

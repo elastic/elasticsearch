@@ -671,13 +671,10 @@ public class OpenIdConnectAuthenticator {
                 idToken.put(entry.getKey(), mergeObjects((JSONObject) value1, value2));
             } else if (value1.getClass().equals(value2.getClass()) == false) {
                 // A special handling for certain OPs that mix the usage of true and "true"
-                // Retain value from idToken as all other primitive types
-                if (value1 instanceof Boolean && value2 instanceof String
-                    && ("true".equalsIgnoreCase((String)value2) || "false".equalsIgnoreCase((String)value2))) {
+                if (value1 instanceof Boolean && value2 instanceof String && String.valueOf(value1).equals(value2)) {
                     idToken.put(entry.getKey(), value1);
-                } else if (value2 instanceof Boolean && value1 instanceof String
-                    && ("true".equalsIgnoreCase((String)value1) || "false".equalsIgnoreCase((String)value1))) {
-                    idToken.put(entry.getKey(), Boolean.parseBoolean((String) value1));
+                } else if (value2 instanceof Boolean && value1 instanceof String && String.valueOf(value2).equals(value1)) {
+                    idToken.put(entry.getKey(), value2);
                 } else {
                     throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
                         "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");

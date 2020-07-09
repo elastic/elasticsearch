@@ -2118,12 +2118,14 @@ setup:
             "analysis": {"outlier_detection":{}},
             "description": "before update",
             "model_memory_limit": "20mb",
-            "allow_lazy_start": false
+            "allow_lazy_start": false,
+            "max_num_threads": 1
           }
   - match: { id: "update-test-job" }
   - match: { description: "before update" }
   - match: { model_memory_limit: "20mb" }
   - match: { allow_lazy_start: false }
+  - match: { max_num_threads: 1 }
 
   - do:
       ml.update_data_frame_analytics:
@@ -2132,12 +2134,14 @@ setup:
           {
             "description": "after update",
             "model_memory_limit": "30mb",
-            "allow_lazy_start": true
+            "allow_lazy_start": true,
+            "max_num_threads": 2
           }
   - match: { id: "update-test-job" }
   - match: { description: "after update" }
   - match: { model_memory_limit: "30mb" }
   - match: { allow_lazy_start: true }
+  - match: { max_num_threads: 2 }
 
 ---
 "Test update given missing analytics":

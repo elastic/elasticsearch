@@ -34,7 +34,7 @@ include-tagged::{doc-tests-file}[{api}-config-update]
 <1> The {dfanalytics-job} ID
 <2> The human-readable description
 <3> The memory limit for the model created as part of the analysis process
-<4> The max number of threads to be used by the analysis
+<4> The maximum number of threads to be used by the analysis
 
 [id="{upid}-{api}-query-config"]
 

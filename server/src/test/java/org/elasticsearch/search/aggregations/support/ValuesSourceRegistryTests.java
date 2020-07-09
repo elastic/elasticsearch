@@ -24,8 +24,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
-import java.util.List;
-import java.util.Map;
+import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -59,7 +58,9 @@ public class ValuesSourceRegistryTests extends ESTestCase {
             null,
             CoreValuesSourceType.BYTES
         );
-        ValuesSourceRegistry registry = new ValuesSourceRegistry(Map.of("bogus", List.of()), null);
+        ValuesSourceRegistry registry = new ValuesSourceRegistry(
+            Collections.singletonMap("bogus", Collections.emptyList()),
+            null);
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(fieldOnly, "bogus"));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(scriptOnly, "bogus"));
     }

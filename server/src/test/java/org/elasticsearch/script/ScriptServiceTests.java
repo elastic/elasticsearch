@@ -585,7 +585,6 @@ public class ScriptServiceTests extends ESTestCase {
         );
         assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
-        String d = randomValueOtherThanMany(Arrays.asList(a, b, c)::contains, () -> randomFrom(contextNames));
         assertEquals(new ScriptCache.CompilationRate(aRate),
                      scriptService.cacheHolder.get().contextCache.get(a).get().rate);
         assertEquals(new ScriptCache.CompilationRate(bRate),

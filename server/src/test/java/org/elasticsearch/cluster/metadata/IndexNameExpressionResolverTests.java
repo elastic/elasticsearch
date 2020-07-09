@@ -1954,14 +1954,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
             assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));;
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));
         }
         {
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "*");
             Arrays.sort(result, Comparator.comparing(Index::getName));
             assertThat(result.length, equalTo(2));
             assertThat(result[0].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream1, 2)));
-            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));;
+            assertThat(result[1].getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStream2, 2)));
         }
     }
 
@@ -2022,6 +2022,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         List<String> names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "log*");
         assertEquals(Collections.singletonList(dataStream1), names);
 
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), dataStream1);
+        assertEquals(Collections.singletonList(dataStream1), names);
+
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "other*");
         assertEquals(Collections.singletonList(dataStream2), names);
 
@@ -2032,6 +2035,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(names, empty());
 
         names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), index3.getIndex().getName());
+        assertThat(names, empty());
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-logs-foobar");
+        assertThat(names, containsInAnyOrder(dataStream2));
+
+        names = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.lenientExpand(), "*", "-*");
         assertThat(names, empty());
     }
 }

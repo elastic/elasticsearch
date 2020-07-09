@@ -123,8 +123,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             SnapshotLifecyclePolicyItem.SnapshotInProgress inProgress = item.getSnapshotInProgress();
             assertThat(inProgress.getSnapshotId().getName(), equalTo(snapshotName));
             assertThat(inProgress.getStartTime(), greaterThan(0L));
-            assertThat(inProgress.getState(), anyOf(equalTo(SnapshotsInProgress.State.INIT), equalTo(SnapshotsInProgress.State.STARTED),
-                equalTo(SnapshotsInProgress.State.SUCCESS)));
+            assertThat(inProgress.getState(),
+                    anyOf(equalTo(SnapshotsInProgress.State.STARTED), equalTo(SnapshotsInProgress.State.SUCCESS)));
             assertNull(inProgress.getFailure());
         });
 
@@ -274,27 +274,33 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         // Create a failed snapshot
         AtomicReference<String> failedSnapshotName = new AtomicReference<>();
         {
-            logger.info("-->  stopping random data node, which should cause shards to go missing");
-            internalCluster().stopRandomDataNode();
-            assertBusy(() ->
-                    assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
-                30, TimeUnit.SECONDS);
+            if (partialSuccess) {
+                logger.info("-->  stopping random data node, which should cause shards to go missing");
+                internalCluster().stopRandomDataNode();
+                assertBusy(() -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
+                        30, TimeUnit.SECONDS);
 
-            final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
+                final String masterNode = blockMasterFromFinalizingSnapshotOnIndexFile(REPO);
 
-            logger.info("-->  start snapshot");
-            ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()
-                .execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId));
+                logger.info("-->  start snapshot");
+                ActionFuture<ExecuteSnapshotLifecycleAction.Response> snapshotFuture = client()
+                        .execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId));
 
-            logger.info("--> waiting for block to kick in on " + masterNode);
-            waitForBlock(masterNode, REPO, TimeValue.timeValueSeconds(60));
+                logger.info("--> waiting for block to kick in on " + masterNode);
+                waitForBlock(masterNode, REPO, TimeValue.timeValueSeconds(60));
 
-            logger.info("-->  stopping master node");
-            internalCluster().stopCurrentMasterNode();
+                logger.info("-->  stopping master node");
+                internalCluster().stopCurrentMasterNode();
 
-            logger.info("-->  wait until the snapshot is done");
-            failedSnapshotName.set(snapshotFuture.get().getSnapshotName());
-            assertNotNull(failedSnapshotName.get());
+                logger.info("-->  wait until the snapshot is done");
+                failedSnapshotName.set(snapshotFuture.get().getSnapshotName());
+                assertNotNull(failedSnapshotName.get());
+            } else {
+                final String snapshotName = "failed-snapshot-1";
+                addBwCFailedSnapshot(REPO, snapshotName,
+                        Collections.singletonMap(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, policyId));
+                failedSnapshotName.set(snapshotName);
+            }
 
             logger.info("-->  verify that snapshot [{}] is {}", failedSnapshotName.get(), expectedUnsuccessfulState);
             assertBusy(() -> {

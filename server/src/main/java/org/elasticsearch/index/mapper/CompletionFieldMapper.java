@@ -157,7 +157,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 } else if (Fields.CONTEXTS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     builder.contextMappings(ContextMappings.load(fieldNode, parserContext.indexVersionCreated()));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
+                } else if (parseMultiField(builder::addMultiField, name, parserContext, fieldName, fieldNode)) {
                     iterator.remove();
                 }
             }

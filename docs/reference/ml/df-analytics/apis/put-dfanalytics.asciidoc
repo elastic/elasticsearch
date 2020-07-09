@@ -515,7 +515,8 @@ The API returns the following result:
     "model_memory_limit": "1gb",
     "create_time" : 1562265491319,
     "version" : "8.0.0",
-    "allow_lazy_start" : false
+    "allow_lazy_start" : false,
+    "max_number_threads": 1
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]

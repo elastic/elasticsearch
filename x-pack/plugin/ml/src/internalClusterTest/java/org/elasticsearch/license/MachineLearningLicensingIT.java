@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineAction;
@@ -26,7 +27,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -53,16 +53,14 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.inference.aggs.InferencePipelineAggregationBuilder;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -151,7 +149,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertNotNull(response2);
     }
 
-    public void testMachineLearningPutDatafeedActionRestricted() throws Exception {
+    public void testMachineLearningPutDatafeedActionRestricted() {
         String jobId = "testmachinelearningputdatafeedactionrestricted";
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
@@ -442,7 +440,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         }
     }
 
-    public void testMachineLearningDeleteJobActionNotRestricted() throws Exception {
+    public void testMachineLearningDeleteJobActionNotRestricted() {
         String jobId = "testmachinelearningclosejobactionnotrestricted";
         assertMLAllowed(true);
         // test that license restricted apis do now work
@@ -460,7 +458,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         listener.actionGet();
     }
 
-    public void testMachineLearningDeleteDatafeedActionNotRestricted() throws Exception {
+    public void testMachineLearningDeleteDatafeedActionNotRestricted() {
         String jobId = "testmachinelearningdeletedatafeedactionnotrestricted";
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
@@ -485,7 +483,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         listener.actionGet();
     }
 
-    public void testMachineLearningCreateInferenceProcessorRestricted() throws Exception {
+    public void testMachineLearningCreateInferenceProcessorRestricted() {
         String modelId = "modelprocessorlicensetest";
         assertMLAllowed(true);
         putInferenceModel(modelId);
@@ -617,7 +615,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .actionGet();
     }
 
-    public void testMachineLearningInferModelRestricted() throws Exception {
+    public void testMachineLearningInferModelRestricted() {
         String modelId = "modelinfermodellicensetest";
         assertMLAllowed(true);
         putInferenceModel(modelId);
@@ -679,7 +677,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));
     }
 
-    public void testInferenceAggRestricted() throws ExecutionException, InterruptedException {
+    public void testInferenceAggRestricted() {
         String modelId = "inference-agg-restricted";
         assertMLAllowed(true);
         putInferenceModel(modelId);
@@ -700,18 +698,19 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         termsAgg.subAggregation(avgAgg);
 
         XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class);
+        ModelLoadingService modelLoading = internalCluster().getInstance(ModelLoadingService.class);
 
         Map<String, String> bucketPaths = new HashMap<>();
         bucketPaths.put("feature1", "avg_feature1");
         InferencePipelineAggregationBuilder inferenceAgg =
-            new InferencePipelineAggregationBuilder("infer_agg", null, null, bucketPaths);
+            new InferencePipelineAggregationBuilder("infer_agg", new SetOnce<>(modelLoading), licenseState, bucketPaths);
         inferenceAgg.setModelId(modelId);
 
         termsAgg.subAggregation(inferenceAgg);
 
         SearchRequest search = new SearchRequest(index);
         search.source().aggregation(termsAgg);
-        client().search(search).get();
+        client().search(search).actionGet();
 
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();
@@ -720,12 +719,12 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // inferring against a model should now fail
         SearchRequest invalidSearch = new SearchRequest(index);
-        search.source().aggregation(termsAgg);
+        invalidSearch.source().aggregation(termsAgg);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-            () -> client().search(invalidSearch).get());
+            () -> client().search(invalidSearch).actionGet());
 
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), containsString("non-compliant -FOO"));
+        assertThat(e.getMessage(), containsString("current license is non-compliant for [ml]"));
         assertThat(e.getMetadata(LicenseUtils.EXPIRED_FEATURE_METADATA), hasItem(XPackField.MACHINE_LEARNING));
     }
 
@@ -736,13 +735,13 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
             .setTrainedModel(
             Tree.builder()
                 .setTargetType(TargetType.REGRESSION)
-                .setFeatureNames(Arrays.asList("feature1"))
+                .setFeatureNames(Collections.singletonList("feature1"))
                 .setNodes(TreeNode.builder(0).setLeafValue(1.0))
                 .build())
             .setPreProcessors(Collections.emptyList()))
             .setModelId(modelId)
             .setDescription("test model for classification")
-            .setInput(new TrainedModelInput(Arrays.asList("feature1")))
+            .setInput(new TrainedModelInput(Collections.singletonList("feature1")))
             .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
         client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config)).actionGet();

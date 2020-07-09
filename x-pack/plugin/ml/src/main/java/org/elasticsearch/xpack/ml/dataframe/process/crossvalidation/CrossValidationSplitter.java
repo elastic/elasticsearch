@@ -10,5 +10,5 @@ package org.elasticsearch.xpack.ml.dataframe.process.crossvalidation;
  */
 public interface CrossValidationSplitter {
 
-    void process(String[] row, Runnable incrementTrainingDocs, Runnable incrementTestDocs);
+    boolean isTraining(String[] row);
 }

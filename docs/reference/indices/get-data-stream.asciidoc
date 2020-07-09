@@ -1,3 +1,4 @@
+[role="xpack"]
 [[indices-get-data-stream]]
 === Get data stream API
 ++++

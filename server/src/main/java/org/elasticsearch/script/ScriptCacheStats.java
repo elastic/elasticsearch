@@ -32,8 +32,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+// This class is deprecated in favor of ScriptStats and ScriptContextStats.  It is removed in 8.
 public class ScriptCacheStats implements Writeable, ToXContentFragment {
-    private final Map<String,ScriptStats> context;
+    private final Map<String, ScriptStats> context;
     private final ScriptStats general;
 
     public ScriptCacheStats(Map<String, ScriptStats> context) {
@@ -135,7 +136,19 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         if (general != null) {
             return general;
         }
-        return ScriptStats.sum(context.values());
+        long compilations = 0;
+        long cacheEvictions = 0;
+        long compilationLimitTriggered = 0;
+        for (ScriptStats stat: context.values()) {
+            compilations += stat.getCompilations();
+            cacheEvictions += stat.getCacheEvictions();
+            compilationLimitTriggered += stat.getCompilationLimitTriggered();
+        }
+        return new ScriptStats(
+            compilations,
+            cacheEvictions,
+            compilationLimitTriggered
+        );
     }
 
     static final class Fields {

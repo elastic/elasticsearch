@@ -243,11 +243,11 @@ public class NodeStatsTests extends ESTestCase {
                     }
                 }
                 ScriptStats scriptStats = nodeStats.getScriptStats();
-                ScriptStats deserializedScriptCacheStats = deserializedNodeStats.getScriptStats();
+                ScriptStats deserializedScriptStats = deserializedNodeStats.getScriptStats();
                 if (scriptStats == null) {
-                    assertNull(deserializedScriptCacheStats);
+                    assertNull(deserializedScriptStats);
                 } else {
-                    List<ScriptContextStats> deserialized = deserializedScriptCacheStats.getContextStats();
+                    List<ScriptContextStats> deserialized = deserializedScriptStats.getContextStats();
                     long evictions = 0;
                     long limited = 0;
                     long compilations = 0;
@@ -527,8 +527,8 @@ public class NodeStatsTests extends ESTestCase {
         }
         //TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(node, randomNonNegativeLong(), null, osStats, processStats, jvmStats, threadPoolStats,
-            fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
-            ingestStats, adaptiveSelectionStats);
+                fsInfo, transportStats, httpStats, allCircuitBreakerStats, scriptStats, discoveryStats,
+                ingestStats, adaptiveSelectionStats);
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {

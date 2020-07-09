@@ -97,7 +97,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
             Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
                 .put("test", "value" + i)
                 .put("@timestamp", new Date()).map();
-            client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
+            client().prepareIndex("ds", "_doc").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
                 .setSource(source).execute().actionGet();
         }
         flush();
@@ -109,7 +109,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
             Map<String, Object> source = MapBuilder.<String, Object>newMapBuilder()
                 .put("test", "value" + i)
                 .put("@timestamp", new Date()).map();
-            client().prepareIndex("ds").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
+            client().prepareIndex("ds", "_doc").setId(Long.toString(i)).setOpType(DocWriteRequest.OpType.CREATE)
                 .setSource(source).execute().actionGet();
         }
 

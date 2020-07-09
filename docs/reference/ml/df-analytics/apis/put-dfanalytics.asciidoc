@@ -326,6 +326,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 `dest`::
 (Required, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dest]
+
+`max_num_threads`::
+(Optional, integer)
+The maximum number of threads to be used by the analysis.
+The default value is `1`. Using more threads may decrease the time
+necessary to complete the analysis at the cost of using more CPU.
+Note that the process may use additional threads for operational
+functionality other than the analysis itself.
   
 `model_memory_limit`::
 (Optional, string)
@@ -507,7 +515,8 @@ The API returns the following result:
     "model_memory_limit": "1gb",
     "create_time" : 1562265491319,
     "version" : "8.0.0",
-    "allow_lazy_start" : false
+    "allow_lazy_start" : false,
+    "max_num_threads": 1
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]

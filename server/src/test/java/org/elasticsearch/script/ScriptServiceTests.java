@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +45,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.script.ScriptService.CacheHolder;
-import static org.elasticsearch.script.ScriptService.MAX_COMPILATION_RATE_FUNCTION;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING;
@@ -107,8 +105,8 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     public void testMaxCompilationRateSetting() throws Exception {
-        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/1m"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
-        assertThat(MAX_COMPILATION_RATE_FUNCTION.apply("10/60s"), is(Tuple.tuple(10, TimeValue.timeValueMinutes(1))));
+        assertThat(new ScriptCache.CompilationRate("10/1m"), is(new ScriptCache.CompilationRate(10, TimeValue.timeValueMinutes(1))));
+        assertThat(new ScriptCache.CompilationRate("10/60s"), is(new ScriptCache.CompilationRate(10, TimeValue.timeValueMinutes(1))));
         assertException("10/m", IllegalArgumentException.class, "failed to parse [m]");
         assertException("6/1.6m", IllegalArgumentException.class, "failed to parse [1.6m], fractional time values are not supported");
         assertException("foo/bar", IllegalArgumentException.class, "could not parse [foo] as integer in value [foo/bar]");
@@ -128,7 +126,7 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private void assertException(String rate, Class<? extends Exception> clazz, String message) {
-        Exception e = expectThrows(clazz, () -> MAX_COMPILATION_RATE_FUNCTION.apply(rate));
+        Exception e = expectThrows(clazz, () -> new ScriptCache.CompilationRate(rate));
         assertThat(e.getMessage(), is(message));
     }
 
@@ -443,7 +441,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testCacheHolderGeneralConstructor() throws IOException {
         String compilationRate = "77/5m";
-        Tuple<Integer, TimeValue> rate = ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(compilationRate);
+        ScriptCache.CompilationRate rate = new ScriptCache.CompilationRate(compilationRate);
         buildScriptService(
             Settings.builder().put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate).build()
         );
@@ -472,9 +470,9 @@ public class ScriptServiceTests extends ESTestCase {
         assertNotNull(scriptService.cacheHolder.get().contextCache);
         assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(aCompilationRate),
+        assertEquals(new ScriptCache.CompilationRate(aCompilationRate),
                      scriptService.cacheHolder.get().contextCache.get(a).get().rate);
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(bCompilationRate),
+        assertEquals(new ScriptCache.CompilationRate(bCompilationRate),
                      scriptService.cacheHolder.get().contextCache.get(b).get().rate);
     }
 
@@ -535,7 +533,7 @@ public class ScriptServiceTests extends ESTestCase {
         String bRate = "78/6m";
         String c = randomValueOtherThanMany(s -> a.equals(s) || b.equals(s), () -> randomFrom(contextNames));
         String compilationRate = "77/5m";
-        Tuple<Integer, TimeValue> generalRate = MAX_COMPILATION_RATE_FUNCTION.apply(compilationRate);
+        ScriptCache.CompilationRate generalRate = new ScriptCache.CompilationRate(compilationRate);
 
         Settings s = Settings.builder()
             .put(SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(), compilationRate)
@@ -565,10 +563,9 @@ public class ScriptServiceTests extends ESTestCase {
         );
         assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
-        String d = randomValueOtherThanMany(Set.of(a, b, c)::contains, () -> randomFrom(contextNames));
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(aRate),
+        assertEquals(new ScriptCache.CompilationRate(aRate),
                      scriptService.cacheHolder.get().contextCache.get(a).get().rate);
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(bRate),
+        assertEquals(new ScriptCache.CompilationRate(bRate),
                      scriptService.cacheHolder.get().contextCache.get(b).get().rate);
         assertEquals(ScriptCache.UNLIMITED_COMPILATION_RATE,
                      scriptService.cacheHolder.get().contextCache.get(c).get().rate);
@@ -576,7 +573,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.cacheHolder.get().set(b, scriptService.contextCache(Settings.builder()
                 .put(SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(b).getKey(), aRate).build(),
             contexts.get(b)));
-        assertEquals(ScriptService.MAX_COMPILATION_RATE_FUNCTION.apply(aRate),
+        assertEquals(new ScriptCache.CompilationRate(aRate),
                      scriptService.cacheHolder.get().contextCache.get(b).get().rate);
 
         scriptService.setCacheHolder(s);
@@ -590,7 +587,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertNotNull(scriptService.cacheHolder.get().general);
         assertNull(scriptService.cacheHolder.get().contextCache);
-        assertEquals(MAX_COMPILATION_RATE_FUNCTION.apply(bRate), scriptService.cacheHolder.get().general.rate);
+        assertEquals(new ScriptCache.CompilationRate(bRate), scriptService.cacheHolder.get().general.rate);
 
         CacheHolder holder = scriptService.cacheHolder.get();
         scriptService.setCacheHolder(
@@ -603,7 +600,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testFallbackToContextDefaults() throws IOException {
         String contextRateStr = randomIntBetween(10, 1024) + "/" +  randomIntBetween(10, 200) + "m";
-        Tuple<Integer, TimeValue> contextRate = MAX_COMPILATION_RATE_FUNCTION.apply(contextRateStr);
+        ScriptCache.CompilationRate contextRate = new ScriptCache.CompilationRate(contextRateStr);
         int contextCacheSize = randomIntBetween(1, 1024);
         TimeValue contextExpire = TimeValue.timeValueMinutes(randomIntBetween(10, 200));
 

@@ -1,3 +1,4 @@
+[role="xpack"]
 [[use-a-data-stream]]
 == Use a data stream
 

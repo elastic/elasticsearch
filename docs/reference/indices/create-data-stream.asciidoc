@@ -1,3 +1,4 @@
+[role="xpack"]
 [[indices-create-data-stream]]
 === Create data stream API
 ++++

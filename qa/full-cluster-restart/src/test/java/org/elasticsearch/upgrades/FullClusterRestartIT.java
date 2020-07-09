@@ -27,8 +27,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.client.WarningFailureException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.Template;
@@ -1497,7 +1497,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
         assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
-        assertNumHits("ds", 1, 1);
+        assertTotalHits(1, entityAsMap(client().performRequest(new Request("GET", "/ds/_search"))));
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)

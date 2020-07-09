@@ -24,7 +24,6 @@ import org.elasticsearch.index.mapper.BasicRangeType.LengthType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.Range;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.xpack.versionfield.VersionEncoder;
-import org.elasticsearch.xpack.versionfield.VersionEncoder.SortMode;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -55,14 +54,14 @@ public class VersionRangeType implements RangeType {
     @Override
     public BytesRef parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
         throws IOException {
-        BytesRef version = VersionEncoder.encodeVersion(parser.text(), SortMode.SEMVER);
+        BytesRef version = VersionEncoder.encodeVersion(parser.text());
         return included ? version : nextUp(version);
     }
 
     @Override
     public BytesRef parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
         throws IOException {
-        BytesRef version = VersionEncoder.encodeVersion(parser.text(), SortMode.SEMVER);
+        BytesRef version = VersionEncoder.encodeVersion(parser.text());
         return included ? version : nextDown(version);
     }
 
@@ -163,8 +162,7 @@ public class VersionRangeType implements RangeType {
         if (value instanceof BytesRef) {
             value = ((BytesRef) value).utf8ToString();
         }
-        // TODO make this support different SortModes
-        return VersionEncoder.encodeVersion(value.toString(), SortMode.SEMVER);
+        return VersionEncoder.encodeVersion(value.toString());
     }
 
     protected final Query createRangeQuery(

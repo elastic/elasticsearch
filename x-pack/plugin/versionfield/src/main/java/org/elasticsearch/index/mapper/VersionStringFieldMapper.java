@@ -37,7 +37,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.xpack.versionfield.VersionEncoder.SortMode;
+import org.elasticsearch.xpack.versionfield.VersionEncoder;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -74,7 +74,6 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         private Explicit<Boolean> ignoreMalformed = new Explicit<Boolean>(false, false);
         protected String nullValue = Defaults.NULL_VALUE;
-        private SortMode mode = SortMode.SEMVER;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
@@ -102,11 +101,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         private VersionStringFieldType buildFieldType(BuilderContext context) {
-            return new VersionStringFieldType(buildFullName(context), indexed, hasDocValues, meta, boost, mode, fieldType);
-        }
-
-        public void mode(SortMode mode) {
-            this.mode = mode;
+            return new VersionStringFieldType(buildFullName(context), indexed, hasDocValues, meta, boost, fieldType);
         }
 
         @Override
@@ -123,7 +118,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                 nullValue,
                 multiFieldsBuilder.build(this, context),
                 copyTo,
-                mode,
                 preReleaseSubfield.build(context),
                 majorVersionSubField.build(context),
                 minorVersionSubField.build(context)
@@ -152,9 +146,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
-                } else if (propName.equals("mode")) {
-                    builder.mode(SortMode.fromString(propNode.toString()));
-                    iterator.remove();
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
@@ -165,15 +156,12 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        private final SortMode mode;
-
         public VersionStringFieldType(
             String name,
             boolean isSearchable,
             boolean hasDocValues,
             Map<String, String> meta,
             float boost,
-            SortMode mode,
             FieldType fieldType
         ) {
             super(
@@ -185,12 +173,10 @@ public class VersionStringFieldMapper extends FieldMapper {
             );
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);
-            this.mode = mode;
         }
 
         VersionStringFieldType(VersionStringFieldType other) {
             super(other);
-            this.mode = other.mode;
         }
 
         @Override
@@ -243,10 +229,10 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
             if (value instanceof String) {
-                return encodeVersion((String) value, mode);
+                return encodeVersion((String) value);
             } else if (value instanceof BytesRef) {
                 // encoded string, need to re-encode
-                return encodeVersion(((BytesRef) value).utf8ToString(), mode);
+                return encodeVersion(((BytesRef) value).utf8ToString());
             } else {
                 throw new IllegalArgumentException("Illegal value type: " + value.getClass() + ", value: " + value);
             }
@@ -277,7 +263,6 @@ public class VersionStringFieldMapper extends FieldMapper {
             return new TermInSetQuery(name(), bytesRefs);
         }
 
-
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
@@ -290,7 +275,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            return mode.docValueFormat().format((BytesRef) value);
+            return VersionEncoder.VERSION_DOCVALUE.format((BytesRef) value);
         }
 
         @Override
@@ -303,7 +288,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones"
                 );
             }
-            return mode.docValueFormat();
+            return VersionEncoder.VERSION_DOCVALUE;
         }
 
         @Override
@@ -329,7 +314,6 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     private Explicit<Boolean> ignoreMalformed;
     private String nullValue;
-    private SortMode mode;
     private BooleanFieldMapper prereleaseSubField;
     private NumberFieldMapper majorVersionSubField;
     private NumberFieldMapper minorVersionSubField;
@@ -342,7 +326,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         String nullValue,
         MultiFields multiFields,
         CopyTo copyTo,
-        SortMode mode,
         BooleanFieldMapper preReleaseMapper,
         NumberFieldMapper majorVersionMapper,
         NumberFieldMapper minorVersionMapper
@@ -350,7 +333,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.nullValue = nullValue;
-        this.mode = mode;
         this.prereleaseSubField = preReleaseMapper;
         this.majorVersionSubField = majorVersionMapper;
         this.minorVersionSubField = minorVersionMapper;
@@ -391,7 +373,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         BytesRef encodedVersion = null;
         try {
-            encodedVersion = encodeVersion(versionString, mode);
+            encodedVersion = encodeVersion(versionString);
         } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value()) {
                 context.addIgnoredField(name());
@@ -420,23 +402,22 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
         // add prerelease flag
         boolean isPrerelease = versionString.contains("-");
-        context.doc()
-            .add(new Field(prereleaseSubField.name(), isPrerelease ? "T" : "F", BooleanFieldMapper.Defaults.FIELD_TYPE));
+        context.doc().add(new Field(prereleaseSubField.name(), isPrerelease ? "T" : "F", BooleanFieldMapper.Defaults.FIELD_TYPE));
         context.doc().add(new SortedNumericDocValuesField(prereleaseSubField.name(), isPrerelease ? 1 : 0));
 
         boolean docValued = fieldType().hasDocValues();
         boolean stored = fieldType.stored();
-       // add major version
+        // add major version
         Integer major = Integer.valueOf(versionString.substring(0, versionString.indexOf('.')));
-        context.doc().addAll(NumberType.INTEGER.createFields(majorVersionSubField.name(), major,
-            fieldType().isSearchable(), docValued, stored));
+        context.doc()
+            .addAll(NumberType.INTEGER.createFields(majorVersionSubField.name(), major, fieldType().isSearchable(), docValued, stored));
 
         // add minor version
         Integer minor = Integer.valueOf(
             versionString.substring(versionString.indexOf('.') + 1, versionString.indexOf('.', versionString.indexOf('.') + 1))
         );
-        context.doc().addAll(NumberType.INTEGER.createFields(minorVersionSubField.name(), minor,
-            fieldType().isSearchable(), docValued, stored));
+        context.doc()
+            .addAll(NumberType.INTEGER.createFields(minorVersionSubField.name(), minor, fieldType().isSearchable(), docValued, stored));
 
         if (fieldType().hasDocValues()) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), encodedVersion));
@@ -451,7 +432,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
         this.prereleaseSubField = (BooleanFieldMapper) this.prereleaseSubField.merge(mergeWith.prereleaseSubField);
         this.nullValue = mergeWith.nullValue;
-        this.mode = mergeWith.mode;
     }
 
     @Override
@@ -465,8 +445,6 @@ public class VersionStringFieldMapper extends FieldMapper {
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
-
-        builder.field("mode", mode);
     }
 
     @Override
@@ -475,7 +453,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         subIterators.add(prereleaseSubField);
         subIterators.add(majorVersionSubField);
         subIterators.add(minorVersionSubField);
-        @SuppressWarnings("unchecked") Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
+        @SuppressWarnings("unchecked")
+        Iterator<Mapper> concat = Iterators.concat(super.iterator(), subIterators.iterator());
         return concat;
     }
 }

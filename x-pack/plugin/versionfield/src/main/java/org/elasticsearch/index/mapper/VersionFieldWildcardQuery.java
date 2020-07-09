@@ -6,7 +6,6 @@
 
 package org.elasticsearch.index.mapper;
 
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.WildcardQuery;
@@ -28,16 +27,14 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
 
     private static final byte WILDCARD_CHAR = '?';
 
-    public VersionFieldWildcardQuery(Term term) {
+    VersionFieldWildcardQuery(Term term) {
         super(term, toAutomaton(term), Integer.MAX_VALUE, true);
     }
-
 
     public static Automaton toAutomaton(Term wildcardquery) {
         List<Automaton> automata = new ArrayList<>();
 
         BytesRef wildcardText = wildcardquery.bytes();
-        System.out.println("Wildcard query bytes: " + wildcardText);
         boolean containsPreReleaseSeparator = false;
 
         for (int i = 0; i < wildcardText.length;) {

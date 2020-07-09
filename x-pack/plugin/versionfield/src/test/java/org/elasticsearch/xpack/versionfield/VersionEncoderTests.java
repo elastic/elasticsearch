@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.versionfield.VersionEncoder.SortMode;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.VersionParts;
 
 import java.util.Arrays;
@@ -50,7 +49,7 @@ public class VersionEncoderTests extends ESTestCase {
     }
 
     private BytesRef encSemver(String s) {
-        return VersionEncoder.encodeVersion(s, SortMode.SEMVER);
+        return VersionEncoder.encodeVersion(s);
     };
 
     public void testDecodingSemver() {
@@ -67,34 +66,6 @@ public class VersionEncoderTests extends ESTestCase {
             assertEquals(version, decoded);
         }
     }
-
-    public void testEncodingOrderingNumerical() {
-        VersionEncoder.strictSemverCheck = false;
-        assertTrue(encNumeric("1.0.0").compareTo(encNumeric("2.0.0")) < 0);
-        assertTrue(encNumeric("2.0.0").compareTo(encNumeric("11.0.0")) < 0);
-        assertTrue(encNumeric("2.0.0").compareTo(encNumeric("2.1.0")) < 0);
-        assertTrue(encNumeric("2.1.0").compareTo(encNumeric("2.1.1")) < 0);
-        assertTrue(encNumeric("2.1.1").compareTo(encNumeric("2.1.1.0")) < 0);
-        assertTrue(encNumeric("1.0.0").compareTo(encNumeric("2.0")) < 0);
-        assertTrue(encNumeric("1.0.0-a").compareTo(encNumeric("1.0.0-b")) < 0);
-        assertTrue(encNumeric("1.0.0-1.0.0").compareTo(encNumeric("1.0.0-2.0")) < 0);
-        assertTrue(encNumeric("1.0.0-alpha").compareTo(encNumeric("1.0.0-alpha.1")) < 0);
-        assertTrue(encNumeric("1.0.0-123u11").compareTo(encNumeric("1.0.0-234u11")) < 0);
-        assertTrue(encNumeric("1.0.0-alpha.1").compareTo(encNumeric("1.0.0-alpha.beta")) < 0);
-        assertTrue(encNumeric("1.0.0-alpha.beta").compareTo(encNumeric("1.0.0-beta")) < 0);
-        assertTrue(encNumeric("1.0.0-beta").compareTo(encNumeric("1.0.0-beta.2")) < 0);
-        assertTrue(encNumeric("1.0.0-beta.2").compareTo(encNumeric("1.0.0-beta.11")) < 0);
-        assertTrue(encNumeric("1.0.0-beta2").compareTo(encNumeric("1.0.0-beta11")) < 0);
-        assertTrue(encNumeric("1.0.0-beta.11").compareTo(encNumeric("1.0.0-rc.1")) < 0);
-        assertTrue(encNumeric("1.0.0-rc.1").compareTo(encNumeric("1.0.0")) < 0);
-        assertTrue(encNumeric("1.0.0").compareTo(encNumeric("2.0.0-pre127")) < 0);
-        assertTrue(encNumeric("2.0.0-pre127").compareTo(encNumeric("2.0.0-pre128")) < 0);
-        assertTrue(encNumeric("2.0.0-pre227").compareTo(encNumeric("2.0.0-pre20201231z110026")) < 0);
-    }
-
-    private BytesRef encNumeric(String s) {
-        return VersionEncoder.encodeVersion(s, SortMode.NATURAL);
-    };
 
     public void testDecodingHonourNumeral() {
         for (String version : List.of(
@@ -113,10 +84,7 @@ public class VersionEncoderTests extends ESTestCase {
 
     public void testMaxDigitGroupLength() {
         String versionString = "1.0." + "1".repeat(128);
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> decodeVersion(encSemver(versionString))
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decodeVersion(encSemver(versionString)));
         assertEquals("Groups of digits cannot be longer than 127, but found: 128", ex.getMessage());
     }
 

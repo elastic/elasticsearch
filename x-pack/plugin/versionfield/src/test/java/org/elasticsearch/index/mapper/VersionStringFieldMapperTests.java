@@ -33,7 +33,15 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testQueries() throws Exception {
         String indexName = "test";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version", "foo", "type=keyword");
+        createIndex(
+            indexName,
+            Settings.builder().put("index.number_of_shards", 1).build(),
+            "_doc",
+            "version",
+            "type=version",
+            "foo",
+            "type=keyword"
+        );
         ensureGreen("test");
 
         client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "11.1.0").endObject()).get();
@@ -64,7 +72,9 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(4, response.getHits().getTotalHits().value);
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("1.1.0").to("3.0.0")).get();
         assertEquals(3, response.getHits().getTotalHits().value);
-        response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("0.1.0").to("2.1.0-alpha.beta")).get();
+        response = client().prepareSearch(indexName)
+            .setQuery(QueryBuilders.rangeQuery("version").from("0.1.0").to("2.1.0-alpha.beta"))
+            .get();
         assertEquals(3, response.getHits().getTotalHits().value);
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("2.1.0").to("3.0.0")).get();
         assertEquals(1, response.getHits().getTotalHits().value);
@@ -140,16 +150,26 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         response = client().prepareSearch(indexName)
             .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.matchQuery("version.isPreRelease", true)))
             .get();
-        System.out.println(response);
         assertEquals(1, response.getHits().getTotalHits().value);
     }
 
     public void testWildcardQuery() throws Exception {
         String indexName = "test";
-        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version", "foo", "type=keyword");
+        createIndex(
+            indexName,
+            Settings.builder().put("index.number_of_shards", 1).build(),
+            "_doc",
+            "version",
+            "type=version",
+            "foo",
+            "type=keyword"
+        );
         ensureGreen("test");
 
-        client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0.0-alpha.2.1.0-rc.1").endObject()).get();
+        client().prepareIndex(indexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("version", "1.0.0-alpha.2.1.0-rc.1").endObject())
+            .get();
         client().prepareIndex(indexName)
             .setId("2")
             .setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject())
@@ -259,9 +279,7 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("2.1.0", buckets.get(3).getKey());
         assertEquals("3.11.0", buckets.get(4).getKey());
 
-        response = client().prepareSearch(indexName)
-            .addAggregation(AggregationBuilders.terms("myterms").field("version.major"))
-            .get();
+        response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.terms("myterms").field("version.major")).get();
         terms = response.getAggregations().get("myterms");
         buckets = terms.getBuckets();
         assertEquals(3, buckets.size());

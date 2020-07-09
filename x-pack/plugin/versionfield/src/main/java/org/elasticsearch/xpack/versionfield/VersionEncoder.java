@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  *  (although the ordering should be alphabetical in most cases).
  * </ul>
  *
- * In the default mode (@link {@link SortMode#SEMVER}, the version string is encoded such that the ordering works like the following:
+ * The version string is encoded such that the ordering works like the following:
  * <ul>
  *  <li> Major, minor, and patch versions are always compared numerically
  *  <li> pre-release version have lower precedence than a normal version. (e.g 1.0.0-alpha &lt; 1.0.0)
@@ -35,10 +35,6 @@ import java.util.regex.Pattern;
  *  left to right. Identifiers consisting of only digits are compared numerically and identifiers with letters or hyphens are compared
  *  lexically in ASCII sort order. Numeric identifiers always have lower precedence than non-numeric identifiers.
  * </ul>
- *
- * The sorting for the main version part in {@link SortMode#NATURAL} is the same except that in the pre-release part,
- * mixed alpha-numerical identifiers are compared grouping all consecutive digits and treating them as a number with numerical ordering.
- * For example, "alpha2" would sort _before" "alpha11" in this mode.
  */
 public class VersionEncoder {
 
@@ -68,120 +64,41 @@ public class VersionEncoder {
 
     static boolean strictSemverCheck = false;
 
-    /**
-     * Defines how version parts consisting of both alphabetical and numerical characters are ordered
-     */
-    public enum SortMode {
-        /**
-         * strict semver precedence treats everything alphabetically, e.g. "rc11" &lt; "rc2"
-         */
-        SEMVER {
+    public static DocValueFormat VERSION_DOCVALUE = new DocValueFormat() {
 
-            @Override
-            public DocValueFormat docValueFormat() {
-                return VERSION_SEMVER;
-            }
-
-            @Override
-            public String toString() {
-                return "semver";
-            }
-        },
-        /**
-         * This mode will order mixed strings so that the numeric parts are treated with numeric ordering,
-         * e.g. "rc2" &lt; "rc11", "alpha523" &lt; "alpha1234"
-         */
-        NATURAL {
-
-            @Override
-            public DocValueFormat docValueFormat() {
-                return VERSION_NUMERIC;
-            }
-
-            @Override
-            public String toString() {
-                return "natural";
-            }
-        };
-
-        private static DocValueFormat VERSION_SEMVER = new DocValueFormat() {
-
-            @Override
-            public String getWriteableName() {
-                return "version_semver";
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) {}
-
-            @Override
-            public String format(BytesRef value) {
-                return VersionEncoder.decodeVersion(value);
-            }
-
-            @Override
-            public BytesRef parseBytesRef(String value) {
-                return VersionEncoder.encodeVersion(value, SortMode.SEMVER);
-            }
-
-            @Override
-            public String toString() {
-                return getWriteableName();
-            }
-        };
-
-        private static DocValueFormat VERSION_NUMERIC = new DocValueFormat() {
-
-            @Override
-            public String getWriteableName() {
-                return "version_numeric";
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) {}
-
-            @Override
-            public String format(BytesRef value) {
-                return VersionEncoder.decodeVersion(value);
-            }
-
-            @Override
-            public BytesRef parseBytesRef(String value) {
-                return VersionEncoder.encodeVersion(value, SortMode.NATURAL);
-            }
-
-            @Override
-            public String toString() {
-                return getWriteableName();
-            }
-        };
-        public abstract DocValueFormat docValueFormat();
-
-        public static SortMode fromString(String mode) {
-            switch (mode) {
-                case "semver":
-                    return SEMVER;
-                case "natural":
-                    return NATURAL;
-                default:
-                    throw new IllegalArgumentException("Unknown version field mode: " + mode);
-            }
+        @Override
+        public String getWriteableName() {
+            return "version_semver";
         }
-    }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String format(BytesRef value) {
+            return VersionEncoder.decodeVersion(value);
+        }
+
+        @Override
+        public BytesRef parseBytesRef(String value) {
+            return VersionEncoder.encodeVersion(value);
+        }
+
+        @Override
+        public String toString() {
+            return getWriteableName();
+        }
+    };
 
     /**
-     * Encodes a version string given the given {@link SortMode}.
-     * First, the input version string is split into the following parts:
-     * <p>
-     * mainVersion(-preReleasePart)(+buildId)
-     *
+     * Encodes a version string.
      */
-    public static BytesRef encodeVersion(String versionString, SortMode mode) {
-        return encodeVersion(versionString, mode, true);
+    public static BytesRef encodeVersion(String versionString) {
+        return encodeVersion(versionString, true);
     }
 
-    public static BytesRef encodeVersion(String versionString, SortMode mode, boolean validate) {
-         System.out.println("encoding: " + versionString);
+    public static BytesRef encodeVersion(String versionString, boolean validate) {
+        // System.out.println("encoding: " + versionString);
         // extract "build" suffix starting with "+"
         VersionParts versionParts = VersionParts.ofVersion(versionString);
 
@@ -207,11 +124,7 @@ public class VersionEncoder {
                 if (isNumeric) {
                     prefixDigitGroupsWithLength(preReleasePart, encodedVersion);
                 } else {
-                    if (mode == SortMode.SEMVER) {
-                        encodedVersion.append(new BytesRef(preReleasePart));
-                    } else {
-                        prefixDigitGroupsWithLength(preReleasePart, encodedVersion);
-                    }
+                    encodedVersion.append(new BytesRef(preReleasePart));
                 }
                 first = false;
             }
@@ -223,7 +136,7 @@ public class VersionEncoder {
         if (versionParts.buildSuffix != null) {
             encodedVersion.append(new BytesRef(versionParts.buildSuffix));
         }
-        System.out.println("encoded: " + encodedVersion.get());
+        // System.out.println("encoded: " + encodedVersion.get());
         return encodedVersion.get();
     }
 
@@ -262,7 +175,6 @@ public class VersionEncoder {
     }
 
     public static String decodeVersion(BytesRef version) {
-        // System.out.println("decoding: " + version);
         int pos = 0;
         StringBuilder sb = new StringBuilder();
         while (pos < version.length && version.bytes[pos] != BUILD_SEPARATOR_BYTE) {
@@ -273,7 +185,6 @@ public class VersionEncoder {
         // add build part if present
         if (pos < version.length && version.bytes[pos] == BUILD_SEPARATOR_BYTE) {
             sb.append(new BytesRef(version.bytes, pos, version.length - pos).utf8ToString());
-            // sb.append(new BytesRef(Arrays.copyOfRange(version.bytes, pos, version.length)).utf8ToString());
         }
         return sb.toString();
     }

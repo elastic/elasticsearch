@@ -136,9 +136,9 @@ the data stream.
 
 The template can also contain:
 
-* An optional field mapping for the `@timestamp` field. Both the <<date,`date`>> and 
+* An optional field mapping for the `@timestamp` field. Both the <<date,`date`>> and
 <<date_nanos,`date_nanos`>> field data types are supported. If no mapping is specified,
-the <<date,`date`>> field data type is used by default.
+a <<date,`date`>> field data type with default options is used.
 +
 This mapping can include other <<mapping-params,mapping parameters>>, such as
 <<mapping-date-format,`format`>>.

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -38,7 +39,7 @@ public class TomlFoldTests extends ESTestCase {
 
     private static EqlParser parser = new EqlParser();
     private static final EqlFunctionRegistry functionRegistry = new EqlFunctionRegistry();
-    private static Verifier verifier = new Verifier();
+    private static Verifier verifier = new Verifier(new Metrics());
     private static Analyzer caseSensitiveAnalyzer = new Analyzer(TEST_CFG_CASE_SENSITIVE, functionRegistry, verifier);
     private static Analyzer caseInsensitiveAnalyzer = new Analyzer(TEST_CFG_CASE_INSENSITIVE, functionRegistry, verifier);
 

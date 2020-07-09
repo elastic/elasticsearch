@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -177,6 +179,22 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setMaxNumThreads(8).build();
 
         assertThat(update.requiresRestart(config), is(true));
+    }
+
+    public void testCtor_GivenMaxNumberThreadsIsZero() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> new DataFrameAnalyticsConfigUpdate.Builder("test").setMaxNumThreads(0).build());
+
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
+    }
+
+    public void testCtor_GivenMaxNumberThreadsIsNegative() {
+        ElasticsearchException e = expectThrows(ElasticsearchException.class,
+            () -> new DataFrameAnalyticsConfigUpdate.Builder("test").setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0)).build());
+
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
     }
 
     private boolean isNoop(DataFrameAnalyticsConfig config, DataFrameAnalyticsConfigUpdate update) {

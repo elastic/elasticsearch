@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,6 +53,11 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         this.description = description;
         this.modelMemoryLimit = modelMemoryLimit;
         this.allowLazyStart = allowLazyStart;
+
+        if (maxNumThreads != null && maxNumThreads < 1) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive integer",
+                DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName());
+        }
         this.maxNumThreads = maxNumThreads;
     }
 

@@ -572,15 +572,15 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testLastUsed() {
         Feature basicFeature = Feature.SECURITY;
-        Feature goldFeature = Feature.SECURITY_IP_FILTERING;
+        Feature goldFeature = Feature.SECURITY_DLS_FLS;
         AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, currentTime::get);
         assertThat("basic features not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
-        assertThat("initial epoch time", licenseState.getLastUsed(), hasEntry(goldFeature, 0L));
+        assertThat("initial epoch time", licenseState.getLastUsed(), not(hasKey(goldFeature)));
         licenseState.isAllowed(basicFeature);
         assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
         licenseState.isAllowed(goldFeature);
-        assertThat("isAllowed does not track", licenseState.getLastUsed(), hasEntry(goldFeature, 0L));
+        assertThat("isAllowed does not track", licenseState.getLastUsed(), not(hasKey(goldFeature)));
         licenseState.checkFeature(basicFeature);
         assertThat("basic features still not tracked", licenseState.getLastUsed(), not(hasKey(basicFeature)));
         licenseState.checkFeature(goldFeature);

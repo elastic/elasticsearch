@@ -32,7 +32,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.HashSet;

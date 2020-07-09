@@ -226,12 +226,6 @@ The following settings are supported:
     Specifies the path within bucket to repository data. Defaults to
     the root of the bucket.
 
-`chunk_size`::
-
-    Big files can be broken down into chunks during snapshotting if needed.
-    Specify the chunk size as a value and unit, for example:
-    `10MB` or `5KB`. Defaults to `100MB`, which is the maximum permitted.
-
 `compress`::
 
     When set to `true` metadata files are stored in compressed format. This

@@ -162,12 +162,6 @@ The Azure repository supports following settings:
     Specifies the path within container to repository data. Defaults to empty
     (root directory).
 
-`chunk_size`::
-
-    Big files can be broken down into chunks during snapshotting if needed.
-    Specify the chunk size as a value and unit, for example:
-    `10MB`, `5KB`, `500B`. Defaults to `64MB` (64MB max).
-
 `compress`::
 
     When set to `true` metadata files are stored in compressed format. This

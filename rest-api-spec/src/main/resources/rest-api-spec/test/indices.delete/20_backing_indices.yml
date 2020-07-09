@@ -1,6 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
   - do:
       allowed_warnings:
         - "index template [my-template] has index patterns [simple-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
@@ -13,13 +15,12 @@ setup:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
 ---
 "Delete backing index on data stream":
   - skip:
-      version: " - 7.8.99"
+      version: " - 7.9.99"
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -71,8 +72,8 @@ setup:
 ---
 "Attempt to delete write index on data stream is rejected":
   - skip:
-      version: " - 7.8.99"
-      reason:  "mute bwc until backported"
+      version: " - 7.9.99"
+      reason:  "enable in 7.9+ when backported9+"
 
   - do:
       indices.create_data_stream:

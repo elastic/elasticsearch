@@ -39,15 +39,15 @@ import static java.util.Collections.unmodifiableList;
 
 /**
  * A container for elasticsearch supported version information used in BWC testing.
- *
+ * <p>
  * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
  * the version the current one is wire and index compatible with.
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
- *
+ * <p>
  * Note that in this context, currentVersion is the unreleased version this build operates on.
  * At any point in time there will surely be four such unreleased versions being worked on,
  * thus currentVersion will be one of these.
- *
+ * <p>
  * Considering:
  * <dl>
  *     <dt>M, M &gt; 0</dt>
@@ -67,11 +67,11 @@ import static java.util.Collections.unmodifiableList;
  * <ul>
  * <li>the unreleased <b>staged</b>, M.N-2.0 (N &gt; 2) on the `M.(N-2)` branch</li>
  * </ul>
- *
+ * <p>
  * Each build is only concerned with versions before it, as those are the ones that need to be tested
  * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
  * version.
- *
+ * <p>
  * Each branch has a current version, and expected compatible versions are parsed from the server code's Version` class.
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
@@ -84,6 +84,9 @@ import static java.util.Collections.unmodifiableList;
  */
 public class BwcVersions {
 
+    // First JDBC driver to support compatibility testing. Although we claim forwards compatibility starting with driver version 7.7
+    // the Jar packaging changes necessary to facilitate compatibility testing exist only in versions 7.8.1 and later.
+    private static final Version JDBC_COMPATIBILITY_INITIAL_VERSION = Version.fromString("7.8.1");
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*"
     );
@@ -173,8 +176,8 @@ public class BwcVersions {
     }
 
     /**
-      * Returns info about the unreleased version, or {@code null} if the version is released.
-      */
+     * Returns info about the unreleased version, or {@code null} if the version is released.
+     */
     public UnreleasedVersionInfo unreleasedInfo(Version version) {
         return unreleased.get(version);
     }
@@ -361,6 +364,14 @@ public class BwcVersions {
         wireCompat.sort(Version::compareTo);
 
         return unmodifiableList(wireCompat);
+    }
+
+    public List<Version> getJdbcDriverCompatible() {
+        return unmodifiableList(
+            getIndexCompatible().stream()
+                .filter(version -> version.onOrAfter(JDBC_COMPATIBILITY_INITIAL_VERSION))
+                .collect(Collectors.toList())
+        );
     }
 
     public List<Version> getUnreleasedIndexCompatible() {

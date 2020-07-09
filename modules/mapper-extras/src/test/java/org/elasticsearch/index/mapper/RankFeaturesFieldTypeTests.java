@@ -24,7 +24,7 @@ import java.util.Collections;
 public class RankFeaturesFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsAggregatable() {
-        MappedFieldType fieldType = new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), true);
+        MappedFieldType fieldType = new RankFeaturesFieldMapper.RankFeaturesFieldType("field", Collections.emptyMap());
         assertFalse(fieldType.isAggregatable());
     }
 }

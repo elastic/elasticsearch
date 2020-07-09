@@ -163,6 +163,9 @@ Each bulk item can include the routing value using the
 `routing` field. It automatically follows the behavior of the
 index / delete operation based on the `_routing` mapping.
 
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
+
 [float]
 [[bulk-wait-for-active-shards]]
 ===== Wait For Active Shards

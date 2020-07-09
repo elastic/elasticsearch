@@ -71,7 +71,7 @@ the `starting` state until sufficient {ml} node capacity is available.
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
-`max_number_threads`::
+`max_num_threads`::
 (Optional, integer)
 The maximum number of threads to be used by the analysis.
 The default value is `1`. Using more threads may decrease the time

@@ -327,7 +327,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 (Required, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dest]
 
-`max_number_threads`::
+`max_num_threads`::
 (Optional, integer)
 The maximum number of threads to be used by the analysis.
 The default value is `1`. Using more threads may decrease the time
@@ -516,7 +516,7 @@ The API returns the following result:
     "create_time" : 1562265491319,
     "version" : "8.0.0",
     "allow_lazy_start" : false,
-    "max_number_threads": 1
+    "max_num_threads": 1
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]

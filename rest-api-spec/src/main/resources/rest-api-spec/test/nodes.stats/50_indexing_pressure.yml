@@ -17,4 +17,4 @@
   - gte:  { nodes.$node_id.indexing_pressure.pending_primary_and_coordinating_bytes: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.pending_replica_bytes: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.primary_and_coordinating_rejections: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.replica_rejections_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.replica_rejections: 0 }

@@ -244,7 +244,6 @@ public class ScriptCache {
         }
     }
 
-
     public static class CompilationRate {
         public final int count;
         public final TimeValue time;

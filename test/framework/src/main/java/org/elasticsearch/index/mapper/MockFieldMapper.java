@@ -52,15 +52,6 @@ public class MockFieldMapper extends FieldMapper {
             super(name, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        protected FakeFieldType(FakeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new FakeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return "faketype";

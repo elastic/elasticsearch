@@ -181,10 +181,6 @@ A greater `fetch_size` value often increases search speed but uses more memory.
 Query, written in query DSL, used to filter the events on which the EQL query
 runs.
 
-`implicit_join_key_field`::
-(Optional, string)
-Reserved for future use.
-
 `keep_alive`::
 +
 --
@@ -234,10 +230,6 @@ If both parameters are specified, only the query parameter is used.
 +
 IMPORTANT: This parameter supports a subset of EQL syntax. See
 <<eql-unsupported-syntax>>.
-
-`search_after`::
-(Optional, string)
-Reserved for future use.
 
 `size`::
 (Optional, integer or float)

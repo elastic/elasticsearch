@@ -31,7 +31,7 @@ public class StatsHolderTests extends ESTestCase {
         );
         StatsHolder statsHolder = new StatsHolder(phases);
 
-        statsHolder.resetProgressTrackerPreservingReindexingProgress(Arrays.asList("a", "b"));
+        statsHolder.resetProgressTrackerPreservingReindexingProgress(Arrays.asList("a", "b"), false);
 
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 
@@ -57,7 +57,7 @@ public class StatsHolderTests extends ESTestCase {
         );
         StatsHolder statsHolder = new StatsHolder(phases);
 
-        statsHolder.resetProgressTrackerPreservingReindexingProgress(Arrays.asList("c", "d"));
+        statsHolder.resetProgressTrackerPreservingReindexingProgress(Arrays.asList("c", "d"), false);
 
         List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
 

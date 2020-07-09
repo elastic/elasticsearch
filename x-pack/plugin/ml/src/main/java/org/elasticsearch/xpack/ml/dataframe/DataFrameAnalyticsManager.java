@@ -84,7 +84,8 @@ public class DataFrameAnalyticsManager {
                 // At this point we have the config at hand and we can reset the progress tracker
                 // to use the analyses phases. We preserve reindexing progress as if reindexing was
                 // finished it will not be reset.
-                task.getStatsHolder().resetProgressTrackerPreservingReindexingProgress(config.getAnalysis().getProgressPhases());
+                task.getStatsHolder().resetProgressTrackerPreservingReindexingProgress(config.getAnalysis().getProgressPhases(),
+                    config.getAnalysis().supportsInference());
 
                 switch(currentState) {
                     // If we are STARTED, it means the job was started because the start API was called.

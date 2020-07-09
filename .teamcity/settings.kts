@@ -16,13 +16,13 @@ project {
 
     developmentBranches.forEach { devBranch ->
         subProject {
-            id(devBranch)
+            id(devBranch.replace('.', '_'))
             name = devBranch
 
             vcsRoot(GitVcsRoot {
-                name = "Elasticsearch ($devBranch)"
+                id("Elasticsearch_${devBranch.replace('.', '_')}")
 
-                id(name)
+                name = "Elasticsearch ($devBranch)"
                 url = "https://github.com/elastic/elasticsearch.git"
                 branch = "refs/heads/$devBranch"
             })

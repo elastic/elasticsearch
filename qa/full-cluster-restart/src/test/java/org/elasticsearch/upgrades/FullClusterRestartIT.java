@@ -1402,7 +1402,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
-        assumeTrue("no data streams in versions before " + Version.V_8_0_0, getOldClusterVersion().onOrAfter(Version.V_8_0_0));
+        assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
         if (isRunningAgainstOldCluster()) {
             String mapping = "{\n" +
                 "      \"properties\": {\n" +
@@ -1426,7 +1426,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request getDataStream = new Request("GET", "/_data_stream/ds");
         Response response = client().performRequest(getDataStream);
         assertOK(response);
-        List<Object> dataStreams = entityAsList(response);
+        List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
         assertEquals(1, dataStreams.size());
         Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");

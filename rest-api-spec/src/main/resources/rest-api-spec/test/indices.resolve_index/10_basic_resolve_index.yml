@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: change after backporting
+      version: "7.8.99 - "
+      reason: "resolve index api only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -76,8 +76,8 @@ setup:
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: " - 7.99.99"
-      reason: change after backporting
+      version: " - 7.8.99"
+      reason: "resolve index api only supported in 7.9+"
 
   - do:
       indices.resolve_index:
@@ -105,7 +105,7 @@ setup:
   - match: {data_streams.1.name: simple-data-stream2}
   - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
   - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
-  - match: {data_streams.1.timestamp_field: "@timestamp2"}
+  - match: {data_streams.1.timestamp_field: "@timestamp"}
 
   - do:
       indices.delete_data_stream:
@@ -120,7 +120,7 @@ setup:
 ---
 "Resolve index with hidden and closed indices":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.8.99"
       reason: change after backporting
 
   - do:
@@ -165,7 +165,7 @@ setup:
   - match: {data_streams.1.name: simple-data-stream2}
   - match: {data_streams.1.backing_indices.0: .ds-simple-data-stream2-000001}
   - match: {data_streams.1.backing_indices.1: .ds-simple-data-stream2-000002}
-  - match: {data_streams.1.timestamp_field: "@timestamp2"}
+  - match: {data_streams.1.timestamp_field: "@timestamp"}
 
   - do:
       indices.delete_data_stream:

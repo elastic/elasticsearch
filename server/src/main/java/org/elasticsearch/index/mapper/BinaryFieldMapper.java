@@ -20,9 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -32,7 +30,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -49,40 +46,39 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
-
-public class BinaryFieldMapper extends FieldMapper {
+public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "binary";
 
-    public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
+    private static BinaryFieldMapper toType(FieldMapper in) {
+        return (BinaryFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+        private final Parameter<Boolean> hasDocValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  false);
+        private final Parameter<Map<String, String>> meta
+            = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
+            this(name, false);
+        }
+
+        public Builder(String name, boolean hasDocValues) {
+            super(name);
+            this.hasDocValues.setValue(hasDocValues);
+        }
+
+        @Override
+        public List<Parameter<?>> getParameters() {
+            return List.of(meta, stored, hasDocValues);
         }
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(name, fieldType, new BinaryFieldType(buildFullName(context), hasDocValues, meta),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-        }
-
-        @Override
-        public Builder index(boolean index) {
-            if (index) {
-                throw new MapperParsingException("Binary field [" + name() + "] cannot be indexed");
-            }
-            return builder;
+            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(context), hasDocValues.getValue(), meta.getValue()),
+                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -91,7 +87,7 @@ public class BinaryFieldMapper extends FieldMapper {
         public BinaryFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
+            builder.parse(name, parserContext, node);
             return builder;
         }
     }
@@ -99,7 +95,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static final class BinaryFieldType extends MappedFieldType {
 
         public BinaryFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, meta);
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public BinaryFieldType(String name) {
@@ -166,14 +162,19 @@ public class BinaryFieldMapper extends FieldMapper {
         }
     }
 
-    protected BinaryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+    private final boolean stored;
+    private final boolean hasDocValues;
+
+    protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.stored = builder.stored.getValue();
+        this.hasDocValues = builder.hasDocValues.getValue();
     }
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        if (!fieldType.stored() && !fieldType().hasDocValues()) {
+        if (stored == false && hasDocValues == false) {
             return;
         }
         byte[] value = context.parseExternalValue(byte[].class);
@@ -187,11 +188,11 @@ public class BinaryFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
-        if (fieldType.stored()) {
-            context.doc().add(new Field(fieldType().name(), value, fieldType));
+        if (stored) {
+            context.doc().add(new StoredField(fieldType().name(), value));
         }
 
-        if (fieldType().hasDocValues()) {
+        if (hasDocValues) {
             CustomBinaryDocValuesField field = (CustomBinaryDocValuesField) context.doc().getByKey(fieldType().name());
             if (field == null) {
                 field = new CustomBinaryDocValuesField(fieldType().name(), value);
@@ -209,8 +210,8 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new BinaryFieldMapper.Builder(simpleName()).init(this);
     }
 
     @Override

@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -33,22 +34,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
-    private static final Set<String> ALLOWED_TIMESTAMPFIELD_TYPES =
-        new LinkedHashSet<>(List.of(DateFieldMapper.CONTENT_TYPE, DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
 
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -120,7 +116,11 @@ public class MetadataCreateDataStreamService {
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request) throws Exception {
+                                         CreateDataStreamClusterStateUpdateRequest request)
+        throws Exception {
+        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_9_0)) {
+            throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
+        }
         if (currentState.metadata().dataStreams().containsKey(request.name)) {
             throw new IllegalArgumentException("data_stream [" + request.name + "] already exists");
         }
@@ -145,9 +145,12 @@ public class MetadataCreateDataStreamService {
         currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
         IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
         assert firstBackingIndex != null;
+        assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
 
-        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(
-            new DataStream(request.name, template.getDataStreamTemplate().getTimestampField(), List.of(firstBackingIndex.getIndex())));
+        String fieldName = template.getDataStreamTemplate().getTimestampField();
+        DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
+        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
+        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}]", request.name);
         return ClusterState.builder(currentState).metadata(builder).build();
     }
@@ -166,15 +169,16 @@ public class MetadataCreateDataStreamService {
     }
 
     public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) {
-        MappedFieldType timestampFieldMapper = mapperService.fieldType(timestampFieldName);
-        if (timestampFieldMapper == null) {
-            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "], but found no timestamp field");
+        TimestampFieldMapper fieldMapper = (TimestampFieldMapper) mapperService.documentMapper().mappers().getMapper("_timestamp");
+        assert fieldMapper != null : "[_timestamp] meta field mapper must exist";
+
+        if (timestampFieldName.equals(fieldMapper.getPath()) == false) {
+            throw new IllegalArgumentException("[_timestamp] meta field doesn't point to data stream timestamp field [" +
+                timestampFieldName + "]");
         }
-        String type = timestampFieldMapper.typeName();
-        if (ALLOWED_TIMESTAMPFIELD_TYPES.contains(type) == false) {
-            throw new IllegalArgumentException("expected timestamp field [" + timestampFieldName + "] to be of types " +
-                ALLOWED_TIMESTAMPFIELD_TYPES + ", but instead found type [" + type  + "]");
-        }
+
+        // Sanity check (this validation logic should already have been executed when merging mappings):
+        fieldMapper.validate(mapperService.documentMapper().mappers());
     }
 
 }

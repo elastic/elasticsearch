@@ -31,6 +31,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -310,5 +312,31 @@ public class ClientHelperTests extends ESTestCase {
             consumer.accept(client.threadPool().getThreadContext().getHeaders());
             return client.search(new SearchRequest()).actionGet();
         });
+    }
+
+    public void testFilterSecurityHeaders() {
+        {  // Empty map
+            assertThat(ClientHelper.filterSecurityHeaders(Collections.emptyMap()), is(anEmptyMap()));
+        }
+        {  // Singleton map with no security-related headers
+            assertThat(ClientHelper.filterSecurityHeaders(Collections.singletonMap("non-security-header", "value")), is(anEmptyMap()));
+        }
+        {  // Singleton map with a security-related header
+            assertThat(
+                ClientHelper.filterSecurityHeaders(Collections.singletonMap(AuthenticationServiceField.RUN_AS_USER_HEADER, "value")),
+                hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value"));
+        }
+        {  // Map with 3 headers out of which only 1 is security-related
+            Map<String, String> headers = new HashMap<>();
+            headers.put("non-security-header-1", "value-1");
+            headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "value-2");
+            headers.put("other-non-security-header", "value-3");
+            Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(headers);
+            assertThat(filteredHeaders, is(aMapWithSize(1)));
+            assertThat(filteredHeaders, hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "value-2"));
+        }
+        {  // null
+            expectThrows(NullPointerException.class, () -> ClientHelper.filterSecurityHeaders(null));
+        }
     }
 }

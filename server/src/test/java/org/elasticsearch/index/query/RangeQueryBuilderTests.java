@@ -139,7 +139,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             final MappedFieldType resolvedFieldType = context.getMapperService().fieldType(queryBuilder.fieldName());
             if (resolvedFieldType.hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.getMapperService().getLuceneFieldType(resolvedFieldType.name()).omitNorms() == false) {
+            } else if (context.getMapperService().fieldType(resolvedFieldType.name())
+                .getTextSearchInfo().hasNorms()) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));

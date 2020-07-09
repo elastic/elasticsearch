@@ -42,6 +42,7 @@ import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
@@ -83,7 +84,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // apply global test task failure listener
         project.getRootProject().getPluginManager().apply(TestFailureReportingPlugin.class);
 
-        project.getPluginManager().apply(JavaPlugin.class);
+        project.getPluginManager().apply(JavaLibraryPlugin.class);
 
         configureConfigurations(project);
         configureRepositories(project);
@@ -117,21 +118,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
         testImplementationConfig.extendsFrom(compileOnlyConfig);
 
-        // fail on using deprecated testCompile
-        project.getConfigurations()
-            .getByName(JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME)
-            .getIncoming()
-            .beforeResolve(resolvableDependencies -> {
-                if (resolvableDependencies.getDependencies().size() > 0) {
-                    throw new GradleException(
-                        "Usage of configuration "
-                            + JavaPlugin.TEST_COMPILE_CONFIGURATION_NAME
-                            + " is no longer supported. Use "
-                            + JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME
-                            + " instead."
-                    );
-                }
-            });
         // we are not shipping these jars, we act like dumb consumers of these things
         if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
             return;
@@ -156,7 +142,8 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 }
             });
         };
-        disableTransitiveDeps.accept(JavaPlugin.COMPILE_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.API_CONFIGURATION_NAME);
+        disableTransitiveDeps.accept(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.RUNTIME_ONLY_CONFIGURATION_NAME);
         disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
@@ -293,14 +280,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compilerArgs.add(targetCompatibilityVersion.getMajorVersion());
             });
         });
-
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
-            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile
-            // classpath
-            Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
-            Configuration apiConfig = project.getConfigurations().getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME);
-            shadowConfig.getDependencies().all(dependency -> apiConfig.getDependencies().add(dependency));
-        });
     }
 
     /**
@@ -419,8 +398,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             nonInputProperties.systemProperty("gradle.user.home", gradleHome);
             // we use 'temp' relative to CWD since this is per JVM and tests are forbidden from writing to CWD
             nonInputProperties.systemProperty("java.io.tmpdir", test.getWorkingDir().toPath().resolve("temp"));
-
-            nonInputProperties.systemProperty("runtime.java", BuildParams.getRuntimeJavaVersion().getMajorVersion());
 
             // TODO: remove setting logging level via system property
             test.systemProperty("tests.logger.level", "WARN");

@@ -115,6 +115,7 @@ import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -129,6 +130,7 @@ import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
@@ -140,6 +142,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyM
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -150,6 +154,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Recal
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
@@ -1303,6 +1308,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("some description"));
+        assertThat(createdConfig.getMaxNumThreads(), equalTo(1));
     }
 
     public void testPutDataFrameAnalyticsConfig_GivenRegression() throws Exception {
@@ -1392,6 +1398,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("this is a classification"));
+    }
+
+    public void testUpdateDataFrameAnalytics() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-update-df-analytics-classification";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+            .setId(configId)
+            .setSource(DataFrameAnalyticsSource.builder().setIndex("update-test-source-index").build())
+            .setDest(DataFrameAnalyticsDest.builder().setIndex("update-test-dest-index").build())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.Classification.builder("my_dependent_variable").build())
+            .setDescription("this is a classification")
+            .build();
+
+        createIndex("update-test-source-index", defaultMappingForTest());
+
+        machineLearningClient.putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(config), RequestOptions.DEFAULT);
+
+        UpdateDataFrameAnalyticsRequest request =
+            new UpdateDataFrameAnalyticsRequest(
+                DataFrameAnalyticsConfigUpdate.builder().setId(config.getId()).setDescription("Updated description").build());
+        PutDataFrameAnalyticsResponse response =
+            execute(request, machineLearningClient::updateDataFrameAnalytics, machineLearningClient::updateDataFrameAnalyticsAsync);
+        assertThat(response.getConfig().getDescription(), equalTo("Updated description"));
+
+        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(config.getId());
+        GetDataFrameAnalyticsResponse getResponse = machineLearningClient.getDataFrameAnalytics(getRequest, RequestOptions.DEFAULT);
+        assertThat(getResponse.getAnalytics().get(0).getDescription(), equalTo("Updated description"));
     }
 
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
@@ -1537,6 +1570,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(progress.get(2), equalTo(new PhaseProgress("computing_outliers", 0)));
         assertThat(progress.get(3), equalTo(new PhaseProgress("writing_results", 0)));
         assertThat(stats.getMemoryUsage().getPeakUsageBytes(), equalTo(0L));
+        assertThat(stats.getMemoryUsage().getStatus(), equalTo(MemoryUsage.Status.OK));
+        assertThat(stats.getMemoryUsage().getMemoryReestimateBytes(), is(nullValue()));
         assertThat(stats.getDataCounts(), equalTo(new DataCounts(0, 0, 0)));
     }
 
@@ -1820,16 +1855,31 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new EvaluateDataFrameRequest(
                 regressionIndex,
                 null,
-                new Regression(actualRegression, predictedRegression, new MeanSquaredErrorMetric(), new RSquaredMetric()));
+                new Regression(
+                    actualRegression,
+                    predictedRegression,
+                    new MeanSquaredErrorMetric(),
+                    new MeanSquaredLogarithmicErrorMetric(1.0),
+                    new HuberMetric(1.0),
+                    new RSquaredMetric()));
 
         EvaluateDataFrameResponse evaluateDataFrameResponse =
             execute(evaluateDataFrameRequest, machineLearningClient::evaluateDataFrame, machineLearningClient::evaluateDataFrameAsync);
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME));
-        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(2));
+        assertThat(evaluateDataFrameResponse.getMetrics().size(), equalTo(4));
 
         MeanSquaredErrorMetric.Result mseResult = evaluateDataFrameResponse.getMetricByName(MeanSquaredErrorMetric.NAME);
         assertThat(mseResult.getMetricName(), equalTo(MeanSquaredErrorMetric.NAME));
-        assertThat(mseResult.getError(), closeTo(0.061000000, 1e-9));
+        assertThat(mseResult.getValue(), closeTo(0.061000000, 1e-9));
+
+        MeanSquaredLogarithmicErrorMetric.Result msleResult =
+            evaluateDataFrameResponse.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME);
+        assertThat(msleResult.getMetricName(), equalTo(MeanSquaredLogarithmicErrorMetric.NAME));
+        assertThat(msleResult.getValue(), closeTo(0.02759231770210426, 1e-9));
+
+        HuberMetric.Result huberResult = evaluateDataFrameResponse.getMetricByName(HuberMetric.NAME);
+        assertThat(huberResult.getMetricName(), equalTo(HuberMetric.NAME));
+        assertThat(huberResult.getValue(), closeTo(0.029669771640929276, 1e-9));
 
         RSquaredMetric.Result rSquaredResult = evaluateDataFrameResponse.getMetricByName(RSquaredMetric.NAME);
         assertThat(rSquaredResult.getMetricName(), equalTo(RSquaredMetric.NAME));

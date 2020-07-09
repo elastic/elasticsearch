@@ -38,8 +38,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -252,7 +250,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldType ft = setupFieldType(context);
             Long nullTimestamp = nullValue == null ? null : ft.dateTimeFormatter.parseMillis(nullValue);
             return new DateFieldMapper(name, fieldType, ft, ignoreMalformed(context), nullTimestamp, nullValue,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -288,7 +286,7 @@ public final class DateFieldMapper extends FieldMapper {
                 } else if (propName.equals("format")) {
                     builder.format(propNode.toString());
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -303,11 +301,10 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateFieldType(String name, boolean isSearchable, boolean hasDocValues,
                              DateFormatter dateTimeFormatter, Resolution resolution, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, meta);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.dateTimeFormatter = dateTimeFormatter;
             this.dateMathParser = dateTimeFormatter.toDateMathParser();
             this.resolution = resolution;
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER); // allows match queries on date fields
         }
 
         public DateFieldType(String name) {
@@ -358,7 +355,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         public long parse(String value) {
-            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value)).toInstant());
+            return resolution.convert(DateFormatters.from(dateTimeFormatter().parse(value), dateTimeFormatter().locale()).toInstant());
         }
 
         @Override
@@ -476,30 +473,6 @@ public final class DateFieldMapper extends FieldMapper {
                 }
             }
 
-            return isFieldWithinRange(reader, fromInclusive, toInclusive);
-        }
-
-        /**
-         * Return whether all values of the given {@link IndexReader} are within the range,
-         * outside the range or cross the range. Unlike {@link #isFieldWithinQuery} this
-         * accepts values that are out of the range of the {@link #resolution} of this field.
-         * @param fromInclusive start date, inclusive
-         * @param toInclusive end date, inclusive
-         */
-        public Relation isFieldWithinRange(IndexReader reader, Instant fromInclusive, Instant toInclusive)
-                throws IOException {
-            return isFieldWithinRange(reader,
-                    resolution.convert(resolution.clampToValidRange(fromInclusive)),
-                    resolution.convert(resolution.clampToValidRange(toInclusive)));
-        }
-
-        /**
-         * Return whether all values of the given {@link IndexReader} are within the range,
-         * outside the range or cross the range.
-         * @param fromInclusive start date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
-         * @param toInclusive end date, inclusive, {@link Resolution#convert(Instant) converted} to the appropriate scale
-         */
-        private Relation isFieldWithinRange(IndexReader reader, long fromInclusive, long toInclusive) throws IOException {
             if (PointValues.size(reader, name()) == 0) {
                 // no points, so nothing matches
                 return Relation.DISJOINT;
@@ -557,10 +530,9 @@ public final class DateFieldMapper extends FieldMapper {
             MappedFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
             Long nullValue, String nullValueAsString,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.nullValue = nullValue;
         this.nullValueAsString = nullValueAsString;
@@ -665,5 +637,13 @@ public final class DateFieldMapper extends FieldMapper {
             || fieldType().dateTimeFormatter().locale().equals(DEFAULT_DATE_TIME_FORMATTER.locale()) == false) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
         }
+    }
+
+    public Explicit<Boolean> getIgnoreMalformed() {
+        return ignoreMalformed;
+    }
+
+    public Long getNullValue() {
+        return nullValue;
     }
 }

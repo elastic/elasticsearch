@@ -553,7 +553,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             abstract class DummyFieldMapper extends MetadataFieldMapper implements ValidateableMetadataFieldMapper {
-                public DummyFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
+                DummyFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
                     super(fieldType, mappedFieldType);
                 }
             }

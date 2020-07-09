@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -50,12 +53,16 @@ public final class NetworkService {
         Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
+    public static final boolean SET_EXTRA_KEEP_ALIVE_OPTIONS =
+        Booleans.parseBoolean(System.getProperty("es.network.tcp.extra_keep_alive_options", "false")) == false &&
+            (IOUtils.LINUX || IOUtils.MAC_OS_X) &&
+            JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0;
     public static final Setting<Integer> TCP_KEEP_IDLE =
-        Setting.intSetting("network.tcp.keep_idle", -1, -1, Property.NodeScope);
+        Setting.intSetting("network.tcp.keep_idle", SET_EXTRA_KEEP_ALIVE_OPTIONS ? 60 : -1, -1, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_INTERVAL =
-        Setting.intSetting("network.tcp.keep_interval", -1, -1, Property.NodeScope);
+        Setting.intSetting("network.tcp.keep_interval", SET_EXTRA_KEEP_ALIVE_OPTIONS ? 10 : -1, -1, Property.NodeScope);
     public static final Setting<Integer> TCP_KEEP_COUNT =
-        Setting.intSetting("network.tcp.keep_count", -1, -1, Property.NodeScope);
+        Setting.intSetting("network.tcp.keep_count", SET_EXTRA_KEEP_ALIVE_OPTIONS ? 3 : -1, -1, Property.NodeScope);
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =

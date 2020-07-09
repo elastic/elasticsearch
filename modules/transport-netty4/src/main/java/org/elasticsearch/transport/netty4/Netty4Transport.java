@@ -149,25 +149,23 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.option(ChannelOption.TCP_NODELAY, TransportSettings.TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TransportSettings.TCP_KEEP_ALIVE.get(settings));
         if (TransportSettings.TCP_KEEP_ALIVE.get(settings)) {
-            // Netty logs a warning if it can't set the option, so try this only on supported platforms
-            if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
-                if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
-                    final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
-                    if (keepIdleOption != null) {
-                        bootstrap.option(NioChannelOption.of(keepIdleOption), TransportSettings.TCP_KEEP_IDLE.get(settings));
-                    }
+            // Note that Netty logs a warning if it can't set the option
+            if (TransportSettings.TCP_KEEP_IDLE.get(settings) >= 0) {
+                final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                if (keepIdleOption != null) {
+                    bootstrap.option(NioChannelOption.of(keepIdleOption), TransportSettings.TCP_KEEP_IDLE.get(settings));
                 }
-                if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
-                    final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
-                    if (keepIntervalOption != null) {
-                        bootstrap.option(NioChannelOption.of(keepIntervalOption), TransportSettings.TCP_KEEP_INTERVAL.get(settings));
-                    }
+            }
+            if (TransportSettings.TCP_KEEP_INTERVAL.get(settings) >= 0) {
+                final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                if (keepIntervalOption != null) {
+                    bootstrap.option(NioChannelOption.of(keepIntervalOption), TransportSettings.TCP_KEEP_INTERVAL.get(settings));
                 }
-                if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
-                    final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
-                    if (keepCountOption != null) {
-                        bootstrap.option(NioChannelOption.of(keepCountOption), TransportSettings.TCP_KEEP_COUNT.get(settings));
-                    }
+            }
+            if (TransportSettings.TCP_KEEP_COUNT.get(settings) >= 0) {
+                final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                if (keepCountOption != null) {
+                    bootstrap.option(NioChannelOption.of(keepCountOption), TransportSettings.TCP_KEEP_COUNT.get(settings));
                 }
             }
         }

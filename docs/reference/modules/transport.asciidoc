@@ -88,19 +88,22 @@ example above:
    determines the time in seconds that a connection must be idle before
    starting to send TCP keepalive probes.
    Only applicable on Linux and Mac, and requires JDK 11 or newer.
-   Defaults to -1, which does not set this option at the socket level, but
-   uses default system configuration instead.
+   Defaults to 60 on applicable configurations, and -1 otherwise, which does
+   not set this option at the socket level, but uses the default system
+   configuration instead.
 * `tcp.keep_interval`: Configures the `TCP_KEEPINTVL` option for this socket,
    which determines the time in seconds between sending TCP keepalive probes.
    Only applicable on Linux and Mac, and requires JDK 11 or newer.
-   Defaults to -1, which does not set this option at the socket level, but
-   uses default system configuration instead.
+   Defaults to 10 on applicable configurations, and -1 otherwise, which does
+   not set this option at the socket level, but uses the default system
+   configuration instead.
 * `tcp.keep_count`: Configures the `TCP_KEEPCNT` option for this socket, which
    determines the number of unacknowledged TCP keepalive probes that may be
    sent on a connection before it is dropped.
    Only applicable on Linux and Mac, and requires JDK 11 or newer.
-   Defaults to -1, which does not set this option at the socket level, but
-   uses default system configuration instead.
+   Defaults to 3 on applicable configurations, and -1 otherwise, which does
+   not set this option at the socket level, but uses the default system
+   configuration instead.
 * `tcp.reuse_address`: Configures the `SO_REUSEADDR` option for this socket
 * `tcp.send_buffer_size`: Configures the send buffer size of the socket
 * `tcp.receive_buffer_size`: Configures the receive buffer size of the socket

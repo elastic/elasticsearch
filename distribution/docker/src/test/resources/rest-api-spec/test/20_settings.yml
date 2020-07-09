@@ -1,0 +1,9 @@
+---
+"Default TCP keepalive settings":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - match: { defaults.network.tcp.keep_idle: "60" }
+  - match: { defaults.network.tcp.keep_interval: "10" }
+  - match: { defaults.network.tcp.keep_count: "3" }

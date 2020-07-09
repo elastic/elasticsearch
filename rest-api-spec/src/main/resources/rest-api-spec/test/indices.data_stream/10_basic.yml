@@ -31,8 +31,8 @@ setup:
 ---
 "Create data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.create_data_stream:
@@ -93,8 +93,8 @@ setup:
 ---
 "Create data stream with invalid name":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       catch: bad_request
@@ -108,7 +108,7 @@ setup:
 ---
 "Get data stream":
   - skip:
-      version: " - 7.8.99"
+      version: " - 7.9.99"
       reason: "change to 7.8.99 after backport"
 
   - do:
@@ -173,8 +173,8 @@ setup:
 ---
 "Delete data stream with backing indices":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.create_data_stream:
@@ -217,8 +217,8 @@ setup:
 ---
 "append-only writes to backing indices prohobited":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:

@@ -2,6 +2,8 @@
 setup:
   - skip:
       features: allowed_warnings
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
   - do:
       allowed_warnings:
         - "index template [logs_template] has index patterns [logs-foobar] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs_template] will take precedence during new index creation"
@@ -25,8 +27,8 @@ teardown:
 ---
 "Verify get index api":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.get:
@@ -39,7 +41,7 @@ teardown:
 "Verify get mapping api":
   - skip:
       version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.get_mapping:

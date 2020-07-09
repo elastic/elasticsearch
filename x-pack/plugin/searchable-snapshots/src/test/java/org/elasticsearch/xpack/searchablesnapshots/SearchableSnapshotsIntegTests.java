@@ -367,6 +367,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(restoredIndexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59287")
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());

@@ -316,7 +316,7 @@ public class NodeStatsTests extends ESTestCase {
                 ScriptCacheStats deserializedScriptCacheStats = deserializedNodeStats.getScriptCacheStats();
                 if (scriptCacheStats == null) {
                     assertNull(deserializedScriptCacheStats);
-                } else {
+                } else if (deserializedScriptCacheStats.getContextStats() != null) {
                     Map<String, ScriptStats> deserialized = deserializedScriptCacheStats.getContextStats();
                     long evictions = 0;
                     long limited = 0;

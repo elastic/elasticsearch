@@ -371,4 +371,19 @@ public class ValuesSourceConfig {
     public boolean hasGlobalOrdinals() {
         return valuesSource.hasGlobalOrdinals();
     }
+
+    /**
+     * Returns a human readable description of this values source, for use in error messages and similar.
+     */
+    public String getDescription() {
+        if (script != null) {
+            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getPreferredName() : "unknown type") + "]";
+        }
+
+        MappedFieldType fieldType = fieldType();
+        if (fieldType != null) {
+            return "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "]";
+        }
+        return "unmapped field";
+    }
 }

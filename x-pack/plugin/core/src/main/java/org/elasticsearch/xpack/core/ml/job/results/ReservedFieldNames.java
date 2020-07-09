@@ -311,6 +311,7 @@ public final class ReservedFieldNames {
             DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(),
             DataFrameAnalyticsConfig.CREATE_TIME.getPreferredName(),
             DataFrameAnalyticsConfig.VERSION.getPreferredName(),
+            DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName(),
             DataFrameAnalyticsDest.INDEX.getPreferredName(),
             DataFrameAnalyticsDest.RESULTS_FIELD.getPreferredName(),
             DataFrameAnalyticsSource.INDEX.getPreferredName(),

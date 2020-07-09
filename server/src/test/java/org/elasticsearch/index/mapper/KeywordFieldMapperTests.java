@@ -650,6 +650,13 @@ public class KeywordFieldMapperTests extends FieldMapperTestCase<KeywordFieldMap
         assertEquals("42", ignoreAboveMapper.parseSourceValue(42L, null));
         assertEquals("true", ignoreAboveMapper.parseSourceValue(true, null));
 
+        KeywordFieldMapper normalizerMapper = new KeywordFieldMapper.Builder("field")
+            .normalizer(indexService.getIndexAnalyzers(), "lowercase")
+            .build(context);
+        assertEquals("value", normalizerMapper.parseSourceValue("VALUE", null));
+        assertEquals("42", normalizerMapper.parseSourceValue(42L, null));
+        assertEquals("value", normalizerMapper.parseSourceValue("value", null));
+
         KeywordFieldMapper nullValueMapper = new KeywordFieldMapper.Builder("field")
             .nullValue("NULL")
             .build(context);

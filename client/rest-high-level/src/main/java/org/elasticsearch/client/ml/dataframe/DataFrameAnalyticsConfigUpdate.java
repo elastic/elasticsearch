@@ -58,18 +58,18 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
     private final String description;
     private final ByteSizeValue modelMemoryLimit;
     private final Boolean allowLazyStart;
-    private final Integer maxNumberThreads;
+    private final Integer maxNumThreads;
 
     private DataFrameAnalyticsConfigUpdate(String id,
                                            @Nullable String description,
                                            @Nullable ByteSizeValue modelMemoryLimit,
                                            @Nullable Boolean allowLazyStart,
-                                           @Nullable Integer maxNumberThreads) {
+                                           @Nullable Integer maxNumThreads) {
         this.id = id;
         this.description = description;
         this.modelMemoryLimit = modelMemoryLimit;
         this.allowLazyStart = allowLazyStart;
-        this.maxNumberThreads = maxNumberThreads;
+        this.maxNumThreads = maxNumThreads;
     }
 
     public String getId() {
@@ -88,8 +88,8 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
         return allowLazyStart;
     }
 
-    public Integer getMaxNumberThreads() {
-        return maxNumberThreads;
+    public Integer getMaxNumThreads() {
+        return maxNumThreads;
     }
 
     @Override
@@ -105,8 +105,8 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
         if (allowLazyStart != null) {
             builder.field(DataFrameAnalyticsConfig.ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
         }
-        if (maxNumberThreads != null) {
-            builder.field(DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName(), maxNumberThreads);
+        if (maxNumThreads != null) {
+            builder.field(DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
         }
         builder.endObject();
         return builder;
@@ -128,12 +128,12 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
             && Objects.equals(this.description, that.description)
             && Objects.equals(this.modelMemoryLimit, that.modelMemoryLimit)
             && Objects.equals(this.allowLazyStart, that.allowLazyStart)
-            && Objects.equals(this.maxNumberThreads, that.maxNumberThreads);
+            && Objects.equals(this.maxNumThreads, that.maxNumThreads);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, modelMemoryLimit, allowLazyStart, maxNumberThreads);
+        return Objects.hash(id, description, modelMemoryLimit, allowLazyStart, maxNumThreads);
     }
 
     public static class Builder {

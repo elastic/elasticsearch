@@ -229,14 +229,16 @@ includes <<ccr-post-forget-follower,forgetting a follower>>. This
 privilege is necessary only on clusters that contain leader indices.
 
 `managed_admin_ops`::
-Permits auto-creation of indices and data streams only if a template covering
-the requested name exists. An auto-create action is the result of an index or
-bulk request on a non-existent index or data stream rather than an explicit
-create index or create data stream request. Also permits auto-update of
-mappings on indices and data streams if they do not contradict any existing
-mappings on the index or data stream. An auto-update mapping action is the
-result of an index or bulk request on an index or data stream that contains
-new fields that may be mapped rather than an explicit put mapping request.
+Permits auto-creation of indices and data streams only if an index template
+matching the requested name exists. An auto-create action is the result of an
+<<docs-index_,index>> or <<docs-bulk,bulk>> request that targets a non-existent
+index or data stream rather than an explicit
+<<indices-create-index,create index>> or
+<<indices-create-data-stream,create data stream>> request. Also permits
+auto-update of mappings on indices and data streams if they do not contradict
+existing mappings. An auto-update mapping action is the result of an index or
+bulk request that on an index or data stream that contains new fields that may
+be mapped rather than an explicit <<indices-put-mapping,put mapping>> request.
 
 `monitor`::
 All actions that are required for monitoring (recovery, segments info, index

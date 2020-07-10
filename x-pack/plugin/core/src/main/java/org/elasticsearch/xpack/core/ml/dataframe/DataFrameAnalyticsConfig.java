@@ -92,12 +92,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
                 CREATE_TIME,
                 ObjectParser.ValueType.VALUE);
             // Version is set automatically during PUT, so version supplied in the _body_ of a REST request will be rejected.
-            parser.declareField(Builder::setVersion, p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return Version.fromString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, VERSION, ObjectParser.ValueType.STRING);
+            parser.declareString(Builder::setVersion, Version::fromString, VERSION);
         }
         return parser;
     }
@@ -129,7 +124,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Instant createTime;
     private final Version version;
     private final boolean allowLazyStart;
-    private final Integer maxNumThreads;
+    private final int maxNumThreads;
 
     private DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                      DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
@@ -146,7 +141,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
         this.version = version;
         this.allowLazyStart = allowLazyStart;
-        this.maxNumThreads = maxNumThreads;
+
+        if (maxNumThreads != null && maxNumThreads < 1) {
+            throw ExceptionsHelper.badRequestException("[{}] must be a positive integer", MAX_NUM_THREADS.getPreferredName());
+        }
+        this.maxNumThreads = maxNumThreads == null ? 1 : maxNumThreads;
     }
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
@@ -174,11 +173,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         } else {
             allowLazyStart = false;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            maxNumThreads = in.readOptionalVInt();
-        } else {
-            maxNumThreads = null;
-        }
+        maxNumThreads = in.readVInt();
     }
 
     public String getId() {
@@ -261,9 +256,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             builder.field(VERSION.getPreferredName(), version);
         }
         builder.field(ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
-        if (maxNumThreads != null) {
-            builder.field(MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
-        }
+        builder.field(MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
         builder.endObject();
         return builder;
     }
@@ -292,9 +285,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeBoolean(allowLazyStart);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalVInt(maxNumThreads);
-        }
+        out.writeVInt(maxNumThreads);
     }
 
     @Override
@@ -314,7 +305,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
             && Objects.equals(createTime, other.createTime)
             && Objects.equals(version, other.version)
             && Objects.equals(allowLazyStart, other.allowLazyStart)
-            && Objects.equals(maxNumThreads, other.maxNumThreads);
+            && maxNumThreads == other.maxNumThreads;
     }
 
     @Override

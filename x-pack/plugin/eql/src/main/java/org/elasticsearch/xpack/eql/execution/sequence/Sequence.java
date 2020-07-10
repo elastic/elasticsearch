@@ -47,7 +47,7 @@ public class Sequence {
             matches[currentStage] = new Match(ordinal, hit);
             return previousStage;
         }
-        throw new EqlIllegalArgumentException("Incorrect stage [{}] specified for Sequence[key={}, stage=]", stage, key, currentStage);
+        throw new EqlIllegalArgumentException("Incorrect stage [{}] specified for Sequence[key={}, stage={}]", stage, key, currentStage);
     }
 
     public SequenceKey key() {
@@ -58,8 +58,8 @@ public class Sequence {
         return matches[currentStage].ordinal();
     }
 
-    public long startTimestamp() {
-        return matches[0].ordinal().timestamp();
+    public Ordinal startOrdinal() {
+        return matches[0].ordinal();
     }
 
     public List<SearchHit> hits() {

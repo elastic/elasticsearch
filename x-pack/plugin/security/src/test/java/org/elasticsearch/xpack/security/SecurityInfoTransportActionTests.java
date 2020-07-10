@@ -71,10 +71,10 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         assertThat(featureSet.available(), is(true));
 
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
         assertThat(featureSet.available(), is(false));
     }
 
@@ -94,7 +94,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         final boolean authcAuthzAvailable = randomBoolean();
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false && randomBoolean();
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(authcAuthzAvailable);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(authcAuthzAvailable);
         when(licenseState.isSecurityEnabled()).thenReturn(enabled);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
@@ -248,7 +248,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         Settings.Builder settings = Settings.builder().put(this.settings);

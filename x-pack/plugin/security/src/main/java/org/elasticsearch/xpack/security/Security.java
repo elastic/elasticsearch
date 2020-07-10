@@ -1040,6 +1040,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
                         AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                if (indicesAccessControl == null) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;

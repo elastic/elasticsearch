@@ -295,12 +295,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    libs project(path: ':libs:elasticsearch-plugin-classloader', configuration: 'archives')
-    libs project(path: ':distribution:tools:java-version-checker', configuration: 'archives')
-    libs project(path: ':distribution:tools:launchers', configuration: 'archives')
+    libs project(':libs:elasticsearch-plugin-classloader')
+    libs project(':distribution:tools:java-version-checker')
+    libs project(':distribution:tools:launchers')
 
     libsPluginCli project(':distribution:tools:plugin-cli')
-    libsKeystoreCli project(path: ':distribution:tools:keystore-cli', configuration: 'archives')
+    libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
   }
 

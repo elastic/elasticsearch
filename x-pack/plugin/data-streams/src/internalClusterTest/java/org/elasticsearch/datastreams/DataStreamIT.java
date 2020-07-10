@@ -736,7 +736,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"*"});
         GetDataStreamAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamsResponse.getDataStreams(), hasSize(4));
         getDataStreamsResponse.getDataStreams().sort(Comparator.comparing(dataStreamInfo -> dataStreamInfo.getDataStream().getName()));
@@ -772,7 +772,7 @@ public class DataStreamIT extends ESIntegTestCase {
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"*"});
         GetDataStreamAction.Response getDataStreamsResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamsResponse.getDataStreams(), hasSize(0));
 

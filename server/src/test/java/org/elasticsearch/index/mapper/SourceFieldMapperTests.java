@@ -36,7 +36,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.util.Collection;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperTestUtils.assertConflicts;
+import static org.elasticsearch.index.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SourceFieldMapperTests extends ESSingleNodeTestCase {

@@ -44,7 +44,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.index.mapper.MapperTestUtils.assertConflicts;
+import static org.elasticsearch.index.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimestampFieldMapperTests extends ESSingleNodeTestCase {

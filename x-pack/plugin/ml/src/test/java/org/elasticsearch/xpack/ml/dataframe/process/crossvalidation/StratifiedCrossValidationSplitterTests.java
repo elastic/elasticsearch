@@ -34,8 +34,6 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
     private long randomizeSeed;
     private Map<String, Long> classCounts;
     private String[] classValuesPerRow;
-    private long trainingDocsCount;
-    private long testDocsCount;
 
     @Before
     public void setUpTests() {
@@ -80,7 +78,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Could not find dependent variable [foo] in fields []"));
     }
 
-    public void testProcess_GivenUnknownClass() {
+    public void testIsTraining_GivenUnknownClass() {
         CrossValidationSplitter splitter = createSplitter(100.0);
         String[] row = new String[fields.size()];
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
@@ -89,12 +87,12 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         row[dependentVariableIndex] = "unknown_class";
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> splitter.process(row, this::incrementTrainingDocsCount, this::incrementTestDocsCount));
+            () -> splitter.isTraining(row));
 
         assertThat(e.getMessage(), equalTo("Unknown class [unknown_class]; expected one of [a, b, c]"));
     }
 
-    public void testProcess_GivenRowsWithoutDependentVariableValue() {
+    public void testIsTraining_GivenRowsWithoutDependentVariableValue() {
         CrossValidationSplitter splitter = createSplitter(50.0);
 
         for (int i = 0; i < classValuesPerRow.length; i++) {
@@ -105,16 +103,12 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
-
-            // As all these rows have no dependent variable value, they're not for training and should be unaffected
+            assertThat(splitter.isTraining(processedRow), is(false));
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
-        assertThat(trainingDocsCount, equalTo(0L));
-        assertThat(testDocsCount, equalTo(500L));
     }
 
-    public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
+    public void testIsTraining_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
         CrossValidationSplitter splitter = createSplitter(100.0);
 
         for (int i = 0; i < classValuesPerRow.length; i++) {
@@ -125,16 +119,12 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
-
-            // As training percent is 100 all rows should be unaffected
+            assertThat(splitter.isTraining(processedRow), is(true));
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
-        assertThat(trainingDocsCount, equalTo(500L));
-        assertThat(testDocsCount, equalTo(0L));
     }
 
-    public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
+    public void testIsTraining_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
         // We don't go too low here to avoid flakiness
         double trainingPercent = randomDoubleBetween(50.0, 100.0, true);
 
@@ -156,19 +146,13 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
-
-            for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
-                if (fieldIndex != dependentVariableIndex) {
-                    assertThat(processedRow[fieldIndex], equalTo(row[fieldIndex]));
-                }
-            }
+            boolean isTraining = splitter.isTraining(processedRow);
+            assertThat(Arrays.equals(processedRow, row), is(true));
 
             String classValue = row[dependentVariableIndex];
             totalRowsPerClass.compute(classValue, (k, v) -> v + 1);
 
-            if (DataFrameDataExtractor.NULL_VALUE.equals(processedRow[dependentVariableIndex]) == false) {
-                assertThat(processedRow[dependentVariableIndex], equalTo(row[dependentVariableIndex]));
+            if (isTraining) {
                 trainingRowsPerClass.compute(classValue, (k, v) -> v + 1);
             }
         }
@@ -177,13 +161,17 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
 
         // We can assert we're plus/minus 1 from rounding error
 
+        long actualTotalTrainingCount = 0;
+        for (long trainingCount : trainingRowsPerClass.values()) {
+            actualTotalTrainingCount += trainingCount;
+        }
+
         long expectedTotalTrainingCount = 0;
         for (long classCount : classCounts.values()) {
             expectedTotalTrainingCount += trainingFraction * classCount;
         }
-        assertThat(trainingDocsCount + testDocsCount, equalTo((long) ROWS_COUNT));
-        assertThat(trainingDocsCount, greaterThanOrEqualTo(expectedTotalTrainingCount - 2));
-        assertThat(trainingDocsCount, lessThanOrEqualTo(expectedTotalTrainingCount));
+        assertThat(actualTotalTrainingCount, greaterThanOrEqualTo(expectedTotalTrainingCount - 2));
+        assertThat(actualTotalTrainingCount, lessThanOrEqualTo(expectedTotalTrainingCount));
 
         for (String classValue : classCounts.keySet()) {
             double expectedClassTrainingCount = totalRowsPerClass.get(classValue) * trainingFraction;
@@ -192,7 +180,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         }
     }
 
-    public void testProcess_SelectsTrainingRowsUniformly() {
+    public void testIsTraining_SelectsTrainingRowsUniformly() {
         double trainingPercent = 50.0;
         int runCount = 500;
 
@@ -211,9 +199,10 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
                 }
 
                 String[] processedRow = Arrays.copyOf(row, row.length);
-                crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
+                boolean isTraining = crossValidationSplitter.isTraining(processedRow);
+                assertThat(Arrays.equals(processedRow, row), is(true));
 
-                if (processedRow[dependentVariableIndex] != DataFrameDataExtractor.NULL_VALUE) {
+                if (isTraining) {
                     trainingCountPerRow[i]++;
                 }
             }
@@ -228,7 +217,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         }
     }
 
-    public void testProcess_GivenTwoClassesWithCountEqualToOne_ShouldUseForTraining() {
+    public void testIsTraining_GivenTwoClassesWithCountEqualToOne_ShouldUseForTraining() {
         dependentVariable = "dep_var";
         fields = Arrays.asList(dependentVariable, "feature");
         classCounts = new HashMap<>();
@@ -240,7 +229,8 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
             String[] row = new String[]{"class_a", "42.0"};
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
+            assertThat(splitter.isTraining(processedRow), is(true));
+            assertThat(Arrays.equals(processedRow, row), is(true));
 
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
@@ -248,24 +238,14 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
             String[] row = new String[]{"class_b", "42.0"};
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            splitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
+            assertThat(splitter.isTraining(processedRow), is(true));
+            assertThat(Arrays.equals(processedRow, row), is(true));
 
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
-
-        assertThat(trainingDocsCount, equalTo(2L));
-        assertThat(testDocsCount, equalTo(0L));
     }
 
     private CrossValidationSplitter createSplitter(double trainingPercent) {
         return new StratifiedCrossValidationSplitter(fields, dependentVariable, classCounts, trainingPercent, randomizeSeed);
-    }
-
-    private void incrementTrainingDocsCount() {
-        trainingDocsCount++;
-    }
-
-    private void incrementTestDocsCount() {
-        testDocsCount++;
     }
 }

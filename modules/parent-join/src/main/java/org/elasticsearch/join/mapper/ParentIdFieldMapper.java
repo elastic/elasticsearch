@@ -100,14 +100,6 @@ public final class ParentIdFieldMapper extends FieldMapper {
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
 
-        protected ParentIdFieldType(ParentIdFieldType ref) {
-            super(ref);
-        }
-
-        public ParentIdFieldType clone() {
-            return new ParentIdFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

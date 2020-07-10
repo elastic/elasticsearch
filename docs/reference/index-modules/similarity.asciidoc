@@ -171,7 +171,7 @@ Type name: `LMDirichlet`
 [[lm_jelinek_mercer]]
 ==== LM Jelinek Mercer similarity.
 
-{lucene-core-javadoc}/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
+{lucene-core-javadoc}/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
 Jelinek Mercer similarity] . The algorithm attempts to capture important patterns in the text, while leaving out noise. This similarity has the following options:
 
 [horizontal]

@@ -24,6 +24,7 @@ import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.elasticsearch.gradle.RepositoriesSetupPlugin
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
@@ -59,9 +60,9 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(TestClustersPlugin)
+        project.pluginManager.apply(RepositoriesSetupPlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
-        ElasticsearchJavaPlugin.configureRepositories(project)
         ElasticsearchJavaPlugin.configureTestTasks(project)
         ElasticsearchJavaPlugin.configureInputNormalization(project)
         ElasticsearchJavaPlugin.configureCompile(project)

@@ -237,7 +237,7 @@ index or data stream rather than an explicit
 <<indices-create-data-stream,create data stream>> request. Also permits
 auto-update of mappings on indices and data streams if they do not contradict
 existing mappings. An auto-update mapping action is the result of an index or
-bulk request that on an index or data stream that contains new fields that may
+bulk request on an index or data stream that contains new fields that may
 be mapped rather than an explicit <<indices-put-mapping,put mapping>> request.
 
 `monitor`::

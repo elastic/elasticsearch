@@ -33,7 +33,7 @@ setup:
             test_blias: {}
 
 ---
-"Resolve index with indices, aliases, and data streams":
+"Resolve index with indices and aliases":
   - skip:
       version: " - 7.8.99"
       reason: "resolve index api only supported in 7.9+"
@@ -59,16 +59,6 @@ setup:
   - match: {aliases.2.name: test_clias}
   - match: {aliases.2.indices.0: test_index1}
   - length: {data_streams: 0}
-
-  - do:
-      indices.delete_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
-  - do:
-      indices.delete_data_stream:
-        name: simple-data-stream2
-  - is_true: acknowledged
 
 ---
 "Resolve index with hidden and closed indices":

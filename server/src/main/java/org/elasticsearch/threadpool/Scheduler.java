@@ -113,6 +113,10 @@ public interface Scheduler {
         return new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
     }
 
+    default Cancellable scheduleWithFixedRate(Runnable command, TimeValue initialDelay, TimeValue rate, String executor) {
+        return new FixedRateReschedulingRunnable(command, initialDelay, rate, executor, this, (e) -> {}, (e) -> {});
+    }
+
     /**
      * Utility method to wrap a <code>Future</code> as a <code>Cancellable</code>
      * @param future the future to wrap
@@ -245,6 +249,75 @@ public interface Scheduler {
                 '}';
         }
     }
+
+    final class FixedRateReschedulingRunnable extends AbstractRunnable implements Scheduler.Cancellable {
+        private final Runnable runnable;
+        private final TimeValue rate;
+        private final Scheduler scheduler;
+        private final String executor;
+        private final Consumer<Exception> rejectionConsumer;
+        private final Consumer<Exception> failureConsumer;
+
+        private volatile boolean run = true;
+
+        public FixedRateReschedulingRunnable(Runnable runnable,
+                                             TimeValue initialDelay,
+                                             TimeValue rate,
+                                             String executor,
+                                             Scheduler scheduler,
+                                             Consumer<Exception> rejectionConsumer,
+                                             Consumer<Exception> failureConsumer) {
+            this.runnable = runnable;
+            this.rate = rate;
+            this.executor = executor;
+            this.scheduler = scheduler;
+            this.rejectionConsumer = rejectionConsumer;
+            this.failureConsumer = failureConsumer;
+            scheduler.schedule(this, initialDelay, executor);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            cancel();
+            failureConsumer.accept(e);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            if (run && scheduleNextRun(rate)) {
+                runnable.run();
+            }
+        }
+
+        private boolean scheduleNextRun(TimeValue timeValue) {
+            try {
+                scheduler.schedule(this, timeValue, executor);
+            } catch (EsRejectedExecutionException e) {
+                onRejection(e);
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean cancel() {
+            final boolean result = run;
+            run = false;
+            return result;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return run == false;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            cancel();
+            rejectionConsumer.accept(e);
+        }
+    }
+
 
     /**
      * This subclass ensures to properly bubble up Throwable instances of both type Error and Exception thrown in submitted/scheduled

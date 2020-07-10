@@ -33,6 +33,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,6 +54,10 @@ import java.util.stream.Collectors;
  */
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureHttpHandler implements HttpHandler {
+    private static final Pattern BATCH_CONTENT_TYPE_MATCHER =
+        Pattern.compile("multipart/mixed; boundary=(?<boundary>.+)", Pattern.DOTALL);
+    private static final Pattern DELETE_REQ_MATCHER = Pattern.compile(".+DELETE (?<deleteURI>.+) HTTP/1.1.+", Pattern.DOTALL);
+    private static final String HTTP_NEWLINE = "\r\n";
 
     private final Map<String, BytesReference> blobs;
     private final String container;
@@ -61,11 +69,12 @@ public class AzureHttpHandler implements HttpHandler {
 
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
-        final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
+        String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
         if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
             int read = exchange.getRequestBody().read();
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
+        request = request.replace("/account/" + container, "/" + container);
         try {
             if (Regex.simpleMatch("PUT /" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
@@ -91,6 +100,7 @@ public class AzureHttpHandler implements HttpHandler {
                     block.writeTo(blob);
                 }
                 blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("PUT /" + container + "/*", request)) {
@@ -104,6 +114,7 @@ public class AzureHttpHandler implements HttpHandler {
                 } else {
                     blobs.put(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody()));
                 }
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted",  "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("HEAD /" + container + "/*", request)) {
@@ -114,7 +125,8 @@ public class AzureHttpHandler implements HttpHandler {
                     return;
                 }
                 exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blob.length()));
-                exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.length()));
+                exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (Regex.simpleMatch("GET /" + container + "/*", request)) {
@@ -138,6 +150,7 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                 exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
 
@@ -146,7 +159,7 @@ public class AzureHttpHandler implements HttpHandler {
                 blobs.entrySet().removeIf(blob -> blob.getKey().startsWith(exchange.getRequestURI().getPath()));
                 exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("GET /container?restype=container&comp=list*", request)) {
+            } else if (Regex.simpleMatch("GET /" + container + "?*restype=container*comp=list*", request)) {
                 // List Blobs (https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs)
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -162,10 +175,11 @@ public class AzureHttpHandler implements HttpHandler {
                 }
                 list.append("<Blobs>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
-                    if (prefix != null && blob.getKey().startsWith("/" + container + "/" + prefix) == false) {
+                    // TODO extract account from URI
+                    if (prefix != null && blob.getKey().startsWith("/account/" + container + "/" + prefix) == false) {
                         continue;
                     }
-                    String blobPath = blob.getKey().replace("/" + container + "/", "");
+                    String blobPath = blob.getKey().replace("/account/" + container + "/", "");
                     if (delimiter != null) {
                         int fromIndex = (prefix != null ? prefix.length() : 0);
                         int delimiterPosition = blobPath.indexOf(delimiter, fromIndex);
@@ -190,12 +204,76 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
+            } else if (Regex.simpleMatch("POST /account*comp=batch", request)) {
+                List<String> blobsToDelete = getBlobsToDelete(exchange);
+                String requestId = exchange.getRequestHeaders().getFirst("X-ms-client-request-id");
+                String msVersion = exchange.getRequestHeaders().getFirst("X-ms-version");
+                assert blobsToDelete.size() <= 256 : "Blobs to delete larger than maximum (256) " + blobsToDelete.size();
+                String responseBoundary = "batchresponse_" + UUID.randomUUID();
+                StringBuilder response = new StringBuilder();
+                for (int i = 0; i < blobsToDelete.size(); i++) {
+                    String blobToDelete = blobsToDelete.get(i);
+                    response.append("--").append(responseBoundary).append(HTTP_NEWLINE);
+                    response.append("Content-Type: application/http").append(HTTP_NEWLINE);
+                    response.append("Content-ID: ").append(i).append(" ").append(HTTP_NEWLINE);
+                    response.append(HTTP_NEWLINE);
+                    var decodedBlobName = RestUtils.decodeComponent(blobToDelete);
+                    boolean removed = blobs.remove(decodedBlobName) != null;
+
+                    if (removed) {
+                        response.append("HTTP/1.1 202 Accepted").append(HTTP_NEWLINE);
+                        response.append("X-ms-client-request-id: ").append(requestId).append(HTTP_NEWLINE);
+                        response.append("X-ms-version: ").append(msVersion).append(HTTP_NEWLINE);
+                        response.append(HTTP_NEWLINE);
+                    } else {
+                        final String errorBody = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" +
+                            "<Error><Code>BlobNotFound</Code><Message>The specified blob does not exist." +
+                            "RequestId:" + requestId + "\n" +
+                            "Time:" + ZonedDateTime.now(ZoneOffset.UTC) + "\n" +
+                            "</Message></Error>";
+                        response.append("HTTP/1.1 404 The specified blob does not exist.").append(HTTP_NEWLINE);
+                        response.append("x-ms-error-code: BlobNotFound").append(HTTP_NEWLINE);
+                        response.append("X-ms-client-request-id: ").append(requestId).append(HTTP_NEWLINE);
+                        response.append("X-ms-version: ").append(msVersion).append(HTTP_NEWLINE);
+                        response.append("Content-Type: application/xml").append(HTTP_NEWLINE);
+                        response.append("Content-Length: ").append(errorBody.length()).append(HTTP_NEWLINE);
+                        response.append(HTTP_NEWLINE);
+                        response.append(errorBody).append(HTTP_NEWLINE);
+                    }
+                }
+                response.append("--").append(responseBoundary).append("--");
+                byte[] responseBytes = response.toString().getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "multipart/mixed; boundary=" + responseBoundary);
+                exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), responseBytes.length);
+                exchange.getResponseBody().write(responseBytes);
             } else {
                 sendError(exchange, RestStatus.BAD_REQUEST);
             }
         } finally {
             exchange.close();
         }
+    }
+
+    // See https://docs.microsoft.com/en-us/rest/api/storageservices/blob-batch
+    private List<String> getBlobsToDelete(HttpExchange exchange) throws IOException {
+        String contentType = exchange.getRequestHeaders().getFirst("Content-Type");
+        Matcher boundaryMatcher = BATCH_CONTENT_TYPE_MATCHER.matcher(contentType);
+        if (boundaryMatcher.matches() == false) {
+            throw new IllegalArgumentException("Invalid content-type [" + contentType + "] for a batch request");
+        }
+        String boundary = boundaryMatcher.group("boundary");
+
+        String body = Streams.readFully(exchange.getRequestBody()).utf8ToString();
+        String[] requests = body.split("--" + boundary);
+        List<String> blobsToDelete = new ArrayList<>(requests.length);
+        for (String deleteRequest : requests) {
+            Matcher deleteRequestMatcher = DELETE_REQ_MATCHER.matcher(deleteRequest);
+            if (deleteRequestMatcher.matches()) {
+                blobsToDelete.add(deleteRequestMatcher.group("deleteURI"));
+            }
+        }
+
+        return blobsToDelete;
     }
 
     public Map<String, BytesReference> blobs() {

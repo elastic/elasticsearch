@@ -19,37 +19,47 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.RetryExponentialRetry;
-import com.microsoft.azure.storage.blob.CloudBlobClient;
-import com.microsoft.azure.storage.core.Base64;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.repositories.azure.AzureStorageService.blobNameFromUri;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class AzureStorageServiceTests extends ESTestCase {
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = new TestThreadPool(AzureStorageServiceTests.class.getName());
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
 
     public void testReadSecuredSettings() {
         final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings())
@@ -64,14 +74,35 @@ public class AzureStorageServiceTests extends ESTestCase {
     }
 
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
-        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
+        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings) {
+            @Override
+            AzureClientProvider createClientProvider(ThreadPool threadPool, Settings settings) {
+                // Just use the Generic thread pool for testing.
+                Settings updatedSettings = Settings.builder()
+                    .put(AzureClientProvider.EVENT_LOOP_EXECUTOR.getKey(), ThreadPool.Names.GENERIC)
+                    .put(AzureClientProvider.REACTOR_SCHEDULER_EXECUTOR_NAME.getKey(), ThreadPool.Names.GENERIC)
+                    .build();
+                return super.createClientProvider(threadPool, updatedSettings);
+            }
+        };
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList(), Collections.emptySet());
+        plugin.createComponents(null,
+            null,
+            threadPool,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
         return plugin;
     }
 
     private AzureStorageService storageServiceWithSettingsValidation(Settings settings) {
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
-            return plugin.azureStoreService;
+            return plugin.azureStoreService.get();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -81,11 +112,12 @@ public class AzureStorageServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings())
             .put("azure.client.azure1.endpoint_suffix", "my_endpoint_suffix").build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
-            final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-            assertThat(client1.getEndpoint().toString(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
-            final CloudBlobClient client2 = azureStorageService.client("azure2").v1();
-            assertThat(client2.getEndpoint().toString(), equalTo("https://myaccount2.blob.core.windows.net"));
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureBlobServiceClient client1 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            assertThat(client1.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
+
+            AzureBlobServiceClient client2 = azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY);
+            assertThat(client2.getSyncClient().getAccountUrl(), equalTo("https://myaccount2.blob.core.windows.net"));
         }
     }
 
@@ -103,29 +135,40 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings2.setString("azure.client.azure3.key", encodeKey("mykey23"));
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
-            final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount11.blob.core.windows.net"));
-            final CloudBlobClient client12 = azureStorageService.client("azure2").v1();
-            assertThat(client12.getEndpoint().toString(), equalTo("https://myaccount12.blob.core.windows.net"));
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+
+            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
+
+            AzureBlobServiceClient client12 = azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY);
+            assertThat(client12.getSyncClient().getAccountUrl(), equalTo("https://myaccount12.blob.core.windows.net"));
+
             // client 3 is missing
-            final SettingsException e1 = expectThrows(SettingsException.class, () -> azureStorageService.client("azure3"));
+            final SettingsException e1 = expectThrows(SettingsException.class,
+                () -> azureStorageService.client("azure3", LocationMode.PRIMARY_ONLY));
             assertThat(e1.getMessage(), is("Unable to find client with name [azure3]"));
+
             // update client settings
             plugin.reload(settings2);
+
             // old client 1 not changed
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount11.blob.core.windows.net"));
+            assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount11.blob.core.windows.net"));
+
             // new client 1 is changed
-            final CloudBlobClient client21 = azureStorageService.client("azure1").v1();
-            assertThat(client21.getEndpoint().toString(), equalTo("https://myaccount21.blob.core.windows.net"));
+            AzureBlobServiceClient client21 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            assertThat(client21.getSyncClient().getAccountUrl(), equalTo("https://myaccount21.blob.core.windows.net"));
+
             // old client 2 not changed
-            assertThat(client12.getEndpoint().toString(), equalTo("https://myaccount12.blob.core.windows.net"));
+            assertThat(client12.getSyncClient().getAccountUrl(), equalTo("https://myaccount12.blob.core.windows.net"));
+
             // new client2 is gone
-            final SettingsException e2 = expectThrows(SettingsException.class, () -> azureStorageService.client("azure2"));
+            final SettingsException e2 = expectThrows(SettingsException.class,
+                () -> azureStorageService.client("azure2", LocationMode.PRIMARY_ONLY));
             assertThat(e2.getMessage(), is("Unable to find client with name [azure2]"));
+
             // client 3 emerged
-            final CloudBlobClient client23 = azureStorageService.client("azure3").v1();
-            assertThat(client23.getEndpoint().toString(), equalTo("https://myaccount23.blob.core.windows.net"));
+            AzureBlobServiceClient client23 = azureStorageService.client("azure3", LocationMode.PRIMARY_ONLY);
+            assertThat(client23.getSyncClient().getAccountUrl(), equalTo("https://myaccount23.blob.core.windows.net"));
         }
     }
 
@@ -135,17 +178,17 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings.setString("azure.client.azure1.key", encodeKey("mykey11"));
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
-            final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             // reinit with empty settings
             final SettingsException e = expectThrows(SettingsException.class, () -> plugin.reload(Settings.EMPTY));
             assertThat(e.getMessage(), is("If you want to use an azure repository, you need to define a client configuration."));
             // existing client untouched
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             // new client also untouched
-            final CloudBlobClient client21 = azureStorageService.client("azure1").v1();
-            assertThat(client21.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            AzureBlobServiceClient client21 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            assertThat(client21.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
         }
     }
 
@@ -164,59 +207,16 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings3.setString("azure.client.azure1.sas_token", encodeKey("mysasToken33"));
         final Settings settings3 = Settings.builder().setSecureSettings(secureSettings3).build();
         try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
-            final AzureStorageService azureStorageService = plugin.azureStoreService;
-            final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            final AzureStorageService azureStorageService = plugin.azureStoreService.get();
+            AzureBlobServiceClient client11 = azureStorageService.client("azure1", LocationMode.PRIMARY_ONLY);
+            assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
             final SettingsException e1 = expectThrows(SettingsException.class, () -> plugin.reload(settings2));
             assertThat(e1.getMessage(), is("Neither a secret key nor a shared access token was set."));
             final SettingsException e2 = expectThrows(SettingsException.class, () -> plugin.reload(settings3));
             assertThat(e2.getMessage(), is("Both a secret as well as a shared access token were set."));
             // existing client untouched
-            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            assertThat(client11.getSyncClient().getAccountUrl(), equalTo("https://myaccount1.blob.core.windows.net"));
         }
-    }
-
-    public void testGetSelectedClientNonExisting() {
-        final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(buildSettings());
-        final SettingsException e = expectThrows(SettingsException.class, () -> azureStorageService.client("azure4"));
-        assertThat(e.getMessage(), is("Unable to find client with name [azure4]"));
-    }
-
-    public void testGetSelectedClientDefaultTimeout() {
-        final Settings timeoutSettings = Settings.builder()
-            .setSecureSettings(buildSecureSettings())
-            .put("azure.client.azure3.timeout", "30s")
-            .build();
-        final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(timeoutSettings);
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), nullValue());
-        final CloudBlobClient client3 = azureStorageService.client("azure3").v1();
-        assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
-    }
-
-    public void testGetSelectedClientNoTimeout() {
-        final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(buildSettings());
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(nullValue()));
-    }
-
-    public void testGetSelectedClientBackoffPolicy() {
-        final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(buildSettings());
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
-    }
-
-    public void testGetSelectedClientBackoffPolicyNbRetries() {
-        final Settings timeoutSettings = Settings.builder()
-            .setSecureSettings(buildSecureSettings())
-            .put("azure.client.azure1.max_retries", 7)
-            .build();
-
-        final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(timeoutSettings);
-        final CloudBlobClient client1 = azureStorageService.client("azure1").v1();
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), is(notNullValue()));
-        assertThat(client1.getDefaultRequestOptions().getRetryPolicyFactory(), instanceOf(RetryExponentialRetry.class));
     }
 
     public void testNoProxy() {
@@ -328,17 +328,6 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertEquals("Azure proxy host is unknown.", e.getMessage());
     }
 
-    public void testBlobNameFromUri() throws URISyntaxException {
-        String name = blobNameFromUri(new URI("https://myservice.azure.net/container/path/to/myfile"));
-        assertThat(name, is("path/to/myfile"));
-        name = blobNameFromUri(new URI("http://myservice.azure.net/container/path/to/myfile"));
-        assertThat(name, is("path/to/myfile"));
-        name = blobNameFromUri(new URI("http://127.0.0.1/container/path/to/myfile"));
-        assertThat(name, is("path/to/myfile"));
-        name = blobNameFromUri(new URI("https://127.0.0.1/container/path/to/myfile"));
-        assertThat(name, is("path/to/myfile"));
-    }
-
     private static MockSecureSettings buildSecureSettings() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("azure.client.azure1.account", "myaccount1");
@@ -355,6 +344,6 @@ public class AzureStorageServiceTests extends ESTestCase {
     }
 
     private static String encodeKey(final String value) {
-        return Base64.encode(value.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 }

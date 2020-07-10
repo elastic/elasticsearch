@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.datastream;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
@@ -29,6 +28,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -140,11 +141,18 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     public void testDeleteNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
+        String[] dataStreamNames = {"foo", "bar", "baz", "eggplant"};
+        ClusterState cs = getClusterStateWithDataStreams(org.elasticsearch.common.collect.List.of(
+            new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
+            new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
+            new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
+            new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
+        ), org.elasticsearch.common.collect.List.of());
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
-            () -> DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req));
-        assertThat(e.getMessage(), containsString("data_streams matching [" + dataStreamName + "] not found"));
+        ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
+        assertThat(newState.metadata().dataStreams().size(), equalTo(cs.metadata().dataStreams().size()));
+        assertThat(newState.metadata().dataStreams().keySet(),
+            containsInAnyOrder(cs.metadata().dataStreams().keySet().toArray(Strings.EMPTY_ARRAY)));
     }
 
     @SuppressWarnings("unchecked")

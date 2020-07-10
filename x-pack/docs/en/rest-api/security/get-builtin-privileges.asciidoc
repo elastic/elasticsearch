@@ -111,6 +111,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_follow_index",
     "manage_ilm",
     "manage_leader_index",
+    "managed_admin_ops",
     "monitor",
     "none",
     "read",

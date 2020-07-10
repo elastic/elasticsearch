@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 /**
  * A specialization of {@link BestBucketsDeferringCollector} that collects all
@@ -53,6 +54,17 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
      *  not be called unless there are actually changes to be made, to avoid unnecessary work.
      */
     public void mergeBuckets(long[] mergeMap) {
+        UnaryOperator<Long> mergeMapOperator = new UnaryOperator<Long>() {
+            @Override
+            public Long apply(Long bucket) {
+                return mergeMap[Math.toIntExact(bucket)];
+            }
+        };
+
+        mergeBuckets(mergeMapOperator);
+    }
+
+    public void mergeBuckets(UnaryOperator<Long> mergeMap){
         List<Entry> newEntries = new ArrayList<>(entries.size());
         for (Entry sourceEntry : entries) {
             PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
@@ -66,7 +78,7 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
                 long delta = docDeltasItr.next();
 
                 // Only merge in the ordinal if it hasn't been "removed", signified with -1
-                long ordinal = mergeMap[Math.toIntExact(bucket)];
+                long ordinal = mergeMap.apply(bucket);
 
                 if (ordinal != -1) {
                     newBuckets.add(ordinal);
@@ -102,7 +114,7 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
                 long bucket = itr.next();
                 assert docDeltasItr.hasNext();
                 long delta = docDeltasItr.next();
-                long ordinal = mergeMap[Math.toIntExact(bucket)];
+                long ordinal = mergeMap.apply(bucket);
 
                 // Only merge in the ordinal if it hasn't been "removed", signified with -1
                 if (ordinal != -1) {

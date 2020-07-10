@@ -327,16 +327,16 @@ public class FollowersChecker {
                         failureCountSinceLastSuccess++;
 
                         final String reason;
-                        if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
-                        } else if (exp instanceof ConnectTransportException
+                        if (exp instanceof ConnectTransportException
                             || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
                             logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
                             reason = "health check failed";
+                        } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
+                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            reason = "followers check retry count exceeded";
                         } else {
                             logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();

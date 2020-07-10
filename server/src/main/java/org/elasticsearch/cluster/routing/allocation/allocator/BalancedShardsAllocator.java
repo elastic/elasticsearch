@@ -798,11 +798,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             int secondaryLength = 0;
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
-            final Set<ModelNode> throttledNodes = Collections.newSetFromMap(new IdentityHashMap<>());
+            // cache nodes that node level decision is "NO" (eg: shard limited node) to speed up allocation.
+            final Set<ModelNode> skippedNodes = Collections.newSetFromMap(new IdentityHashMap<>());
             do {
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];
-                    AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, throttledNodes);
+                    AllocateUnassignedDecision allocationDecision = decideAllocateUnassigned(shard, skippedNodes);
                     final String assignedNodeId = allocationDecision.getTargetNode() != null ?
                                                       allocationDecision.getTargetNode().getId() : null;
                     final ModelNode minNode = assignedNodeId != null ? nodes.get(assignedNodeId) : null;
@@ -846,7 +847,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                         allocationDecision.getAllocationStatus());
                                 }
                                 assert nodeLevelDecision == Type.NO;
-                                throttledNodes.add(minNode);
+                                skippedNodes.add(minNode);
                             }
                         } else {
                             if (logger.isTraceEnabled()) {
@@ -877,7 +878,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * {@link ModelNode} representing the node that the shard should be assigned to.  If the decision returned
          * is of type {@link Type#NO}, then the assigned node will be null.
          */
-        private AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard, final Set<ModelNode> throttledNodes) {
+        private AllocateUnassignedDecision decideAllocateUnassigned(final ShardRouting shard, final Set<ModelNode> skippedNodes) {
             if (shard.assignedToNode()) {
                 // we only make decisions for unassigned shards here
                 return AllocateUnassignedDecision.NOT_TAKEN;
@@ -894,8 +895,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float minWeight = Float.POSITIVE_INFINITY;
             ModelNode minNode = null;
             Decision decision = null;
-            if (throttledNodes.size() >= nodes.size() && explain == false) {
-                // all nodes are throttled, so we know we won't be able to allocate this round,
+            if (skippedNodes.size() >= nodes.size() && explain == false) {
+                // all nodes are skipped (eg: shard limited), so we know we won't be able to allocate this round,
                 // so if we are not in explain mode, short circuit
                 return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, null);
             }
@@ -904,7 +905,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             Map<String, NodeAllocationResult> nodeExplanationMap = explain ? new HashMap<>() : null;
             List<Tuple<String, Float>> nodeWeights = explain ? new ArrayList<>() : null;
             for (ModelNode node : nodes.values()) {
-                if ((throttledNodes.contains(node) || node.containsShard(shard)) && explain == false) {
+                if ((skippedNodes.contains(node) || node.containsShard(shard)) && explain == false) {
                     // decision is NO without needing to check anything further, so short circuit
                     continue;
                 }

@@ -232,6 +232,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return masterName;
     }
 
+    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
+        final String masterName = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
+            .repository(repositoryName)).setBlockOnDeleteIndexFile();
+    }
+
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
@@ -247,6 +253,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
         fail("No nodes for the index " + indexName + " found");
         return null;
+    }
+
+    public static void blockNodeOnAnyFiles(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                .repository(repository)).setBlockOnAnyFiles(true);
     }
 
     public static void blockDataNode(String repository, String nodeName) {
@@ -280,7 +291,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertTrue("No repository is blocked waiting on a data node", blocked);
     }
 
-    public static void unblockNode(final String repository, final String node) {
+    public void unblockNode(final String repository, final String node) {
+        logger.info("--> unblocking [{}] on node [{}]", repository, node);
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
@@ -416,7 +428,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
     }
 
-    private void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());

@@ -53,6 +53,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestDeduplicator;
@@ -251,8 +252,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final IndexId indexId = indicesMap.get(shardId.getIndexName());
                 assert indexId != null;
-                assert SnapshotsService.useShardGenerations(entry.version()) || snapshotStatus.generation() == null :
-                    "Found non-null shard generation [" + snapshotStatus.generation() + "] for snapshot with old-format compatibility";
+                assert SnapshotsService.useShardGenerations(entry.version()) ||
+                        ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null :
+                        "Found non-null, non-numeric shard generation [" + snapshotStatus.generation() +
+                                "] for snapshot with old-format compatibility";
                 snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(),
                     new ActionListener<String>() {
                         @Override

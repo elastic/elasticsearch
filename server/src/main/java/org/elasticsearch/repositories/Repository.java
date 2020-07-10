@@ -154,7 +154,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener              completion listener
      */
     void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                         ActionListener<Void> listener);
+                         ActionListener<RepositoryData> listener);
     /**
      * Returns snapshot throttle time in nanoseconds
      */

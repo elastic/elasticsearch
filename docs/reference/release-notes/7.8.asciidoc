@@ -10,6 +10,8 @@ coming::[7.8.1]
 Machine Learning::
 * Better interrupt handling during named pipe connection {ml-pull}1311[#1311]
 * Trap potential cause of SIGFPE {ml-pull}1351[#1351] (issue: {ml-issue}1348[#1348])
+* Correct inference model definition for MSLE regression models {ml-pull}1375[#1375]
+* Fix cause of SIGSEGV of classification and regression {ml-pull}1379[#1379]
 
 [[release-notes-7.8.0]]
 == {es} version 7.8.0

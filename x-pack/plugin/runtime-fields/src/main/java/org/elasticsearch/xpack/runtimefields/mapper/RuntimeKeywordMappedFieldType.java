@@ -32,17 +32,6 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         this.scriptFactory = scriptFactory;
     }
 
-    RuntimeKeywordMappedFieldType(RuntimeKeywordMappedFieldType ref) {
-        super(ref);
-        this.script = ref.script;
-        this.scriptFactory = ref.scriptFactory;
-    }
-
-    @Override
-    public MappedFieldType clone() {
-        return new RuntimeKeywordMappedFieldType(this);
-    }
-
     @Override
     public Object valueForDisplay(Object value) {
         if (value == null) {
@@ -80,6 +69,4 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         builder.field("runtime_type", "keyword");
         builder.field("script", script.getIdOrCode()); // TODO For some reason this doesn't allow us to do the full xcontent of the script.
     }
-
-    // TODO do we need to override equals/hashcode?
 }

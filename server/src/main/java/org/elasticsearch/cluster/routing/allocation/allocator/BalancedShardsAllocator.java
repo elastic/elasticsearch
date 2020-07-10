@@ -896,7 +896,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             ModelNode minNode = null;
             Decision decision = null;
             if (skippedNodes.size() >= nodes.size() && explain == false) {
-                // all nodes are skipped (eg: shard limited), so we know we won't be able to allocate this round,
+                // all nodes are skipped (eg: shard limited node), so we know we won't be able to allocate this round,
                 // so if we are not in explain mode, short circuit
                 return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, null);
             }

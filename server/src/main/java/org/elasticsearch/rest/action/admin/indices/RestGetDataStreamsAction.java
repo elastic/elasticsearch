@@ -20,6 +20,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -44,7 +45,8 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetDataStreamAction.Request getDataStreamsRequest = new GetDataStreamAction.Request(request.param("name"));
+        GetDataStreamAction.Request getDataStreamsRequest = new GetDataStreamAction.Request(
+            Strings.splitStringByCommaToArray(request.param("name")));
         return channel -> client.admin().indices().getDataStreams(getDataStreamsRequest, new RestToXContentListener<>(channel));
     }
 }

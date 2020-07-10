@@ -497,14 +497,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return new SnapshotsInProgress(Collections.unmodifiableList(entries));
     }
 
-    private SnapshotsInProgress(List <Entry> entries) {
-            this.entries = entries;
-            try {
-                assert assertConsistentEntries(entries);
-            } catch (AssertionError e) {
-                throw e;
-            }
-        }
+    private SnapshotsInProgress(List<Entry> entries) {
+        this.entries = entries;
+        assert assertConsistentEntries(entries);
+    }
 
     public List<Entry> entries() {
         return this.entries;

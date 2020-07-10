@@ -269,9 +269,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(slowDeleteFuture.actionGet());
     }
 
-    private static String startDataNodeWithLargeSnapshotPool() {
-        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
-    }
     public void testSnapshotRunsAfterInProgressDelete() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -334,7 +331,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(secondSnapshotResponse.isDone(), is(false));
 
         unblockNode(repoName, dataNode);
-        assertThat(firstSnapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
+        final SnapshotInfo firstSnapshotInfo = firstSnapshotResponse.get().getSnapshotInfo();
+        assertThat(firstSnapshotInfo.state(), is(SnapshotState.FAILED));
+        assertThat(firstSnapshotInfo.reason(), is("Snapshot was aborted by deletion"));
 
         final SnapshotInfo secondSnapshotInfo = assertSuccessful(secondSnapshotResponse);
         final SnapshotInfo thirdSnapshotInfo = assertSuccessful(thirdSnapshotResponse);
@@ -1163,6 +1162,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final RepositoryData repositoryData = getRepositoryData(repoName);
         assertThat(repositoryData.shardGenerations(), is(ShardGenerations.EMPTY));
+    }
+
+    private static String startDataNodeWithLargeSnapshotPool() {
+        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
     }
 
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {

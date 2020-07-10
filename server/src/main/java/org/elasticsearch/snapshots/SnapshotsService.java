@@ -161,7 +161,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
     /**
-     * Setting that specifies the maximum number of allow concurrent snapshot create and delete operations in the
+     * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
      * cluster state. The number of concurrent operations in a cluster state is defined as the sum of the sizes of
      * {@link SnapshotsInProgress#entries()} and {@link SnapshotDeletionsInProgress#getEntries()}.
      */

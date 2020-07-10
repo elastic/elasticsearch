@@ -23,14 +23,34 @@ class StageToKeys {
         this.stageToKey = Arrays.asList(new Set[stages]);
     }
 
-    Set<SequenceKey> keys(int stage) {
+    void add(int stage, SequenceKey key) {
         Set<SequenceKey> set = stageToKey.get(stage);
         if (set == null) {
             // TODO: could we use an allocation strategy?
             set = new LinkedHashSet<>();
             stageToKey.set(stage, set);
         }
-        return set;
+        set.add(key);
+    }
+
+    void remove(int stage, SequenceKey key) {
+        Set<SequenceKey> set = stageToKey.get(stage);
+        if (set != null) {
+            set.remove(key);
+        }
+    }
+
+    boolean isEmpty(int stage) {
+        Set<SequenceKey> set = stageToKey.get(stage);
+        return set == null || set.isEmpty();
+    }
+
+    void clear() {
+        for (Set<SequenceKey> set : stageToKey) {
+            if (set != null) {
+                set.clear();
+            }
+        }
     }
 
     @Override

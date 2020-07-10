@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingCon
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
+import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -1893,6 +1895,33 @@ public class QueryTranslatorTests extends ESTestCase {
                     "\"sort\":[{\"int\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}," +
                     "{\"date\":{\"order\":\"desc\",\"missing\":\"_last\",\"unmapped_type\":\"date\"}}]}}}}}"));
         }
+    }
+
+    public void testExtendedStatsAggsStddevAndVar() {
+        final Map<String, String> metricToAgg =  Map.of(
+            "STDDEV_POP", "std_deviation",
+            "STDDEV_SAMP", "std_deviation_sampling",
+            "VAR_POP", "variance",
+            "VAR_SAMP", "variance_sampling"
+        );
+        for (String funcName: metricToAgg.keySet()) {
+            PhysicalPlan p = optimizeAndPlan("SELECT " + funcName + "(int) FROM test");
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec eqe = (EsQueryExec) p;
+            assertEquals(1, eqe.output().size());
+
+            assertEquals(funcName + "(int)", eqe.output().get(0).qualifiedName());
+            assertEquals(DOUBLE, eqe.output().get(0).dataType());
+
+            FieldExtraction fe = eqe.queryContainer().fields().get(0).v1();
+            assertEquals(MetricAggRef.class, fe.getClass());
+            assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
+
+            String aggName = eqe.queryContainer().aggs().asAggBuilder().getSubAggregations().iterator().next().getName();
+            assertThat(eqe.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+                endsWith("\"aggregations\":{\"" + aggName + "\":{\"extended_stats\":{\"field\":\"int\",\"sigma\":2.0}}}}}"));
+        }
+
     }
 
     public void testGlobalCountInImplicitGroupByForcesTrackHits() {

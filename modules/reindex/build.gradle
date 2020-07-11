@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
-apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {

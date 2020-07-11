@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
@@ -30,7 +29,7 @@ restResources {
   }
 }
 artifacts {
-  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+  restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
 
 integTest.enabled = false

@@ -40,11 +40,6 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
-    public EqlSearchRequestBuilder implicitJoinKeyField(String implicitJoinKeyField) {
-        request.implicitJoinKeyField(implicitJoinKeyField);
-        return this;
-    }
-
     public EqlSearchRequestBuilder size(int size) {
         request.size(size);
         return this;
@@ -55,17 +50,12 @@ public class EqlSearchRequestBuilder extends ActionRequestBuilder<EqlSearchReque
         return this;
     }
 
-    public EqlSearchRequestBuilder searchAfter(Object[] values) {
-        request.searchAfter(values);
-        return this;
-    }
-
     public EqlSearchRequestBuilder query(String query) {
         request.query(query);
         return this;
     }
 
-    public EqlSearchRequestBuilder query(boolean isCaseSensitive) {
+    public EqlSearchRequestBuilder isCaseSensitive(boolean isCaseSensitive) {
         request.isCaseSensitive(isCaseSensitive);
         return this;
     }

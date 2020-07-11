@@ -1,3 +1,4 @@
+[role="xpack"]
 [[indices-get-data-stream]]
 === Get data stream API
 ++++
@@ -84,9 +85,10 @@ GET /_data_stream/my-data-stream
 ==== {api-path-parms-title}
 
 `<data-stream>`::
-(Required, string)
-Name of the data stream to retrieve.
-Wildcard (`*`) expressions are supported.
+(Optional, string)
+Comma-separated list of data stream names used to limit the request. Wildcard
+(`*`) expressions are supported. If omitted, all data streams will be
+returned.
 
 [role="child_attributes"]
 [[get-data-stream-api-response-body]]

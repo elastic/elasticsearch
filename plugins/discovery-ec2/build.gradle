@@ -18,7 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The EC2 discovery plugin allows to use AWS API for the unicast discovery mechanism.'
@@ -46,6 +46,8 @@ restResources {
     includeCore '_common', 'cluster', 'nodes'
   }
 }
+
+integTest.enabled = false
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'

@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   name 'custom-significance-heuristic'
@@ -27,3 +26,5 @@ esplugin {
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
+
+integTest.enabled = false

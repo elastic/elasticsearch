@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -26,11 +26,11 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 /**
  * {@link ExampleCustomSettingsClientYamlTestSuiteIT} executes the plugin's REST API integration tests.
  * <p>
- * The tests can be executed using the command: ./gradlew :example-plugins:custom-settings:check
+ * The tests can be executed using the command: ./gradlew :example-plugins:custom-settings:yamlRestTest
  * <p>
  * This class extends {@link ESClientYamlSuiteTestCase}, which takes care of parsing the YAML files
- * located in the src/test/resources/rest-api-spec/test/ directory and validates them against the
- * custom REST API definition files located in src/test/resources/rest-api-spec/api/.
+ * located in the src/yamlRestTest/resources/rest-api-spec/test/ directory and validates them against the
+ * custom REST API definition files located in src/yamlRestTest/resources/rest-api-spec/api/.
  * <p>
  * Once validated, {@link ESClientYamlSuiteTestCase} executes the REST tests against a single node
  * integration cluster which has the plugin already installed by the Gradle build script.

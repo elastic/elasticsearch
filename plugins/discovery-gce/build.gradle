@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The Google Compute Engine (GCE) Discovery plugin allows to use GCE API for the unicast discovery mechanism.'
@@ -28,6 +28,8 @@ restResources {
     includeCore '_common', 'cluster', 'nodes'
   }
 }
+
+integTest.enabled = false
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'

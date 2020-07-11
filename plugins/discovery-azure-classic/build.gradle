@@ -19,7 +19,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
@@ -63,6 +63,9 @@ restResources {
     includeCore '_common', 'cluster', 'nodes'
   }
 }
+
+integTest.enabled = false
+
 // needed to be consistent with ssl host checking
 String host = InetAddress.getLoopbackAddress().getHostAddress()
 

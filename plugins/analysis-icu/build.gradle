@@ -18,17 +18,19 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.'
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 
-tasks.withType(CheckForbiddenApis).configureEach {
-  signatures += [
-    "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
-  ]
+tasks.withType(CheckForbiddenApis).configureEach { task ->
+  if(task.name.contains("YamlRestTest") == false) {
+    signatures += [
+      "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
+    ]
+  }
 }
 
 dependencies {

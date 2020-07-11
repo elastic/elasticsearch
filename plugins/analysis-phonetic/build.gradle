@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
@@ -33,6 +33,8 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search'
   }
 }
+
+integTest.enabled = false
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'

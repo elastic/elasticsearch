@@ -20,7 +20,7 @@ import org.elasticsearch.gradle.info.BuildParams
  */
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   name 'rest-handler'

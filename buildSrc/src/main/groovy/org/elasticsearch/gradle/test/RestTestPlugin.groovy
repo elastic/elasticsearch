@@ -36,21 +36,23 @@ import org.gradle.api.plugins.JavaBasePlugin
 class RestTestPlugin implements Plugin<Project> {
     List<String> REQUIRED_PLUGINS = [
         'elasticsearch.build',
-        'elasticsearch.standalone-rest-test']
+        'elasticsearch.standalone-rest-test',
+        'elasticsearch.yaml-rest-test']
 
     @Override
     void apply(Project project) {
         if (false == REQUIRED_PLUGINS.any { project.pluginManager.hasPlugin(it) }) {
             throw new InvalidUserDataException('elasticsearch.rest-test '
                 + 'requires either elasticsearch.build or '
-                + 'elasticsearch.standalone-rest-test')
+                + 'elasticsearch.standalone-rest-test'
+                + 'elasticsearch.yaml-rest-test')
         }
 
         project.pluginManager.apply(TestClustersPlugin)
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.description = 'Runs rest tests against an elasticsearch cluster.'
         integTest.group = JavaBasePlugin.VERIFICATION_GROUP
-        integTest.mustRunAfter(project.tasks.named('precommit'))
+       // integTest.mustRunAfter(project.tasks.named('precommit'))
         project.tasks.named('check').configure { it.dependsOn(integTest) }
     }
 }

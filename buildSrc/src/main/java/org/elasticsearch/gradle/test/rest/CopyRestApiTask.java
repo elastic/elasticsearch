@@ -198,7 +198,7 @@ public class CopyRestApiTask extends DefaultTask {
             Set<File> resourceDir = testSources.getResources()
                 .getSrcDirs()
                 .stream()
-                .filter(f -> f.isDirectory() && f.getParentFile().getName().equals("test") && f.getName().equals("resources"))
+                .filter(f -> f.isDirectory() && f.getParentFile().getName().equals(getSourceSetName()) && f.getName().equals("resources"))
                 .collect(Collectors.toSet());
             assert resourceDir.size() <= 1;
             if (resourceDir.size() == 0) {

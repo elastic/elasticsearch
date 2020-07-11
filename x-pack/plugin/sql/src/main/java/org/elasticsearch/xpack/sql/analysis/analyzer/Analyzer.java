@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.AttributeAlias;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
-import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -193,24 +192,22 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         if (matches.size() == 1) {
-            Attribute match = matches.get(0).withLocation(u.source());
-            return handleSpecialFields(u, match, allowCompound);
+            // only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
+            return handleSpecialFields(u, matches.get(0).withLocation(u.source()), allowCompound);
         }
 
         return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
                 + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
                  matches.stream()
-                 .sorted()
-                 .map(Analyzer::buildUnresolvedMessagesMatchesList)
-                 .collect(toList())
+                     .sorted((a, b) -> {
+                         int lineDiff = b.sourceLocation().getLineNumber() - a.sourceLocation().getLineNumber();
+                         int colDiff = b.sourceLocation().getColumnNumber() - a.sourceLocation().getLineNumber();
+                         return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : b.qualifiedName().compareTo(a.qualifiedName()));
+                     })
+                     .map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" +
+                         (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name()) + "]")
+                     .collect(toList())
                 );
-
-    }
-
-    private static String buildUnresolvedMessagesMatchesList(Attribute a) {
-        Location location = a.sourceLocation();
-        String locationString = "line " + location.getLineNumber() + ":" + location.getColumnNumber();
-        return locationString + " [" + (a.qualifier() != null ? "\"" + a.qualifier() + "\"." : "") + "\"" + a.name() + "\"]";
     }
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
@@ -336,28 +333,28 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return new Aggregate(a.source(), a.child(), a.groupings(),
                             expandProjections(a.aggregates(), a.child()));
                 }
-                // if the grouping is unresolved but the aggs are, use the former to resolve the latter
-                // solves the case of queries declaring an alias in SELECT and referring to it in GROUP BY
+                // if the grouping is unresolved but the aggs are, use the latter to resolve the former.
+                // solves the case of queries declaring an alias in SELECT and referring to it in GROUP BY.
                 // e.g. SELECT x AS a ... GROUP BY a
                 if (!a.expressionsResolved() && Resolvables.resolved(a.aggregates())) {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
-                    List<AttributeAlias> resolved = Expressions.aliases(a.aggregates());
+                    List<Tuple<Attribute, Expression>> resolvedAliases = Expressions.aliases(a.aggregates());
 
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
                             Attribute maybeResolved = resolveAgainstList((UnresolvedAttribute) grouping,
-                                resolved.stream().map(AttributeAlias::getAttribute).collect(toList()));
+                                resolvedAliases.stream().map(Tuple::v1).collect(toList()));
                             if (maybeResolved != null) {
                                 changed = true;
                                 if (maybeResolved.resolved()) {
-                                    // use the matched expression (not its attribute)
-                                    grouping = resolved.stream()
-                                        .filter(attributeAlias -> attributeAlias.getAttribute().equals(maybeResolved))
-                                        .map(AttributeAlias::getExpression)
+                                    grouping = resolvedAliases.stream()
+                                        .filter(t -> t.v1().equals(maybeResolved))
+                                        // use the matched expression (not its attribute)
+                                        .map(Tuple::v2)
                                         .findAny()
-                                        .orElse(maybeResolved);
+                                        .get(); // there should always be exactly one match
                                 } else {
                                     grouping = maybeResolved;
                                 }

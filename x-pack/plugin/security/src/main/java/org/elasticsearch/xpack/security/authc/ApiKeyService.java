@@ -1035,7 +1035,7 @@ public class ApiKeyService {
             ObjectParserHelper<ApiKeyDoc, Void> parserHelper = new ObjectParserHelper<>();
             parserHelper.declareRawObject(builder, optionalConstructorArg(), new ParseField("role_descriptors"));
             parserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
-            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("creator"));
+            builder.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("creator"));
             PARSER = builder.build();
         }
 
@@ -1062,7 +1062,7 @@ public class ApiKeyService {
             int version,
             @Nullable BytesReference roleDescriptorsBytes,
             BytesReference limitedByRoleDescriptorsBytes,
-            BytesReference creator) {
+            Map<String, Object> creator) {
 
             this.docType = docType;
             this.creationTime = creationTime;
@@ -1073,7 +1073,7 @@ public class ApiKeyService {
             this.version = version;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
             this.limitedByRoleDescriptorsBytes = limitedByRoleDescriptorsBytes;
-            this.creator = XContentHelper.convertToMap(creator, false, XContentType.JSON).v2();
+            this.creator = creator;
         }
 
         static ApiKeyDoc fromXContent(XContentParser parser) {

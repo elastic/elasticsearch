@@ -854,7 +854,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             0,
             new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
-            new BytesArray("{\"principal\": \"test_user\",\"realm\": \"realm1\",\"realm_type\": \"realm_type1\",\"metadata\": {}}")
+            Map.of("principal", "test_user", "realm", "realm1", "realm_type", "realm_type1", "metadata", Map.of())
         );
     }
 }

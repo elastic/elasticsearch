@@ -42,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.SecurityCaches;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -90,6 +92,7 @@ import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
@@ -174,6 +177,8 @@ public class ApiKeyService {
     private final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache;
     private final Hasher cacheHasher;
     private final ThreadPool threadPool;
+    private final SecurityCaches.SecurityCache<CachedApiKeyDoc> apiKeyDocCache;
+    private final Cache<String, BytesReference> roleDescriptorsBytesCache;
 
     private volatile long lastExpirationRunMs;
 
@@ -200,6 +205,20 @@ public class ApiKeyService {
         } else {
             this.apiKeyAuthCache = null;
         }
+        roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
+            .setExpireAfterWrite(TimeValue.timeValueMinutes(5)) // TODO: this can be indefinite
+            .setMaximumWeight(10_000)
+            .build();
+        apiKeyDocCache = SecurityCaches.newSecurityCache(
+            "apiKeyDoc",
+            CacheBuilder.<String, CachedApiKeyDoc>builder().setExpireAfterWrite(TimeValue.timeValueMinutes(5))
+                .setMaximumWeight(10_000)
+                .build(),
+            keys -> {
+                if (keys == null) {
+                    roleDescriptorsBytesCache.invalidateAll();
+                }
+            });
     }
 
     /**
@@ -350,10 +369,28 @@ public class ApiKeyService {
     private void loadApiKeyAndValidateCredentials(ThreadContext ctx, ApiKeyCredentials credentials,
                                                   ActionListener<AuthenticationResult> listener) {
         final String docId = credentials.getId();
+        CachedApiKeyDoc existing = apiKeyDocCache.get(docId);
+        if (existing != null) {
+            final BytesReference roleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.roleDescriptorsHash);
+            final BytesReference limitedByRoleDescriptorsBytes = roleDescriptorsBytesCache.get(existing.limitedByRoleDescriptorsHash);
+            if (roleDescriptorsBytes != null && limitedByRoleDescriptorsBytes != null) {
+                validateApiKeyCredentials(docId, existing.toApiKeyDoc(roleDescriptorsBytes, limitedByRoleDescriptorsBytes),
+                    credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
+                        listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }));
+                return;
+            }
+        }
+
         final GetRequest getRequest = client
             .prepareGet(SECURITY_MAIN_ALIAS, docId)
             .setFetchSource(true)
             .request();
+        final SecurityCaches.CacheItemsConsumer<CachedApiKeyDoc> cacheItemsConsumer = apiKeyDocCache.preparePut();
         executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                 if (response.isExists()) {
                     final ApiKeyDoc apiKeyDoc;
@@ -362,6 +399,13 @@ public class ApiKeyService {
                         response.getSourceAsBytesRef(), XContentType.JSON)) {
                         apiKeyDoc = ApiKeyDoc.fromXContent(parser);
                     }
+                    final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
+                    cacheItemsConsumer.consume(docId, cachedApiKeyDoc, () -> {
+                        roleDescriptorsBytesCache.computeIfAbsent(cachedApiKeyDoc.roleDescriptorsHash,
+                            k -> apiKeyDoc.roleDescriptorsBytes);
+                        roleDescriptorsBytesCache.computeIfAbsent(cachedApiKeyDoc.limitedByRoleDescriptorsHash,
+                            k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
+                    });
                     validateApiKeyCredentials(docId, apiKeyDoc, credentials, clock, ActionListener.delegateResponse(listener, (l, e) -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof EsRejectedExecutionException) {
                             listener.onResponse(AuthenticationResult.terminate("server is too busy to respond", e));
@@ -1080,8 +1124,74 @@ public class ApiKeyService {
             this.creator = creator;
         }
 
+        public CachedApiKeyDoc toCachedApiKeyDoc() {
+            final MessageDigest digest = MessageDigests.sha256();
+            digest.update(BytesReference.toBytes(roleDescriptorsBytes));
+            final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            digest.reset();
+            digest.update(BytesReference.toBytes(limitedByRoleDescriptorsBytes));
+            final String limitedByRoleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            return new CachedApiKeyDoc(docType,
+                creationTime,
+                expirationTime,
+                invalidated,
+                hash,
+                name,
+                version,
+                creator,
+                roleDescriptorsHash,
+                limitedByRoleDescriptorsHash);
+        }
+
         static ApiKeyDoc fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
+
+    public static final class CachedApiKeyDoc {
+        final String docType;
+        final long creationTime;
+        final long expirationTime;
+        final Boolean invalidated;
+        final String hash;
+        final String name;
+        final int version;
+        final Map<String, Object> creator;
+        final String roleDescriptorsHash;
+        final String limitedByRoleDescriptorsHash;
+
+        public CachedApiKeyDoc(
+            String docType, long creationTime, long expirationTime,
+            Boolean invalidated,
+            String hash,
+            String name, int version, Map<String, Object> creator,
+            String roleDescriptorsHash,
+            String limitedByRoleDescriptorsHash) {
+            this.docType = docType;
+            this.creationTime = creationTime;
+            this.expirationTime = expirationTime;
+            this.invalidated = invalidated;
+            this.hash = hash;
+            this.name = name;
+            this.version = version;
+            this.creator = creator;
+            this.roleDescriptorsHash = roleDescriptorsHash;
+            this.limitedByRoleDescriptorsHash = limitedByRoleDescriptorsHash;
+        }
+
+        public ApiKeyDoc toApiKeyDoc(BytesReference roleDescriptorsBytes, BytesReference limitedByRoleDescriptorsBytes) {
+            return new ApiKeyDoc(
+                docType,
+                creationTime,
+                expirationTime,
+                invalidated,
+                hash,
+                name,
+                version,
+                roleDescriptorsBytes,
+                limitedByRoleDescriptorsBytes,
+                creator);
+        }
+    }
+
 }

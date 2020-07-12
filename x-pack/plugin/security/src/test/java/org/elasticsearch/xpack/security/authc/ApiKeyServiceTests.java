@@ -840,7 +840,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                                                                 Authentication authentication) throws Exception {
             return createApiKeyAuthentication(apiKeyService, authentication,
                     Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
-                    null);
+                    null, Version.CURRENT);
         }
     }
 

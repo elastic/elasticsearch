@@ -82,15 +82,6 @@ public class MetaJoinFieldMapper extends FieldMapper {
             this.joinField = joinField;
         }
 
-        protected MetaJoinFieldType(MetaJoinFieldType ref) {
-            super(ref);
-            this.joinField = ref.joinField;
-        }
-
-        public MetaJoinFieldType clone() {
-            return new MetaJoinFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

@@ -336,6 +336,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME));
             assertThat(result.getAuthenticatedBy().getType(), is(SECOND_REALM_TYPE));
             assertThreadContextContainsAuthentication(result);
+            verify(auditTrail).authenticationSuccess(reqId, result, "_action", transportRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
         assertTrue(completed.get());
@@ -352,13 +353,13 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME));
             assertThat(result.getAuthenticatedBy().getType(), is(SECOND_REALM_TYPE));
             assertThreadContextContainsAuthentication(result);
+            verify(auditTrail, times(2)).authenticationSuccess(reqId, result, "_action", transportRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
         verify(auditTrail).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
-        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", transportRequest);
         verify(firstRealm, times(2)).name(); // used above one time
-        verify(secondRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(2)).name();
         verify(secondRealm, times(2)).type(); // used to create realm ref
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -384,11 +385,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result.getAuthenticatedBy().getName(), is(FIRST_REALM_NAME));
             assertThat(result.getAuthenticatedBy().getType(), is(FIRST_REALM_TYPE));
             assertThreadContextContainsAuthentication(result);
+            verify(auditTrail).authenticationSuccess(reqId, result, "_action", transportRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
-        verify(auditTrail, times(1)).authenticationFailed(reqId, SECOND_REALM_NAME, token, "_action", transportRequest);
-        verify(auditTrail, times(1)).authenticationSuccess(reqId, FIRST_REALM_NAME, user, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId, SECOND_REALM_NAME, token, "_action", transportRequest);
         verify(secondRealm, times(3)).authenticate(eq(token), any(ActionListener.class)); // 2 from above + 1 more
         verify(firstRealm, times(2)).authenticate(eq(token), any(ActionListener.class)); // 1 from above + 1 more
     }
@@ -449,8 +450,9 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
             assertThreadContextContainsAuthentication(result);
+            verify(auditTrail).authenticationSuccess(reqId, result, "_action", transportRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
         assertTrue(completed.get());
@@ -460,14 +462,14 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getLookedUpBy(), is(nullValue()));
-            assertThat(result.getAuthenticatedBy(), is(notNullValue())); // TODO implement equals
+            assertThat(result.getAuthenticatedBy().getName(), is(SECOND_REALM_NAME)); // TODO implement equals
             assertThreadContextContainsAuthentication(result);
+            verify(auditTrail, times(2)).authenticationSuccess(reqId, result, "_action", transportRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId, firstRealm.name(), token, "_action", transportRequest);
-        verify(auditTrail, times(2)).authenticationSuccess(reqId, secondRealm.name(), user, "_action", transportRequest);
         verify(firstRealm, times(3)).name(); // used above one time
-        verify(secondRealm, times(3)).name(); // used above one time
+        verify(secondRealm, times(2)).name();
         verify(secondRealm, times(2)).type(); // used to create realm ref
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -491,10 +493,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), is(user));
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
+            assertThat(result.getAuthenticatedBy().getName(), is(secondRealm.name())); // TODO implement equals
+            assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
             assertThreadContextContainsAuthentication(result);
+            verify(auditTrail).authenticationSuccess(reqId, result, "_action", transportRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
-        verify(auditTrail).authenticationSuccess(reqId, secondRealm.name(), user, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class));
         assertTrue(completed.get());
@@ -641,12 +645,13 @@ public class AuthenticationServiceTests extends ESTestCase {
         authenticate.accept(ActionListener.wrap(result -> {
             assertThat(result, notNullValue());
             assertThat(result.getUser(), sameInstance(user));
-            assertThreadContextContainsAuthentication(result);
             assertThat(result.getAuthenticationType(), is(AuthenticationType.REALM));
+            assertThat(result.getAuthenticatedBy().getName(), is(firstRealm.name())); // TODO implement equals
+            assertThreadContextContainsAuthentication(result);
+            verify(auditTrail).authenticationSuccess(reqId, result, "_action", transportRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
 
-        verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
@@ -662,11 +667,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             assertThat(authentication, notNullValue());
             assertThat(authentication.getUser(), sameInstance(user1));
             assertThat(authentication.getAuthenticationType(), is(AuthenticationType.REALM));
+            assertThat(authentication.getAuthenticatedBy().getName(), is(firstRealm.name())); // TODO implement equals
             assertThreadContextContainsAuthentication(authentication);
+            String reqId = expectAuditRequestId();
+            verify(auditTrail).authenticationSuccess(reqId, authentication, restRequest);
             setCompletedToTrue(completed);
         }, this::logAndFail));
-        String reqId = expectAuditRequestId();
-        verify(auditTrail).authenticationSuccess(reqId, firstRealm.name(), user1, restRequest);
         verifyNoMoreInteractions(auditTrail);
         assertTrue(completed.get());
     }
@@ -840,7 +846,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(result.getAuthenticationType(), is(AuthenticationType.ANONYMOUS));
         assertThreadContextContainsAuthentication(result);
         String reqId = expectAuditRequestId();
-        verify(auditTrail).authenticationSuccess(reqId, "__anonymous", new AnonymousUser(settings), request);
+        verify(auditTrail).authenticationSuccess(reqId, result, request);
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1290,12 +1296,13 @@ public class AuthenticationServiceTests extends ESTestCase {
                     assertThat(result.getUser(), is(user));
                     assertThat(result.getLookedUpBy(), is(nullValue()));
                     assertThat(result.getAuthenticatedBy(), is(notNullValue()));
+                    assertThat(result.getAuthenticatedBy().getName(), is("realm")); // TODO implement equals
                     assertThat(result.getAuthenticationType(), is(AuthenticationType.TOKEN));
                     setCompletedToTrue(completed);
+                    verify(auditTrail).authenticationSuccess(anyString(), eq(result), eq("_action"), same(transportRequest));
                 }, this::logAndFail));
         }
         assertTrue(completed.get());
-        verify(auditTrail).authenticationSuccess(anyString(), eq("realm"), eq(user), eq("_action"), same(transportRequest));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1346,7 +1353,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         latch.await();
         if (success.get()) {
             final String realmName = firstRealm.name();
-            verify(auditTrail).authenticationSuccess(anyString(), eq(realmName), eq(user), eq("_action"), same(transportRequest));
+            verify(auditTrail).authenticationSuccess(anyString(), eq(expected), eq("_action"), same(transportRequest));
         }
         verifyNoMoreInteractions(auditTrail);
     }

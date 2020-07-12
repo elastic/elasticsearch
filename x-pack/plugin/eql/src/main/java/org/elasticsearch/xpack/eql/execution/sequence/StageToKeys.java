@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
 
 /** Dedicated collection for mapping a stage (represented by the index collection) to a set of keys */
 class StageToKeys {
@@ -22,17 +23,40 @@ class StageToKeys {
         this.stageToKey = Arrays.asList(new Set[stages]);
     }
 
-    Set<SequenceKey> keys(int stage) {
+    void add(int stage, SequenceKey key) {
         Set<SequenceKey> set = stageToKey.get(stage);
         if (set == null) {
             // TODO: could we use an allocation strategy?
             set = new LinkedHashSet<>();
             stageToKey.set(stage, set);
         }
-        return set;
+        set.add(key);
     }
 
-    Set<SequenceKey> completedKeys() {
-        return keys(stageToKey.size() - 1);
+    void remove(int stage, SequenceKey key) {
+        Set<SequenceKey> set = stageToKey.get(stage);
+        if (set != null) {
+            set.remove(key);
+        }
+    }
+
+    boolean isEmpty(int stage) {
+        Set<SequenceKey> set = stageToKey.get(stage);
+        return set == null || set.isEmpty();
+    }
+
+    void clear() {
+        for (Set<SequenceKey> set : stageToKey) {
+            if (set != null) {
+                set.clear();
+            }
+        }
+    }
+
+    @Override
+    public String toString() {
+        StringJoiner sj = new StringJoiner(",", "[", "]");
+        stageToKey.forEach(s -> sj.add(s != null ? "" + s.size() : "0"));
+        return sj.toString();
     }
 }

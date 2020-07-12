@@ -131,18 +131,9 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<? ex
             super(name, indexed, hasDocValues, meta);
         }
 
-         PointFieldType(PointFieldType ref) {
-            super(ref);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new PointFieldType(this);
         }
     }
 

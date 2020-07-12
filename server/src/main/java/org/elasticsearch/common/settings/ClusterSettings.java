@@ -109,6 +109,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -372,9 +373,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NetworkService.TCP_RECEIVE_BUFFER_SIZE,
             IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
             IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-            ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING,
-            ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING,
-            ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING,
             ScriptService.SCRIPT_CACHE_SIZE_SETTING,
             ScriptService.SCRIPT_CACHE_EXPIRE_SETTING,
             ScriptService.SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,
@@ -487,6 +485,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
+            SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,

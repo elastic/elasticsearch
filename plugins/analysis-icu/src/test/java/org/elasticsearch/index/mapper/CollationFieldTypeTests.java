@@ -37,16 +37,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-public class CollationFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
+public class CollationFieldTypeTests extends FieldTypeTestCase{
 
     private static final Collator DEFAULT_COLLATOR = Collator.getInstance(ULocale.ROOT).freeze();
-
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new CollationFieldType(name, true, true, DEFAULT_COLLATOR, meta);
-    }
 
     public void testIsFieldWithinQuery() throws IOException {
         CollationFieldType ft = new CollationFieldType("field", DEFAULT_COLLATOR);

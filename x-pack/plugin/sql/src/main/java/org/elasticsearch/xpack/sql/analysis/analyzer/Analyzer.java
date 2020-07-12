@@ -196,18 +196,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return handleSpecialFields(u, matches.get(0).withLocation(u.source()), allowCompound);
         }
 
-        return u.withUnresolvedMessage("Reference [" + u.qualifiedName()
-                + "] is ambiguous (to disambiguate use quotes or qualifiers); matches any of " +
-                 matches.stream()
-                     .sorted((a, b) -> {
-                         int lineDiff = b.sourceLocation().getLineNumber() - a.sourceLocation().getLineNumber();
-                         int colDiff = b.sourceLocation().getColumnNumber() - a.sourceLocation().getLineNumber();
-                         return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : b.qualifiedName().compareTo(a.qualifiedName()));
-                     })
-                     .map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" +
-                         (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name()) + "]")
-                     .collect(toList())
-                );
+        List<String> refs = matches.stream()
+            .sorted((a, b) -> {
+                int lineDiff = a.sourceLocation().getLineNumber() - b.sourceLocation().getLineNumber();
+                int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
+                return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.qualifiedName().compareTo(b.qualifiedName()));
+            })
+            .map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" +
+                (a.qualifier() != null ? "\"" + a.qualifier() + "\".\"" + a.name() + "\"" : a.name()) + "]")
+            .collect(toList());
+        return u.withUnresolvedMessage("Reference [" + u.qualifiedName() + "] is ambiguous (to disambiguate use quotes or qualifiers); " +
+            "matches any of " + refs);
     }
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {

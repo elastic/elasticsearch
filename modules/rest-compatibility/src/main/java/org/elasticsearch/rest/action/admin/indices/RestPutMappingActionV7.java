@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,7 +60,13 @@ public class RestPutMappingActionV7 extends RestPutMappingAction {
 
             new Route(POST, "/{index}/{type}/_mappings"),
             new Route(POST, "/{index}/_mappings/{type}"),
-            new Route(POST, "/_mappings/{type}")
+            new Route(POST, "/_mappings/{type}"),
+
+            // no types in path, but type can be provided in body
+            new Route(POST, "/{index}/_mapping/"),
+            new Route(PUT, "/{index}/_mapping/"),
+            new Route(POST, "/{index}/_mappings/"),
+            new Route(PUT, "/{index}/_mappings/")
         );
     }
 
@@ -75,18 +83,31 @@ public class RestPutMappingActionV7 extends RestPutMappingAction {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
+
 
         String type = request.param("type");
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
         if (includeTypeName == false
             && (type != null || MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap))) {
             throw new IllegalArgumentException(
-                "Types cannot be provided in put mapping requests, unless " + "the include_type_name parameter is set to true."
+                "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true."
             );
         }
+        if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            deprecationLogger.deprecate("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+        if (includeTypeName) {
+            sourceAsMap = prepareMappingsV7(sourceAsMap, request);
+        }
         return super.sendPutMappingRequest(request, client, sourceAsMap);
+    }
+
+    private Map<String, Object> prepareMappingsV7(Map<String, Object> mappings, RestRequest request) {
+        String typeName = mappings.keySet().iterator().next();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> typedMappings = (Map<String, Object>) mappings.get(typeName);
+
+        // no matter what the type was, replace it with _doc, because the internal representation still uses single type `_doc`.
+        return Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, typedMappings);
     }
 }

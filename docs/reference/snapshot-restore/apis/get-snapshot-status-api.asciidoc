@@ -51,7 +51,7 @@ Snapshot repository name used to limit the request.
 Omitting a repository name retrieves a list of all snapshots currently running in the cluster.
 
 `<snapshot>`::
-(Required, string)
+(Optional, string)
 Comma-separated list of snapshot names to retrieve status for.
 
 [role="child_attributes"]

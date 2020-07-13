@@ -264,10 +264,13 @@ public class DataStreamIT extends ESIntegTestCase {
         request.indexTemplate(
             new ComposableIndexTemplate(
                 List.of(dataStreamName), // use no wildcard, so that backing indices don't match just by name
-                new Template(null,
-                    new CompressedXContent(mapping), null),
-                null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate())
+                new Template(null, new CompressedXContent(mapping), null),
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate()
+            )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
 
@@ -337,8 +340,12 @@ public class DataStreamIT extends ESIntegTestCase {
             new ComposableIndexTemplate(
                 List.of("logs-*"),
                 new Template(null, new CompressedXContent("{}"), null),
-                null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate())
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate()
+            )
         );
 
         Exception e = expectThrows(
@@ -362,8 +369,12 @@ public class DataStreamIT extends ESIntegTestCase {
             new ComposableIndexTemplate(
                 List.of("logs-*"),
                 new Template(null, new CompressedXContent(mapping), null),
-                null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate())
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate()
+            )
         );
 
         Exception e = expectThrows(

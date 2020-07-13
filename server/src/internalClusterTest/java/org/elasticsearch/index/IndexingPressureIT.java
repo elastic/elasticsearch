@@ -16,11 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.bulk;
+package org.elasticsearch.index;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,7 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
-public class WriteMemoryLimitsIT extends ESIntegTestCase {
+public class IndexingPressureIT extends ESIntegTestCase {
 
     // TODO: Add additional REST tests when metrics are exposed
 
@@ -63,7 +66,6 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            // Need at least two threads because we are going to block one
             .put(unboundedWriteQueue)
             .build();
     }
@@ -134,16 +136,16 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
             replicationSendPointReached.await();
 
-            WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
-            WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
-            WriteMemoryLimits coordinatingWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, coordinatingOnlyNode);
+            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
+            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
-            assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
-            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
-            assertEquals(0, replicaWriteLimits.getWriteBytes());
-            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
-            assertEquals(bulkRequestSize, coordinatingWriteLimits.getWriteBytes());
-            assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+            assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+            assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
+            assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
 
             latchBlockingReplicationSend.countDown();
 
@@ -165,14 +167,15 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             final long secondBulkShardRequestSize = request.ramBytesUsed();
 
             if (usePrimaryAsCoordinatingNode) {
-                assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize + secondBulkRequestSize));
-                assertEquals(0, replicaWriteLimits.getWriteBytes());
+                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(),
+                    greaterThan(bulkShardRequestSize + secondBulkRequestSize));
+                assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
             } else {
-                assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(secondBulkRequestSize, replicaWriteLimits.getWriteBytes());
+                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(secondBulkRequestSize, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
             }
-            assertEquals(bulkRequestSize, coordinatingWriteLimits.getWriteBytes());
-            assertBusy(() -> assertThat(replicaWriteLimits.getReplicaWriteBytes(),
+            assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertBusy(() -> assertThat(replicaWriteLimits.getCurrentReplicaBytes(),
                 greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));
 
             replicaRelease.close();
@@ -180,12 +183,12 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             successFuture.actionGet();
             secondFuture.actionGet();
 
-            assertEquals(0, primaryWriteLimits.getWriteBytes());
-            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
-            assertEquals(0, replicaWriteLimits.getWriteBytes());
-            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
-            assertEquals(0, coordinatingWriteLimits.getWriteBytes());
-            assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
         } finally {
             if (replicationSendPointReached.getCount() > 0) {
                 replicationSendPointReached.countDown();
@@ -212,8 +215,8 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
         final long bulkRequestSize = bulkRequest.ramBytesUsed();
         final long bulkShardRequestSize = totalRequestSize;
-        restartNodesWithSettings(Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(),
-            (long)(bulkShardRequestSize * 1.5) + "B").build());
+        restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
+            (long) (bulkShardRequestSize * 1.5) + "B").build());
 
         assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -229,17 +232,17 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
         try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
             final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
 
-            WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
-            WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
-            WriteMemoryLimits coordinatingWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, coordinatingOnlyNode);
+            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
+            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
             assertBusy(() -> {
-                assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
-                assertEquals(0, replicaWriteLimits.getWriteBytes());
-                assertThat(replicaWriteLimits.getReplicaWriteBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(bulkRequestSize, coordinatingWriteLimits.getWriteBytes());
-                assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
+                assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertThat(replicaWriteLimits.getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
             });
 
             expectThrows(EsRejectedExecutionException.class, () -> {
@@ -256,12 +259,12 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
             successFuture.actionGet();
 
-            assertEquals(0, primaryWriteLimits.getWriteBytes());
-            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
-            assertEquals(0, replicaWriteLimits.getWriteBytes());
-            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
-            assertEquals(0, coordinatingWriteLimits.getWriteBytes());
-            assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
         }
     }
 
@@ -276,7 +279,7 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
             bulkRequest.add(request);
         }
         final long bulkShardRequestSize = totalRequestSize;
-        restartNodesWithSettings(Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(),
+        restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(),
             (long)(bulkShardRequestSize * 1.5) + "B").build());
 
         assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
@@ -293,17 +296,17 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
         try (Releasable replicaRelease = blockReplicas(replicaThreadPool)) {
             final ActionFuture<BulkResponse> successFuture = client(primaryName).bulk(bulkRequest);
 
-            WriteMemoryLimits primaryWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, primaryName);
-            WriteMemoryLimits replicaWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, replicaName);
-            WriteMemoryLimits coordinatingWriteLimits = internalCluster().getInstance(WriteMemoryLimits.class, coordinatingOnlyNode);
+            IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+            IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
+            IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
             assertBusy(() -> {
-                assertThat(primaryWriteLimits.getWriteBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
-                assertEquals(0, replicaWriteLimits.getWriteBytes());
-                assertThat(replicaWriteLimits.getReplicaWriteBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(0, coordinatingWriteLimits.getWriteBytes());
-                assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
+                assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertThat(replicaWriteLimits.getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
+                assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
             });
 
             BulkResponse responses = client(coordinatingOnlyNode).bulk(bulkRequest).actionGet();
@@ -314,17 +317,17 @@ public class WriteMemoryLimitsIT extends ESIntegTestCase {
 
             successFuture.actionGet();
 
-            assertEquals(0, primaryWriteLimits.getWriteBytes());
-            assertEquals(0, primaryWriteLimits.getReplicaWriteBytes());
-            assertEquals(0, replicaWriteLimits.getWriteBytes());
-            assertEquals(0, replicaWriteLimits.getReplicaWriteBytes());
-            assertEquals(0, coordinatingWriteLimits.getWriteBytes());
-            assertEquals(0, coordinatingWriteLimits.getReplicaWriteBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
         }
     }
 
     public void testWritesWillSucceedIfBelowThreshold() throws Exception {
-        restartNodesWithSettings(Settings.builder().put(WriteMemoryLimits.MAX_INDEXING_BYTES.getKey(), "1MB").build());
+        restartNodesWithSettings(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1MB").build());
         assertAcked(prepareCreate(INDEX_NAME, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));

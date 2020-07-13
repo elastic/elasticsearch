@@ -6,7 +6,7 @@
 <titleabbrev>Rollup search</titleabbrev>
 ++++
 
-Enables searching rolled-up data using the standard query DSL.  
+Enables searching rolled-up data using the standard query DSL.
 
 experimental[]
 
@@ -27,7 +27,7 @@ expect given the original query.
 [[rollup-search-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 +
 --
 (Required, string)
@@ -36,16 +36,18 @@ the request. Wildcard expressions (`*`) are supported.
 
 This target can include both rollup and non-rollup indices.
 
-Rules for the `index` parameter:
+Rules for the `<target>` parameter:
 
-- At least one data stream, index, or wildcard expression must be specified. This target can include a
-rollup or non-rollup index.  Omitting the index parameter, or using `_all`, is
-not permitted.
+- At least one data stream, index, or wildcard expression must be specified.
+This target can include a rollup or non-rollup index. For data streams, the
+stream's backing indices can only serve as non-rollup indices. Omitting the
+index parameter, or using `_all`, is not permitted.
 - Multiple non-rollup indices may be specified
 - Only one rollup index may be specified. If more than one are supplied, an
 exception occurs.
 - Wildcard expressions may be used, but if they match more than one rollup index an
-exception occurs.
+exception occurs. However, you can use an expression to match multiple non-rollup
+indices or data streams.
 --
 
 [[rollup-search-request-body]]

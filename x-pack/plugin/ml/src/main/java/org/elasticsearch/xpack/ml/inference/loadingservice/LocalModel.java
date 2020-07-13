@@ -205,7 +205,7 @@ public class LocalModel implements Closeable {
         return count;
     }
 
-    long getReferenceCount() {
+    public long getReferenceCount() {
         return referenceCount.get();
     }
 

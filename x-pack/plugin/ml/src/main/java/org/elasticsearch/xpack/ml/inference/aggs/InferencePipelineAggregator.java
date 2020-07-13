@@ -112,9 +112,11 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                 newBuckets.add(newBucket);
             }
 
+            // the model is released at the end of this block.
+            assert model.getReferenceCount() > 0;
+
             return originalAgg.create(newBuckets);
         }
-
     }
 
     public static Object resolveBucketValue(MultiBucketsAggregation agg,

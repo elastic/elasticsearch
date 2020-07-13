@@ -2246,8 +2246,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .put("block_on_data", true));
 
 
-        String dataStream = "test-ds";
-        DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", org.elasticsearch.common.collect.List.of(dataStream));
+        String dataStream = "datastream";
+        DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", Collections.singletonList(dataStream));
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
@@ -2272,7 +2272,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{dataStream})).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
-            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [test-ds"));
+            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: ["+dataStream));
         } finally {
             logger.info("--> unblock all data nodes");
             unblockAllDataNodes("test-repo");

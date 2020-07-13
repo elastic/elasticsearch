@@ -62,9 +62,9 @@ setup:
             first_letter:
               type: script
               runtime_type: keyword
-              script: value(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT).charAt(0))
+              script: value(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT).charAt(0).toString())
           query:
             term:
-              day_of_week: M
+              first_letter: M
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.voltage: 5.8}

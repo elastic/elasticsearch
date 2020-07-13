@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,6 +35,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField FREQUENCY_MAP = new ParseField("frequency_map");
+    public static final ParseField CUSTOM = new ParseField("custom");
 
     public static final ConstructingObjectParser<FrequencyEncoding, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<FrequencyEncoding, Void> LENIENT_PARSER = createParser(true);
@@ -42,12 +45,13 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         ConstructingObjectParser<FrequencyEncoding, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2]));
+            a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Boolean)a[3]));
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
         parser.declareObject(ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
             FREQUENCY_MAP);
+        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
         return parser;
     }
 
@@ -62,17 +66,24 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     private final String field;
     private final String featureName;
     private final Map<String, Double> frequencyMap;
+    private final boolean custom;
 
-    public FrequencyEncoding(String field, String featureName, Map<String, Double> frequencyMap) {
+    public FrequencyEncoding(String field, String featureName, Map<String, Double> frequencyMap, Boolean custom) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
         this.featureName = ExceptionsHelper.requireNonNull(featureName, FEATURE_NAME);
         this.frequencyMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(frequencyMap, FREQUENCY_MAP));
+        this.custom = custom == null ? false : custom;
     }
 
     public FrequencyEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
         this.featureName = in.readString();
         this.frequencyMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.custom = in.readBoolean();
+        } else {
+            this.custom = false;
+        }
     }
 
     /**
@@ -102,8 +113,23 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     }
 
     @Override
+    public boolean isCustom() {
+        return custom;
+    }
+
+    @Override
     public String getName() {
         return NAME.getPreferredName();
+    }
+
+    @Override
+    public List<String> inputFields() {
+        return Collections.singletonList(field);
+    }
+
+    @Override
+    public List<String> outputFields() {
+        return Collections.singletonList(featureName);
     }
 
     @Override
@@ -125,6 +151,9 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         out.writeString(field);
         out.writeString(featureName);
         out.writeMap(frequencyMap, StreamOutput::writeString, StreamOutput::writeDouble);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(custom);
+        }
     }
 
     @Override
@@ -133,6 +162,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         builder.field(FIELD.getPreferredName(), field);
         builder.field(FEATURE_NAME.getPreferredName(), featureName);
         builder.field(FREQUENCY_MAP.getPreferredName(), frequencyMap);
+        builder.field(CUSTOM.getPreferredName(), custom);
         builder.endObject();
         return builder;
     }
@@ -144,12 +174,13 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         FrequencyEncoding that = (FrequencyEncoding) o;
         return Objects.equals(field, that.field)
             && Objects.equals(featureName, that.featureName)
-            && Objects.equals(frequencyMap, that.frequencyMap);
+            && Objects.equals(frequencyMap, that.frequencyMap)
+            && Objects.equals(custom, that.custom);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, featureName, frequencyMap);
+        return Objects.hash(field, featureName, frequencyMap, custom);
     }
 
     @Override

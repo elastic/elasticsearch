@@ -94,6 +94,14 @@ The field name to encode.
 `frequency_map`::
 (Required, object map of string:double)
 Object that maps the field value to the frequency encoded value.
+
+`custom`::
+(Optional, boolean)
+Boolean value indicating if the analytics job created the preprocessor
+or if a user provided it. This adjusts the feature importance calculation.
+When `true`, the feature importance calculation returns importance for the
+processed feature. When `false`, the total importance of the original field
+is returned. Default is `false`.
 ======
 //End frequency encoding
 
@@ -112,6 +120,14 @@ The field name to encode.
 `hot_map`::
 (Required, object map of strings)
 String map of "field_value: one_hot_column_name".
+
+`custom`::
+(Optional, boolean)
+Boolean value indicating if the analytics job created the preprocessor
+or if a user provided it. This adjusts the feature importance calculation.
+When `true`, the feature importance calculation returns importance for the
+processed feature. When `false`, the total importance of the original field
+is returned. Default is `false`.
 ======
 //End one hot encoding
 
@@ -138,6 +154,14 @@ The field name to encode.
 `target_map`:::
 (Required, object map of string:double)
 Object that maps the field value to the target mean value.
+
+`custom`::
+(Optional, boolean)
+Boolean value indicating if the analytics job created the preprocessor
+or if a user provided it. This adjusts the feature importance calculation.
+When `true`, the feature importance calculation returns importance for the
+processed feature. When `false`, the total importance of the original field
+is returned. Default is `false`.
 ======
 //End target mean encoding
 =====

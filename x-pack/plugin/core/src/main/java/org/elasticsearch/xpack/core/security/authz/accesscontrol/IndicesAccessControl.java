@@ -55,6 +55,9 @@ public class IndicesAccessControl {
     }
 
     public void addPermissionsIfNotPresent(IndicesAccessControl other) {
+        if (other.granted != this.granted) {
+            throw new IllegalArgumentException("Cannot merge [" + other + "] into [" + this + "]");
+        }
         final Map<String, IndexAccessControl> map = new HashMap<>(this.indexPermissions);
         for (Map.Entry<String, IndexAccessControl> entry : other.indexPermissions.entrySet()) {
             String indexName = entry.getKey();

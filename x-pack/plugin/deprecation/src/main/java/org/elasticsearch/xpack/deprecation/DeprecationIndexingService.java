@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -40,13 +41,15 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
     private final Consumer<IndexRequest> requestConsumer;
+    private String clusterUUID;
+    private String nodeId;
 
     private volatile boolean isEnabled = false;
 
     public DeprecationIndexingService(ClusterService clusterService, Consumer<IndexRequest> requestConsumer) {
         this.requestConsumer = requestConsumer;
-
         clusterService.addListener(this);
     }
 
@@ -73,6 +76,8 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
         payload.put("@timestamp", Instant.now().toString());
         payload.put("key", key);
         payload.put("message", message);
+        payload.put("cluster.uuid", clusterUUID);
+        payload.put("node.id", nodeId);
 
         String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
 
@@ -86,11 +91,16 @@ public class DeprecationIndexingService extends AbstractLifecycleComponent imple
     }
 
     /**
-     * Listens for changes to the cluster state, in order to know whether to toggle indexing.
+     * Listens for changes to the cluster state, in order to know whether to toggle indexing
+     * and to set the cluster UUID and node ID. These can't be set in the constructor because
+     * the initial cluster state won't be set yet.
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        this.isEnabled = WRITE_DEPRECATION_LOGS_TO_INDEX.get(event.state().getMetadata().settings());
+        final ClusterState state = event.state();
+        this.isEnabled = WRITE_DEPRECATION_LOGS_TO_INDEX.get(state.getMetadata().settings());
+        this.clusterUUID = state.getMetadata().clusterUUID();
+        this.nodeId = state.nodes().getLocalNodeId();
     }
 
     @Override

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecatedMessage;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -104,6 +105,8 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         assertThat(payloadMap, hasKey("@timestamp"));
         assertThat(payloadMap, hasEntry("key", "a key"));
         assertThat(payloadMap, hasEntry("message", "a message"));
+        assertThat(payloadMap, hasEntry("cluster.uuid", "cluster-uuid"));
+        assertThat(payloadMap, hasEntry("node.id", "local-node-id"));
         // Neither of these should exist since we passed null when writing the message
         assertThat(payloadMap, not(hasKey("x-opaque-id")));
     }
@@ -137,8 +140,10 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
 
     private ClusterChangedEvent getEvent(boolean enabled) {
         Settings settings = Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), enabled).build();
-        final Metadata metadata = Metadata.builder().transientSettings(settings).build();
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+        final Metadata metadata = Metadata.builder().clusterUUID("cluster-uuid").transientSettings(settings).build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("local-node-id").build();
+
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).nodes(nodes).build();
 
         return new ClusterChangedEvent("test", clusterState, clusterState);
     }

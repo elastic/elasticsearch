@@ -34,12 +34,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MetadataCreateDataStreamService {
@@ -169,12 +173,16 @@ public class MetadataCreateDataStreamService {
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) {
-        TimestampFieldMapper fieldMapper = (TimestampFieldMapper) mapperService.documentMapper().mappers().getMapper("_timestamp");
-        assert fieldMapper != null : "[_timestamp] meta field mapper must exist";
+    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
+        MetadataFieldMapper fieldMapper =
+            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
+        assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";
 
-        if (timestampFieldName.equals(fieldMapper.getPath()) == false) {
-            throw new IllegalArgumentException("[_timestamp] meta field doesn't point to data stream timestamp field [" +
+        Map<String, Object> parsedTemplateMapping =
+            MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
+        String configuredPath = ObjectPath.eval("_doc._data_stream_timestamp.path", parsedTemplateMapping);
+        if (timestampFieldName.equals(configuredPath) == false) {
+            throw new IllegalArgumentException("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [" +
                 timestampFieldName + "]");
         }
 

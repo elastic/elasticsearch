@@ -123,7 +123,7 @@ public enum FormatNames {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> new DeprecationLogger(LogManager.getLogger(FormatNames.class)));
+        = new LazyInitializable(() ->  DeprecationLogger.getLogger(FormatNames.class));
 
     FormatNames(String camelCaseName, String snakeCaseName) {
         this.camelCaseName = camelCaseName;
@@ -155,7 +155,7 @@ public enum FormatNames {
         String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
             "Use snake case name {} instead.";
         deprecationLogger.getOrCompute()
-            .deprecatedAndMaybeLog("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
+            .deprecate("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
     }
 
     public String getSnakeCaseName() {

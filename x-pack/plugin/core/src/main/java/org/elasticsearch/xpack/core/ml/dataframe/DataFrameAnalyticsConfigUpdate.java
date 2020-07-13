@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -66,11 +65,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         this.description = in.readOptionalString();
         this.modelMemoryLimit = in.readOptionalWriteable(ByteSizeValue::new);
         this.allowLazyStart = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.maxNumThreads = in.readOptionalVInt();
-        } else {
-            this.maxNumThreads = null;
-        }
+        this.maxNumThreads = in.readOptionalVInt();
     }
 
     @Override
@@ -79,9 +74,7 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
         out.writeOptionalString(description);
         out.writeOptionalWriteable(modelMemoryLimit);
         out.writeOptionalBoolean(allowLazyStart);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalVInt(maxNumThreads);
-        }
+        out.writeOptionalVInt(maxNumThreads);
     }
 
     public String getId() {

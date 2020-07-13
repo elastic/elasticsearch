@@ -1,0 +1,28 @@
+---
+"Indexing pressure stats":
+  - skip:
+      version: " - 7.99.99"
+      reason: "indexing_pressure not in prior versions"
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ indexing_pressure ]
+
+  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_and_primary_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.replica_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.all_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_and_primary_memory_limit_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.replica_memory_limit_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.coordinating_and_primary_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.replica_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.all_bytes: 0 }
+
+# TODO:
+#
+# Change skipped version after backport

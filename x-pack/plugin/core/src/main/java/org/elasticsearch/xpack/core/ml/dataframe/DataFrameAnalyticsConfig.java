@@ -173,11 +173,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         } else {
             allowLazyStart = false;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            maxNumThreads = in.readVInt();
-        } else {
-            maxNumThreads = 1;
-        }
+        maxNumThreads = in.readVInt();
     }
 
     public String getId() {
@@ -289,9 +285,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeBoolean(allowLazyStart);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeVInt(maxNumThreads);
-        }
+        out.writeVInt(maxNumThreads);
     }
 
     @Override

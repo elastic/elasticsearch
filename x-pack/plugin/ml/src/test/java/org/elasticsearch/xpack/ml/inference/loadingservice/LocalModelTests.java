@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
@@ -51,9 +52,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class LocalModelTests extends ESTestCase {
@@ -75,7 +78,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             randomFrom(License.OperationMode.values()),
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
         Map<String, Object> fields = new HashMap<String, Object>() {{
             put("field.foo", 1.0);
             put("field", Collections.singletonMap("bar", 0.5));
@@ -105,7 +109,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
         result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
@@ -148,7 +153,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
         Map<String, Object> fields = new HashMap<String, Object>() {{
             put("field.foo", 1.0);
             put("field.bar", 0.5);
@@ -204,7 +210,8 @@ public class LocalModelTests extends ESTestCase {
             Collections.singletonMap("bar", "bar.keyword"),
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
 
         Map<String, Object> fields = new HashMap<String, Object>() {{
             put("foo", 1.0);
@@ -232,7 +239,8 @@ public class LocalModelTests extends ESTestCase {
             null,
             RegressionConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService);
+            modelStatsService,
+            mock(CircuitBreaker.class));
 
         Map<String, Object> fields = new HashMap<String, Object>() {{
             put("something", 1.0);
@@ -263,7 +271,8 @@ public class LocalModelTests extends ESTestCase {
             null,
             ClassificationConfig.EMPTY_PARAMS,
             License.OperationMode.PLATINUM,
-            modelStatsService
+            modelStatsService,
+            mock(CircuitBreaker.class)
         );
         Map<String, Object> fields = new HashMap<String, Object>() {{
             put("field.foo", 1.0);
@@ -307,6 +316,63 @@ public class LocalModelTests extends ESTestCase {
         expectedMap.put("b2", "b_value");
 
         assertThat(fields, equalTo(expectedMap));
+    }
+
+    public void testReferenceCounting() throws IOException {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        String modelId = "ref-count-model";
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar");
+        InferenceDefinition definition = InferenceDefinition.builder()
+            .setTrainedModel(buildClassificationInference(false))
+            .build();
+
+        {
+            CircuitBreaker breaker = mock(CircuitBreaker.class);
+            LocalModel model = new LocalModel(modelId,
+                "test-node",
+                definition,
+                new TrainedModelInput(inputFields),
+                null,
+                ClassificationConfig.EMPTY_PARAMS,
+                License.OperationMode.PLATINUM,
+                modelStatsService,
+                breaker
+            );
+
+            model.release();
+            verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
+            verifyNoMoreInteractions(breaker);
+            assertEquals(0L, model.getReferenceCount());
+
+            // reacquire
+            model.acquire();
+            verify(breaker, times(1)).addEstimateBytesAndMaybeBreak(eq(definition.ramBytesUsed()), eq(modelId));
+            verifyNoMoreInteractions(breaker);
+            assertEquals(1L, model.getReferenceCount());
+        }
+
+        {
+            CircuitBreaker breaker = mock(CircuitBreaker.class);
+            LocalModel model = new LocalModel(modelId,
+                "test-node",
+                definition,
+                new TrainedModelInput(inputFields),
+                null,
+                ClassificationConfig.EMPTY_PARAMS,
+                License.OperationMode.PLATINUM,
+                modelStatsService,
+                breaker
+            );
+
+            model.acquire();
+            model.acquire();
+            model.release();
+            model.release();
+            model.release();
+            verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
+            verifyNoMoreInteractions(breaker);
+            assertEquals(0L, model.getReferenceCount());
+        }
     }
 
     private static SingleValueInferenceResults getSingleValue(LocalModel model,

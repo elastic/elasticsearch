@@ -118,6 +118,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -396,7 +397,7 @@ public class ApiKeyService {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
         assert authentication.getVersion()
-            .before(Version.V_7_9_0) : "This method only applies to authentication objects created before v7.9.0";
+            .before(VERSION_API_KEY_ROLES_AS_BYTES) : "This method only applies to authentication objects created before v7.9.0";
 
         final Map<String, Object> metadata = authentication.getMetadata();
         final String apiKeyId = (String) metadata.get(API_KEY_ID_KEY);
@@ -420,7 +421,7 @@ public class ApiKeyService {
             throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
         }
         assert authentication.getVersion()
-            .onOrAfter(Version.V_7_9_0) : "This method only applies to authentication objects created on or after v7.9.0";
+            .onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES) : "This method only applies to authentication objects created on or after v7.9.0";
 
         final Map<String, Object> metadata = authentication.getMetadata();
         return new Tuple<>(

@@ -73,6 +73,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -223,7 +224,7 @@ public class CompositeRolesStore {
 
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (authType == Authentication.AuthenticationType.API_KEY) {
-            if (authentication.getVersion().onOrAfter(Version.V_7_9_0)) {
+            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(
                     role -> {
                         if (role == Role.EMPTY) {

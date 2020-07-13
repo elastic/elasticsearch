@@ -37,8 +37,8 @@ setup:
 ---
 "date_histogram on range with hard bounds":
   - skip:
-      version: " - 7.9.99"
-      reason:  hard_bounds introduced in 8.0.0
+      version: " - 7.99.99"
+      reason:  waiting for backport
 
   - do:
       search:

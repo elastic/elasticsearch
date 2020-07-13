@@ -112,6 +112,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             });
         final Parameter<NamedAnalyzer> analyzer
             = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, Lucene.KEYWORD_ANALYZER);
+        final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> toType(m).index, true);
 
         protected Builder(String name) {
             super(name);
@@ -119,7 +120,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(fixed, fixed2, variable, wrapper, intValue, analyzer);
+            return List.of(fixed, fixed2, variable, index, wrapper, intValue, analyzer);
         }
 
         @Override
@@ -147,6 +148,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         private final StringWrapper wrapper;
         private final int intValue;
         private final NamedAnalyzer analyzer;
+        private final boolean index;
 
         protected TestMapper(String simpleName, String fullName, MultiFields multiFields, CopyTo copyTo,
                              ParametrizedMapperTests.Builder builder) {
@@ -157,6 +159,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             this.wrapper = builder.wrapper.getValue();
             this.intValue = builder.intValue.getValue();
             this.analyzer = builder.analyzer.getValue();
+            this.index = builder.index.getValue();
         }
 
         @Override
@@ -175,7 +178,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    private static TestMapper fromMapping(String mapping) {
+    private static TestMapper fromMapping(String mapping, Version version) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             Map.of("_standard", Lucene.STANDARD_ANALYZER,
@@ -191,10 +194,14 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 return new BinaryFieldMapper.TypeParser();
             }
             return null;
-        }, Version.CURRENT, () -> null);
+        }, version, () -> null);
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+    }
+
+    private static TestMapper fromMapping(String mapping) {
+        return fromMapping(mapping, Version.CURRENT);
     }
 
     // defaults - create empty builder config, and serialize with and without defaults
@@ -213,7 +220,8 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         mapper.toXContent(builder, params);
         builder.endObject();
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true," +
-                "\"fixed2\":false,\"variable\":\"default\",\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"_keyword\"}}",
+                "\"fixed2\":false,\"variable\":\"default\",\"index\":true," +
+                "\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"_keyword\"}}",
             Strings.toString(builder));
     }
 
@@ -304,7 +312,6 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
         indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, Strings.toString(indexService.mapperService().documentMapper()));
-
     }
 
     // test custom serializer
@@ -352,6 +359,18 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         String badAnalyzer = "{\"type\":\"test_mapper\",\"analyzer\":\"wibble\"}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromMapping(badAnalyzer));
         assertEquals("analyzer [wibble] has not been configured in mappings", e.getMessage());
+    }
+
+    public void testDeprecatedParameters() throws IOException {
+        // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
+        String mapping = "{\"type\":\"test_mapper\",\"index\":false,\"store\":true}";
+        TestMapper mapper = fromMapping(mapping, Version.V_7_8_0);
+        assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
+        assertFalse(mapper.index);
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"index\":false}}", Strings.toString(mapper));
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping, Version.V_8_0_0));
+        assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }
 
 }

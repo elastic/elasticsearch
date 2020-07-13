@@ -157,7 +157,7 @@ setup:
       catch: missing
 
   - match: { status: 404 }
-  - match: { error.root_cause.0.type: "resource_not_found_exception" }
+  - match: { error.root_cause.0.type: "index_not_found_exception" }
 
   - do:
       indices.get_data_stream:

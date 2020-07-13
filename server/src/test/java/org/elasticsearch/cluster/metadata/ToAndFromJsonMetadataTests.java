@@ -295,7 +295,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "        \"in_sync_allocations\" : {\n" +
             "          \"0\" : [ ]\n" +
             "        },\n" +
-            "        \"rollover_info\" : { }\n" +
+            "        \"rollover_info\" : { },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -451,7 +452,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"met_conditions\" : { },\n" +
             "            \"time\" : 1\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -552,7 +554,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"met_conditions\" : { },\n" +
             "            \"time\" : 1\n" +
             "          }\n" +
-            "        }\n" +
+            "        },\n" +
+            "        \"system\" : false\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

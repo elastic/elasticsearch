@@ -175,9 +175,9 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(), lowLevelCancellation);
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
-        Map<String, Object> extraMapping = request.source() == null ? null : request.source().extraMapping();
+        Map<String, Object> runtimeMappings = request.source() == null ? null : request.source().runtimeMappings();
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher,
-            request::nowInMillis, shardTarget.getClusterAlias(), extraMapping);
+            request::nowInMillis, shardTarget.getClusterAlias(), runtimeMappings);
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
     }

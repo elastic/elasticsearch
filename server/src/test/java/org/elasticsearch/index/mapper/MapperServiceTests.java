@@ -71,7 +71,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InternalSettingsPlugin.class, ReloadableFilterPlugin.class, TestSearchTimeFieldPlugin.class);
+        return List.of(InternalSettingsPlugin.class, ReloadableFilterPlugin.class, TestRuntimeFieldPlugin.class);
     }
 
     public void testTypeValidation() {
@@ -427,25 +427,56 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(lookup.apply("f2"), nullValue());
     }
 
-    public void testNewFieldTypeLookupInvalidExtra() throws IOException {
+    public void testNewFieldTypeLookupInvalidRuntimeMappings() throws IOException {
         MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
         Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
-            new TreeMap<>(Map.of("properties", new TreeMap<>(Map.of("st1", new TreeMap<>(Map.of("type", "long"))))))
+            new TreeMap<>(Map.of("st1", new TreeMap<>(Map.of("type", "long"))))
         ));
-        assertThat(e.getMessage(), equalTo("fields with type [long] can't be added to [_search]"));
+        assertThat(e.getMessage(), equalTo("[long] are not supported in runtime mappings"));
     }
 
-    public void testNewFieldTypeLookupValidExtra() throws IOException {
+    public void testNewFieldTypeLookupNoType() throws IOException {
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+            new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("stuff", "foo"))))
+        ));
+        assertThat(e.getMessage(), equalTo("[type] is required for runtime mapping [r1]"));
+    }
+
+    public void testNewFieldTypeLookupUnknownType() throws IOException {
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+            new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("type", "asdf"))))
+        ));
+        assertThat(e.getMessage(), equalTo("[asdf] is unknown type for runtime mapping [r1]"));
+    }
+
+    public void testNewFieldTypeLookupAliases() throws IOException {
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+            new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("type", "alias", "path", "f1"))))
+        ));
+        assertThat(e.getMessage(), equalTo("aliases are not supported in runtime mappings"));
+    }
+
+    public void testNewFieldTypeLookupShadowingRuntimeMappings() throws IOException {
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "field", "type=long").mapperService();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+            new TreeMap<>(Map.of("field", new TreeMap<>(Map.of("type", "test_runtime"))))
+        ));
+        assertThat(e.getMessage(), equalTo("[field] can't be defined in the search's runtime mappings and the index's mappings"));
+    }
+
+    public void testNewFieldTypeLookupValidRuntimeMappings() throws IOException {
         MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
         Function<String, MappedFieldType> lookup = mapperService.newFieldTypeLookup(
-            new TreeMap<>(Map.of("properties", new TreeMap<>(Map.of("st1", new TreeMap<>(Map.of("type", "test_search_time"))))))
+            new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("type", "test_runtime"))))
         );
         assertThat(lookup.apply("f1"), notNullValue());
         assertThat(lookup.apply("f2"), nullValue());
-        assertThat(lookup.apply("st1"), notNullValue());
-        assertThat(lookup.apply("st2"), nullValue());
+        assertThat(lookup.apply("r1"), notNullValue());
+        assertThat(lookup.apply("r2"), nullValue());
     }
-
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {
         ReloadableCustomAnalyzer updatedReloadableAnalyzer = (ReloadableCustomAnalyzer) updatedAnalyzer.analyzer();
@@ -498,21 +529,21 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Creates a totally broken search time field that returns a {@code long}'s
+     * Creates a totally broken runtime field that returns a {@code long}'s
      * {@link MappedFieldType} and doesn't crash. Searches would never work
      * with it though.
      */
-    public static final class TestSearchTimeFieldPlugin extends Plugin implements MapperPlugin {
+    public static final class TestRuntimeFieldPlugin extends Plugin implements MapperPlugin {
         @Override
         @SuppressWarnings("rawtypes")
         public Map<String, TypeParser> getMappers() {
-            return Map.of("test_search_time", (name, node, parserContext) -> {
+            return Map.of("test_runtime", (name, node, parserContext) -> {
                 Mapper.Builder<?> delegate = new NumberFieldMapper.TypeParser(NumberType.LONG).parse(name, node, parserContext);
                 return new Mapper.Builder(name) {
                     @Override
                     public Mapper build(BuilderContext context) {
                         FieldMapper longMapper = spy((FieldMapper) delegate.build(context));
-                        doReturn(List.of(longMapper.fieldType())).when(longMapper).convertToSearchTimeMappings();
+                        doReturn(true).when(longMapper).isRuntimeField();
                         return longMapper;
                     }
                 };

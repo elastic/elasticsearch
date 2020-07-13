@@ -583,14 +583,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         String clusterAlias,
-        Map<String, Object> extraMapping
+        Map<String, Object> runtimeMappings
     ) {
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
             shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, extraMapping);
+            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, runtimeMappings);
     }
 
 

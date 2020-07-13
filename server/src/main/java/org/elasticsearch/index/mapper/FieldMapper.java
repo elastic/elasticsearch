@@ -448,6 +448,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    /**
+     * Called when this {@linkplain Mapper} is parsed on the {@code _search}
+     * request to check if this field can be a runtime field. 
+     */
+    public boolean isRuntimeField() {
+        return false;
+    }
+
     protected static String indexOptionToString(IndexOptions indexOption) {
         switch (indexOption) {
             case DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS:

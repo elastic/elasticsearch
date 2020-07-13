@@ -624,22 +624,49 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * @param extraMapping extra mappings parse and to add to the request
      *        lookup or {@code null} if there aren't any extra mappings  
      */
-    public Function<String, MappedFieldType> newFieldTypeLookup(Map<String, Object> extraMapping) {
-        if (extraMapping == null || extraMapping.size() == 0) {
+    public Function<String, MappedFieldType> newFieldTypeLookup(Map<String, Object> runtimeMappings) {
+        if (runtimeMappings == null || runtimeMappings.size() == 0) {
             return this::fieldType;
         }
-        // TODO parsing an entire mapping is almost certainly "too big"
-        Mapping mapping = documentMapperParser().parseMapping("extra", extraMapping);
+        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(0));
         Map<String, MappedFieldType> extra = new HashMap<>();
-        for (Mapper m : mapping.root()) {
-            // TODO this should dig the sub fields out of object mappers. Probably.
-            for (MappedFieldType ft: m.convertToSearchTimeMappings()) {
-                MappedFieldType fromIndexMapping = fieldType(ft.name());
-                if (fromIndexMapping != null) {
-                    throw new IllegalArgumentException("No shadowing?! Was [" + fromIndexMapping + "] attempted to add [" + mapping + "]");
-                }
-                extra.put(ft.name(), ft);
+        Collection<ObjectMapper> objectMappers = new ArrayList<>();
+        Collection<FieldMapper> fieldMappers = new ArrayList<>();
+        Collection<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
+        for (Map.Entry<String, Object> runtimeEntry : runtimeMappings.entrySet()) {
+            @SuppressWarnings("unchecked") // Safe because that is how we deserialized it
+            Map<String, Object> definition = (Map<String, Object>) runtimeEntry.getValue();
+            String type = (String) definition.remove("type");
+            if (type == null) {
+                throw new IllegalArgumentException("[type] is required for runtime mapping [" + runtimeEntry.getKey() + "]");
             }
+            Mapper.TypeParser parser = documentMapperParser().parserContext().typeParser(type);
+            if (parser == null) {
+                throw new IllegalArgumentException("[" + type + "] is unknown type for runtime mapping [" + runtimeEntry.getKey() + "]");
+            }
+            Mapper.Builder<?> builder = parser.parse(runtimeEntry.getKey(), definition, documentMapperParser().parserContext());
+            Mapper mapper = builder.build(builderContext);
+            
+            MapperUtils.collect(mapper, objectMappers, fieldMappers, fieldAliasMappers);
+
+        }
+        // We don't do anything with the collected ObjectMappers
+        for (FieldMapper fm : fieldMappers) {
+            if (false == fm.isRuntimeField()) {
+                throw new IllegalArgumentException(
+                    "[" + fm.typeName() + "] are not supported in runtime mappings"
+                );
+            }
+            MappedFieldType fromIndexMapping = fieldType(fm.name());
+            if (fromIndexMapping != null) {
+                throw new IllegalArgumentException(
+                    "[" + fm.name() + "] can't be defined in the search's runtime mappings and the index's mappings"
+                );
+            }
+            extra.put(fm.name(), fm.fieldType());
+        }
+        if (false == fieldAliasMappers.isEmpty()) {
+            throw new IllegalArgumentException("aliases are not supported in runtime mappings");
         }
         return fullName -> {
             MappedFieldType searchTime = extra.get(fullName);

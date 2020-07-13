@@ -13,8 +13,8 @@ dev::[]
 === EQL search on nested fields is not supported
 
 You cannot use EQL to search the values of a <<nested,`nested`>> field or the
-sub-fields of a `nested` field. However, indices containing `nested` field
-mappings are otherwise supported.
+sub-fields of a `nested` field. However, data streams and indices containing
+`nested` field mappings are otherwise supported.
 
 [discrete]
 [[eql-unsupported-syntax]]

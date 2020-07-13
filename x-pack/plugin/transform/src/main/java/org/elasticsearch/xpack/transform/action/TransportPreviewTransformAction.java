@@ -174,13 +174,13 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                     docs.add((Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap));
                 }
             }
-            TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+            TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                 mappings.get(),
                 transformId,
                 Clock.systemUTC()
             );
 
-            listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
+            listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
         function.deduceMappings(client, source, ActionListener.wrap(deducedMappings -> {
             mappings.set(deducedMappings);
@@ -192,13 +192,13 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
                 NUMBER_OF_PREVIEW_BUCKETS,
                 ActionListener.wrap(docs -> {
                     if (pipeline == null) {
-                        TransformDestIndexSettings generateddestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                        TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                             mappings.get(),
                             transformId,
                             Clock.systemUTC()
                         );
 
-                        listener.onResponse(new PreviewTransformAction.Response(docs, generateddestIndexSettings));
+                        listener.onResponse(new PreviewTransformAction.Response(docs, generatedDestIndexSettings));
                     } else {
                         List<Map<String, Object>> results = docs.stream().map(doc -> {
                             Map<String, Object> src = new HashMap<>();

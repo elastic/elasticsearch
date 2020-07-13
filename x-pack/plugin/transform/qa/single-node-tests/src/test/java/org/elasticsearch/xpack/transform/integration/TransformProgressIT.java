@@ -185,6 +185,7 @@ public class TransformProgressIT extends ESRestTestCase {
     private TransformProgress getProgress(Function function, SearchRequest searchRequest) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<TransformProgress> progressHolder = new AtomicReference<>();
+        final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             SearchResponse response = restClient.search(searchRequest, RequestOptions.DEFAULT);
@@ -192,13 +193,17 @@ public class TransformProgressIT extends ESRestTestCase {
             function.getInitialProgressFromResponse(
                 response,
                 new LatchedActionListener<>(
-                    ActionListener.wrap(progressHolder::set, e -> { fail("got unexpected exception: " + e); }),
+                    ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }),
                     latch
                 )
             );
         }
 
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+
         return progressHolder.get();
     }
 

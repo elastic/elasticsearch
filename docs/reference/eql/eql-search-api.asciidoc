@@ -11,7 +11,8 @@ dev::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
-In {es}, EQL assumes each document in an index corresponds to an event.
+In {es}, EQL assumes each document in a data stream or index corresponds to an
+event.
 
 ////
 [source,console]
@@ -44,9 +45,9 @@ GET /my_index/_eql/search
 [[eql-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_eql/search`
+`GET /<target>/_eql/search`
 
-`POST /<index>/_eql/search`
+`POST /<target>/_eql/search`
 
 [[eql-search-api-prereqs]]
 ==== {api-prereq-title}
@@ -61,12 +62,13 @@ See <<eql-limitations,EQL limitations>>.
 [[eql-search-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Required, string)
-Comma-separated list of index names or <<indices-aliases,index aliases>> used to
-limit the request. Accepts wildcard expressions.
+Comma-separated list of data streams, indices, or <<indices-aliases,index
+aliases>> used to limit the request. Accepts wildcard (`*`) expressions.
 +
-To search all indices, use `_all` or `*`.
+To search all data streams and indices in a cluster, use
+`_all` or `*`.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -157,8 +159,8 @@ Field containing the event classification, such as `process`, `file`, or
 `network`.
 +
 Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
-Common Schema (ECS)]. If an index does not contain the `event.category` field,
-this value is required.
+Common Schema (ECS)]. If a data stream or index does not contain the
+`event.category` field, this value is required.
 
 `fetch_size`::
 (Optional, integer)
@@ -265,8 +267,8 @@ field is used to sort the events in ascending, lexicographic order.
 Field containing event timestamp.
 
 Defaults to `@timestamp`, as defined in the
-{ecs-ref}/ecs-event.html[Elastic Common Schema (ECS)]. If an index does not
-contain the `@timestamp` field, this value is required.
+{ecs-ref}/ecs-event.html[Elastic Common Schema (ECS)]. If a data stream or index
+does not contain the `@timestamp` field, this value is required.
 
 Events in the API response are sorted by this field's value, converted to
 milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in

@@ -73,10 +73,12 @@ public class InferenceRunner {
         LOGGER.info("[{}] Started inference on test data against model [{}]", config.getId(), modelId);
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
-            modelLoadingService.getModelForSearch(modelId, localModelPlainActionFuture);
+            modelLoadingService.getModelForPipeline(modelId, localModelPlainActionFuture);
             LocalModel localModel = localModelPlainActionFuture.actionGet();
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config);
-            inferTestDocs(localModel, testDocsIterator);
+            try (localModel) {
+                inferTestDocs(localModel, testDocsIterator);
+            }
         } catch (Exception e) {
             throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]", e, config.getId(), modelId);
         }

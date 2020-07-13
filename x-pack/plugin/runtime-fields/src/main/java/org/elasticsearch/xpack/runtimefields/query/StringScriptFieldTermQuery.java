@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.IntPredicate;
 
 public class StringScriptFieldTermQuery extends Query {
     private final StringScriptFieldScript.LeafFactory leafFactory;
@@ -37,8 +38,6 @@ public class StringScriptFieldTermQuery extends Query {
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, boost) {
-            boolean matchesScript;
-
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
                 return false; // scripts aren't really cacheable at this point
@@ -46,25 +45,12 @@ public class StringScriptFieldTermQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                StringScriptFieldScript script = leafFactory.newInstance(
-                    ctx,
-                    str -> {
-                        /*
-                         * This code runs in the script's context so it inherits
-                         * the scripts permissions error handling. So it is
-                         * important to keep this as simple as possble.
-                         */
-                        matchesScript = matchesScript || term.equals(str);
-                    }
-                );
+                IntPredicate script = leafFactory.wrapPredicate(ctx, str -> term.equals(str));
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() throws IOException {
-                        matchesScript = false;
-                        script.setDocument(approximation().docID());
-                        script.execute();
-                        return matchesScript;
+                        return script.test(approximation().docID());
                     }
 
                     @Override

@@ -17,6 +17,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
@@ -33,6 +35,29 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
 
     public interface LeafFactory {
         StringScriptFieldScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
+
+        /**
+         * Wrap a {@link Predicate} that tests the result of the script. If the
+         * script produces more than one value the result of the predicate is
+         * {@code OR}ed together.
+         */
+        default IntPredicate wrapPredicate(LeafReaderContext ctx, Predicate<String> pred) throws IOException {
+            return new IntPredicate() {
+                boolean result;
+
+                final StringScriptFieldScript script = newInstance(ctx, str -> {
+                    result = result || pred.test(str);
+                });
+
+                @Override
+                public boolean test(int docId) {
+                    result = false;
+                    script.setDocument(docId);
+                    script.execute();
+                    return result;
+                }
+            };
+        }
     }
 
     private final Consumer<String> sync;

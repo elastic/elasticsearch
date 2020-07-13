@@ -41,5 +41,3 @@ queries that contain:
 ** {eql-ref}/pipes.html#sort[`sort`]
 ** {eql-ref}/pipes.html#unique[`unique`]
 ** {eql-ref}/pipes.html#unique-count[`unique_count`]
-
-* The `until` {eql-ref}/sequences.html[sequence keyword]

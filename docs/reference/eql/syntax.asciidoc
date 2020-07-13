@@ -485,7 +485,7 @@ sequence by user.name
 ----
 ====
 
-You can combine the `sequence by` and `with maxspan` keywords to constrain a 
+You can combine the `sequence by` and `with maxspan` keywords to constrain a
 sequence by both field values and a timespan.
 
 [source,eql]
@@ -511,6 +511,89 @@ sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----
+====
+
+[discrete]
+[[eql-until-keyword]]
+==== `until` keyword
+
+You can use the `until` keyword to specify an expiration event for sequences.
+Matching sequences must end before this event, which is not included the
+results. If this event occurs within a sequence, the sequence is not considered
+a match.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+until [ event_category_2 where condition_2 ]
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL sequence query uses the `until` keyword to end sequences
+before a process termination event. Process termination events have an event
+category of `process` and `event.type` value of `termination`.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+until [ process where event.type == "termination" ]
+----
+====
+
+[TIP]
+====
+The `until` keyword can be helpful when searching for process sequences in
+Windows event logs, such as those ingested using
+{winlogbeat-ref}/index.html[Winlogbeat].
+
+In Windows, a process ID (PID) is unique only while a process is running. After
+a process terminates, its PID can be reused.
+
+You can search for a sequence of events with the same PID value using the `by`
+and `sequence by` keywords.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `sequence by` keyword to match a sequence of
+events that share the same `process.pid` value.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+----
+=====
+
+However, due to PID reuse, this can result in a matching sequence that
+contains events across unrelated processes. To prevent false positives, you can
+use the `until` keyword to end matching sequences before a process termination
+event.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `until` keyword to end sequences before
+`process` events with an `event.type` of `termination`. These events indicate a
+process has been terminated.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+until [ process where event.type == "termination" ]
+----
+=====
+
 ====
 
 [discrete]

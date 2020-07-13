@@ -334,8 +334,6 @@ public class ModelLoadingService implements ClusterStateListener {
                             return;
                         }
 
-                        // Remove the bytes as we cannot control how long the caller will keep the model in memory
-                        trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
                         modelActionListener.onResponse(new LocalModel(
                             trainedModelConfig.getModelId(),
                             localNode,

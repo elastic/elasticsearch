@@ -478,6 +478,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertEquals(3, model.getReferenceCount());
 
         model.release();
+        assertEquals(2, model.getReferenceCount());
 
         PlainActionFuture<LocalModel> forSearch2 = new PlainActionFuture<>();
         modelLoadingService.getModelForPipeline(modelId, forSearch2);

@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -266,10 +265,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         /**
-         * @return a mapping snippet for a backing index with `_timestamp` meta field mapper properly configured.
+         * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
         public Map<String, Object> getDataSteamMappingSnippet() {
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(TimestampFieldMapper.NAME, Map.of("path", FIXED_TIMESTAMP_FIELD)));
+            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_data_stream_timestamp", Map.of("path", FIXED_TIMESTAMP_FIELD)));
         }
 
         @Override

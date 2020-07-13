@@ -4,7 +4,8 @@
 <titleabbrev>Index stats</titleabbrev>
 ++++
 
-Returns statistics for an index.
+Returns statistics for one or more indices. For data streams, the API retrieves
+statistics for the stream's backing indices.
 
 [source,console]
 ----
@@ -16,9 +17,9 @@ GET /twitter/_stats
 [[index-stats-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_stats/<index-metric>`
+`GET /<target>/_stats/<index-metric>`
 
-`GET /<index>/_stats`
+`GET /<target>/_stats`
 
 `GET /_stats`
 
@@ -26,7 +27,8 @@ GET /twitter/_stats
 [[index-stats-api-desc]]
 ==== {api-description-title}
 
-Use the index stats API to get high-level aggregation and statistics for an index.
+Use the index stats API to get high-level aggregation and statistics for one or
+more data streams and indices.
 
 By default,
 the returned statistics are index-level
@@ -51,10 +53,13 @@ to which the shard contributed.
 [[index-stats-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
 +
-To retrieve statistics for all indices,
-use a value of `_all` or `*` or omit this parameter.
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-metric]
 
@@ -91,7 +96,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segme
 
 
 [[index-stats-api-multiple-ex]]
-===== Get statistics for multiple indices
+===== Get statistics for multiple data streams and indices
 
 [source,console]
 --------------------------------------------------
@@ -101,7 +106,7 @@ GET /index1,index2/_stats
 
 
 [[index-stats-api-all-ex]]
-===== Get statistics for all indices
+===== Get statistics for all data streams and indices in a cluster
 
 [source,console]
 --------------------------------------------------

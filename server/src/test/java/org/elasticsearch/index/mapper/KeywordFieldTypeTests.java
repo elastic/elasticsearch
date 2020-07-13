@@ -48,14 +48,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
-public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
-
-    @Override
-    protected KeywordFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new KeywordFieldMapper.KeywordFieldType(name, true, true, meta);
-    }
+public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("field");

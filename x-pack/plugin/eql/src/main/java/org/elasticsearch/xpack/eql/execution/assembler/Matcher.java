@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
-import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.sequence.Sequence;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceStateMachine;
 import org.elasticsearch.xpack.eql.session.Payload;
@@ -20,6 +21,8 @@ import java.util.List;
  * Executable tracking sequences at runtime.
  */
 class Matcher {
+
+    private final Logger log = LogManager.getLogger(Matcher.class);
 
     // NB: just like in a list, this represents the total number of stages yet counting starts at 0
     private final SequenceStateMachine stateMachine;
@@ -48,27 +51,37 @@ class Matcher {
                 // early skip in case of reaching the limit
                 // check the last stage to avoid calling the state machine in other stages
                 if (stateMachine.reachedLimit()) {
+                    log.trace("Limit reached {}", stateMachine.stats());
                     return false;
                 }
             }
         }
+        log.trace("{}", stateMachine.stats());
         return true;
     }
 
-    boolean until(Iterable<Ordinal> markers) {
-        // no-op so far
-
-        return false;
+    void until(Iterable<KeyAndOrdinal> markers) {
+        stateMachine.until(markers);
     }
 
-
-    public boolean hasCandidates(int stage) {
+    boolean hasCandidates(int stage) {
         return stateMachine.hasCandidates(stage);
+    }
+
+    void dropUntil() {
+        stateMachine.dropUntil();
     }
 
     Payload payload(long startTime) {
         List<Sequence> completed = stateMachine.completeSequences();
         TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
-        return new SequencePayload(completed, false, tookTime);
+        Payload p = new SequencePayload(completed, false, tookTime);
+        stateMachine.clear();
+        return p;
+    }
+
+    @Override
+    public String toString() {
+        return stateMachine.toString();
     }
 }

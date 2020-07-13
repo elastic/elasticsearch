@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -20,8 +21,13 @@ import java.util.Map;
 
 public class ScriptFieldMapperScriptParsingTests extends ESTestCase {
 
+    private static Mapper.TypeParser.ParserContext parserContext() {
+        return new Mapper.TypeParser.ParserContext(null, null, null, Version.CURRENT, null);
+    }
+
     public void testParseScriptShortSyntax() {
-        Script script = ScriptFieldMapper.Builder.parseScript("script", "doc['my_field']");
+
+        Script script = ScriptFieldMapper.Builder.parseScript("script", parserContext(), "doc['my_field']");
         assertEquals(PainlessScriptEngine.NAME, script.getLang());
         assertEquals("doc['my_field']", script.getIdOrCode());
         assertEquals(0, script.getParams().size());
@@ -47,7 +53,7 @@ public class ScriptFieldMapperScriptParsingTests extends ESTestCase {
         if (randomBoolean()) {
             map.put("lang", PainlessScriptEngine.NAME);
         }
-        Script script = ScriptFieldMapper.Builder.parseScript("script", map);
+        Script script = ScriptFieldMapper.Builder.parseScript("script", parserContext(), map);
         assertEquals(PainlessScriptEngine.NAME, script.getLang());
         assertEquals("doc['my_field']", script.getIdOrCode());
         assertEquals(ScriptType.INLINE, script.getType());
@@ -68,13 +74,15 @@ public class ScriptFieldMapperScriptParsingTests extends ESTestCase {
         }
         Script script = new Script(ScriptType.INLINE, PainlessScriptEngine.NAME, "doc['field']", options, params);
         Map<String, Object> scriptObject = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(script), false);
-        Script parsedScript = ScriptFieldMapper.Builder.parseScript("my_field", scriptObject);
+        Script parsedScript = ScriptFieldMapper.Builder.parseScript("my_field", parserContext(), scriptObject);
         assertEquals(script, parsedScript);
     }
 
     public void testParseScriptWrongFormat() {
-        IllegalArgumentException iae =
-            expectThrows(IllegalArgumentException.class, () -> ScriptFieldMapper.Builder.parseScript("my_field", 3));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> ScriptFieldMapper.Builder.parseScript("my_field", parserContext(), 3)
+        );
         assertEquals("unable to parse script for script field [my_field]", iae.getMessage());
     }
 
@@ -82,8 +90,10 @@ public class ScriptFieldMapperScriptParsingTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("options", 3);
-        IllegalArgumentException iae =
-            expectThrows(IllegalArgumentException.class, () -> ScriptFieldMapper.Builder.parseScript("my_field", map));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> ScriptFieldMapper.Builder.parseScript("my_field", parserContext(), map)
+        );
         assertEquals("unable to parse options for script field [my_field]", iae.getMessage());
     }
 
@@ -91,8 +101,10 @@ public class ScriptFieldMapperScriptParsingTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("params", 3);
-        IllegalArgumentException iae =
-            expectThrows(IllegalArgumentException.class, () -> ScriptFieldMapper.Builder.parseScript("my_field", map));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> ScriptFieldMapper.Builder.parseScript("my_field", parserContext(), map)
+        );
         assertEquals("unable to parse params for script field [my_field]", iae.getMessage());
     }
 
@@ -102,14 +114,16 @@ public class ScriptFieldMapperScriptParsingTests extends ESTestCase {
         String lang;
         if (randomBoolean()) {
             lang = "mustache";
-        } else if(randomBoolean()) {
+        } else if (randomBoolean()) {
             lang = "expression";
         } else {
             lang = "anything";
         }
         map.put("lang", lang);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-            () -> ScriptFieldMapper.Builder.parseScript("my_field", map));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> ScriptFieldMapper.Builder.parseScript("my_field", parserContext(), map)
+        );
         assertEquals("script lang [" + lang + "] not supported for script field [my_field]", iae.getMessage());
     }
 
@@ -117,16 +131,20 @@ public class ScriptFieldMapperScriptParsingTests extends ESTestCase {
         {
             Map<String, Object> map = new HashMap<>();
             map.put("id", "test");
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> ScriptFieldMapper.Builder.parseScript("my_field", map));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ScriptFieldMapper.Builder.parseScript("my_field", parserContext(), map)
+            );
             assertEquals("script source must be specified for script field [my_field]", iae.getMessage());
         }
         {
             Map<String, Object> map = new HashMap<>();
             map.put("source", "doc['my_field']");
             map.put("id", "test");
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> ScriptFieldMapper.Builder.parseScript("my_field", map));
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> ScriptFieldMapper.Builder.parseScript("my_field", parserContext(), map)
+            );
             assertEquals("unsupported parameters specified for script field [my_field]: [id]", iae.getMessage());
         }
     }

@@ -19,6 +19,7 @@ import java.util.Map.Entry;
  * Class encapsulating the metrics collected for EQL
  */
 public class Metrics {
+
     private enum OperationType {
         FAILED, TOTAL;
 
@@ -37,7 +38,7 @@ public class Metrics {
     protected static String SEQUENCE_PREFIX = "sequences.";
     protected static String JOIN_PREFIX = "joins.";
     protected static String KEYS_PREFIX = "keys.";
-    
+
     public Metrics() {
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
         for (QueryMetric metric : QueryMetric.values()) {
@@ -45,7 +46,7 @@ public class Metrics {
             for (OperationType type : OperationType.values()) {
                 metricsMap.put(type,  new CounterMetric());
             }
-            
+
             qMap.put(metric, Collections.unmodifiableMap(metricsMap));
         }
         opsByTypeMetrics = Collections.unmodifiableMap(qMap);
@@ -64,7 +65,7 @@ public class Metrics {
     public void total(QueryMetric metric) {
         inc(metric, OperationType.TOTAL);
     }
-    
+
     /**
      * Increments the "failed" counter for a metric
      */
@@ -89,7 +90,7 @@ public class Metrics {
         // queries metrics
         for (Entry<QueryMetric, Map<OperationType, CounterMetric>> entry : opsByTypeMetrics.entrySet()) {
             String metricName = entry.getKey().toString();
-            
+
             for (OperationType type : OperationType.values()) {
                 long metricCounter = entry.getValue().get(type).count();
                 String operationTypeName = type.toString();

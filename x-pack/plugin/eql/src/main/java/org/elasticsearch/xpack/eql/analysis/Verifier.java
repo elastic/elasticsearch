@@ -6,26 +6,22 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.tree.Node;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.Holder;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.stats.FeatureMetric;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
+import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.tree.Node;
+import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -39,21 +35,21 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.HEAD;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_FIVE_OR_MORE_QUERIES;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_FOUR_QUERIES;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_ONE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_TWO;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_THREE_QUERIES;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_TWO_QUERIES;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FIVE_OR_MORE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FOUR;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_THREE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_FIVE_OR_MORE_QUERIES;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_FOUR_QUERIES;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_MAXSPAN;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_THREE_QUERIES;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_TWO_QUERIES;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FIVE_OR_MORE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FOUR;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.TAIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.UNTIL;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
@@ -167,26 +163,26 @@ public class Verifier {
                         
                         int queriesCount = s.queries().size();
                         switch (queriesCount) {
-                            case 2:  b.set(SEQUENCE_TWO_QUERIES.ordinal());
+                            case 2:  b.set(SEQUENCE_QUERIES_TWO.ordinal());
                                      break;
-                            case 3:  b.set(SEQUENCE_THREE_QUERIES.ordinal());
+                            case 3:  b.set(SEQUENCE_QUERIES_THREE.ordinal());
                                      break;
-                            case 4:  b.set(SEQUENCE_FOUR_QUERIES.ordinal());
+                            case 4:  b.set(SEQUENCE_QUERIES_FOUR.ordinal());
                                      break;
-                            default: b.set(SEQUENCE_FIVE_OR_MORE_QUERIES.ordinal());
+                            default: b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
                                      break;
                         }
                     } else {
                         b.set(FeatureMetric.JOIN.ordinal());
                         int queriesCount = j.queries().size();
                         switch (queriesCount) {
-                            case 2:  b.set(JOIN_TWO_QUERIES.ordinal());
+                            case 2:  b.set(JOIN_QUERIES_TWO.ordinal());
                                      break;
-                            case 3:  b.set(JOIN_THREE_QUERIES.ordinal());
+                            case 3:  b.set(JOIN_QUERIES_THREE.ordinal());
                                      break;
-                            case 4:  b.set(JOIN_FOUR_QUERIES.ordinal());
+                            case 4:  b.set(JOIN_QUERIES_FOUR.ordinal());
                                      break;
-                            default: b.set(JOIN_FIVE_OR_MORE_QUERIES.ordinal());
+                            default: b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
                                      break;
                         }
                     }

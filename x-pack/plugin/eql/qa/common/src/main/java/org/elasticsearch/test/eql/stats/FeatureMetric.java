@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.stats;
+package org.elasticsearch.test.eql.stats;
 
 import java.util.Locale;
 

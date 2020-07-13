@@ -67,7 +67,7 @@ public class OptimizerTests extends ESTestCase {
         return TypesTests.loadMapping(name);
     }
 
-    private IndexResolution loadIndexResolution(String name) {
+    public static IndexResolution loadIndexResolution(String name) {
         return IndexResolution.valid(new EsIndex(INDEX_NAME, loadEqlMapping(name)));
     }
 

@@ -51,22 +51,25 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
             DataFrameAnalyticsConfig.MODEL_MEMORY_LIMIT,
             VALUE);
         PARSER.declareBoolean(Builder::setAllowLazyStart, DataFrameAnalyticsConfig.ALLOW_LAZY_START);
-
+        PARSER.declareInt(Builder::setMaxNumThreads, DataFrameAnalyticsConfig.MAX_NUM_THREADS);
     }
 
     private final String id;
     private final String description;
     private final ByteSizeValue modelMemoryLimit;
     private final Boolean allowLazyStart;
+    private final Integer maxNumThreads;
 
     private DataFrameAnalyticsConfigUpdate(String id,
                                            @Nullable String description,
                                            @Nullable ByteSizeValue modelMemoryLimit,
-                                           @Nullable Boolean allowLazyStart) {
+                                           @Nullable Boolean allowLazyStart,
+                                           @Nullable Integer maxNumThreads) {
         this.id = id;
         this.description = description;
         this.modelMemoryLimit = modelMemoryLimit;
         this.allowLazyStart = allowLazyStart;
+        this.maxNumThreads = maxNumThreads;
     }
 
     public String getId() {
@@ -85,6 +88,10 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
         return allowLazyStart;
     }
 
+    public Integer getMaxNumThreads() {
+        return maxNumThreads;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -97,6 +104,9 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
         }
         if (allowLazyStart != null) {
             builder.field(DataFrameAnalyticsConfig.ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
+        }
+        if (maxNumThreads != null) {
+            builder.field(DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
         }
         builder.endObject();
         return builder;
@@ -117,12 +127,13 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
         return Objects.equals(this.id, that.id)
             && Objects.equals(this.description, that.description)
             && Objects.equals(this.modelMemoryLimit, that.modelMemoryLimit)
-            && Objects.equals(this.allowLazyStart, that.allowLazyStart);
+            && Objects.equals(this.allowLazyStart, that.allowLazyStart)
+            && Objects.equals(this.maxNumThreads, that.maxNumThreads);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, modelMemoryLimit, allowLazyStart);
+        return Objects.hash(id, description, modelMemoryLimit, allowLazyStart, maxNumThreads);
     }
 
     public static class Builder {
@@ -131,6 +142,7 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
         private String description;
         private ByteSizeValue modelMemoryLimit;
         private Boolean allowLazyStart;
+        private Integer maxNumThreads;
 
         private Builder() {}
 
@@ -158,8 +170,13 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
             return this;
         }
 
+        public Builder setMaxNumThreads(Integer maxNumThreads) {
+            this.maxNumThreads = maxNumThreads;
+            return this;
+        }
+
         public DataFrameAnalyticsConfigUpdate build() {
-            return new DataFrameAnalyticsConfigUpdate(id, description, modelMemoryLimit, allowLazyStart);
+            return new DataFrameAnalyticsConfigUpdate(id, description, modelMemoryLimit, allowLazyStart, maxNumThreads);
         }
     }
 }

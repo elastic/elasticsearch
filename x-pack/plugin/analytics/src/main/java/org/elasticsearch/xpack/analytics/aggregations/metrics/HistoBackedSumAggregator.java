@@ -33,7 +33,7 @@ import java.util.Map;
  * The aggregator sums each histogram value multiplied by its count.
  * Eg for a histogram of response times, this is an approximate "total time spent".
  */
-class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
+public class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final HistogramValuesSource.Histogram valuesSource;
     private final DocValueFormat format;
@@ -41,7 +41,7 @@ class HistoBackedSumAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray sums;
     private DoubleArray compensations;
 
-    HistoBackedSumAggregator(
+    public HistoBackedSumAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,

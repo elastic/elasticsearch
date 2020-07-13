@@ -448,6 +448,7 @@ public class DataStreamIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .preparePutMapping(dataStreamName)
+                .setType("_doc")
                 .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON),
             false
         );
@@ -503,6 +504,7 @@ public class DataStreamIT extends ESIntegTestCase {
             client().admin()
                 .indices()
                 .preparePutMapping(wildcardExpression)
+                .setType("_doc")
                 .setSource("{\"_doc\":{\"properties\": {\"my_field\":{\"type\":\"keyword\"}}}}", XContentType.JSON),
             false
         );
@@ -656,6 +658,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .preparePutMapping("logs-foobar")
+            .setType("_doc")
             .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
             .get();
         // The mappings of all backing indices should be updated:

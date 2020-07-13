@@ -532,7 +532,7 @@ setup:
 ---
 "histogram with hard bounds":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason:  hard_bounds were introduced in 8.0.0
 
   - do:

@@ -282,7 +282,7 @@ setup:
 ---
 "Indexing a document into a data stream without a timestamp field":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 

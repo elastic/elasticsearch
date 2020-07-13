@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
@@ -13,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -26,6 +29,7 @@ public class IndicesAccessControl {
             new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Map.of());
 
+    private final Logger logger = LogManager.getLogger();
     private final boolean granted;
     private Map<String, IndexAccessControl> indexPermissions;
 
@@ -52,7 +56,17 @@ public class IndicesAccessControl {
 
     public void addPermissionsIfNotPresent(IndicesAccessControl other) {
         final Map<String, IndexAccessControl> map = new HashMap<>(this.indexPermissions);
-        other.indexPermissions.forEach(map::putIfAbsent);
+        for (Map.Entry<String, IndexAccessControl> entry : other.indexPermissions.entrySet()) {
+            String indexName = entry.getKey();
+            IndexAccessControl existingControl = map.get(indexName);
+            IndexAccessControl newControl = entry.getValue();
+            if (existingControl == null) {
+                map.put(indexName, newControl);
+            } else if (newControl.equals(existingControl) == false) {
+                logger.debug("Already have index access control [{}] for [{}], not replacing with [{}]",
+                    existingControl, indexName, newControl);
+            }
+        }
         this.indexPermissions = Map.copyOf(map);
     }
 
@@ -126,6 +140,25 @@ public class IndicesAccessControl {
                     ", fieldPermissions=" + fieldPermissions +
                     ", documentPermissions=" + documentPermissions +
                     '}';
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            IndexAccessControl that = (IndexAccessControl) other;
+            return this.granted == that.granted &&
+                this.fieldPermissions.equals(that.fieldPermissions) &&
+                this.documentPermissions.equals(that.documentPermissions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(granted, fieldPermissions, documentPermissions);
         }
     }
 

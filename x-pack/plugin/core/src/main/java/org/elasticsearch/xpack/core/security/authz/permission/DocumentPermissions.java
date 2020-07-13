@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -202,4 +203,21 @@ public final class DocumentPermissions {
         return "DocumentPermissions [queries=" + queries + ", scopedByQueries=" + limitedByQueries + "]";
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+        DocumentPermissions that = (DocumentPermissions) other;
+        return Objects.equals(this.queries, that.queries) &&
+            Objects.equals(this.limitedByQueries, that.limitedByQueries);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queries, limitedByQueries);
+    }
 }

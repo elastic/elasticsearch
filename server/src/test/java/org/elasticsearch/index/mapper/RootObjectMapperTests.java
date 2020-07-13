@@ -432,8 +432,8 @@ public class RootObjectMapperTests extends ESSingleNodeTestCase {
             mapping.endObject();
             MapperParsingException e = expectThrows(MapperParsingException.class,
                 () -> mapperService.merge("type", new CompressedXContent(Strings.toString(mapping)), MergeReason.MAPPING_UPDATE));
-            assertThat(e.getRootCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(e.getRootCause().getMessage(), equalTo("Unused mapping attributes [{foo=bar}]"));
+            assertThat(e.getRootCause(), instanceOf(MapperParsingException.class));
+            assertThat(e.getRootCause().getMessage(), equalTo("unknown parameter [foo] on mapper [__dummy__] of type [null]"));
         }
     }
 

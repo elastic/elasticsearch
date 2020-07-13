@@ -47,7 +47,7 @@ public class CrossValidationSplitterFactory {
         if (config.getAnalysis() instanceof Classification) {
             return createStratifiedSplitter((Classification) config.getAnalysis());
         }
-        return (row, incrementTrainingDocs, incrementTestDocs) -> incrementTrainingDocs.run();
+        return row -> true;
     }
 
     private CrossValidationSplitter createSingleClassSplitter(Regression regression) {

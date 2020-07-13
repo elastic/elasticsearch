@@ -26,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -99,6 +100,8 @@ public class FsHealthServiceTests extends ESTestCase {
     }
 
     public void testFailsHealthOnIOException() throws IOException {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/59380", Constants.WINDOWS);
+        
         FileSystem fileSystem = PathUtils.getDefaultFileSystem();
         FileSystemIOExceptionProvider disruptFileSystemProvider = new FileSystemIOExceptionProvider(fileSystem);
         fileSystem = disruptFileSystemProvider.getFileSystem(null);
@@ -305,8 +308,7 @@ public class FsHealthServiceTests extends ESTestCase {
         AtomicBoolean injectIOException = new AtomicBoolean();
         AtomicInteger injectedPaths = new AtomicInteger();
 
-        private String pathPrefix = "/";
-        private long delay;
+        private final long delay;
         private final ThreadPool threadPool;
 
         FileSystemFsyncHungProvider(FileSystem inner, long delay, ThreadPool threadPool) {
@@ -325,7 +327,7 @@ public class FsHealthServiceTests extends ESTestCase {
                 @Override
                 public void force(boolean metaData) throws IOException {
                     if (injectIOException.get()) {
-                        if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
+                        if (path.getFileName().toString().equals(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                             injectedPaths.incrementAndGet();
                             final long startTimeMillis = threadPool.relativeTimeInMillis();
                             do {

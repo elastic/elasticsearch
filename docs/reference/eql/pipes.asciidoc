@@ -6,7 +6,7 @@
 <titleabbrev>Pipe reference</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 {es} supports the following EQL pipes:
 

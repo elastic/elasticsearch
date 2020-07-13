@@ -19,7 +19,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,27 +37,29 @@ public class ScriptCacheTests extends ESTestCase {
         ).name;
         final TimeValue expire = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         final Integer size = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
-        Setting<Tuple<Integer, TimeValue>> rateSetting =
+        Setting<ScriptCache.CompilationRate> rateSetting =
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context);
-        Tuple<Integer, TimeValue> rate =
+        ScriptCache.CompilationRate rate =
             ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         String rateSettingName = rateSetting.getKey();
-        ScriptCache cache = new ScriptCache(size, expire, Tuple.tuple(1, TimeValue.timeValueMinutes(1)), rateSettingName);
+        ScriptCache cache = new ScriptCache(size, expire,
+            new ScriptCache.CompilationRate(1, TimeValue.timeValueMinutes(1)), rateSettingName);
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(2, TimeValue.timeValueMinutes(1))), rateSettingName);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(2, TimeValue.timeValueMinutes(1)), rateSettingName);
         cache.checkCompilationLimit(); // should pass
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         int count = randomIntBetween(5, 50);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(count, TimeValue.timeValueMinutes(1))), rateSettingName);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(count, TimeValue.timeValueMinutes(1)), rateSettingName);
         for (int i = 0; i < count; i++) {
             cache.checkCompilationLimit(); // should pass
         }
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(0, TimeValue.timeValueMinutes(1))), rateSettingName);
+        cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), rateSettingName);
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire, (Tuple.tuple(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1))), rateSettingName);
+        cache = new ScriptCache(size, expire,
+                                new ScriptCache.CompilationRate(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)), rateSettingName);
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             cache.checkCompilationLimit();

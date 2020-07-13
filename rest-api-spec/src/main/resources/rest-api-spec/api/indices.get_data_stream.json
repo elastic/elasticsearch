@@ -20,8 +20,8 @@
           ],
           "parts":{
             "name":{
-              "type":"string",
-              "description":"The name or wildcard expression of the requested data streams"
+              "type":"list",
+              "description":"A comma-separated list of data streams to get; use `*` to get all data streams"
             }
           }
         }

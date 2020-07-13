@@ -15,7 +15,17 @@ setup:
         body:  >
           {
             "indices": [
-              { "names": ["simple*"], "privileges": ["read", "write", "view_index_metadata", "monitor"] }
+              { "names": ["simple*"], "privileges": ["read", "write", "create_index", "view_index_metadata", "monitor", "delete_index"] }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "data_stream_role2"
+        body:  >
+          {
+            "indices": [
+              { "names": ["matches_none"], "privileges": ["read", "write", "create_index", "view_index_metadata", "monitor", "delete_index"] }
             ]
           }
 
@@ -26,16 +36,26 @@ setup:
           {
             "password" : "x-pack-test-password",
             "roles" : [ "data_stream_role" ],
-            "full_name" : "user with privileges on data streams but not backing indices"
+            "full_name" : "user with privileges on some data streams"
+          }
+
+  - do:
+      security.put_user:
+        username: "no_authz_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "data_stream_role2" ],
+            "full_name" : "user with privileges on no data streams"
           }
 
   - do:
       allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+        - "index template [my-template1] has index patterns [s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template1
         body:
-          index_patterns: [simple-data-stream1]
+          index_patterns: [s*]
           template:
             mappings:
               properties:
@@ -52,8 +72,18 @@ teardown:
         ignore: 404
 
   - do:
+      security.delete_user:
+        username: "test_user2"
+        ignore: 404
+
+  - do:
       security.delete_role:
         name: "data_stream_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "data_stream_role2"
         ignore: 404
 
 ---
@@ -118,57 +148,6 @@ teardown:
   - is_true: acknowledged
 
 ---
-"Test that requests do not resolve data streams they do not have access to":
-  - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
-
-  - do:
-      allowed_warnings:
-        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
-      indices.put_index_template:
-        name: my-template2
-        body:
-          index_patterns: [restricted-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
-
-  - do: # superuser
-      indices.create_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
-  - do: # superuser
-      indices.create_data_stream:
-        name: restricted-data-stream1
-  - is_true: acknowledged
-
-  - do:
-      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      indices.data_streams_stats: {}
-  - match: { data_stream_count: 1 }
-  - match: { backing_indices: 1 }
-  - length: { data_streams: 1 }
-  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
-  - match: { data_streams.0.backing_indices: 1 }
-  - match: { data_streams.0.maximum_timestamp: 0 }
-
-  - do: # superuser
-      indices.delete_data_stream:
-        name: simple-data-stream1
-  - is_true: acknowledged
-
-  - do: # superuser
-      indices.delete_data_stream:
-        name: restricted-data-stream1
-  - is_true: acknowledged
-
----
 "Test that requests not supporting data streams do not include data streams among authorized indices":
   - skip:
       version: " - 7.99.99"
@@ -197,4 +176,131 @@ teardown:
   - do: # superuser
       indices.delete_data_stream:
         name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Test that create data stream is limited to authorized namespace":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.create_data_stream:
+        name: outside_of_namespace
+
+---
+"Test that get data stream is limited to authorized namespace":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: s-outside-of-authed-namespace
+  - is_true: acknowledged
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.get_data_stream:
+        name: simple-data-stream1
+
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+
+  - do: # superuser
+      indices.get_data_stream:
+        name: "*"
+
+  # superuser should be authorized for both data streams
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.name: s-outside-of-authed-namespace }
+  - match: { data_streams.1.name: simple-data-stream1 }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.get_data_stream:
+        name: "*"
+
+  # test_user should be authorized for only one data stream
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: simple-data-stream1 }
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.get_data_stream:
+        name: outside_of_namespace
+
+  - do:
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      indices.get_data_stream: {}
+
+  # no_authz_user should not be authorized for any data streams
+  - length: { data_streams: 0 }
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: s-outside-of-authed-namespace
+  - is_true: acknowledged
+
+---
+"Test that delete data stream is limited to authorized namespace":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: s-outside-of-authed-namespace
+  - is_true: acknowledged
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.delete_data_stream:
+        name: s-outside-of-authed-namespace
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      indices.delete_data_stream:
+        name: simple-data-stream1
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: s-outside-of-authed-namespace
   - is_true: acknowledged

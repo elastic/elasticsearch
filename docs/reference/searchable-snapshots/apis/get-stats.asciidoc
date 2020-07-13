@@ -15,7 +15,7 @@ Retrieve various statistics about searchable snapshots.
 
 `GET /_searchable_snapshots/stats`
 
-`GET /<index>/_searchable_snapshots/stats`
+`GET /<target>/_searchable_snapshots/stats`
 
 [[searchable-snapshots-api-stats-prereqs]]
 ==== {api-prereq-title}
@@ -32,9 +32,9 @@ For more information, see <<security-privileges>>.
 [[searchable-snapshots-api-stats-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Optional, string)
-A comma-separated list of index names for which the
+A comma-separated list of data streams and indices for which the
 statistics must be retrieved.
 
 

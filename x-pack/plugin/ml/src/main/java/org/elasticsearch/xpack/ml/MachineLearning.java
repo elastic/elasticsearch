@@ -988,10 +988,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         PipelineAggregationSpec spec = new PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
-            in -> new InferencePipelineAggregationBuilder(in, modelLoadingService),
+            in -> new InferencePipelineAggregationBuilder(in, getLicenseState(), modelLoadingService),
             (ContextParser<String, ? extends PipelineAggregationBuilder>)
-                (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, name, parser
-                ));
+                (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, getLicenseState(), name, parser));
         spec.addResultReader(InternalInferenceAggregation::new);
 
         return Collections.singletonList(spec);

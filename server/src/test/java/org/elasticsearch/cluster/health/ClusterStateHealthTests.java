@@ -481,7 +481,8 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        clusterStates.add(ClusterState.builder(clusterState).routingTable(routingTable).build());
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterStates.add(clusterState);
 
         // some replicas started
         indexRoutingTable = routingTable.index(indexName);
@@ -497,7 +498,8 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
-        clusterStates.add(ClusterState.builder(clusterState).routingTable(routingTable).build());
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        clusterStates.add(clusterState);
 
         // all replicas started
         boolean replicaStateChanged = false;

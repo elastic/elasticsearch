@@ -320,6 +320,25 @@ For example, you might opt to shrink an index once it is no longer the write ind
 See the {ref}/indices-shrink-index.html[shrink index API].
 // end::shrink-def[]
 
+[[glossary-snapshot]] snapshot ::
+// tag::snapshot-def[]
+A backup taken from a running {es} cluster.
+A snapshot can include backups of an entire cluster or only data streams and
+indices you specify.
+// end::snapshot-def[]
+
+[[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::
+// tag::snapshot-lifecycle-policy-def[]
+Specifies how frequently to perform automatic backups of a cluster and 
+how long to retain the resulting snapshots. 
+// end::snapshot-lifecycle-policy-def[]
+
+[[glossary-snapshot-repository]] snapshot repository ::
+// tag::snapshot-repository-def[]
+Specifies where snapshots are to be stored. 
+Snapshots can be written to a shared filesystem or to a remote repository.
+// end::snapshot-repository-def[]
+
 [[glossary-source_field]] source field ::
 
 By default, the JSON document that you index will be stored in the

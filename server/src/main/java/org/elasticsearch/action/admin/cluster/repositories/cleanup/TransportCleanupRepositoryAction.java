@@ -81,7 +81,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.GENERIC;
+        return ThreadPool.Names.SAME;
     }
 
     @Inject

@@ -24,10 +24,10 @@ import org.junit.Before;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.hamcrest.Matchers.instanceOf;
@@ -139,19 +139,21 @@ public class SecurityContextTests extends ESTestCase {
     public void testExecuteAfterRewritingAuthenticationShouldRewriteApiKeyMetadataForBwc() throws IOException {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Map<String, Object> metadata = Map.of(
+        final Map<String, Object> metadata = org.elasticsearch.common.collect.Map.of(
             API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
-        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0,
+        final Authentication original = new Authentication(user, authBy, authBy, VERSION_API_KEY_ROLES_AS_BYTES,
             AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
 
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
-            assertEquals(Map.of("a role", Map.of("cluster", List.of("all"))),
+            assertEquals(org.elasticsearch.common.collect.Map.of("a role",
+                org.elasticsearch.common.collect.Map.of("cluster", org.elasticsearch.common.collect.List.of("all"))),
                 authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY));
-            assertEquals(Map.of("limitedBy role", Map.of("cluster", List.of("all"))),
+            assertEquals(org.elasticsearch.common.collect.Map.of("limitedBy role",
+                org.elasticsearch.common.collect.Map.of("cluster", org.elasticsearch.common.collect.List.of("all"))),
                 authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
         }, Version.V_7_8_0);
     }
@@ -159,9 +161,11 @@ public class SecurityContextTests extends ESTestCase {
     public void testExecuteAfterRewritingAuthenticationShouldNotRewriteApiKeyMetadataForOldAuthenticationObject() throws IOException {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
-        final Map<String, Object> metadata = Map.of(
-            API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))),
-            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all")))
+        final Map<String, Object> metadata = org.elasticsearch.common.collect.Map.of(
+            API_KEY_ROLE_DESCRIPTORS_KEY, org.elasticsearch.common.collect.Map.of(
+                "a role", org.elasticsearch.common.collect.Map.of("cluster", org.elasticsearch.common.collect.List.of("all"))),
+            API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, org.elasticsearch.common.collect.Map.of(
+                "limitedBy role", org.elasticsearch.common.collect.Map.of("cluster", org.elasticsearch.common.collect.List.of("all")))
         );
         final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
@@ -169,6 +173,6 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(metadata, authentication.getMetadata());
-        }, randomFrom(Version.V_8_0_0, Version.V_7_8_0));
+        }, randomFrom(VERSION_API_KEY_ROLES_AS_BYTES, Version.V_7_8_0));
     }
 }

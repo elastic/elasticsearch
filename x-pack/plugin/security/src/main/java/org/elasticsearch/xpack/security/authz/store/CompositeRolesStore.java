@@ -321,7 +321,8 @@ public class CompositeRolesStore {
         final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndRoleBytes(authentication, limitedBy);
         final String roleDescriptorsHash = MessageDigests.toHexString(
             MessageDigests.sha256().digest(BytesReference.toBytes(apiKeyIdAndBytes.v2())));
-        final RoleKey roleKey = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), limitedBy ? "apikey_limited_role" : "apikey_role");
+        final RoleKey roleKey = new RoleKey(org.elasticsearch.common.collect.Set.of("apikey:" + roleDescriptorsHash),
+            limitedBy ? "apikey_limited_role" : "apikey_role");
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();

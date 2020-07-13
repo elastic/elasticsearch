@@ -548,7 +548,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes);
         assertEquals(2, roleDescriptors.size());
         assertEquals(
-            Set.of("reporting_user", "superuser"),
+            org.elasticsearch.common.collect.Set.of("reporting_user", "superuser"),
             roleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toSet()));
     }
 
@@ -925,7 +925,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             0,
             new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
-            Map.of("principal", "test_user", "realm", "realm1", "realm_type", "realm_type1", "metadata", Map.of())
+            org.elasticsearch.common.collect.Map.of(
+                "principal", "test_user", "realm", "realm1", "realm_type", "realm_type1", "metadata",
+                org.elasticsearch.common.collect.Map.of())
         );
     }
 }

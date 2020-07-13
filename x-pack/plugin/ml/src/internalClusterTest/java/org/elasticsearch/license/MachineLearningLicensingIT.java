@@ -20,18 +20,18 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -764,12 +764,13 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // index some data
         String index = "inference-agg-licence-test";
-        client().admin().indices().prepareCreate(index).setMapping("feature1", "type=double", "feature2", "type=keyword").get();
-        client().prepareBulk(index)
-            .add(new IndexRequest().source("feature1", "10.0", "feature2", "foo"))
-            .add(new IndexRequest().source("feature1", "20.0", "feature2", "foo"))
-            .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
-            .add(new IndexRequest().source("feature1", "20.0", "feature2", "bar"))
+        client().admin().indices().prepareCreate(index)
+            .addMapping("type", "feature1", "type=double", "feature2", "type=keyword").get();
+        client().prepareBulk()
+            .add(new IndexRequest(index).source("feature1", "10.0", "feature2", "foo"))
+            .add(new IndexRequest(index).source("feature1", "20.0", "feature2", "foo"))
+            .add(new IndexRequest(index).source("feature1", "20.0", "feature2", "bar"))
+            .add(new IndexRequest(index).source("feature1", "20.0", "feature2", "bar"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 

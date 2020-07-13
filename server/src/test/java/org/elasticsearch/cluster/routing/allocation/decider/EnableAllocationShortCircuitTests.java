@@ -220,12 +220,6 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
                 canAllocateAttempts++;
                 return super.canAllocate(indexMetadata, node, allocation);
             }
-
-            @Override
-            public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-                canAllocateAttempts++;
-                return super.canAllocate(node, allocation);
-            }
         }
     }
 }

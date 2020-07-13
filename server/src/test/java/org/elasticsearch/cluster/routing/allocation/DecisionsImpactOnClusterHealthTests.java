@@ -71,14 +71,7 @@ public class DecisionsImpactOnClusterHealthTests extends ESAllocationTestCase {
         Settings settings = Settings.builder()
                                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                                 .build();
-        AllocationDecider decider = new TestAllocateDecision(Decision.THROTTLE) {
-            // the only allocation decider that implements this is ShardsLimitAllocationDecider and it always
-            // returns only YES or NO, never THROTTLE
-            @Override
-            public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-                return randomBoolean() ? Decision.YES : Decision.NO;
-            }
-        };
+        AllocationDecider decider = new TestAllocateDecision(Decision.THROTTLE);
         // if deciders THROTTLE allocating a primary shard, stay in YELLOW state
         runAllocationTest(
             settings, indexName, Collections.singleton(decider), ClusterHealthStatus.YELLOW

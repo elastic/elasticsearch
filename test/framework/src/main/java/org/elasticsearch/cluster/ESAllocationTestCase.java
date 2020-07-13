@@ -222,11 +222,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
             return decision;
         }
-
-        @Override
-        public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-            return decision;
-        }
     }
 
     /** A lock {@link AllocationService} allowing tests to override time */

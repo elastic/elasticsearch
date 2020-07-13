@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
@@ -90,6 +92,9 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -100,12 +105,14 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -1026,9 +1033,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
-        ApiKeyService apiKeyService = new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
+        ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(ThreadPool.class));
+                mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =
@@ -1045,14 +1052,22 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
-
+        final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
         final Authentication authentication = createApiKeyAuthentication(apiKeyService, createAuthentication(),
-                Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)), null);
+            Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
+            null,
+            version);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         Role role = roleFuture.actionGet();
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+
+        if (version == Version.CURRENT) {
+            verify(apiKeyService, times(2)).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
+        } else {
+            verify(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
+        }
         assertThat(role.names().length, is(1));
         assertThat(role.names()[0], containsString("user_role_"));
     }
@@ -1071,9 +1086,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
 
-        ApiKeyService apiKeyService = new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
+        ApiKeyService apiKeyService = spy(new ApiKeyService(SECURITY_ENABLED_SETTINGS, Clock.systemUTC(), mock(Client.class),
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), mock(SecurityIndexManager.class), mock(ClusterService.class),
-                mock(ThreadPool.class));
+                mock(ThreadPool.class)));
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
         doAnswer(invocationOnMock -> {
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =
@@ -1090,16 +1105,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 new XPackLicenseState(SECURITY_ENABLED_SETTINGS), cache, apiKeyService, documentSubsetBitsetCache,
                 rds -> effectiveRoleDescriptors.set(rds));
         AuditUtil.getOrGenerateRequestId(threadContext);
-
+        final Version version = randomFrom(Version.CURRENT, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_8_1));
         final Authentication authentication = createApiKeyAuthentication(apiKeyService, createAuthentication(),
-                Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
-                Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[]{"monitor"}, null, null)));
+            Collections.singleton(new RoleDescriptor("user_role_" + randomAlphaOfLength(4), new String[]{"manage"}, null, null)),
+            Collections.singletonList(new RoleDescriptor("key_role_" + randomAlphaOfLength(8), new String[]{"monitor"}, null, null)),
+            version);
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         Role role = roleFuture.actionGet();
         assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, mock(Authentication.class)), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        if (version == Version.CURRENT) {
+            verify(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), eq(false));
+            verify(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), eq(true));
+        } else {
+            verify(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
+        }
         assertThat(role.names().length, is(1));
         assertThat(role.names()[0], containsString("user_role_"));
     }
@@ -1182,6 +1204,108 @@ public class CompositeRolesStoreTests extends ESTestCase {
             "The role [" + deprecated3.getName() + "] is deprecated and will be removed in a future version of Elasticsearch." +
                 " Please check the documentation"
         );
+    }
+
+    public void testCacheEntryIsReusedForIdenticalApiKeyRoles() {
+        final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(any(Set.class), any(ActionListener.class));
+        final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
+        doCallRealMethod().when(nativeRolesStore).accept(any(Set.class), any(ActionListener.class));
+        when(fileRolesStore.roleDescriptors(anySetOf(String.class))).thenReturn(Collections.emptySet());
+        doAnswer((invocationOnMock) -> {
+            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
+            callback.onResponse(RoleRetrievalResult.failure(new RuntimeException("intentionally failed!")));
+            return null;
+        }).when(nativeRolesStore).getRoleDescriptors(isA(Set.class), any(ActionListener.class));
+        final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
+        ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener =
+                (ActionListener<Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
+            listener.onResponse(Collections.emptyList());
+            return Void.TYPE;
+        }).when(nativePrivStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
+
+        final DocumentSubsetBitsetCache documentSubsetBitsetCache = buildBitsetCache();
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<Collection<RoleDescriptor>>();
+        final CompositeRolesStore compositeRolesStore = new CompositeRolesStore(SECURITY_ENABLED_SETTINGS,
+            fileRolesStore,
+            nativeRolesStore,
+            reservedRolesStore,
+            nativePrivStore,
+            Collections.emptyList(),
+            new ThreadContext(SECURITY_ENABLED_SETTINGS),
+            new XPackLicenseState(SECURITY_ENABLED_SETTINGS),
+            cache,
+            apiKeyService,
+            documentSubsetBitsetCache,
+            rds -> effectiveRoleDescriptors.set(rds));
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final BytesArray roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
+        final BytesArray limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
+        Authentication authentication = new Authentication(new User("test api key user", "superuser"),
+            new RealmRef("_es_api_key", "_es_api_key", "node"),
+            null,
+            Version.CURRENT,
+            AuthenticationType.API_KEY,
+            Map.of(API_KEY_ID_KEY,
+                "key-id-1",
+                API_KEY_ROLE_DESCRIPTORS_KEY,
+                roleBytes,
+                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                limitedByRoleBytes));
+        doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
+
+        PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
+        roleFuture.actionGet();
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        verify(apiKeyService, times(2)).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
+        verify(apiKeyService).parseRoleDescriptors("key-id-1", roleBytes);
+        verify(apiKeyService).parseRoleDescriptors("key-id-1", limitedByRoleBytes);
+
+        // Different API key with the same roles should read from cache
+        authentication = new Authentication(new User("test api key user 2", "superuser"),
+            new RealmRef("_es_api_key", "_es_api_key", "node"),
+            null,
+            Version.CURRENT,
+            AuthenticationType.API_KEY,
+            Map.of(API_KEY_ID_KEY,
+                "key-id-2",
+                API_KEY_ROLE_DESCRIPTORS_KEY,
+                roleBytes,
+                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                limitedByRoleBytes));
+        doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
+        roleFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
+        roleFuture.actionGet();
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        verify(apiKeyService, times(2)).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
+        verify(apiKeyService, never()).parseRoleDescriptors(eq("key-id-2"), any(BytesReference.class));
+
+        // Different API key with the same limitedBy role should read from cache, new role should be built
+        final BytesArray anotherRoleBytes = new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}");
+        authentication = new Authentication(new User("test api key user 2", "superuser"),
+            new RealmRef("_es_api_key", "_es_api_key", "node"),
+            null,
+            Version.CURRENT,
+            AuthenticationType.API_KEY,
+            Map.of(API_KEY_ID_KEY,
+                "key-id-3",
+                API_KEY_ROLE_DESCRIPTORS_KEY,
+                anotherRoleBytes,
+                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                limitedByRoleBytes));
+        doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
+        roleFuture = new PlainActionFuture<>();
+        compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
+        roleFuture.actionGet();
+        assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
+        verify(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), eq(false));
+        verify(apiKeyService).parseRoleDescriptors("key-id-3", anotherRoleBytes);
     }
 
     private Authentication createAuthentication() {

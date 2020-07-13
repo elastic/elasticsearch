@@ -798,6 +798,36 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(AuthenticationResult.Status.SUCCESS, authenticationResult3.getStatus());
     }
 
+    public void testApiKeyDocDeserialization() throws IOException {
+        final String apiKeyDocumentSource =
+            "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":null,\"api_key_invalidated\":false," +
+                "\"api_key_hash\":\"{PBKDF2}10000$abc\",\"role_descriptors\":{\"a\":{\"cluster\":[\"all\"]}}," +
+                "\"limited_by_role_descriptors\":{\"limited_by\":{\"cluster\":[\"all\"]," +
+                "\"metadata\":{\"_reserved\":true},\"type\":\"role\"}}," +
+                "\"name\":\"key-1\",\"version\":7000099," +
+                "\"creator\":{\"principal\":\"admin\",\"metadata\":{\"foo\":\"bar\"},\"realm\":\"file1\",\"realm_type\":\"file\"}}\n";
+        final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE,
+            new BytesArray(apiKeyDocumentSource),
+            XContentType.JSON));
+        assertEquals("api_key", apiKeyDoc.docType);
+        assertEquals(1591919944598L, apiKeyDoc.creationTime);
+        assertEquals(-1L, apiKeyDoc.expirationTime);
+        assertFalse(apiKeyDoc.invalidated);
+        assertEquals("{PBKDF2}10000$abc", apiKeyDoc.hash);
+        assertEquals("key-1", apiKeyDoc.name);
+        assertEquals(7000099, apiKeyDoc.version);
+        assertEquals(new BytesArray("{\"a\":{\"cluster\":[\"all\"]}}"), apiKeyDoc.roleDescriptorsBytes);
+        assertEquals(new BytesArray("{\"limited_by\":{\"cluster\":[\"all\"],\"metadata\":{\"_reserved\":true},\"type\":\"role\"}}"),
+            apiKeyDoc.limitedByRoleDescriptorsBytes);
+
+        final Map<String, Object> creator = apiKeyDoc.creator;
+        assertEquals("admin", creator.get("principal"));
+        assertEquals("file1", creator.get("realm"));
+        assertEquals("file", creator.get("realm_type"));
+        assertEquals("bar", ((Map<String, Object>)creator.get("metadata")).get("foo"));
+    }
+
     public static class Utils {
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
 

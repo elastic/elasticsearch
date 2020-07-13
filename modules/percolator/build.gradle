@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Percolator module adds capability to index queries and query these queries by specifying documents'
@@ -46,3 +46,5 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search', 'msearch'
   }
 }
+
+integTest.enabled = false

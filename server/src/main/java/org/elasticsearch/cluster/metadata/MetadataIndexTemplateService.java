@@ -1125,6 +1125,17 @@ public class MetadataIndexTemplateService {
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;
                 // Parse mappings to ensure they are valid after being composed
+
+                if (template.getDataStreamTemplate() != null) {
+                    // If there is no _data_stream meta field mapper and a data stream should be created then
+                    // fail as if the  data_stream field can't be parsed:
+                    if (tempIndexService.mapperService().isMetadataField("_data_stream_timestamp") == false) {
+                        // Fail like a parsing expection, since we will be moving data_stream template out of server module and
+                        // then we would fail with the same error message, like we do here.
+                        throw new XContentParseException("[index_template] unknown field [data_stream]");
+                    }
+                }
+
                 List<CompressedXContent> mappings = collectMappings(stateWithIndex, templateName, indexName );
                 try {
                     MapperService mapperService = tempIndexService.mapperService();
@@ -1137,16 +1148,7 @@ public class MetadataIndexTemplateService {
                         validateTimestampFieldMapping(tsFieldName, mapperService);
                     }
                 } catch (Exception e) {
-                    final String expectedMessageIfDataStreamsIsUsedAndNotSupported =
-                        "Failed to parse mapping: Root mapping definition has unsupported parameters:  " +
-                            "[_data_stream_timestamp : {path=@timestamp}]";
-                    if (expectedMessageIfDataStreamsIsUsedAndNotSupported.equals(e.getMessage())) {
-                        // Fail like a parsing expection, since we will be moving data_stream template out of server module and
-                        // then we would fail with the same error message, like we do here.
-                        throw new XContentParseException("[index_template] unknown field [data_stream]");
-                    } else {
-                        throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
-                    }
+                    throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);
                 }
                 return null;
             });

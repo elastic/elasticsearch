@@ -146,7 +146,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Long to = (Long) range.getTo();
-                            final long effectiveFrom = hardBounds != null && hardBounds.getMin() != null ?
+                            final long effectiveFrom = (hardBounds != null && hardBounds.getMin() != null) ?
                                 max(from, hardBounds.getMin()) : from;
                             final long effectiveTo = hardBounds != null && hardBounds.getMax() != null ?
                                 min(to, hardBounds.getMax()) : to;

@@ -188,10 +188,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
-        protected AbstractGeometryFieldType(AbstractGeometryFieldType ref) {
-            super(ref);
-        }
-
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
             this.geometryQueryBuilder = geometryQueryBuilder;
         }
@@ -282,11 +278,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     protected abstract void addStoredFields(ParseContext context, Processed geometry);
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
     protected abstract void addMultiFields(ParseContext context, Processed geometry) throws IOException;
-
-    @Override
-    public final boolean parsesArrayValue() {
-        return true;
-    }
 
     /** parsing logic for geometry indexing */
     @Override

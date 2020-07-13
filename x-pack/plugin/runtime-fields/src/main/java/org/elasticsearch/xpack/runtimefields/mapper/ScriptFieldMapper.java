@@ -10,7 +10,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -58,11 +57,11 @@ public final class ScriptFieldMapper extends FieldMapper {
     }
 
     @Override
-    public List<MappedFieldType> convertToSearchTimeMappings() {
-        return List.of(fieldType());
+    public boolean isRuntimeField() {
+        return true;
     }
 
-    public static class Builder extends FieldMapper.Builder<BooleanFieldMapper.Builder> {
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         private final ScriptService scriptService;
 

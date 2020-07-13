@@ -56,16 +56,8 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Collections;
-import java.util.Map;
 
-public class DateFieldTypeTests extends FieldTypeTestCase<DateFieldType> {
-
-
-    @Override
-    protected DateFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new DateFieldType(name, true, true, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-            Resolution.MILLISECONDS, meta);
-    }
+public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static final long nowInMillis = 0;
 

@@ -117,10 +117,6 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         protected AbstractPointGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, hasDocValues, meta);
         }
-
-        protected AbstractPointGeometryFieldType(AbstractPointGeometryFieldType ref) {
-            super(ref);
-        }
     }
 
     protected AbstractPointGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
@@ -128,6 +124,11 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                                                Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
         super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo);
         this.nullValue = nullValue;
+    }
+
+    @Override
+    public final boolean parsesArrayValue() {
+        return true;
     }
 
     @Override

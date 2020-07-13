@@ -33,7 +33,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
  */
 public class TumblingWindow implements Executable {
 
-    private final Logger log = LogManager.getLogger(Matcher.class);
+    private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
     private final QueryClient client;
     private final List<Criterion<BoxedQueryRequest>> criteria;
@@ -41,11 +41,19 @@ public class TumblingWindow implements Executable {
     private final Matcher matcher;
     // shortcut
     private final int maxStages;
+    private final int windowSize;
 
     private long startTime;
 
-    private int baseStage = 0;
-    private Ordinal begin, end;
+    private static class WindowInfo {
+        private final int baseStage;
+        private final Ordinal end;
+
+        WindowInfo(int baseStage, Ordinal end) {
+            this.baseStage = baseStage;
+            this.end = end;
+        }
+    }
 
     public TumblingWindow(QueryClient client,
                           List<Criterion<BoxedQueryRequest>> criteria,
@@ -56,33 +64,35 @@ public class TumblingWindow implements Executable {
         this.until = until;
         this.criteria = criteria;
         this.maxStages = criteria.size();
+        this.windowSize = criteria.get(0).queryRequest().searchSource().size();
 
         this.matcher = matcher;
     }
 
     @Override
     public void execute(ActionListener<Payload> listener) {
-        log.info("Starting sequence window...");
+        log.trace("Starting sequence window w/ fetch size [{}]", windowSize);
         startTime = System.currentTimeMillis();
-        advance(listener);
+        advance(0, listener);
     }
 
-
-    private void advance(ActionListener<Payload> listener) {
+    private void advance(int baseStage, ActionListener<Payload> listener) {
         // initialize
-        log.info("Querying base stage");
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
+        // remove any potential upper limit (if a criteria has been promoted)
+        base.queryRequest().to(null);
 
-        if (end != null) {
-            // pick up where we left of
-            base.queryRequest().next(end);
-        }
-        client.query(base.queryRequest(), wrap(p -> baseCriterion(p, listener), listener::onFailure));
+        log.trace("{}", matcher);
+        log.trace("Querying base stage [{}] {}", base.stage(), base.queryRequest());
+
+        client.query(base.queryRequest(), wrap(p -> baseCriterion(baseStage, p, listener), listener::onFailure));
     }
 
-    private void baseCriterion(Payload p, ActionListener<Payload> listener) {
+    private void baseCriterion(int baseStage, Payload p, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
         List<SearchHit> hits = p.values();
+
+        log.trace("Found [{}] hits", hits.size());
 
         if (hits.isEmpty() == false) {
             if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
@@ -90,19 +100,21 @@ public class TumblingWindow implements Executable {
                 return;
             }
         }
-        // empty or only one result means there aren't going to be any matches
+
+        // only one result means there aren't going to be any matches
         // so move the window boxing to the next stage
         if (hits.size() < 2) {
             // if there are still candidates, advance the window base
             if (matcher.hasCandidates(baseStage) && baseStage + 1 < maxStages) {
-                // swap window begin/end when changing directions
-                if (base.reverse() != criteria.get(baseStage + 1).reverse()) {
-                    Ordinal temp = begin;
-                    begin = end;
-                    end = temp;
+                Runnable next = () -> advance(baseStage + 1, listener);
+
+                if (until != null && hits.size() == 1) {
+                    // find "until" ordinals - early on to discard data in-flight to avoid matching
+                    // hits that can occur in other documents
+                    untilCriterion(new WindowInfo(baseStage, base.ordinal(hits.get(0))), listener, next);
+                } else {
+                    next.run();
                 }
-                baseStage++;
-                advance(listener);
             }
             // there aren't going to be any matches so cancel search
             else {
@@ -112,56 +124,159 @@ public class TumblingWindow implements Executable {
         }
 
         // get borders for the rest of the queries
-        begin = base.ordinal(hits.get(0));
-        end = base.ordinal(hits.get(hits.size() - 1));
+        Ordinal begin = base.ordinal(hits.get(0));
+        Ordinal end = base.ordinal(hits.get(hits.size() - 1));
 
-        // find until ordinals
-        //NB: not currently implemented
+        // update current query for the next request
+        base.queryRequest().nextAfter(end);
+
+        log.trace("Found base [{}] window {}->{}", base.stage(), begin, end);
+
+        WindowInfo info = new WindowInfo(baseStage, end);
 
         // no more queries to run
         if (baseStage + 1 < maxStages) {
-            secondaryCriterion(baseStage + 1, listener);
+            Runnable next = () -> secondaryCriterion(info, baseStage + 1, listener);
+            if (until != null) {
+                // find "until" ordinals - early on to discard data in-flight to avoid matching
+                // hits that can occur in other documents
+                untilCriterion(info, listener, next);
+            } else {
+                next.run();
+            }
         } else {
-            advance(listener);
+            advance(baseStage, listener);
         }
     }
 
-    private void secondaryCriterion(int index, ActionListener<Payload> listener) {
-        Criterion<BoxedQueryRequest> criterion = criteria.get(index);
-        log.info("Querying (secondary) stage {}", criterion.stage());
+    private void untilCriterion(WindowInfo window, ActionListener<Payload> listener, Runnable next) {
+        final BoxedQueryRequest request = until.queryRequest();
 
-        // first box the query
-        BoxedQueryRequest request = criterion.queryRequest();
-        Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
+        // before doing a new query, clean all previous until hits
+        // including dropping any in-flight sequences that were not dropped (because they did not match)
+        matcher.dropUntil();
 
-        // if the base has a different direction, swap begin/end
-        if (criterion.reverse() != base.reverse()) {
-            request.between(end, begin);
-        } else {
-            request.between(begin, end);
-        }
+        final boolean reversed = boxQuery(window, until);
+
+        log.trace("Querying until stage {}", request);
 
         client.query(request, wrap(p -> {
             List<SearchHit> hits = p.values();
-            // no more results in this window so continue in another window
+
+            log.trace("Found [{}] hits", hits.size());
+            // no more results for until - let the other queries run
             if (hits.isEmpty()) {
-                log.info("Advancing window...");
-                advance(listener);
-                return;
-            }
-            // if the limit has been reached, return what's available
-            if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
-                listener.onResponse(payload());
-                return;
+                // put the markers in place before the next call
+                if (reversed) {
+                    request.to(window.end);
+                } else {
+                    request.from(window.end);
+                }
+            } else {
+                // prepare the query for the next search
+                request.nextAfter(until.ordinal(hits.get(hits.size() - 1)));
+
+                // if the limit has been reached, return what's available
+                matcher.until(wrapUntilValues(wrapValues(until, hits)));
             }
 
-            if (index + 1 < maxStages) {
-                secondaryCriterion(index + 1, listener);
-            } else {
-                advance(listener);
+            // keep running the query runs out of the results (essentially returns less than what we want)
+            if (hits.size() == windowSize) {
+                untilCriterion(window, listener, next);
+            }
+            // looks like this stage is done, move on
+            else {
+                // to the next query
+                next.run();
             }
 
         }, listener::onFailure));
+    }
+
+    private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
+        final Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
+        final BoxedQueryRequest request = criterion.queryRequest();
+
+        final boolean reversed = boxQuery(window, criterion);
+
+        log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
+
+        client.query(request, wrap(p -> {
+            List<SearchHit> hits = p.values();
+
+            log.trace("Found [{}] hits", hits.size());
+
+            // no more results for this query
+            if (hits.isEmpty()) {
+                // put the markers in place before the next call
+                if (reversed) {
+                    request.to(window.end);
+                } else {
+                    request.from(window.end);
+                }
+
+                // if there are no candidates, advance the window
+                if (matcher.hasCandidates(criterion.stage()) == false) {
+                    log.trace("Advancing window...");
+                    advance(window.baseStage, listener);
+                    return;
+                }
+                // otherwise let the other queries run to allow potential matches with the existing candidates
+            }
+            else {
+                // prepare the query for the next search
+                request.nextAfter(criterion.ordinal(hits.get(hits.size() - 1)));
+
+                // if the limit has been reached, return what's available
+                if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
+                    listener.onResponse(payload());
+                    return;
+                }
+            }
+
+            // keep running the query runs out of the results (essentially returns less than what we want)
+            if (hits.size() == windowSize) {
+                secondaryCriterion(window, currentStage, listener);
+            }
+            // looks like this stage is done, move on
+            else {
+                // to the next query
+                if (currentStage + 1 < maxStages) {
+                    secondaryCriterion(window, currentStage + 1, listener);
+                }
+                // or to the next window
+                else {
+                    advance(window.baseStage, listener);
+                }
+            }
+
+        }, listener::onFailure));
+    }
+
+    /**
+     * Box the query for the given criterion based on the window information.
+     * Returns a boolean indicating whether reversal has been applied or not.
+     */
+    private boolean boxQuery(WindowInfo window, Criterion<BoxedQueryRequest> criterion) {
+        final BoxedQueryRequest request = criterion.queryRequest();
+        Criterion<BoxedQueryRequest> base = criteria.get(window.baseStage);
+
+        // first box the query
+        // only the first base can be descending
+        // all subsequence queries are ascending
+        if (criterion.reverse() != base.reverse()) {
+            if (window.end.equals(request.from()) == false) {
+                // if that's the case, set the starting point
+                request.from(window.end);
+                // reposition the pointer
+                request.nextAfter(window.end);
+            }
+        } else {
+            // otherwise just the upper limit
+            request.to(window.end);
+        }
+
+        return criterion.reverse() != base.reverse();
     }
 
     Iterable<Tuple<KeyAndOrdinal, SearchHit>> wrapValues(Criterion<?> criterion, List<SearchHit> hits) {
@@ -181,6 +296,25 @@ public class TumblingWindow implements Executable {
                     SequenceKey k = criterion.key(hit);
                     Ordinal o = criterion.ordinal(hit);
                     return new Tuple<>(new KeyAndOrdinal(k, o), hit);
+                }
+            };
+        };
+    }
+
+    Iterable<KeyAndOrdinal> wrapUntilValues(Iterable<Tuple<KeyAndOrdinal, SearchHit>> iterable) {
+        return () -> {
+            final Iterator<Tuple<KeyAndOrdinal, SearchHit>> iter = iterable.iterator();
+
+            return new Iterator<>() {
+
+                @Override
+                public boolean hasNext() {
+                    return iter.hasNext();
+                }
+
+                @Override
+                public KeyAndOrdinal next() {
+                    return iter.next().v1();
                 }
             };
         };

@@ -28,18 +28,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldTypeTests extends ESTestCase {
-
-    public void testEqualsHashCode() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(IndexFieldMapper.IndexFieldType.INSTANCE,
-            IndexFieldMapper.IndexFieldType::new);
-    }
 
     public void testPrefixQuery() {
         MappedFieldType ft = IndexFieldMapper.IndexFieldType.INSTANCE;

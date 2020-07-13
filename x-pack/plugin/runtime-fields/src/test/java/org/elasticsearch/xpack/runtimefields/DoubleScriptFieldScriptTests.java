@@ -19,13 +19,14 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
-    DoubleScriptFieldScript,
     DoubleScriptFieldScript.Factory,
     DoubleScriptFieldScript.LeafFactory,
     Double> {
@@ -112,11 +113,15 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected DoubleScriptFieldScript newInstance(
-        DoubleScriptFieldScript.LeafFactory leafFactory,
-        LeafReaderContext context,
-        List<Double> result
-    ) throws IOException {
-        return leafFactory.newInstance(context, result::add);
+    protected IntFunction<List<Double>> newInstance(DoubleScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context)
+        throws IOException {
+        List<Double> results = new ArrayList<>();
+        DoubleScriptFieldScript script = leafFactory.newInstance(context, results::add);
+        return docId -> {
+            results.clear();
+            script.setDocument(docId);
+            script.execute();
+            return results;
+        };
     }
 }

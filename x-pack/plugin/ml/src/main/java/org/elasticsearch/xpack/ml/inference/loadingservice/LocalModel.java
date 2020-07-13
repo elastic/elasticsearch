@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
@@ -78,7 +79,21 @@ public class LocalModel {
             persistenceQuotient = 10_000;
         }
     }
-    
+
+    /**
+     * Infers without updating the stats.
+     * This is mainly for usage by data frame analytics jobs
+     * when they do inference against test data.
+     */
+    public InferenceResults inferNoStats(Map<String, Object> fields) {
+        LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
+        Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
+        if (flattenedFields.isEmpty()) {
+            new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
+        }
+        return trainedModelDefinition.infer(flattenedFields, inferenceConfig);
+    }
+
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
         if (update.isSupported(this.inferenceConfig) == false) {
             listener.onFailure(ExceptionsHelper.badRequestException(
@@ -114,6 +129,22 @@ public class LocalModel {
             statsAccumulator.incFailure();
             listener.onFailure(e);
         }
+    }
+
+    public InferenceResults infer(Map<String, Object> fields, InferenceConfigUpdate update) throws Exception {
+        AtomicReference<InferenceResults> result = new AtomicReference<>();
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<InferenceResults> listener = ActionListener.wrap(
+            result::set,
+            exception::set
+        );
+
+        infer(fields, update, listener);
+        if (exception.get() != null) {
+            throw exception.get();
+        }
+
+        return result.get();
     }
 
     /**

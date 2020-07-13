@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Collections;
 
@@ -60,15 +59,5 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         fieldNamesFieldType.setEnabled(false);
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> fieldNamesFieldType.termQuery("field_name", null));
         assertEquals("Cannot run [exists] queries if the [_field_names] field is disabled", e.getMessage());
-    }
-
-    public void testHashcodeAndEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new FieldNamesFieldMapper.FieldNamesFieldType(),
-            FieldNamesFieldMapper.FieldNamesFieldType::clone,
-            t -> {
-                FieldNamesFieldMapper.FieldNamesFieldType m = t.clone();
-                m.setEnabled(false);
-                return m;
-            });
     }
 }

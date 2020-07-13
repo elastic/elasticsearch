@@ -20,7 +20,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * State machine that holds and manages all in-flight sequences.
+ * Matcher of sequences. Keeps track of on-going sequences and advancing them through each stage.
  */
 public class SequenceMatcher {
 
@@ -65,8 +65,7 @@ public class SequenceMatcher {
     private final List<Sequence> completed;
     private final long maxSpanInMillis;
 
-    private int offset = 0;
-    private int limit = -1;
+    private Limit limit;
     private boolean limitReached = false;
 
     private final Stats stats = new Stats();
@@ -82,11 +81,8 @@ public class SequenceMatcher {
 
         this.maxSpanInMillis = maxSpan.millis();
 
-        // limit && offset
-        if (limit != null) {
-            this.offset = limit.offset;
-            this.limit = limit.absLimit();
-        }
+        // limit
+        this.limit = limit;
     }
 
     public void trackSequence(Sequence sequence) {
@@ -180,15 +176,10 @@ public class SequenceMatcher {
 
         // bump the stages
         if (stage == completionStage) {
-            // add the sequence only if needed
-            if (offset > 0) {
-                offset--;
-            } else {
-                if (limit < 0 || (limit > 0 && completed.size() < limit)) {
-                    completed.add(sequence);
-                    // update the bool lazily
-                    limitReached = limit > 0 && completed.size() == limit;
-                }
+            if (limitReached == false) {
+                completed.add(sequence);
+                // update the bool lazily
+                limitReached = limit != null && completed.size() == limit.totalLimit();
             }
         } else {
             stageToKeys.add(stage, key);
@@ -218,7 +209,8 @@ public class SequenceMatcher {
 
     public Payload payload(long startTime) {
         TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
-        Payload p = new SequencePayload(completed, false, tookTime);
+        List<Sequence> view = limit != null ? limit.view(completed) : completed;
+        Payload p = new SequencePayload(view, false, tookTime);
         clear();
         return p;
     }

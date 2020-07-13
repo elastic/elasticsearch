@@ -42,16 +42,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScript, F, LF, R> extends ESTestCase {
+public abstract class ScriptFieldScriptTestCase<F, LF, R> extends ESTestCase {
     protected abstract ScriptContext<F> scriptContext();
 
     protected abstract LF newLeafFactory(F factory, Map<String, Object> params, SearchLookup searchLookup);
 
-    protected abstract S newInstance(LF leafFactory, LeafReaderContext context, List<R> results) throws IOException;
+    protected abstract IntFunction<List<R>> newInstance(LF leafFactory, LeafReaderContext context) throws IOException;
 
     protected final List<R> execute(CheckedConsumer<RandomIndexWriter, IOException> indexBuilder, String script, MappedFieldType... types)
         throws IOException {
@@ -92,15 +93,14 @@ public abstract class ScriptFieldScriptTestCase<S extends AbstractScriptFieldScr
 
                         @Override
                         public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-                            S compiled = newInstance(leafFactory, context, result);
+                            IntFunction<List<R>> compiled = newInstance(leafFactory, context);
                             return new LeafCollector() {
                                 @Override
                                 public void setScorer(Scorable scorer) {}
 
                                 @Override
-                                public void collect(int doc) {
-                                    compiled.setDocument(doc);
-                                    compiled.execute();
+                                public void collect(int docId) {
+                                    result.addAll(compiled.apply(docId));
                                 }
                             };
                         }

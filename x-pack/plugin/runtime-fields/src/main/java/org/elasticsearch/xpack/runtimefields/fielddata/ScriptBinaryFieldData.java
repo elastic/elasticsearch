@@ -102,10 +102,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
     @Override
     public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        ScriptBinaryResult scriptBinaryResult = new ScriptBinaryResult();
-        return new ScriptBinaryLeafFieldData(
-            new ScriptBinaryDocValues(leafFactory.get().newInstance(context, scriptBinaryResult::accept), scriptBinaryResult)
-        );
+        return new ScriptBinaryLeafFieldData(new ScriptBinaryDocValues(leafFactory.get().newInstance(context)));
     }
 
     @Override

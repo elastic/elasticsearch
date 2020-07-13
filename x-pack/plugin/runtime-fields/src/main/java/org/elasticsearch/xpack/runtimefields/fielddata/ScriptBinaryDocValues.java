@@ -9,30 +9,26 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
+import java.util.List;
+
 public final class ScriptBinaryDocValues extends SortingBinaryDocValues {
-
     private final StringScriptFieldScript script;
-    private final ScriptBinaryFieldData.ScriptBinaryResult scriptBinaryResult;
 
-    ScriptBinaryDocValues(StringScriptFieldScript script, ScriptBinaryFieldData.ScriptBinaryResult scriptBinaryResult) {
+    ScriptBinaryDocValues(StringScriptFieldScript script) {
         this.script = script;
-        this.scriptBinaryResult = scriptBinaryResult;
     }
 
     @Override
-    public boolean advanceExact(int doc) {
-        script.setDocument(doc);
-        script.execute();
-
-        count = scriptBinaryResult.getResult().size();
+    public boolean advanceExact(int docId) {
+        List<String> results = script.resultsForDoc(docId);
+        count = results.size();
         if (count == 0) {
-            grow();
             return false;
         }
 
+        grow();
         int i = 0;
-        for (String value : scriptBinaryResult.getResult()) {
-            grow();
+        for (String value : results) {
             values[i++].copyChars(value);
         }
         sort();

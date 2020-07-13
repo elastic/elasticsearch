@@ -53,7 +53,7 @@ public final class IndicesPermission {
 
     private static final Set<String> privilegeNameSetBwcAllowMappingUpdate = Set.of("create", "create_doc", "index", "write");
 
-    private final ConcurrentMap<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
+    private final Map<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
     private final Group[] groups;
 
@@ -141,7 +141,7 @@ public final class IndicesPermission {
      * checked on the coordinating node), and properly authorized later at the shard level checking their indices as well.
      */
     public boolean check(String action) {
-        final boolean isMappingUpdateAction = action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
+        final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (Group group : groups) {
             if (group.checkAction(action) || (isMappingUpdateAction &&
                     group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains))) {
@@ -229,7 +229,7 @@ public final class IndicesPermission {
         Map<String, DocumentLevelPermissions> roleQueriesByIndex = new HashMap<>();
         Map<String, Boolean> grantedBuilder = new HashMap<>();
 
-        final boolean isMappingUpdateAction = action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
+        final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
             final boolean isBackingIndex;
@@ -260,10 +260,12 @@ public final class IndicesPermission {
                         (isBackingIndex && group.checkIndex(indexAbstraction.getParentDataStream().getName()));
                 if (indexCheck) {
                     boolean actionCheck = group.checkAction(action);
+                    granted = granted || actionCheck;
                     // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
                     // outside of the privilege definition
                     boolean bwcMappingActionCheck = isMappingUpdateAction && false == isDataStream && false == isBackingIndex &&
                             group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains);
+                    bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
                     if (actionCheck || bwcMappingActionCheck) {
                         // propagate DLS and FLS permissions over the concrete indices
                         for (String index : concreteIndices) {
@@ -283,8 +285,6 @@ public final class IndicesPermission {
                             }
                         }
                     }
-                    granted |= actionCheck;
-                    bwcGrantMappingUpdate |= bwcMappingActionCheck;
                     if (false == actionCheck && bwcMappingActionCheck) {
                         for (String privilegeName : group.privilege.name()) {
                             if (privilegeNameSetBwcAllowMappingUpdate.contains(privilegeName)) {
@@ -346,6 +346,10 @@ public final class IndicesPermission {
             return false;
         }
         return RestrictedIndicesNames.isRestricted(indexPattern);
+    }
+
+    private static boolean isMappingUpdateAction(String action) {
+        return action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
     }
 
     public static class Group {
@@ -420,7 +424,7 @@ public final class IndicesPermission {
             final Set<String> restrictedIndices = new HashSet<>();
             final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
             final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
-            final boolean isMappingUpdateAction = action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
+            final boolean isMappingUpdateAction = isMappingUpdateAction(action);
             for (final Group group : groups) {
                 if (group.actionMatcher.test(action)) {
                     if (group.allowRestrictedIndices) {

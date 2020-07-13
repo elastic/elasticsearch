@@ -772,6 +772,38 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             "hard bounds: [2019-08-02T01:00:00--2019-08-02T08:00:00], extended bounds: [2019-08-02T00:00:00--2019-08-02T10:00:00]"));
     }
 
+    public void testEqualBounds() throws Exception {
+        RangeFieldMapper.Range range1 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T02:15:00"),
+            asLong("2019-08-02T05:45:00"), true, true);
+        RangeFieldMapper.Range range2 = new RangeFieldMapper.Range(RangeType.DATE, asLong("2019-08-02T05:15:00"),
+            asLong("2019-08-02T17:45:00"), true, true);
+
+        testCase(
+            Queries.newMatchAllQuery(),
+            builder -> builder.calendarInterval(DateHistogramInterval.HOUR)
+                .hardBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00"))
+                .extendedBounds(new LongBounds("2019-08-02T00:00:00", "2019-08-02T10:00:00")),
+            writer -> {
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range1)))));
+                writer.addDocument(singleton(new BinaryDocValuesField(FIELD_NAME, RangeType.DATE.encodeRanges(singleton(range2)))));
+            },
+            histo -> {
+                assertEquals(11, histo.getBuckets().size());
+
+                assertEquals(asZDT("2019-08-02T00:00:00"), histo.getBuckets().get(0).getKey());
+                assertEquals(0, histo.getBuckets().get(0).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T02:00:00"), histo.getBuckets().get(2).getKey());
+                assertEquals(1, histo.getBuckets().get(2).getDocCount());
+
+                assertEquals(asZDT("2019-08-02T10:00:00"), histo.getBuckets().get(10).getKey());
+                assertEquals(1, histo.getBuckets().get(10).getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(histo));
+            }
+        );
+    }
+
     private void testCase(Query query,
                           Consumer<DateHistogramAggregationBuilder> configure,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,

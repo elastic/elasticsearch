@@ -39,6 +39,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Represent hard_bounds and extended_bounds in date-histogram aggregations.
+ *
+ * This class is similar to {@link DoubleBounds} used in histograms, but is using longs to store data. LongBounds and DoubleBounds are
+ *  * not used interchangeably and therefore don't share any common interfaces except for serialization.
+ */
 public class LongBounds implements ToXContentFragment, Writeable {
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
@@ -215,11 +221,11 @@ public class LongBounds implements ToXContentFragment, Writeable {
         return max;
     }
 
-    public boolean contain(long time) {
-        if (max != null && time >= max) {
+    public boolean contain(long value) {
+        if (max != null && value >= max) {
             return false;
         }
-        if (min != null && time < min) {
+        if (min != null && value < min) {
             return false;
         }
         return true;

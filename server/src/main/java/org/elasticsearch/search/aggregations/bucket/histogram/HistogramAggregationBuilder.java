@@ -89,6 +89,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     private double interval;
     private double offset = 0;
+    //TODO: Replace with DoubleBounds
     private double minBound = Double.POSITIVE_INFINITY;
     private double maxBound = Double.NEGATIVE_INFINITY;
     private DoubleBounds hardBounds;

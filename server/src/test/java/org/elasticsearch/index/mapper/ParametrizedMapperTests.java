@@ -65,6 +65,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             = Parameter.boolParam("fixed2", false, m -> toType(m).fixed2, false);
         final Parameter<String> variable
             = Parameter.stringParam("variable", true, m -> toType(m).variable, "default").acceptsNull();
+        final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> toType(m).index, true);
 
         protected Builder(String name) {
             super(name);
@@ -72,7 +73,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(fixed, fixed2, variable);
+            return List.of(fixed, fixed2, variable, index);
         }
 
         @Override
@@ -97,6 +98,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         private final boolean fixed;
         private final boolean fixed2;
         private final String variable;
+        private final boolean index;
 
         protected TestMapper(String simpleName, String fullName, MultiFields multiFields, CopyTo copyTo,
                              ParametrizedMapperTests.Builder builder) {
@@ -104,6 +106,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             this.fixed = builder.fixed.getValue();
             this.fixed2 = builder.fixed2.getValue();
             this.variable = builder.variable.getValue();
+            this.index = builder.index.getValue();
         }
 
         @Override
@@ -122,7 +125,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    private static TestMapper fromMapping(String mapping) {
+    private static TestMapper fromMapping(String mapping, Version version) {
         Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, null, s -> {
             if (Objects.equals("keyword", s)) {
                 return new KeywordFieldMapper.TypeParser();
@@ -131,10 +134,14 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 return new BinaryFieldMapper.TypeParser();
             }
             return null;
-        }, Version.CURRENT, () -> null);
+        }, version, () -> null);
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+    }
+
+    private static TestMapper fromMapping(String mapping) {
+        return fromMapping(mapping, Version.CURRENT);
     }
 
     // defaults - create empty builder config, and serialize with and without defaults
@@ -152,7 +159,8 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         builder.startObject();
         mapper.toXContent(builder, params);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true,\"fixed2\":false,\"variable\":\"default\"}}",
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true," +
+                "\"fixed2\":false,\"variable\":\"default\",\"index\":true}}",
             Strings.toString(builder));
     }
 
@@ -243,8 +251,18 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
         indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertEquals(mapping, Strings.toString(indexService.mapperService().documentMapper()));
+    }
 
+    public void testDeprecatedParameters() throws IOException {
+        // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
+        String mapping = "{\"type\":\"test_mapper\",\"index\":false,\"store\":true}";
+        TestMapper mapper = fromMapping(mapping, Version.V_7_8_0);
+        assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
+        assertFalse(mapper.index);
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"index\":false}}", Strings.toString(mapper));
 
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> fromMapping(mapping, Version.V_8_0_0));
+        assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }
 
 }

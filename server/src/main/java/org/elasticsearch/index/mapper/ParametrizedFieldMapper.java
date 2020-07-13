@@ -20,6 +20,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -31,6 +33,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -45,6 +48,8 @@ import java.util.function.Function;
  * {@link #getMergeBuilder()} method, initialised with the existing builder.
  */
 public abstract class ParametrizedFieldMapper extends FieldMapper {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParametrizedFieldMapper.class);
 
     /**
      * Creates a new ParametrizedFieldMapper
@@ -330,6 +335,12 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 }
                 Parameter<?> parameter = paramsMap.get(propName);
                 if (parameter == null) {
+                    if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
+                        deprecationLogger.deprecate(propName,
+                            "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
+                        iterator.remove();
+                        continue;
+                    }
                     throw new MapperParsingException("unknown parameter [" + propName
                         + "] on mapper [" + name + "] of type [" + type + "]");
                 }
@@ -340,6 +351,19 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 parameter.parse(name, propNode);
                 iterator.remove();
             }
+        }
+
+        // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they
+        // made no sense; if we've got here, that means that they're not declared on a current mapper,
+        // and so we emit a deprecation warning rather than failing a previously working mapping.
+        private static final Set<String> DEPRECATED_PARAMS
+            = Set.of("store", "meta", "index", "doc_values", "boost", "index_options", "similarity");
+
+        private static boolean isDeprecatedParameter(String propName, Version indexCreatedVersion) {
+            if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+                return false;
+            }
+            return DEPRECATED_PARAMS.contains(propName);
         }
     }
 }

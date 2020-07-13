@@ -152,8 +152,8 @@ may be set to false.
 *Details* +
 The `kibana` user was historically used to authenticate {kib} to {es}.
 The name of this user was confusing, and was often mistakenly used to login to {kib}.
-This has been renamed to `kibana_system` in order to reduce confusion, and to better
-align with other built-in system accounts.
+We've replaced the `kibana` user with the `kibana_system` user to reduce
+confusion and to better align with other built-in system accounts.
 
 *Impact* +
 If your `kibana.yml` used to contain:
@@ -167,6 +167,9 @@ then you should update to use the new `kibana_system` user instead:
 --------------------------------------------------
 elasticsearch.username: kibana_system
 --------------------------------------------------
+
+IMPORTANT: The new `kibana_system` user does not preserve the previous `kibana`
+user password. You must explicitly set a password for the `kibana_system` user.
 ====
 
 

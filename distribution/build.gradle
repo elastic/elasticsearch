@@ -259,6 +259,7 @@ copyModule(processSystemdOutputs, project(':modules:systemd'))
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   apply plugin: 'elasticsearch.jdk-download'
+  apply plugin: 'elasticsearch.repositories'
 
   // Setup all required JDKs
   project.jdks {
@@ -278,6 +279,31 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   /*****************************************************************************
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
+  configurations {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+      create(it) {
+        canBeConsumed = false
+        canBeResolved = true
+        attributes {
+          attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+          attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+          attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+        }
+      }
+    }
+  }
+
+  dependencies {
+    libs project(':server')
+    libs project(':libs:elasticsearch-plugin-classloader')
+    libs project(':distribution:tools:java-version-checker')
+    libs project(':distribution:tools:launchers')
+
+    libsPluginCli project(':distribution:tools:plugin-cli')
+    libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
+    libsSecurityCli project(':x-pack:plugin:security:cli')
+  }
+
   project.ext {
 
     /*****************************************************************************
@@ -286,22 +312,16 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libFiles = { oss ->
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
-        from { project(':server').jar }
-        from { project(':server').configurations.runtimeClasspath }
-        from { project(':libs:elasticsearch-plugin-classloader').jar }
-        from { project(':distribution:tools:java-version-checker').jar }
-        from { project(':distribution:tools:launchers').jar }
+        from(configurations.libs)
         into('tools/plugin-cli') {
-          from { project(':distribution:tools:plugin-cli').jar }
-          from { project(':distribution:tools:plugin-cli').configurations.runtimeClasspath }
+          from(configurations.libsPluginCli)
         }
         into('tools/keystore-cli') {
-          from { project(':distribution:tools:keystore-cli').jar }
+          from(configurations.libsKeystoreCli)
         }
         if (oss == false) {
           into('tools/security-cli') {
-            from { project(':x-pack:plugin:security:cli').jar }
-            from { project(':x-pack:plugin:security:cli').configurations.runtimeClasspath }
+            from(configurations.libsSecurityCli)
           }
         }
       }
@@ -613,14 +633,14 @@ subprojects {
 }
 
 ['archives:windows-zip', 'archives:oss-windows-zip',
-  'archives:darwin-tar', 'archives:oss-darwin-tar',
-  'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
-  'archives:linux-tar', 'archives:oss-linux-tar',
-  'archives:integ-test-zip',
-  'packages:rpm', 'packages:deb',
-  'packages:aarch64-rpm', 'packages:aarch64-deb',
-  'packages:oss-rpm', 'packages:oss-deb',
-  'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
+ 'archives:darwin-tar', 'archives:oss-darwin-tar',
+ 'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
+ 'archives:linux-tar', 'archives:oss-linux-tar',
+ 'archives:integ-test-zip',
+ 'packages:rpm', 'packages:deb',
+ 'packages:aarch64-rpm', 'packages:aarch64-deb',
+ 'packages:oss-rpm', 'packages:oss-deb',
+ 'packages:aarch64-oss-rpm', 'packages:aarch64-oss-deb'
 ].forEach { subName ->
   Project subproject = project("${project.path}:${subName}")
   Configuration configuration = configurations.create(subproject.name)

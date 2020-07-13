@@ -866,8 +866,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(2),
                 equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
-            assertThat(parsedMappings.get(3),
-                equalTo(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", DEFAULT_TIMESTAMP_FIELD)))));
         }
 
         {
@@ -972,8 +970,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
             assertThat(parsedMappings.get(1),
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date_nanos"))))));
-            assertThat(parsedMappings.get(2),
-                equalTo(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", DEFAULT_TIMESTAMP_FIELD)))));
         }
 
         {
@@ -1009,8 +1005,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date"))))));
             assertThat(parsedMappings.get(1),
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date_nanos"))))));
-            assertThat(parsedMappings.get(2),
-                equalTo(Map.of("_doc", Map.of(TimestampFieldMapper.NAME, Map.of("path", DEFAULT_TIMESTAMP_FIELD)))));
         }
     }
 

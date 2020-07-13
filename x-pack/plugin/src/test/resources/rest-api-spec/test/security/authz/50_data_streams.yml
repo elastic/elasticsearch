@@ -308,7 +308,7 @@ teardown:
   - is_true: acknowledged
 
 ---
-"Managed_admin_ops permits auto-create of data streams":
+"auto_configure privilege permits auto-create of data streams":
   - skip:
       version: " - 7.99.99"
       reason: "change to 7.8.99 after backport"
@@ -335,7 +335,7 @@ teardown:
         body:  >
           {
             "indices": [
-              { "names": ["simple-allows-managed-ops"], "privileges": ["create_doc", "managed_admin_ops"] },
+              { "names": ["simple-allows-auto-configure"], "privileges": ["create_doc", "auto_configure"] },
               { "names": ["simple-data-stream1"], "privileges": ["create_doc"] }
             ]
           }
@@ -344,16 +344,16 @@ teardown:
       security.clear_cached_roles:
         name: "data_stream_role"
 
-  # should succeed because test_user is authorized for managed_admin_ops on simple-allows-managed-ops
+  # should succeed because test_user is authorized for auto_configure on simple-allows-auto-configure
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        index:  simple-allows-managed-ops
+        index:  simple-allows-auto-configure
         id:       1
         op_type:  create
         body:   { foo: bar, "@timestamp": "2020-12-12" }
 
-  # should fail because test_user is not authorized for managed_admin_ops on simple-data-stream1
+  # should fail because test_user is not authorized for auto_configure on simple-data-stream1
   - do:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
@@ -365,5 +365,5 @@ teardown:
 
   - do: # superuser
       indices.delete_data_stream:
-        name: simple-allows-managed-ops
+        name: simple-allows-auto-configure
   - is_true: acknowledged

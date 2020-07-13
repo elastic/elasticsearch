@@ -15,7 +15,7 @@ setup:
         body:  >
           {
             "indices": [
-              { "names": ["index-managed-admin-ops"], "privileges": ["create_doc", "managed_admin_ops"] },
+              { "names": ["index-auto-configure"], "privileges": ["create_doc", "auto_configure"] },
               { "names": ["index-limited"], "privileges": ["create_doc"] }
             ]
           }
@@ -56,22 +56,22 @@ teardown:
         ignore: 404
 
 ---
-"Managed_admin_ops permits auto-create of indices":
+"auto_configure privilege permits auto-create of indices":
   - skip:
       version: " - 7.99.99"
       reason: "change to 7.8.99 after backport"
       features: ["headers", "allowed_warnings"]
 
-  # should succeed because test_user is authorized for managed_admin_ops on index-managed-admin-ops
+  # should succeed because test_user is authorized for auto_configure on index-auto-configure
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
-        index:  index-managed-admin-ops
+        index:  index-auto-configure
         id:       1
         op_type:  create
         body:   { foo: bar, "@timestamp": "2020-12-12" }
 
-  # should fail because test_user is not authorized for managed_admin_ops on index-limited
+  # should fail because test_user is not authorized for auto_configure on index-limited
   - do:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user

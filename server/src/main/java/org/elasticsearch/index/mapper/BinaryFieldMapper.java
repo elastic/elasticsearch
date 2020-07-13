@@ -58,8 +58,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
         private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
         private final Parameter<Boolean> hasDocValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  false);
-        private final Parameter<Map<String, String>> meta
-            = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
             this(name, false);
@@ -101,16 +100,6 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         public BinaryFieldType(String name) {
             this(name, true, Collections.emptyMap());
         }
-
-        protected BinaryFieldType(BinaryFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new BinaryFieldType(this);
-        }
-
 
         @Override
         public String typeName() {

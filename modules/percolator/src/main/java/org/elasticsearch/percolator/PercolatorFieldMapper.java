@@ -199,21 +199,6 @@ public class PercolatorFieldMapper extends FieldMapper {
             super(name, false, false, TextSearchInfo.NONE, meta);
         }
 
-        PercolatorFieldType(PercolatorFieldType ref) {
-            super(ref);
-            queryTermsField = ref.queryTermsField;
-            extractionResultField = ref.extractionResultField;
-            queryBuilderField = ref.queryBuilderField;
-            rangeField = ref.rangeField;
-            minimumShouldMatchField = ref.minimumShouldMatchField;
-            mapUnmappedFieldsAsText = ref.mapUnmappedFieldsAsText;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new PercolatorFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

@@ -106,7 +106,7 @@ You can retrieve the last value in a similar way:
 
 [discrete]
 [[painless-time-features]]
-==== Getting time features as scripted fields
+==== Getting time features in aggregations
 
 This snippet shows how to extract time based features by using Painless in a 
 {transform}. The snippet uses an index where `@timestamp` is defined as a `date` 

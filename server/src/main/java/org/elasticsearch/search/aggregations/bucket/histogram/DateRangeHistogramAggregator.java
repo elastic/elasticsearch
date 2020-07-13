@@ -148,7 +148,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                             final Long to = (Long) range.getTo();
                             final long effectiveFrom = (hardBounds != null && hardBounds.getMin() != null) ?
                                 max(from, hardBounds.getMin()) : from;
-                            final long effectiveTo = hardBounds != null && hardBounds.getMax() != null ?
+                            final long effectiveTo = (hardBounds != null && hardBounds.getMax() != null) ?
                                 min(to, hardBounds.getMax()) : to;
                             final long startKey = preparedRounding.round(effectiveFrom);
                             final long endKey =  preparedRounding.round(effectiveTo);

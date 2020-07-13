@@ -621,7 +621,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Builds a {@linkplain Function} to lookup mappers for a request, adding
      * any {@code extraMapping} provided.
-     * @param extraMapping extra mappings parse and to add to the request
+     * @param runtimeMappings extra mappings parse and to add to the request
      *        lookup or {@code null} if there aren't any extra mappings  
      */
     public Function<String, MappedFieldType> newFieldTypeLookup(Map<String, Object> runtimeMappings) {
@@ -629,7 +629,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return this::fieldType;
         }
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(0));
-        Map<String, MappedFieldType> extra = new HashMap<>();
         Collection<ObjectMapper> objectMappers = new ArrayList<>();
         Collection<FieldMapper> fieldMappers = new ArrayList<>();
         Collection<FieldAliasMapper> fieldAliasMappers = new ArrayList<>();
@@ -651,6 +650,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         }
         // We don't do anything with the collected ObjectMappers
+        Map<String, MappedFieldType> extra = new HashMap<>();
         for (FieldMapper fm : fieldMappers) {
             if (false == fm.isRuntimeField()) {
                 throw new IllegalArgumentException(

@@ -2115,7 +2115,7 @@ Contains indexing pressure statistics for the node.
 (object)
 Contains statistics for cumulative indexing load since the node started.
 +
-.Properties of `<circuit_breaker_name>`
+.Properties of `<total>`
 [%collapsible%open]
 =======
 `coordinating_and_primary_bytes`::
@@ -2142,7 +2142,7 @@ Rejections of indexing requests in the replica stage.
 (object)
 Contains statistics for current indexing load.
 +
-.Properties of `<circuit_breaker_name>`
+.Properties of `<current>`
 [%collapsible%open]
 =======
 `coordinating_and_primary_bytes`::

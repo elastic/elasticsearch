@@ -3,7 +3,7 @@
 
 Indexing documents into Elasticsearch introduces system load in the form of
 memory and CPU load. Each indexing operation includes coordinating, primary, and
-replica steps. These steps can be performed across multiple nodes in the
+replica stages. These stages can be performed across multiple nodes in the
 cluster. If too much indexing work is introduced into the system, the cluster
 can become saturated.
 
@@ -15,20 +15,20 @@ Elasticsearch internally monitors indexing load. When the load exceeds
 certain limits, new indexing work will be rejected.
 
 [float]
-=== Indexing Steps
+=== Indexing Stages
 
-External indexing operations go through three steps. The node receiving the
-indexing is the coordinating node. In the coordinating step the node performs
-any configured ingest pipelines, separates the request into individual shard
-requests, and dispatches them to the primary shards.
+External indexing operations go through three stages. The node receiving the
+indexing request is the coordinating node. In the coordinating stage the node
+performs any configured ingest pipelines, separates the request into individual
+shard requests, and dispatches the requests to the primary shards.
 
-In the primary step, the primary shard node ensures that it is still the primary
+In the primary stage, the primary shard node ensures that it is still the primary
 (otherwise it reroutes the request to the new primary), waits on active shards,
-indexes the documents into its translog and Lucene, and dispatches to the
-replicas.
+indexes the documents into its <<index-modules-translog,Translog>> and Lucene, and
+dispatches to the replicas.
 
-Finally, in the replica step, every available replica node indexes the documents
-into its translog and Lucene.
+Finally, in the replica stage, every available replica node indexes the documents
+into its <<index-modules-translog,Translog>> and Lucene.
 
 
 [float]
@@ -39,10 +39,10 @@ restricts the number of bytes for outstanding indexing requests. Be default,
 this setting is configured to be 10% of the heap.
 
 A node will start rejecting new indexing work at the coordinating or primary
-step when the number of outstanding coordinating, primary and replica indexing
+stage when the number of outstanding coordinating, primary and replica indexing
 requests is greater than the configured limit.
 
-A node will start rejecting new indexing work at the replica step when the
+A node will start rejecting new indexing work at the replica stage when the
 number of outstanding replica indexing requests is greater than 1.5x the
 configured limit. This design means that as indexing pressure builds on nodes,
 they will naturally stop accepting coordinating and primary work in favor of
@@ -52,4 +52,5 @@ outstanding replica work.
 [float]
 === Monitoring
 
-Indexing pressure metrics are exposed by the `GET /_nodes/stats` API.
+Indexing pressure metrics are exposed by the
+<<cluster-nodes-stats-api-response-body-indexing-pressure,Node Stats API>>.

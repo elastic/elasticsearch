@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -68,11 +69,11 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource rawValuesSource,
-                                          SearchContext searchContext, Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
+        ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
                 "is not supported for aggregation " + this.name());
@@ -80,7 +81,7 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
         return new ParentToChildrenAggregator(name, factories, searchContext, parent, childFilter,
-            parentFilter, valuesSource, maxOrd, collectsFromSingleBucket, metadata);
+            parentFilter, valuesSource, maxOrd, cardinality, metadata);
     }
 
     @Override

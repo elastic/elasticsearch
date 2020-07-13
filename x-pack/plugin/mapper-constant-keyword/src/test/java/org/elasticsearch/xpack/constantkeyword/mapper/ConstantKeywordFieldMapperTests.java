@@ -25,12 +25,18 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 
 public class ConstantKeywordFieldMapperTests extends FieldMapperTestCase<ConstantKeywordFieldMapper.Builder> {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(ConstantKeywordMapperPlugin.class, LocalStateCompositeXPackPlugin.class);
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "store", "doc_values", "index");
     }
 
     @Override

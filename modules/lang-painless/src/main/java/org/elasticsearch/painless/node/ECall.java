@@ -19,9 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.CallNode;
 import org.elasticsearch.painless.ir.CallSubDefNode;
 import org.elasticsearch.painless.ir.CallSubNode;
@@ -29,11 +27,19 @@ import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.NullSafeSubNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -41,67 +47,95 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
-
 /**
  * Represents a method call and defers to a child subnode.
  */
 public class ECall extends AExpression {
 
-    protected final AExpression prefix;
-    protected final String name;
-    protected final List<AExpression> arguments;
-    protected final boolean nullSafe;
+    private final AExpression prefixNode;
+    private final String methodName;
+    private final List<AExpression> argumentNodes;
+    private final boolean isNullSafe;
 
-    public ECall(Location location, AExpression prefix, String name, List<AExpression> arguments, boolean nullSafe) {
-        super(location);
+    public ECall(int identifier, Location location,
+            AExpression prefixNode, String methodName, List<AExpression> argumentNodes, boolean isNullSafe) {
 
-        this.prefix = Objects.requireNonNull(prefix);
-        this.name = Objects.requireNonNull(name);
-        this.arguments = Collections.unmodifiableList(Objects.requireNonNull(arguments));
-        this.nullSafe = nullSafe;
+        super(identifier, location);
+
+        this.prefixNode = Objects.requireNonNull(prefixNode);
+        this.methodName = Objects.requireNonNull(methodName);
+        this.argumentNodes = Collections.unmodifiableList(Objects.requireNonNull(argumentNodes));
+        this.isNullSafe = isNullSafe;
+    }
+
+    public AExpression getPrefixNode() {
+        return prefixNode;
+    }
+
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public List<AExpression> getArgumentNodes() {
+        return argumentNodes;
+    }
+
+    public boolean isNullSafe() {
+        return isNullSafe;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitCall(this, input);
+    }
+
+    @Override
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to method call [" + name + "/" + arguments.size() + "]"));
+                    "invalid assignment: cannot assign a value to method call [" + methodName + "/" + argumentNodes.size() + "]"));
+        }
+
+        semanticScope.setCondition(prefixNode, Read.class);
+        Output prefixOutput = prefixNode.analyze(classNode, semanticScope);
+        ValueType prefixValueType = semanticScope.getDecoration(prefixNode, ValueType.class);
+        StaticType prefixStaticType = semanticScope.getDecoration(prefixNode, StaticType.class);
+
+        if (prefixValueType != null && prefixStaticType != null) {
+            throw createError(new IllegalStateException("cannot have both " +
+                    "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
+                    "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
+        }
+
+        if (semanticScope.hasDecoration(prefixNode, PartialCanonicalTypeName.class)) {
+            throw createError(new IllegalArgumentException("cannot resolve symbol " +
+                    "[" + semanticScope.getDecoration(prefixNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
 
         Output output = new Output();
-
-        Input prefixInput = new Input();
-        Output prefixOutput = prefix.analyze(classNode, scriptRoot, scope, prefixInput);
-
-        if (prefixOutput.partialCanonicalTypeName != null) {
-            throw createError(new IllegalArgumentException("cannot resolve symbol [" + prefixOutput.partialCanonicalTypeName + "]"));
-        }
-
+        Class<?> valueType;
         ExpressionNode expressionNode;
 
-        if (prefixOutput.actual == def.class) {
-            if (output.isStaticType) {
-                throw createError(new IllegalArgumentException("value required: " +
-                        "instead found unexpected type [" + PainlessLookupUtility.typeToCanonicalTypeName(output.actual) + "]"));
-            }
+        if (prefixValueType != null && prefixValueType.getValueType() == def.class) {
+            List<Output> argumentOutputs = new ArrayList<>(argumentNodes.size());
 
-            List<Output> argumentOutputs = new ArrayList<>(arguments.size());
-
-            for (AExpression argument : arguments) {
-                Input expressionInput = new Input();
-                expressionInput.internal = true;
-                Output expressionOutput = analyze(argument, classNode, scriptRoot, scope, expressionInput);
+            for (AExpression argument : argumentNodes) {
+                semanticScope.setCondition(argument, Read.class);
+                semanticScope.setCondition(argument, Internal.class);
+                Output expressionOutput = analyze(argument, classNode, semanticScope);
+                Class<?> argumentValueType = semanticScope.getDecoration(argument, ValueType.class).getValueType();
                 argumentOutputs.add(expressionOutput);
 
-                if (expressionOutput.actual == void.class) {
+                if (argumentValueType == void.class) {
                     throw createError(new IllegalArgumentException(
-                            "Argument(s) cannot be of [void] type when calling method [" + name + "]."));
+                            "Argument(s) cannot be of [void] type when calling method [" + methodName + "]."));
                 }
             }
 
+            TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
             // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
-            output.actual = input.expected == null || input.expected == ZonedDateTime.class || input.explicit ? def.class : input.expected;
+            valueType = targetType == null || targetType.getTargetType() == ZonedDateTime.class ||
+                    semanticScope.getCondition(this, Explicit.class) ? def.class : targetType.getTargetType();
 
             CallSubDefNode callSubDefNode = new CallSubDefNode();
 
@@ -109,73 +143,88 @@ public class ECall extends AExpression {
                 callSubDefNode.addArgumentNode(argumentOutput.expressionNode);
             }
 
-            callSubDefNode.setLocation(location);
-            callSubDefNode.setExpressionType(output.actual);
-            callSubDefNode.setName(name);
-
+            callSubDefNode.setLocation(getLocation());
+            callSubDefNode.setExpressionType(valueType);
+            callSubDefNode.setName(methodName);
             expressionNode = callSubDefNode;
         } else {
-            PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(
-                    prefixOutput.actual, prefixOutput.isStaticType, name, arguments.size());
+            PainlessMethod method;
+            Class<?> boxType;
 
-            if (method == null) {
-                throw createError(new IllegalArgumentException(
-                        "method [" + typeToCanonicalTypeName(prefixOutput.actual) + ", " + name + "/" + arguments.size() + "] not found"));
+            if (prefixValueType != null) {
+                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
+                        prefixValueType.getValueType(), false, methodName, argumentNodes.size());
+                boxType = prefixValueType.getValueType();
+
+                if (method == null) {
+                    throw createError(new IllegalArgumentException("member method " +
+                            "[" + prefixValueType.getValueCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
+                            "not found"));
+                }
+            } else if (prefixStaticType != null) {
+                method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(
+                        prefixStaticType.getStaticType(), true, methodName, argumentNodes.size());
+                boxType = prefixStaticType.getStaticType();
+
+                if (method == null) {
+                    throw createError(new IllegalArgumentException("static method " +
+                            "[" + prefixStaticType.getStaticCanonicalTypeName() + ", " + methodName + "/" + argumentNodes.size() + "] " +
+                            "not found"));
+                }
+            } else {
+                throw createError(new IllegalStateException("value required: instead found no value"));
             }
 
-            scriptRoot.markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
+            semanticScope.getScriptScope().markNonDeterministic(method.annotations.containsKey(NonDeterministicAnnotation.class));
 
-            List<Output> argumentOutputs = new ArrayList<>(arguments.size());
-            List<PainlessCast> argumentCasts = new ArrayList<>(arguments.size());
+            List<Output> argumentOutputs = new ArrayList<>(argumentNodes.size());
+            List<PainlessCast> argumentCasts = new ArrayList<>(argumentOutputs.size());
 
-            for (int argument = 0; argument < arguments.size(); ++argument) {
-                AExpression expression = arguments.get(argument);
+            for (int argument = 0; argument < argumentNodes.size(); ++argument) {
+                AExpression expression = argumentNodes.get(argument);
 
-                Input expressionInput = new Input();
-                expressionInput.expected = method.typeParameters.get(argument);
-                expressionInput.internal = true;
-                Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
+                semanticScope.setCondition(expression, Read.class);
+                semanticScope.putDecoration(expression, new TargetType(method.typeParameters.get(argument)));
+                semanticScope.setCondition(expression, Internal.class);
+                Output expressionOutput = analyze(expression, classNode, semanticScope);
                 argumentOutputs.add(expressionOutput);
-                argumentCasts.add(AnalyzerCaster.getLegalCast(expression.location,
-                        expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
-
+                argumentCasts.add(expression.cast(semanticScope));
             }
 
-            output.actual = method.returnType;
+            valueType = method.returnType;
 
             CallSubNode callSubNode = new CallSubNode();
 
-            for (int argument = 0; argument < arguments.size(); ++argument) {
+            for (int argument = 0; argument < argumentNodes.size(); ++argument) {
                 callSubNode.addArgumentNode(cast(argumentOutputs.get(argument).expressionNode, argumentCasts.get(argument)));
             }
 
-            callSubNode.setLocation(location);
-            callSubNode.setExpressionType(output.actual);
+            callSubNode.setLocation(getLocation());
+            callSubNode.setExpressionType(valueType);
             callSubNode.setMethod(method);
-            callSubNode.setBox(prefixOutput.actual);
+            callSubNode.setBox(boxType);
             expressionNode = callSubNode;
         }
 
-        if (nullSafe) {
-            if (output.actual.isPrimitive()) {
+        if (isNullSafe) {
+            if (valueType.isPrimitive()) {
                 throw new IllegalArgumentException("Result of null safe operator must be nullable");
             }
 
             NullSafeSubNode nullSafeSubNode = new NullSafeSubNode();
             nullSafeSubNode.setChildNode(expressionNode);
-            nullSafeSubNode.setLocation(location);
-            nullSafeSubNode.setExpressionType(output.actual);
+            nullSafeSubNode.setLocation(getLocation());
+            nullSafeSubNode.setExpressionType(valueType);
             expressionNode = nullSafeSubNode;
         }
 
-        CallNode callNode = new CallNode();
+        semanticScope.putDecoration(this, new ValueType(valueType));
 
+        CallNode callNode = new CallNode();
         callNode.setLeftNode(prefixOutput.expressionNode);
         callNode.setRightNode(expressionNode);
-
-        callNode.setLocation(location);
-        callNode.setExpressionType(output.actual);
-
+        callNode.setLocation(getLocation());
+        callNode.setExpressionType(valueType);
         output.expressionNode = callNode;
 
         return output;

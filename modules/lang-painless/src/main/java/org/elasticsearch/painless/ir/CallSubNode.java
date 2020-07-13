@@ -22,7 +22,8 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public class CallSubNode extends ArgumentsNode {
 
@@ -47,10 +48,17 @@ public class CallSubNode extends ArgumentsNode {
         return box;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitCallSub(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         methodWriter.writeDebugInfo(location);
 
         if (box.isPrimitive()) {
@@ -58,7 +66,7 @@ public class CallSubNode extends ArgumentsNode {
         }
 
         for (ExpressionNode argumentNode : getArgumentNodes()) {
-            argumentNode.write(classWriter, methodWriter, scopeTable);
+            argumentNode.write(classWriter, methodWriter, writeScope);
         }
 
         methodWriter.invokeMethodCall(method);

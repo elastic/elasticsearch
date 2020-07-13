@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -46,11 +47,13 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -317,6 +320,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return cacheService.get(cacheKey, fileLength, cacheDir);
     }
 
+    public Executor cacheFetchAsyncExecutor() {
+        return threadPool.executor(SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME);
+    }
+
+    public Executor prewarmExecutor() {
+        return threadPool.executor(ThreadPool.Names.SAME);
+    }
+
     @Override
     public IndexInput openInput(final String name, final IOContext context) throws IOException {
         ensureOpen();
@@ -454,6 +465,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
         }
 
+        if (indexSettings.hasCustomDataPath()) {
+            // cache management requires the shard data path to be in a non-custom location
+            throw new IllegalArgumentException(
+                "setting ["
+                    + IndexMetadata.INDEX_DATA_PATH_SETTING.getKey()
+                    + "] is not permitted on searchable snapshots, but was ["
+                    + IndexMetadata.INDEX_DATA_PATH_SETTING.get(indexSettings.getSettings())
+                    + "]"
+            );
+        }
+
         final Repository repository = repositories.repository(SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings()));
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
@@ -476,8 +498,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             () -> blobStoreRepository.loadShardSnapshot(lazyBlobContainer.getOrCompute(), snapshotId)
         );
 
-        final Path cacheDir = shardPath.getDataPath().resolve("snapshots").resolve(snapshotId.getUUID());
+        final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
+        assert assertCacheIsEmpty(cacheDir);
 
         return new InMemoryNoOpCommitDirectory(
             new SearchableSnapshotDirectory(
@@ -493,6 +516,17 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 threadPool
             )
         );
+    }
+
+    private static boolean assertCacheIsEmpty(Path cacheDir) {
+        try (DirectoryStream<Path> cacheDirStream = Files.newDirectoryStream(cacheDir)) {
+            final Set<Path> cacheFiles = new HashSet<>();
+            cacheDirStream.forEach(cacheFiles::add);
+            assert cacheFiles.isEmpty() : "should start with empty cache, but found " + cacheFiles;
+        } catch (IOException e) {
+            assert false : e;
+        }
+        return true;
     }
 
     public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {

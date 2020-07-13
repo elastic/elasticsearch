@@ -282,7 +282,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         when(metaJoinFieldType.getJoinField()).thenReturn("join_field");
         when(mapperService.fieldType("_parent_join")).thenReturn(metaJoinFieldType);
         DocumentFieldMappers fieldMappers = new DocumentFieldMappers(Collections.singleton(joinFieldMapper),
-            Collections.emptyList(), null, null, null);
+            Collections.emptyList(), null);
         DocumentMapper mockMapper = mock(DocumentMapper.class);
         when(mockMapper.mappers()).thenReturn(fieldMappers);
         when(mapperService.documentMapper()).thenReturn(mockMapper);
@@ -302,8 +302,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_parent").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalParent result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }
@@ -314,8 +313,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         ParentAggregationBuilder aggregationBuilder = new ParentAggregationBuilder("_name", CHILD_TYPE);
         aggregationBuilder.subAggregation(new TermsAggregationBuilder("value_terms").field("number"));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalParent result = search(indexSearcher, query, aggregationBuilder, fieldType);
         verify.accept(result);
     }
@@ -328,10 +326,8 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
                 subAggregation(new ParentAggregationBuilder("to_parent", CHILD_TYPE).
                     subAggregation(new TermsAggregationBuilder("value_terms").field("number")));
 
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        fieldType.setName("number");
-        MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        subFieldType.setName("subNumber");
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
+        MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
         LongTerms result = search(indexSearcher, query, aggregationBuilder, fieldType, subFieldType);
         verify.accept(result);
     }

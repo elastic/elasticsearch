@@ -20,10 +20,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -41,12 +41,11 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "rank_features";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new RankFeaturesFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(false);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
@@ -55,45 +54,30 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder> {
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
-        public RankFeaturesFieldType fieldType() {
-            return (RankFeaturesFieldType) super.fieldType();
-        }
-
-        @Override
         public RankFeaturesFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
             return new RankFeaturesFieldMapper(
-                    name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    name, fieldType, new RankFeaturesFieldType(buildFullName(context), meta),
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            RankFeaturesFieldMapper.Builder builder = new RankFeaturesFieldMapper.Builder(name);
-            return builder;
+            return new Builder(name);
         }
     }
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
-        public RankFeaturesFieldType() {
+        public RankFeaturesFieldType(String name, Map<String, String> meta) {
+            super(name, false, false, TextSearchInfo.NONE, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected RankFeaturesFieldType(RankFeaturesFieldType ref) {
-            super(ref);
-        }
-
-        public RankFeaturesFieldType clone() {
-            return new RankFeaturesFieldType(this);
         }
 
         @Override
@@ -117,9 +101,9 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
     }
 
-    private RankFeaturesFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    private RankFeaturesFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                                    MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
     }
 
@@ -173,6 +157,16 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         throw new AssertionError("parse is implemented directly");
+    }
+
+    @Override
+    protected boolean indexedByDefault() {
+        return false;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 
     @Override

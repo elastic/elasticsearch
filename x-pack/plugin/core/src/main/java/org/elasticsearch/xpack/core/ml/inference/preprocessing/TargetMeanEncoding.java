@@ -27,7 +27,7 @@ import java.util.Objects;
  */
 public class TargetMeanEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TargetMeanEncoding.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TargetMeanEncoding.class);
     public static final ParseField NAME = new ParseField("target_mean_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");

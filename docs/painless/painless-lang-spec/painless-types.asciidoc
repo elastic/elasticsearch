@@ -46,13 +46,13 @@ The following primitive types are available:
 
 `int`::
 32-bit, signed, two's complement integer
-* range: [`-2^32`, `2^32-1`]
+* range: [`-2^31`, `2^31-1`]
 * default value: `0`
 * reference type: `Integer`
 
 `long`::
 64-bit, signed, two's complement integer
-* range: [`-2^64`, `2^64-1`]
+* range: [`-2^63`, `2^63-1`]
 * default value: `0`
 * reference type: `Long`
 

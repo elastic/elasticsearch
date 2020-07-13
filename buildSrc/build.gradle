@@ -69,29 +69,14 @@ allprojects {
 }
 
 sourceSets {
-  // We have a few classes that need to be compiled for older java versions
-  minimumRuntime {}
-
   integTest {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
   }
 }
 
-compileMinimumRuntimeJava {
-  targetCompatibility = 8
-  sourceCompatibility = 8
-  tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-  }
-}
-
-jar {
-  from sourceSets.minimumRuntime.output
-}
-
-javadoc {
-  source sourceSets.minimumRuntime.allSource
+tasks.withType(JavaCompile).configureEach {
+  options.encoding = 'UTF-8'
 }
 
 /*****************************************************************************
@@ -103,37 +88,33 @@ repositories {
 }
 
 dependencies {
-  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
-    // eclipse is confused if this is set explicitly
-    compile sourceSets.minimumRuntime.output
-  }
+  api localGroovy()
+  api gradleApi()
 
-  compile localGroovy()
+  api 'commons-codec:commons-codec:1.12'
+  api 'org.apache.commons:commons-compress:1.19'
 
-  compile 'commons-codec:commons-codec:1.12'
-  compile 'org.apache.commons:commons-compress:1.19'
-
-  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
-  compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
-  compile 'com.netflix.nebula:gradle-info-plugin:7.1.3'
-  compile 'org.apache.rat:apache-rat:0.11'
-  compile "org.elasticsearch:jna:4.5.1"
-  compile 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
-  compile 'de.thetaphi:forbiddenapis:3.0'
-  compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
-  compile 'org.apache.maven:maven-model:3.6.2'
-  compile 'com.networknt:json-schema-validator:1.0.36'
+  api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
+  api 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
+  api 'com.netflix.nebula:gradle-info-plugin:7.1.3'
+  api 'org.apache.rat:apache-rat:0.11'
+  api "org.elasticsearch:jna:5.5.0"
+  api 'com.github.jengelman.gradle.plugins:shadow:5.1.0'
+  api 'de.thetaphi:forbiddenapis:3.0'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.12.1'
+  api 'org.apache.maven:maven-model:3.6.2'
+  api 'com.networknt:json-schema-validator:1.0.36'
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testCompile "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testFixturesApi gradleApi()
   testFixturesApi gradleTestKit()
-  testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-  testCompile 'org.mockito:mockito-core:1.9.5'
-  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
-  minimumRuntimeCompile localGroovy()
-  minimumRuntimeCompile gradleApi()
+  testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testImplementation 'org.mockito:mockito-core:1.9.5'
+  integTestImplementation('org.spockframework:spock-core:1.3-groovy-2.5') {
+    exclude module: "groovy"
+  }
 }
 
 /*****************************************************************************
@@ -168,10 +149,9 @@ if (project != rootProject) {
   groovydoc.enabled = false
 
   // build-tools is not ready for primetime with these...
-  dependencyLicenses.enabled = false
+  tasks.named("dependencyLicenses").configure { it.enabled = false }
   dependenciesInfo.enabled = false
-  disableTasks('forbiddenApisMain', 'forbiddenApisMinimumRuntime',
-    'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
+  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
   if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
@@ -194,6 +174,8 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
     distribution project(':distribution:archives:oss-linux-aarch64-tar')
+
+    integTestRuntimeOnly(project(":libs:elasticsearch-core"))
   }
 
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
@@ -215,9 +197,6 @@ if (project != rootProject) {
       ignore('META-INF/reaper.jar')
     }
   }
-
-  // TODO: re-enable once randomizedtesting gradle code is published and removed from here
-  licenseHeaders.enabled = false
 
   forbiddenPatterns {
     exclude '**/*.wav'

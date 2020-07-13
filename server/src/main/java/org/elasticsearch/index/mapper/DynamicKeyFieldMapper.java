@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
+import org.apache.lucene.document.FieldType;
 
 /**
  * A field mapper that supports lookup of dynamic sub-keys. If the field mapper is named 'my_field',
@@ -42,11 +42,10 @@ import org.elasticsearch.common.settings.Settings;
 public abstract class DynamicKeyFieldMapper extends FieldMapper {
 
     public DynamicKeyFieldMapper(String simpleName,
-                                 MappedFieldType fieldType,
+                                 FieldType fieldType,
                                  MappedFieldType defaultFieldType,
-                                 Settings indexSettings,
                                  CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), copyTo);
+        super(simpleName, fieldType, defaultFieldType, MultiFields.empty(), copyTo);
     }
 
     public abstract MappedFieldType keyedFieldType(String key);

@@ -20,11 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.ir.DeclarationBlockNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,25 +35,32 @@ import java.util.List;
  */
 public class SDeclBlock extends AStatement {
 
-    protected final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarationNodes;
 
-    public SDeclBlock(Location location, List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(int identifier, Location location, List<SDeclaration> declarationNodes) {
+        super(identifier, location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.declarationNodes = Collections.unmodifiableList(declarationNodes);
+    }
+
+    public List<SDeclaration> getDeclarationNodes() {
+        return declarationNodes;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDeclBlock(this, input);
+    }
+
+    @Override
+    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
         Output output = new Output();
 
-        List<Output> declarationOutputs = new ArrayList<>(declarations.size());
+        List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
 
-        for (SDeclaration declaration : declarations) {
-            declarationOutputs.add(declaration.analyze(classNode, scriptRoot, scope, new Input()));
+        for (SDeclaration declaration : declarationNodes) {
+            declarationOutputs.add(declaration.analyze(classNode, semanticScope));
         }
-
-        output.statementCount = declarations.size();
 
         DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
 
@@ -61,7 +68,7 @@ public class SDeclBlock extends AStatement {
             declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
         }
 
-        declarationBlockNode.setLocation(location);
+        declarationBlockNode.setLocation(getLocation());
 
         output.statementNode = declarationBlockNode;
 

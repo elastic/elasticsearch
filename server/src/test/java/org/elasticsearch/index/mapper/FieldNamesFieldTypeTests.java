@@ -27,24 +27,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class FieldNamesFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new FieldNamesFieldMapper.FieldNamesFieldType();
-    }
+public class FieldNamesFieldTypeTests extends ESTestCase {
 
     public void testTermQuery() {
 
         FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldMapper.FieldNamesFieldType();
-        fieldNamesFieldType.setName(FieldNamesFieldMapper.CONTENT_TYPE);
-        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType();
-        fieldType.setName("field_name");
+        KeywordFieldMapper.KeywordFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field_name");
 
         Settings settings = settings(Version.CURRENT).build();
         IndexSettings indexSettings = new IndexSettings(

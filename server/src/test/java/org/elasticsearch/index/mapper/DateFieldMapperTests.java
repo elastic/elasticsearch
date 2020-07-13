@@ -42,6 +42,7 @@ import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,6 +63,11 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
             a.locale(Locale.CANADA);
             b.locale(Locale.JAPAN);
         });
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -384,7 +390,8 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
             MapperService.MergeReason.MAPPING_UPDATE);
 
         assertThat(indexService.mapperService().fieldType("release_date"), notNullValue());
-        assertFalse(indexService.mapperService().fieldType("release_date").stored());
+        assertFalse(indexService.mapperService().fieldType("release_date")
+            .getTextSearchInfo().isStored());
 
         String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
             .startObject("properties")
@@ -409,7 +416,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapper.merge(update.mapping()));
+                () -> mapper.merge(update.mapping(), MergeReason.MAPPING_UPDATE));
         assertEquals("mapper [date] cannot be changed from type [date] to [text]", e.getMessage());
     }
 

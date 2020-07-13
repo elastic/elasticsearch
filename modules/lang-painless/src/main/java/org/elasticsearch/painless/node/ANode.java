@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -28,22 +29,44 @@ import java.util.Objects;
  */
 public abstract class ANode {
 
-    /**
-     * The identifier of the script and character offset used for debugging and errors.
-     */
-    protected final Location location;
+    private final int identifier;
+    private final Location location;
 
     /**
      * Standard constructor with location used for error tracking.
      */
-    ANode(Location location) {
+    public ANode(int identifier, Location location) {
+        this.identifier = identifier;
         this.location = Objects.requireNonNull(location);
+    }
+
+    /**
+     * An unique id for the node. This is guaranteed to be smallest possible
+     * value so it can be used for value caching in an array instead of a
+     * hash look up.
+     */
+    public int getIdentifier() {
+        return identifier;
+    }
+
+    /**
+     * The identifier of the script and character offset used for debugging and errors.
+     */
+    public Location getLocation() {
+        return location;
+    }
+
+    /**
+     * Callback to visit a user tree node.
+     */
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        throw new UnsupportedOperationException("cannot visit user node type [" + getClass().getCanonicalName() + "]");
     }
 
     /**
      * Create an error with location information pointing to this node.
      */
-    RuntimeException createError(RuntimeException exception) {
+    public RuntimeException createError(RuntimeException exception) {
         return location.createError(exception);
     }
 }

@@ -95,14 +95,12 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     }
 
     private void setStdDeviationBounds(List<Double> bounds) {
-        int i = 0;
-        this.stdDeviationBoundUpper = bounds.get(i++);
-        this.stdDeviationBoundLower = bounds.get(i++);
-        this.stdDeviationBoundUpperPopulation = bounds.get(i++);
-        this.stdDeviationBoundLowerPopulation = bounds.get(i++);
-        this.stdDeviationBoundUpperSampling = bounds.get(i++);
-        this.stdDeviationBoundLowerSampling = bounds.get(i);
-
+        this.stdDeviationBoundUpper = bounds.get(0);
+        this.stdDeviationBoundLower = bounds.get(1);
+        this.stdDeviationBoundUpperPopulation = bounds.get(2) == null ? 0 : bounds.get(2);
+        this.stdDeviationBoundLowerPopulation = bounds.get(3) == null ? 0 : bounds.get(3);
+        this.stdDeviationBoundUpperSampling = bounds.get(4) == null ? 0 : bounds.get(4);
+        this.stdDeviationBoundLowerSampling = bounds.get(5) == null ? 0 : bounds.get(5);
     }
 
     @Override
@@ -126,13 +124,20 @@ public class ParsedExtendedStats extends ParsedStats implements ExtendedStats {
     }
 
     private void setStdDeviationBoundsAsString(List<String> boundsAsString) {
-        int i = 0;
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper", boundsAsString.get(i++));
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower", boundsAsString.get(i++));
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_population", boundsAsString.get(i++));
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_population", boundsAsString.get(i++));
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_sampling", boundsAsString.get(i++));
-        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_sampling", boundsAsString.get(i));
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper", boundsAsString.get(0));
+        this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower", boundsAsString.get(1));
+        if (boundsAsString.get(2) != null) {
+            this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_population", boundsAsString.get(2));
+        }
+        if (boundsAsString.get(3) != null) {
+            this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_population", boundsAsString.get(3));
+        }
+        if (boundsAsString.get(4) != null) {
+            this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_upper_sampling", boundsAsString.get(4));
+        }
+        if (boundsAsString.get(5) != null) {
+            this.valueAsString.put(Fields.STD_DEVIATION_BOUNDS_AS_STRING + "_lower_sampling", boundsAsString.get(5));
+        }
     }
 
     @Override

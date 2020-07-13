@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  */
 public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(OneHotEncoding.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(OneHotEncoding.class);
     public static final ParseField NAME = new ParseField("one_hot_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField HOT_MAP = new ParseField("hot_map");

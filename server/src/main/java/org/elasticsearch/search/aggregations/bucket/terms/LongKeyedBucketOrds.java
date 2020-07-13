@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
 /**
  * Maps long bucket keys to bucket ordinals.
@@ -33,8 +34,9 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Build a {@link LongKeyedBucketOrds}.
      */
-    public static LongKeyedBucketOrds build(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-        return collectsFromSingleBucket ? new FromSingle(bigArrays) : new FromMany(bigArrays);
+    public static LongKeyedBucketOrds build(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+        // TODO nothing NONE?
+        return cardinality != CardinalityUpperBound.MANY ? new FromSingle(bigArrays) : new FromMany(bigArrays);
     }
 
     private LongKeyedBucketOrds() {}
@@ -47,20 +49,28 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     public abstract long add(long owningBucketOrd, long value);
 
     /**
+     * Count the buckets in {@code owningBucketOrd}.
+     * <p>
+     * Some aggregations expect this to be fast but most wouldn't
+     * mind particularly if it weren't.
+     */
+    public abstract long bucketsInOrd(long owningBucketOrd);
+
+    /**
      * Find the {@code owningBucketOrd, value} pair. Return the ord for
      * their bucket if they have been added or {@code -1} if they haven't.
      */
-    public abstract long find(long owningBucketOrd, long value);
-
-    /**
-     * Count the buckets in {@code owningBucketOrd}.
-     */
-    public abstract long bucketsInOrd(long owningBucketOrd);
+   public abstract long find(long owningBucketOrd, long value);
 
     /**
      * The number of collected buckets.
      */
     public abstract long size();
+
+    /**
+     * The maximum possible used {@code owningBucketOrd}.
+     */
+    public abstract long maxOwningBucketOrd();
 
     /**
      * Build an iterator for buckets inside {@code owningBucketOrd} in order
@@ -105,10 +115,10 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Implementation that only works if it is collecting from a single bucket.
      */
-    private static class FromSingle extends LongKeyedBucketOrds {
+    public static class FromSingle extends LongKeyedBucketOrds {
         private final LongHash ords;
 
-        FromSingle(BigArrays bigArrays) {
+        public FromSingle(BigArrays bigArrays) {
             ords = new LongHash(1, bigArrays);
         }
 
@@ -133,6 +143,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long size() {
             return ords.size();
+        }
+
+        @Override
+        public long maxOwningBucketOrd() {
+            return 0;
         }
 
         @Override
@@ -173,7 +188,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
     /**
      * Implementation that works properly when collecting from many buckets.
      */
-    private static class FromMany extends LongKeyedBucketOrds {
+    public static class FromMany extends LongKeyedBucketOrds {
         // TODO we can almost certainly do better here by building something fit for purpose rather than trying to lego together stuff
         private static class Buckets implements Releasable {
             private final LongHash valueToThisBucketOrd;
@@ -193,7 +208,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         private ObjectArray<Buckets> owningOrdToBuckets;
         private long lastGlobalOrd = -1;
 
-        FromMany(BigArrays bigArrays) {
+        public FromMany(BigArrays bigArrays) {
             this.bigArrays = bigArrays;
             owningOrdToBuckets = bigArrays.newObjectArray(1);
         }
@@ -259,6 +274,11 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long size() {
             return lastGlobalOrd + 1;
+        }
+
+        @Override
+        public long maxOwningBucketOrd() {
+            return owningOrdToBuckets.size() - 1;
         }
 
         @Override

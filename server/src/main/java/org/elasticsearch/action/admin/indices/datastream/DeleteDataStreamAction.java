@@ -20,12 +20,12 @@ package org.elasticsearch.action.admin.indices.datastream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -45,17 +45,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
@@ -68,32 +72,32 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
 
-        private final String name;
+        private String[] names;
 
-        public Request(String name) {
-            this.name = Objects.requireNonNull(name);
+        public Request(String[] names) {
+            this.names = Objects.requireNonNull(names);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (Strings.hasText(name) == false) {
-                validationException = ValidateActions.addValidationError("name is missing", validationException);
+            if (CollectionUtils.isEmpty(names)) {
+                validationException = addValidationError("no data stream(s) specified", validationException);
             }
             return validationException;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readString();
+            this.names = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(name);
+            out.writeStringArray(names);
         }
 
         @Override
@@ -101,12 +105,35 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name);
+            return Arrays.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Arrays.hashCode(names);
+        }
+
+        @Override
+        public String[] indices() {
+            return names;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
+            // a data stream's backing indices are retrieved from its metadata
+            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.names = indices;
+            return this;
         }
     }
 
@@ -135,7 +162,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<AcknowledgedResponse> listener) throws Exception {
-            clusterService.submitStateUpdateTask("remove-data-stream [" + request.name + "]", new ClusterStateUpdateTask(Priority.HIGH) {
+            clusterService.submitStateUpdateTask("remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.names) + "]",
+                new ClusterStateUpdateTask(Priority.HIGH) {
 
                 @Override
                 public TimeValue timeout() {
@@ -161,26 +189,27 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         static ClusterState removeDataStream(MetadataDeleteIndexService deleteIndexService, ClusterState currentState, Request request) {
             Set<String> dataStreams = new HashSet<>();
-            for (String dataStreamName : currentState.metadata().dataStreams().keySet()) {
-                if (Regex.simpleMatch(request.name, dataStreamName)) {
-                    dataStreams.add(dataStreamName);
+            Set<String> snapshottingDataStreams = new HashSet<>();
+            for (String name : request.names) {
+                for (String dataStreamName : currentState.metadata().dataStreams().keySet()) {
+                    if (Regex.simpleMatch(name, dataStreamName)) {
+                        dataStreams.add(dataStreamName);
+                    }
                 }
+
+                snapshottingDataStreams.addAll(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
             }
-            if (dataStreams.isEmpty()) {
-                // if a match-all pattern was specified and no data streams were found because none exist, do not
-                // fail with data stream missing exception
-                if (Regex.isMatchAllPattern(request.name)) {
-                    return currentState;
-                }
-                throw new ResourceNotFoundException("data_streams matching [" + request.name + "] not found");
+
+            if (snapshottingDataStreams.isEmpty() == false) {
+                throw new SnapshotInProgressException("Cannot delete data streams that are being snapshotted: " + snapshottingDataStreams +
+                    ". Try again after snapshot finishes or cancel the currently running snapshot.");
             }
-            List<String> dataStreamsToRemove = new ArrayList<>();
+
             Set<Index> backingIndicesToRemove = new HashSet<>();
             for (String dataStreamName : dataStreams) {
                 DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
                 assert dataStream != null;
                 backingIndicesToRemove.addAll(dataStream.getIndices());
-                dataStreamsToRemove.add(dataStreamName);
             }
 
             // first delete the data streams and then the indices:
@@ -188,7 +217,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             // without updating the data stream)
             // TODO: change order when delete index api also updates the data stream the index to be removed is member of
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-            for (String ds : dataStreamsToRemove) {
+            for (String ds : dataStreams) {
                 logger.info("removing data stream [{}]", ds);
                 metadata.removeDataStream(ds);
             }

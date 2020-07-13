@@ -21,20 +21,14 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper.GeoShapeFieldType;
 
-import java.io.IOException;
-
-public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new GeoShapeFieldType();
-    }
+public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
 
     /**
      * Test for {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#setStrategy(SpatialStrategy)} that checks
      * that {@link LegacyGeoShapeFieldMapper.GeoShapeFieldType#pointsOnly()} gets set as a side effect when using SpatialStrategy.TERM
      */
-    public void testSetStrategyName() throws IOException {
-        GeoShapeFieldType fieldType = new GeoShapeFieldType();
+    public void testSetStrategyName() {
+        GeoShapeFieldType fieldType = new GeoShapeFieldType("field");
         assertFalse(fieldType.pointsOnly());
         fieldType.setStrategy(SpatialStrategy.RECURSIVE);
         assertFalse(fieldType.pointsOnly());

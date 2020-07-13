@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -55,6 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RecoveryTargetTests extends ESTestCase {
     abstract class Streamer<T extends Writeable> extends Thread {
@@ -200,6 +200,7 @@ public class RecoveryTargetTests extends ESTestCase {
 
         Collections.shuffle(Arrays.asList(files), random());
         final RecoveryState.Index index = new RecoveryState.Index();
+        assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
         if (randomBoolean()) {
             // initialize with some data and then reset
@@ -214,11 +215,13 @@ public class RecoveryTargetTests extends ESTestCase {
                 }
             }
             if (randomBoolean()) {
+                index.setFileDetailsComplete();
+            }
+            if (randomBoolean()) {
                 index.stop();
             }
             index.reset();
         }
-
 
         // before we start we must report 0
         assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
@@ -242,7 +245,10 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.recoveredBytes(), equalTo(0L));
         assertThat(index.recoveredFilesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
         assertThat(index.recoveredBytesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
+        assertThat(index.bytesStillToRecover(), equalTo(-1L));
 
+        index.setFileDetailsComplete();
+        assertThat(index.bytesStillToRecover(), equalTo(totalFileBytes - totalReusedBytes));
 
         long bytesToRecover = totalFileBytes - totalReusedBytes;
         boolean completeRecovery = bytesToRecover == 0 || randomBoolean();
@@ -322,6 +328,7 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.recoveredBytes(), equalTo(recoveredBytes));
         assertThat(index.targetThrottling().nanos(), equalTo(targetThrottling));
         assertThat(index.sourceThrottling().nanos(), equalTo(sourceThrottling));
+        assertThat(index.bytesStillToRecover(), equalTo(totalFileBytes - totalReusedBytes - recoveredBytes));
         if (index.totalRecoverFiles() == 0) {
             assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
             assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));
@@ -336,31 +343,28 @@ public class RecoveryTargetTests extends ESTestCase {
     public void testStageSequenceEnforcement() {
         final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT);
-        Stage[] stages = Stage.values();
-        int i = randomIntBetween(0, stages.length - 1);
-        int j;
-        do {
-            j = randomIntBetween(0, stages.length - 1);
-        } while (j == i);
-        Stage t = stages[i];
-        stages[i] = stages[j];
-        stages[j] = t;
-        try {
+        final AssertionError error = expectThrows(AssertionError.class, () -> {
+            Stage[] stages = Stage.values();
+            int i = randomIntBetween(0, stages.length - 1);
+            int j = randomValueOtherThan(i, () -> randomIntBetween(0, stages.length - 1));
+            Stage t = stages[i];
+            stages[i] = stages[j];
+            stages[j] = t;
             ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
                 randomBoolean(), ShardRoutingState.INITIALIZING);
             RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
                 shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
             for (Stage stage : stages) {
+                if (stage == Stage.FINALIZE) {
+                    state.getIndex().setFileDetailsComplete();
+                }
                 state.setStage(stage);
             }
-            fail("succeeded in performing the illegal sequence [" + Strings.arrayToCommaDelimitedString(stages) + "]");
-        } catch (IllegalStateException e) {
-            // cool
-        }
-
+        });
+        assertThat(error.getMessage(), startsWith("can't move recovery to stage"));
         // but reset should be always possible.
-        stages = Stage.values();
-        i = randomIntBetween(1, stages.length - 1);
+        Stage[] stages = Stage.values();
+        int i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
         ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
@@ -369,6 +373,9 @@ public class RecoveryTargetTests extends ESTestCase {
             shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
         for (Stage stage : list) {
             state.setStage(stage);
+            if (stage == Stage.INDEX) {
+                state.getIndex().setFileDetailsComplete();
+            }
         }
 
         assertThat(state.getStage(), equalTo(Stage.DONE));

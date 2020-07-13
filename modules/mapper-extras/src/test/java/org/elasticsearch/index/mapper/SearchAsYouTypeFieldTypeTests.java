@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -27,60 +28,68 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 
+import java.util.Collections;
+
 import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
+public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
     private static final String NAME = "a_field";
-    private static final String PREFIX_NAME = NAME + "._index_prefix";
+    private static final FieldType UNSEARCHABLE = new FieldType();
+    static {
+        UNSEARCHABLE.setIndexOptions(IndexOptions.NONE);
+        UNSEARCHABLE.freeze();
+    }
 
-    @Override
-    protected SearchAsYouTypeFieldType createDefaultFieldType() {
-        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType();
-        fieldType.setName(NAME);
-        fieldType.setPrefixField(new PrefixFieldType(NAME, PREFIX_NAME, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
-        fieldType.setShingleFields(new ShingleFieldType[] { new ShingleFieldType(fieldType, 2) });
+    protected SearchAsYouTypeFieldType createFieldType() {
+        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, Defaults.FIELD_TYPE, null,
+            Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
+        fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
+        fieldType.setShingleFields(new ShingleFieldType[] {
+            new ShingleFieldType(fieldType.name(), 2, TextSearchInfo.SIMPLE_MATCH_ONLY)
+        });
         return fieldType;
     }
 
     public void testTermQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType();
+        final MappedFieldType fieldType = createFieldType();
 
-        fieldType.setIndexOptions(IndexOptions.DOCS);
         assertThat(fieldType.termQuery("foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
 
-        fieldType.setIndexOptions(IndexOptions.NONE);
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldType.termQuery("foo", null));
+        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, UNSEARCHABLE, null,
+            Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("foo", null));
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
 
     public void testTermsQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType();
+        final MappedFieldType fieldType = createFieldType();
 
-        fieldType.setIndexOptions(IndexOptions.DOCS);
         assertThat(fieldType.termsQuery(asList("foo", "bar"), null),
             equalTo(new TermInSetQuery(NAME, asList(new BytesRef("foo"), new BytesRef("bar")))));
 
-        fieldType.setIndexOptions(IndexOptions.NONE);
+        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, UNSEARCHABLE, null,
+            Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> fieldType.termsQuery(asList("foo", "bar"), null));
+            expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(asList("foo", "bar"), null));
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
 
     public void testPrefixQuery() {
-        final SearchAsYouTypeFieldType fieldType = createDefaultFieldType();
+        final SearchAsYouTypeFieldType fieldType = createFieldType();
 
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
         assertThat(fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockShardContext()),
-            equalTo(new ConstantScoreQuery(new TermQuery(new Term(PREFIX_NAME, withinBoundsTerm)))));
+            equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm)))));
 
         // our defaults don't allow a situation where a term can be too small
 

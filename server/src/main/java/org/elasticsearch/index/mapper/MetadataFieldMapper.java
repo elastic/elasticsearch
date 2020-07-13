@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.settings.Settings;
+import org.apache.lucene.document.FieldType;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,16 +46,32 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @SuppressWarnings("rawtypes")
-    public abstract static class Builder<T extends Builder> extends FieldMapper.Builder<T> {
-        public Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
-            super(name, fieldType, defaultFieldType);
+    public abstract static class Builder<T extends Builder<T>> extends FieldMapper.Builder<T> {
+        public Builder(String name, FieldType fieldType) {
+            super(name, fieldType);
+        }
+
+        @Override
+        public T index(boolean index) {
+            if (index == false) {
+                throw new IllegalArgumentException("Metadata fields must be indexed");
+            }
+            return builder;
         }
 
         public abstract MetadataFieldMapper build(BuilderContext context);
     }
 
-    protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+    protected MetadataFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
+        super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    }
+
+    /**
+     * Called when mapping gets merged. Provides the opportunity to validate other fields a metadata field mapper
+     * is supposed to work with before a mapping update is completed.
+     */
+    public void validate(DocumentFieldMappers lookup) {
+        // noop by default
     }
 
     /**
@@ -72,4 +88,5 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) { }
+
 }

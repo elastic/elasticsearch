@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that probably should be converted to
  * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
@@ -14,9 +15,9 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 restResources {

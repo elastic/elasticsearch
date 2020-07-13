@@ -252,6 +252,11 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
+  "searchable_snapshots" : {
+    "available" : true,
+    "enabled" : true,
+    "indices_count" : 0
+  },
   "frozen_indices" : {
     "available" : true,
     "enabled" : true,

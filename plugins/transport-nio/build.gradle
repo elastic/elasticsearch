@@ -26,19 +26,19 @@ esplugin {
 }
 
 dependencies {
-  compile project(':libs:elasticsearch-nio')
+  api project(':libs:elasticsearch-nio')
 
   // network stack
-  compile "io.netty:netty-buffer:${versions.netty}"
-  compile "io.netty:netty-codec:${versions.netty}"
-  compile "io.netty:netty-codec-http:${versions.netty}"
-  compile "io.netty:netty-common:${versions.netty}"
-  compile "io.netty:netty-handler:${versions.netty}"
-  compile "io.netty:netty-resolver:${versions.netty}"
-  compile "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 

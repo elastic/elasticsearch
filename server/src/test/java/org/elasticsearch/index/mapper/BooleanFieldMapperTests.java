@@ -27,6 +27,9 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -41,6 +44,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -50,7 +54,8 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMapper.Builder> {
+public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
+
     private IndexService indexService;
     private DocumentMapperParser parser;
 
@@ -58,7 +63,6 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
-        setDummyNullValue(true);
     }
 
     @Override
@@ -280,9 +284,13 @@ public class BooleanFieldMapperTests extends FieldMapperTestCase<BooleanFieldMap
         assertEquals(mapping3, mapper.mappingSource().toString());
     }
 
-    @Override
-    protected BooleanFieldMapper.Builder newBuilder() {
-        return new BooleanFieldMapper.Builder("boolean");
+    public void testBoosts() throws Exception {
+        String mapping = "{\"_doc\":{\"properties\":{\"field\":{\"type\":\"boolean\",\"boost\":2.0}}}}";
+        DocumentMapper mapper = indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        MappedFieldType ft = indexService.mapperService().fieldType("field");
+        assertEquals(new BoostQuery(new TermQuery(new Term("field", "T")), 2.0f), ft.termQuery("true", null));
     }
 
 }

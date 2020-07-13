@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,10 +45,16 @@ final class GeoCentroidAggregator extends MetricsAggregator {
     private DoubleArray lonSum, lonCompensations, latSum, latCompensations;
     private LongArray counts;
 
-    GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
-                                    ValuesSource valuesSource, Map<String, Object> metadata) throws IOException {
+    GeoCentroidAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = (ValuesSource.GeoPoint) valuesSource;
+        // TODO: Stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource() : null;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             lonSum = bigArrays.newDoubleArray(1, true);

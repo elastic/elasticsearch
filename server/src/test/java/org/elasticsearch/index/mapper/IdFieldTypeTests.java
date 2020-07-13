@@ -26,17 +26,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
-public class IdFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new IdFieldMapper.IdFieldType();
-    }
+public class IdFieldTypeTests extends ESTestCase {
 
     public void testRangeQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("_id");
+        MappedFieldType ft = IdFieldMapper.IdFieldType.INSTANCE;
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));
         assertEquals("Field [_id] of type [_id] does not support range queries", e.getMessage());
@@ -57,12 +53,8 @@ public class IdFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
         MapperService mapperService = Mockito.mock(MapperService.class);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
-        MappedFieldType ft = IdFieldMapper.defaultFieldType(mockSettings);
-        ft.setName(IdFieldMapper.NAME);
+        MappedFieldType ft = IdFieldMapper.IdFieldType.INSTANCE;
         Query query = ft.termQuery("id", context);
-        assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
-
-        query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }
 }

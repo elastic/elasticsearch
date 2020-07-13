@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -88,16 +89,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName));
 
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 10_000); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
-        }
-        indexRandom(true, true, indexRequestBuilders);
-        refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        populateIndex(indexName, 10_000);
 
         final TotalHits originalAllHits = internalCluster().client()
             .prepareSearch(indexName)
@@ -153,6 +145,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 new ByteSizeValue(randomLongBetween(10, 100_000))
             );
         }
+        final int expectedReplicas;
+        if (randomBoolean()) {
+            expectedReplicas = numberOfReplicas();
+            indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, expectedReplicas);
+        } else {
+            expectedReplicas = 0;
+        }
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
             fsRepoName,
@@ -178,6 +177,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertTrue(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(settings));
         assertTrue(SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING.exists(settings));
         assertTrue(SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING.exists(settings));
+        assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
+        assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
@@ -349,6 +350,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(restoredIndexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59287")
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
@@ -422,6 +424,137 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                     useRateLimits ? greaterThan(0L) : equalTo(0L)
                 );
             }
+        }
+    }
+
+    public void testMountedSnapshotHasNoReplicasByDefault() throws Exception {
+        final String fsRepoName = randomAlphaOfLength(10);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        createRepo(fsRepoName);
+
+        final int dataNodesCount = internalCluster().numDataNodes();
+        final Settings.Builder originalIndexSettings = Settings.builder();
+        originalIndexSettings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        if (randomBoolean()) {
+            originalIndexSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
+        }
+        if (randomBoolean()) {
+            final int replicaLimit = between(0, dataNodesCount);
+            originalIndexSettings.put(
+                IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS,
+                replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit
+            );
+        }
+        createAndPopulateIndex(indexName, originalIndexSettings);
+
+        CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(fsRepoName, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        {
+            logger.info("--> restoring index [{}] with default replica counts", restoredIndexName);
+            Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+            final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                restoredIndexName,
+                fsRepoName,
+                snapshotName,
+                indexName,
+                indexSettingsBuilder.build(),
+                Strings.EMPTY_ARRAY,
+                true
+            );
+
+            final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+            assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+            ensureGreen(restoredIndexName);
+
+            final Settings settings = client().admin()
+                .indices()
+                .prepareGetSettings(restoredIndexName)
+                .get()
+                .getIndexToSettings()
+                .get(restoredIndexName);
+            assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(0));
+            assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
+
+            assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+        }
+
+        {
+            final int replicaCount = numberOfReplicas();
+
+            logger.info("--> restoring index [{}] with specific replica count", restoredIndexName);
+            Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount);
+            final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                restoredIndexName,
+                fsRepoName,
+                snapshotName,
+                indexName,
+                indexSettingsBuilder.build(),
+                Strings.EMPTY_ARRAY,
+                true
+            );
+
+            final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+            assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+            ensureGreen(restoredIndexName);
+
+            final Settings settings = client().admin()
+                .indices()
+                .prepareGetSettings(restoredIndexName)
+                .get()
+                .getIndexToSettings()
+                .get(restoredIndexName);
+            assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(replicaCount));
+            assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
+
+            assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+        }
+
+        {
+            final int replicaLimit = between(0, dataNodesCount);
+            logger.info("--> restoring index [{}] with auto-expand replicas configured", restoredIndexName);
+            Settings.Builder indexSettingsBuilder = Settings.builder()
+                .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit);
+            final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+                restoredIndexName,
+                fsRepoName,
+                snapshotName,
+                indexName,
+                indexSettingsBuilder.build(),
+                Strings.EMPTY_ARRAY,
+                true
+            );
+
+            final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+            assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+            ensureGreen(restoredIndexName);
+
+            final ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).get().getState();
+            assertThat(
+                state.toString(),
+                state.routingTable().index(restoredIndexName).shard(0).size(),
+                equalTo(Math.min(replicaLimit + 1, dataNodesCount))
+            );
+
+            assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
         }
     }
 
@@ -588,4 +721,5 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             }
         }
     }
+
 }

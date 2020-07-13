@@ -69,7 +69,7 @@ class FlushListener {
         private volatile Exception flushException;
 
         private FlushAcknowledgementHolder(String flushId) {
-            this.flushAcknowledgement = new FlushAcknowledgement(flushId, null);
+            this.flushAcknowledgement = new FlushAcknowledgement(flushId, 0L);
             this.latch = new CountDownLatch(1);
         }
     }

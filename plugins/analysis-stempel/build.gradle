@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Stempel (Polish) Analysis plugin integrates Lucene stempel (polish) analysis module into elasticsearch.'
@@ -23,7 +24,7 @@ esplugin {
 }
 
 dependencies {
-  compile "org.apache.lucene:lucene-analyzers-stempel:${versions.lucene}"
+  api "org.apache.lucene:lucene-analyzers-stempel:${versions.lucene}"
 }
 
 restResources {
@@ -32,6 +33,6 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }

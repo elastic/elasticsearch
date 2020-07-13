@@ -20,7 +20,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -29,9 +31,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -42,28 +41,24 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * A field mapper for boolean fields.
  */
-public class BooleanFieldMapper extends FieldMapper {
+public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "boolean";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new BooleanFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.freeze();
         }
     }
@@ -73,18 +68,36 @@ public class BooleanFieldMapper extends FieldMapper {
         public static final BytesRef FALSE = new BytesRef("F");
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    private static BooleanFieldMapper toType(FieldMapper in) {
+        return (BooleanFieldMapper) in;
+    }
+
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        private final Parameter<Boolean> docValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  true);
+        private final Parameter<Boolean> indexed = Parameter.boolParam("index", false, m -> toType(m).indexed, true);
+        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
+
+        private final Parameter<Boolean> nullValue
+            = new Parameter<>("null_value", false, null, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
+
+        private final Parameter<Float> boost = Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
-            this.builder = this;
+            super(name);
+        }
+
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(meta, boost, docValues, indexed, nullValue, stored);
         }
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new BooleanFieldMapper(name, fieldType, defaultFieldType,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            MappedFieldType ft = new BooleanFieldType(buildFullName(context), indexed.getValue(), docValues.getValue(), meta.getValue());
+            ft.setBoost(boost.getValue());
+            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
     }
 
@@ -93,34 +106,19 @@ public class BooleanFieldMapper extends FieldMapper {
         public BooleanFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("null_value")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [null_value] cannot be null.");
-                    }
-                    builder.nullValue(XContentMapValues.nodeBooleanValue(propNode, name + ".null_value"));
-                    iterator.remove();
-                }
-            }
+            builder.parse(name, parserContext, node);
             return builder;
         }
     }
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
-        public BooleanFieldType() {}
-
-        protected BooleanFieldType(BooleanFieldType ref) {
-            super(ref);
+        public BooleanFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
-        @Override
-        public MappedFieldType clone() {
-            return new BooleanFieldType(this);
+        public BooleanFieldType(String name) {
+            this(name, true, true, Collections.emptyMap());
         }
 
         @Override
@@ -135,11 +133,6 @@ public class BooleanFieldMapper extends FieldMapper {
             } else {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             }
-        }
-
-        @Override
-        public Boolean nullValue() {
-            return (Boolean)super.nullValue();
         }
 
         @Override
@@ -210,9 +203,18 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    protected BooleanFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+    private final Boolean nullValue;
+    private final boolean indexed;
+    private final boolean hasDocValues;
+    private final boolean stored;
+
+    protected BooleanFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                 MultiFields multiFields, CopyTo copyTo, Builder builder) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.nullValue = builder.nullValue.getValue();
+        this.stored = builder.stored.getValue();
+        this.indexed = builder.indexed.getValue();
+        this.hasDocValues = builder.docValues.getValue();
     }
 
     @Override
@@ -222,7 +224,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !fieldType().hasDocValues()) {
+        if (indexed == false && stored == false && hasDocValues == false) {
             return;
         }
 
@@ -230,8 +232,8 @@ public class BooleanFieldMapper extends FieldMapper {
         if (value == null) {
             XContentParser.Token token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
-                if (fieldType().nullValue() != null) {
-                    value = fieldType().nullValue();
+                if (nullValue != null) {
+                    value = nullValue;
                 }
             } else {
                 value = context.parser().booleanValue();
@@ -241,10 +243,13 @@ public class BooleanFieldMapper extends FieldMapper {
         if (value == null) {
             return;
         }
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", fieldType()));
+        if (indexed) {
+            context.doc().add(new Field(fieldType().name(), value ? "T" : "F", Defaults.FIELD_TYPE));
         }
-        if (fieldType().hasDocValues()) {
+        if (stored) {
+            context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
+        }
+        if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
             createFieldNamesField(context);
@@ -252,8 +257,8 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder(simpleName()).init(this);
     }
 
     @Override
@@ -261,11 +266,4 @@ public class BooleanFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValue());
-        }
-    }
 }

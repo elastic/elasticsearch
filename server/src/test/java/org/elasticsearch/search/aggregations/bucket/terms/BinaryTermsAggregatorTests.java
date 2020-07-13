@@ -159,9 +159,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                MappedFieldType binaryFieldType = new BinaryFieldMapper.Builder(BINARY_FIELD).fieldType();
-                binaryFieldType.setName(BINARY_FIELD);
-                binaryFieldType.setHasDocValues(true);
+                MappedFieldType binaryFieldType = new BinaryFieldMapper.BinaryFieldType(BINARY_FIELD);
 
                 InternalMappedTerms rareTerms;
                 if (reduced) {

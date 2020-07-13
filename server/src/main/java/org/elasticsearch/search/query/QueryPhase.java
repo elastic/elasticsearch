@@ -22,7 +22,6 @@ package org.elasticsearch.search.query;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -440,7 +439,7 @@ public class QueryPhase implements SearchPhase {
         final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
-        if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
+        if (fieldType.isSearchable() == false) return null;
         if (fieldType.hasDocValues() == false) return null;
 
 

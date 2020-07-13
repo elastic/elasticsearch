@@ -239,6 +239,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59273")
     public void testFollowIndexWithConcurrentMappingChanges() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1));

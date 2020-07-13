@@ -33,13 +33,13 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
-import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
-import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitterFactory;
+import org.elasticsearch.xpack.ml.dataframe.inference.InferenceRunner;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -68,6 +68,7 @@ public class AnalyticsProcessManager {
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
     private final DataFrameAnalyticsAuditor auditor;
     private final TrainedModelProvider trainedModelProvider;
+    private final ModelLoadingService modelLoadingService;
     private final ResultsPersisterService resultsPersisterService;
     private final int numAllocatedProcessors;
 
@@ -76,6 +77,7 @@ public class AnalyticsProcessManager {
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
+                                   ModelLoadingService modelLoadingService,
                                    ResultsPersisterService resultsPersisterService,
                                    int numAllocatedProcessors) {
         this(
@@ -85,6 +87,7 @@ public class AnalyticsProcessManager {
             analyticsProcessFactory,
             auditor,
             trainedModelProvider,
+            modelLoadingService,
             resultsPersisterService,
             numAllocatedProcessors);
     }
@@ -96,6 +99,7 @@ public class AnalyticsProcessManager {
                                    AnalyticsProcessFactory<AnalyticsResult> analyticsProcessFactory,
                                    DataFrameAnalyticsAuditor auditor,
                                    TrainedModelProvider trainedModelProvider,
+                                   ModelLoadingService modelLoadingService,
                                    ResultsPersisterService resultsPersisterService,
                                    int numAllocatedProcessors) {
         this.client = Objects.requireNonNull(client);
@@ -104,6 +108,7 @@ public class AnalyticsProcessManager {
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
         this.auditor = Objects.requireNonNull(auditor);
         this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
+        this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.numAllocatedProcessors = numAllocatedProcessors;
     }
@@ -168,9 +173,7 @@ public class AnalyticsProcessManager {
         AnalyticsResultProcessor resultProcessor = processContext.resultProcessor.get();
         try {
             writeHeaderRecord(dataExtractor, process);
-            writeDataRows(dataExtractor, process, config, task);
-            processContext.statsPersister.persistWithRetry(task.getStatsHolder().getDataCountsTracker().report(config.getId()),
-                DataCounts::documentId);
+            writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
             process.flushStream();
 
@@ -182,10 +185,15 @@ public class AnalyticsProcessManager {
             LOGGER.info("[{}] Waiting for result processor to complete", config.getId());
             resultProcessor.awaitForCompletion();
             processContext.setFailureReason(resultProcessor.getFailure());
+            LOGGER.info("[{}] Result processor has completed", config.getId());
+
+            runInference(parentTaskClient, task, processContext);
+
+            processContext.statsPersister.persistWithRetry(task.getStatsHolder().getDataCountsTracker().report(config.getId()),
+                DataCounts::documentId);
 
             refreshDest(parentTaskClient, config);
             refreshIndices(parentTaskClient, config.getId());
-            LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
             if (task.isStopping()) {
                 // Errors during task stopping are expected but we still want to log them just in case.
@@ -220,12 +228,9 @@ public class AnalyticsProcessManager {
     }
 
     private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process,
-                               DataFrameAnalyticsConfig config, DataFrameAnalyticsTask task) throws IOException {
+                               DataFrameAnalyticsTask task) throws IOException {
         ProgressTracker progressTracker = task.getStatsHolder().getProgressTracker();
         DataCountsTracker dataCountsTracker = task.getStatsHolder().getDataCountsTracker();
-        CrossValidationSplitter crossValidationSplitter = new CrossValidationSplitterFactory(
-                new ParentTaskAssigningClient(client, task.getParentTaskId()), config, dataExtractor.getFieldNames())
-                .create();
 
         // The extra fields are for the doc hash and the control field (should be an empty string)
         String[] record = new String[dataExtractor.getFieldNames().size() + 2];
@@ -245,9 +250,10 @@ public class AnalyticsProcessManager {
                         String[] rowValues = row.getValues();
                         System.arraycopy(rowValues, 0, record, 0, rowValues.length);
                         record[record.length - 2] = String.valueOf(row.getChecksum());
-                        crossValidationSplitter.process(record, dataCountsTracker::incrementTrainingDocsCount,
-                            dataCountsTracker::incrementTestDocsCount);
-                        process.writeRecord(record);
+                        if (row.isTraining()) {
+                            dataCountsTracker.incrementTrainingDocsCount();
+                            process.writeRecord(record);
+                        }
                     }
                 }
                 rowsProcessed += rows.get().size();
@@ -315,6 +321,22 @@ public class AnalyticsProcessManager {
         };
     }
 
+    private void runInference(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsTask task, ProcessContext processContext) {
+        if (processContext.failureReason.get() != null) {
+            // If there has been an error thus far let's not run inference at all
+            return;
+        }
+
+        if (processContext.config.getAnalysis().supportsInference()) {
+            refreshDest(parentTaskClient, processContext.config);
+            InferenceRunner inferenceRunner = new InferenceRunner(parentTaskClient, modelLoadingService, resultsPersisterService,
+                task.getParentTaskId(), processContext.config, task.getStatsHolder().getProgressTracker(),
+                task.getStatsHolder().getDataCountsTracker());
+            processContext.setInferenceRunner(inferenceRunner);
+            inferenceRunner.run(processContext.resultProcessor.get().getLatestModelId());
+        }
+    }
+
     private void refreshDest(ParentTaskAssigningClient parentTaskClient, DataFrameAnalyticsConfig config) {
         ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, parentTaskClient,
             () -> parentTaskClient.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
@@ -375,6 +397,7 @@ public class AnalyticsProcessManager {
         private final SetOnce<AnalyticsProcess<AnalyticsResult>> process = new SetOnce<>();
         private final SetOnce<DataFrameDataExtractor> dataExtractor = new SetOnce<>();
         private final SetOnce<AnalyticsResultProcessor> resultProcessor = new SetOnce<>();
+        private final SetOnce<InferenceRunner> inferenceRunner = new SetOnce<>();
         private final SetOnce<String> failureReason = new SetOnce<>();
         private final StatsPersister statsPersister;
 
@@ -395,6 +418,10 @@ public class AnalyticsProcessManager {
             this.failureReason.trySet(failureReason);
         }
 
+        void setInferenceRunner(InferenceRunner inferenceRunner) {
+            this.inferenceRunner.set(inferenceRunner);
+        }
+
         synchronized void stop() {
             LOGGER.debug("[{}] Stopping process", config.getId());
             if (dataExtractor.get() != null) {
@@ -402,6 +429,9 @@ public class AnalyticsProcessManager {
             }
             if (resultProcessor.get() != null) {
                 resultProcessor.get().cancel();
+            }
+            if (inferenceRunner.get() != null) {
+                inferenceRunner.get().cancel();
             }
             statsPersister.cancel();
             if (process.get() != null) {
@@ -443,7 +473,7 @@ public class AnalyticsProcessManager {
                                                            ExtractedFields extractedFields) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
             Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
-            int threads = config.getMaxNumThreads() == null ? 1 : Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
+            int threads = Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
             return new AnalyticsProcessConfig(
                 config.getId(),
                 dataSummary.rows,
@@ -463,7 +493,7 @@ public class AnalyticsProcessManager {
                         dataExtractorFactory.newExtractor(true), resultsPersisterService);
             return new AnalyticsResultProcessor(
                 config, dataFrameRowsJoiner, task.getStatsHolder(), trainedModelProvider, auditor, statsPersister,
-                dataExtractor.get().getAllExtractedFields());
+                dataExtractor.get().getExtractedFields());
         }
     }
 }

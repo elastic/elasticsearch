@@ -20,24 +20,25 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     @Override
     public void testToSteps() {
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey expectedFirstStep = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
-        StepKey expectedSecondStep = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
-        StepKey expectedThirdStep = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
-        StepKey expectedFourthStep = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
-        StepKey expectedFifthStep = new StepKey(phase, NAME, MountSnapshotStep.NAME);
-        StepKey expectedSixthStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
-        StepKey expectedSeventhStep = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
-        StepKey expectedEighthStep = new StepKey(phase, NAME, CopySettingsStep.NAME);
-        StepKey expectedNinthStep = new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
-        StepKey expectedTenthStep = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
-        StepKey expectedElevenStep = new StepKey(phase, NAME, DeleteStep.NAME);
-        StepKey expectedTwelveStep = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
+        StepKey expectedFirstStep = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
+        StepKey expectedSecondStep = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        StepKey expectedThirdStep = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
+        StepKey expectedFourthStep = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
+        StepKey expectedFifthStep = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
+        StepKey expectedSixthStep = new StepKey(phase, NAME, MountSnapshotStep.NAME);
+        StepKey expectedSeventhStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey expectedEighthStep = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
+        StepKey expectedNinthStep = new StepKey(phase, NAME, CopySettingsStep.NAME);
+        StepKey expectedTenthStep = new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DATASTREAM_CHECK_KEY);
+        StepKey expectedElevenStep = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
+        StepKey expectedTwelveStep = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey expectedThirteenStep = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
 
         SearchableSnapshotAction action = createTestInstance();
         StepKey nextStepKey = new StepKey(phase, randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
 
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertThat(steps.size(), is(12));
+        assertThat(steps.size(), is(13));
 
         assertThat(steps.get(0).getKey(), is(expectedFirstStep));
         assertThat(steps.get(1).getKey(), is(expectedSecondStep));
@@ -51,9 +52,10 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         assertThat(steps.get(9).getKey(), is(expectedTenthStep));
         assertThat(steps.get(10).getKey(), is(expectedElevenStep));
         assertThat(steps.get(11).getKey(), is(expectedTwelveStep));
+        assertThat(steps.get(12).getKey(), is(expectedThirteenStep));
 
-        AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(3);
-        assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedThirdStep));
+        AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(4);
+        assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedFourthStep));
     }
 
     @Override

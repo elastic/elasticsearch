@@ -496,9 +496,7 @@ PUT /_index_template/template_1
       }
     }
   },
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": {}
 }
 --------------------------------------------------
 

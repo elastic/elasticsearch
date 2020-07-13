@@ -121,9 +121,7 @@ with the options you specify.
 PUT _index_template/timeseries_template
 {
   "index_patterns": ["timeseries"],                   <1>
-  "data_stream": {
-    "timestamp_field": "@timestamp"                   <2>
-  },
+  "data_stream": {},
   "template": {
     "settings": {
       "number_of_shards": 1,

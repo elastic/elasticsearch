@@ -166,9 +166,7 @@ configures the `logs_data_stream` template.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {

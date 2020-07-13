@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -248,68 +249,39 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
-        private static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ObjectParser<DataStreamTemplate, Void> PARSER = new ObjectParser<>(
             "data_stream_template",
-            args -> new DataStreamTemplate(args[0] != null ? (String) args[0] : FIXED_TIMESTAMP_FIELD)
+            DataStreamTemplate::new
         );
 
-        static {
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DataStream.TIMESTAMP_FIELD_FIELD);
-        }
-
-        private final String timestampField;
-
-        public DataStreamTemplate(String timestampField) {
-            if (FIXED_TIMESTAMP_FIELD.equals(timestampField) == false) {
-                throw new IllegalArgumentException("unexpected timestamp field [" + timestampField + "]");
-            }
-
-            this.timestampField = timestampField;
-        }
-
         public DataStreamTemplate() {
-            this(FIXED_TIMESTAMP_FIELD);
         }
 
         public String getTimestampField() {
-            return timestampField;
+            return FIXED_TIMESTAMP_FIELD;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
-            this(in.readString());
+            this();
         }
 
         /**
          * @return a mapping snippet for a backing index with `_timestamp` meta field mapper properly configured.
          */
         public Map<String, Object> getDataSteamMappingSnippet() {
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(TimestampFieldMapper.NAME, Map.of("path", timestampField)));
+            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of(TimestampFieldMapper.NAME, Map.of("path", FIXED_TIMESTAMP_FIELD)));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(timestampField);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), timestampField);
+            builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), FIXED_TIMESTAMP_FIELD);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DataStreamTemplate that = (DataStreamTemplate) o;
-            return timestampField.equals(that.timestampField);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(timestampField);
         }
     }
 }

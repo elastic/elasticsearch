@@ -1,3 +1,4 @@
+[role="xpack"]
 [[set-up-a-data-stream]]
 == Set up a data stream
 

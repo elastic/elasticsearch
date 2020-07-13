@@ -22,13 +22,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 
 import java.util.Collections;
-import java.util.Map;
 
-public class BooleanFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new BooleanFieldMapper.BooleanFieldType(name, true, true, meta);
-    }
+public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
         MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");

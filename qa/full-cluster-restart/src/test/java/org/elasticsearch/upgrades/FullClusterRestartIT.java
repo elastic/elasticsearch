@@ -609,7 +609,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
     }
 
-    int extractTotalHits(Map<?, ?> response) {
+    static int extractTotalHits(Map<?, ?> response) {
         return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 
@@ -1385,11 +1385,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private void assertNumHits(String index, int numHits, int totalShards) throws IOException {
+    public static void assertNumHits(String index, int numHits, int totalShards) throws IOException {
         Map<String, Object> resp = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search")));
         assertNoFailures(resp);
         assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
         assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
         assertThat(extractTotalHits(resp), equalTo(numHits));
     }
+
 }

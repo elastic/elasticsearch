@@ -21,11 +21,15 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -35,7 +39,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
+import static org.apache.lucene.util.LuceneTestCase.expectThrows;
 import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 
 
 public class MapperTestUtils {
@@ -67,5 +74,21 @@ public class MapperTestUtils {
             similarityService,
             mapperRegistry,
             () -> null, () -> false);
+    }
+
+    public static void assertConflicts(String mapping1,
+                                       String mapping2,
+                                       DocumentMapperParser
+                                           parser, String... conflicts) throws IOException {
+        DocumentMapper docMapper = parser.parse("type", new CompressedXContent(mapping1));
+        if (conflicts.length == 0) {
+            docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE);
+        } else {
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> docMapper.merge(parser.parse("type", new CompressedXContent(mapping2)).mapping(), MergeReason.MAPPING_UPDATE));
+            for (String conflict : conflicts) {
+                assertThat(e.getMessage(), containsString(conflict));
+            }
+        }
     }
 }

@@ -75,6 +75,8 @@ used to perform the action.
 +
 If the `indices` parameter is not specified,
 this parameter is required.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `indices`::
 (Array)
@@ -83,6 +85,8 @@ used to perform the action.
 +
 If the `index` parameter is not specified,
 this parameter is required.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `alias`::
 (String)

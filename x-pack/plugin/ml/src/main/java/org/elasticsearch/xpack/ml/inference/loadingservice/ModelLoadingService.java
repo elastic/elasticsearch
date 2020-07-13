@@ -309,6 +309,7 @@ public class ModelLoadingService implements ClusterStateListener {
                             trainedModelConfig.getInput(),
                             trainedModelConfig.getDefaultFieldMap(),
                             inferenceConfig,
+                            trainedModelConfig.getLicenseLevel(),
                             modelStatsService));
                     },
                     // Failure getting the definition, remove the initial estimation value
@@ -337,6 +338,7 @@ public class ModelLoadingService implements ClusterStateListener {
             trainedModelConfig.getInput(),
             trainedModelConfig.getDefaultFieldMap(),
             inferenceConfig,
+            trainedModelConfig.getLicenseLevel(),
             modelStatsService);
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelId);

@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 
@@ -39,8 +40,6 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
  * A lightweight utility that can find the current user and authentication information for the local thread.
  */
 public class SecurityContext {
-
-    public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
 
     private final Logger logger = LogManager.getLogger(SecurityContext.class);
 

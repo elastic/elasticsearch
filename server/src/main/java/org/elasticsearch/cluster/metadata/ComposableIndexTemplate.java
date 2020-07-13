@@ -251,7 +251,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private static final ObjectParser<DataStreamTemplate, Void> PARSER = new ObjectParser<>(
             "data_stream_template",
-            DataStreamTemplate::new
+            () -> new DataStreamTemplate()
         );
 
         public DataStreamTemplate() {
@@ -279,9 +279,19 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), FIXED_TIMESTAMP_FIELD);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            return o != null && getClass() == o.getClass();
+        }
+
+        @Override
+        public int hashCode() {
+            return DataStreamTemplate.class.hashCode();
         }
     }
 }

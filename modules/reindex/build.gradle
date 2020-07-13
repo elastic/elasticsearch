@@ -24,7 +24,7 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
@@ -32,7 +32,7 @@ esplugin {
   hasClientJar = true
 }
 
-testClusters.integTest {
+testClusters.all {
   // Modules who's integration is explicitly tested in integration tests
   module project(':modules:parent-join').tasks.bundlePlugin.archiveFile
   module project(':modules:lang-painless').tasks.bundlePlugin.archiveFile

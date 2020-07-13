@@ -125,7 +125,7 @@ public final class TimeSeriesRestDriver {
         StringEntity templateJSON = new StringEntity(
             String.format(Locale.ROOT, "{\n" +
                 "  \"index_patterns\": \"%s\",\n" +
-                "  \"data_stream\": { \"timestamp_field\": \"@timestamp\" },\n" +
+                "  \"data_stream\": {},\n" +
                 "  \"template\": %s\n" +
                 "}", indexPattern, Strings.toString(builder)),
             ContentType.APPLICATION_JSON);

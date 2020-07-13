@@ -1,14 +1,43 @@
 [[release-notes-6.8.11]]
 == {es} version 6.8.11
 
-coming::[6.8.11]
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 
+[[bug-6.8.11]]
 [float]
 === Bug fixes
+
+CCR::
+* Ensure CCR partial reads never overuse buffer {es-pull}58620[#58620]
+
+Infra/Core::
+* Index name expression resolver bwc layer for date parsing {es-pull}58503[#58503] (issues: {es-issue}58481[#58481], {es-issue}58602[#58602])
+* Week based parsing for ingest date processor {es-pull}58597[#58597] (issue: {es-issue}58479[#58479])
 
 Machine Learning::
 * Better interrupt handling during named pipe connection {ml-pull}1311[#1311]
 * Trap potential cause of SIGFPE {ml-pull}1351[#1351] (issue: {ml-issue}1348[#1348])
+
+Mapping::
+* Fix types deprecation warning for put mapping. {es-pull}58764[#58764] (issues: {es-issue}38825[#38825], {es-issue}58675[#58675])
+
+SQL::
+* Introduce JDBC option for meta pattern escaping {es-pull}40661[#40661] (issue: {es-issue}40640[#40640])
+
+Search::
+* Prevent BigInteger serialization errors in term queries {es-pull}57987[#57987] (issue: {es-issue}57917[#57917])
+
+Task Management::
+* Remove ban tasks with the current thread context {es-pull}55404[#55404]
+
+
+
+[[upgrade-6.8.11]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade to JNA 5.5.0 {es-pull}58183[#58183]
 
 
 [[release-notes-6.8.10]]

@@ -13,10 +13,16 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.Map;
 
+import static org.elasticsearch.action.ActionModule.DATASTREAMS_FEATURE_ENABLED;
+
 public class DataStreamsPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return Map.of(DataStreamTimestampFieldMapper.NAME, new DataStreamTimestampFieldMapper.TypeParser());
+        if (DATASTREAMS_FEATURE_ENABLED) {
+            return Map.of(DataStreamTimestampFieldMapper.NAME, new DataStreamTimestampFieldMapper.TypeParser());
+        } else {
+            return Map.of();
+        }
     }
 }

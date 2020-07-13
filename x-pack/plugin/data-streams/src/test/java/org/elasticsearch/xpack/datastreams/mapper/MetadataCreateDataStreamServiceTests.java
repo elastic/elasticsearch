@@ -35,13 +35,13 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> validateTimestampFieldMapping("@timestamp", createMapperService("{}")));
         assertThat(e.getMessage(),
-            equalTo("[_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
+            equalTo("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
 
         String mapping = generateMapping("@timestamp2", "date");
         e = expectThrows(IllegalArgumentException.class,
             () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
         assertThat(e.getMessage(),
-            equalTo("[_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
+            equalTo("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
     }
 
     public void testValidateTimestampFieldMappingInvalidFieldType() {

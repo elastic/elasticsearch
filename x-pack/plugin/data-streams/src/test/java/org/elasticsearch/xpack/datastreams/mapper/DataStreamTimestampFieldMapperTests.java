@@ -174,14 +174,15 @@ public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testCannotUpdateTimestampField() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        String mapping1 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp\"}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
-        String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
-            "\"@timestamp\": {\"type\": \"date\"}}}})";
+        String mapping1 =
+            "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp\"}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
+        String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": " +
+            "{\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
         assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_data_stream_timestamp]");
 
         mapping1 = "{\"type\":{\"properties\":{\"@timestamp\": {\"type\": \"date\"}}}}}";
-        mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
-            "\"@timestamp\": {\"type\": \"date\"}}}})";
+        mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": " +
+            "{\"@timestamp2\": {\"type\": \"date\"},\"@timestamp\": {\"type\": \"date\"}}}})";
         assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_data_stream_timestamp]");
     }
 

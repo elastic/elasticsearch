@@ -6,7 +6,7 @@
 <titleabbrev>Requirements</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 EQL is schema-less and works well with most common log formats.
 

@@ -112,7 +112,7 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
                             final Double to = rangeType.doubleValue(range.getTo());
                             final double effectiveFrom = (hardBounds != null && hardBounds.getMin() != null) ?
                                 Double.max(from, hardBounds.getMin()) : from;
-                            final double effectiveTo = hardBounds != null && hardBounds.getMax() != null ?
+                            final double effectiveTo = (hardBounds != null && hardBounds.getMax() != null) ?
                                 Double.min(to, hardBounds.getMax()) : to;
                             final double startKey = Math.floor((effectiveFrom - offset) / interval);
                             final double endKey = Math.floor((effectiveTo - offset) / interval);

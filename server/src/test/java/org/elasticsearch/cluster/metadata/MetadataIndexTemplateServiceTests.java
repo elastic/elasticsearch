@@ -1307,7 +1307,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Map.of("_timestamp", new MetadataFieldMapper.TypeParser() {
+            return Map.of("_data_stream_timestamp", new MetadataFieldMapper.TypeParser() {
 
                 @Override
                 public MetadataFieldMapper.Builder<?> parse(String name,
@@ -1330,10 +1330,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 MetadataFieldMapper newInstance(String path) {
                     FieldType fieldType = new FieldType();
                     fieldType.freeze();
-                    MappedFieldType mappedFieldType = new MappedFieldType("_timestamp", false, false, TextSearchInfo.NONE, Map.of()) {
+                    MappedFieldType mappedFieldType =
+                        new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Map.of()) {
                         @Override
                         public String typeName() {
-                            return "_timestamp";
+                            return "_data_stream_timestamp";
                         }
 
                         @Override
@@ -1370,7 +1371,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
                         @Override
                         protected String contentType() {
-                            return "_timestamp";
+                            return "_data_stream_timestamp";
                         }
                     };
                 }

@@ -117,10 +117,6 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         protected AbstractPointGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, hasDocValues, meta);
         }
-
-        protected AbstractPointGeometryFieldType(AbstractPointGeometryFieldType ref) {
-            super(ref);
-        }
     }
 
     protected AbstractPointGeometryFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,

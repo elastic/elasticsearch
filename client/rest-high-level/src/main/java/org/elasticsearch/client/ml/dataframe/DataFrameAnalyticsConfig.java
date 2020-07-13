@@ -57,6 +57,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     static final ParseField CREATE_TIME = new ParseField("create_time");
     static final ParseField VERSION = new ParseField("version");
     static final ParseField ALLOW_LAZY_START = new ParseField("allow_lazy_start");
+    static final ParseField MAX_NUM_THREADS = new ParseField("max_num_threads");
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_config", true, Builder::new);
 
@@ -80,6 +81,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             ValueType.VALUE);
         PARSER.declareString(Builder::setVersion, Version::fromString, VERSION);
         PARSER.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
+        PARSER.declareInt(Builder::setMaxNumThreads, MAX_NUM_THREADS);
     }
 
     private static DataFrameAnalysis parseAnalysis(XContentParser parser) throws IOException {
@@ -100,11 +102,13 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final Instant createTime;
     private final Version version;
     private final Boolean allowLazyStart;
+    private final Integer maxNumThreads;
 
     private DataFrameAnalyticsConfig(@Nullable String id, @Nullable String description, @Nullable DataFrameAnalyticsSource source,
                                      @Nullable DataFrameAnalyticsDest dest, @Nullable DataFrameAnalysis analysis,
                                      @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit,
-                                     @Nullable Instant createTime, @Nullable Version version, @Nullable Boolean allowLazyStart) {
+                                     @Nullable Instant createTime, @Nullable Version version, @Nullable Boolean allowLazyStart,
+                                     @Nullable Integer maxNumThreads) {
         this.id = id;
         this.description = description;
         this.source = source;
@@ -115,6 +119,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());;
         this.version = version;
         this.allowLazyStart = allowLazyStart;
+        this.maxNumThreads = maxNumThreads;
     }
 
     public String getId() {
@@ -157,6 +162,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return allowLazyStart;
     }
 
+    public Integer getMaxNumThreads() {
+        return maxNumThreads;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -193,6 +202,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         if (allowLazyStart != null) {
             builder.field(ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
         }
+        if (maxNumThreads != null) {
+            builder.field(MAX_NUM_THREADS.getPreferredName(), maxNumThreads);
+        }
         builder.endObject();
         return builder;
     }
@@ -212,12 +224,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             && Objects.equals(modelMemoryLimit, other.modelMemoryLimit)
             && Objects.equals(createTime, other.createTime)
             && Objects.equals(version, other.version)
-            && Objects.equals(allowLazyStart, other.allowLazyStart);
+            && Objects.equals(allowLazyStart, other.allowLazyStart)
+            && Objects.equals(maxNumThreads, other.maxNumThreads);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version, allowLazyStart);
+        return Objects.hash(id, description, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version, allowLazyStart,
+            maxNumThreads);
     }
 
     @Override
@@ -237,6 +251,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         private Instant createTime;
         private Version version;
         private Boolean allowLazyStart;
+        private Integer maxNumThreads;
 
         private Builder() {}
 
@@ -290,9 +305,14 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setMaxNumThreads(Integer maxNumThreads) {
+            this.maxNumThreads = maxNumThreads;
+            return this;
+        }
+
         public DataFrameAnalyticsConfig build() {
             return new DataFrameAnalyticsConfig(id, description, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime,
-                version, allowLazyStart);
+                version, allowLazyStart, maxNumThreads);
         }
     }
 }

@@ -199,6 +199,8 @@ public class LocalModel implements Closeable {
 
     long acquire() {
         long count = referenceCount.incrementAndGet();
+        // protect against a race where the model could be release to a
+        // count of zero then the model is quickly re-acquired
         if (count == 1) {
             trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelDefinition.ramBytesUsed(), modelId);
         }
@@ -210,11 +212,12 @@ public class LocalModel implements Closeable {
     }
 
     public long release() {
-        if (referenceCount.decrementAndGet() == 0) {
+        long count = referenceCount.decrementAndGet();
+        assert count >= 0;
+        if (count == 0) {
             // no references to this model, it no longer needs to be accounted for
             trainedModelCircuitBreaker.addWithoutBreaking(-ramBytesUsed());
         }
-
         return referenceCount.get();
     }
 

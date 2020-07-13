@@ -284,18 +284,6 @@ public class ModelLoadingService implements ClusterStateListener {
                             return;
                         }
 
-                        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
-                        if (estimateDiff < 0) {
-                            trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
-                        } else if (estimateDiff > 0) { // rare case where estimate is now HIGHER
-                            try {
-                                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(estimateDiff, modelId);
-                            } catch (CircuitBreakingException ex) { // if we failed here, we should remove the initial estimate as well
-                                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
-                                handleLoadFailure(modelId, ex);
-                                return;
-                            }
-                        }
                         handleLoadSuccess(modelId, consumer, trainedModelConfig, inferenceDefinition);
                     },
                     failure -> {
@@ -397,13 +385,13 @@ public class ModelLoadingService implements ClusterStateListener {
                 loadedModel.release();
                 return;
             }
+            for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+                loadedModel.acquire();
+                listener.onResponse(loadedModel);
+            }
             localModelCache.put(modelId, new ModelAndConsumer(loadedModel, consumer));
             shouldNotAudit.remove(modelId);
         } // synchronized (loadingListeners)
-        for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
-            loadedModel.acquire();
-            listener.onResponse(loadedModel);
-        }
     }
 
     private void handleLoadFailure(String modelId, Exception failure) {

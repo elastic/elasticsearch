@@ -334,6 +334,7 @@ public class LocalModelTests extends ESTestCase {
                 new TrainedModelInput(inputFields),
                 null,
                 ClassificationConfig.EMPTY_PARAMS,
+                License.OperationMode.PLATINUM,
                 modelStatsService,
                 breaker
             );
@@ -341,11 +342,13 @@ public class LocalModelTests extends ESTestCase {
             model.release();
             verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
             verifyNoMoreInteractions(breaker);
+            assertEquals(0L, model.getReferenceCount());
 
             // reacquire
             model.acquire();
             verify(breaker, times(1)).addEstimateBytesAndMaybeBreak(eq(definition.ramBytesUsed()), eq(modelId));
             verifyNoMoreInteractions(breaker);
+            assertEquals(1L, model.getReferenceCount());
         }
 
         {
@@ -356,6 +359,7 @@ public class LocalModelTests extends ESTestCase {
                 new TrainedModelInput(inputFields),
                 null,
                 ClassificationConfig.EMPTY_PARAMS,
+                License.OperationMode.PLATINUM,
                 modelStatsService,
                 breaker
             );
@@ -367,9 +371,7 @@ public class LocalModelTests extends ESTestCase {
             model.release();
             verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
             verifyNoMoreInteractions(breaker);
-
-            model.release();
-            verifyNoMoreInteractions(breaker);
+            assertEquals(0L, model.getReferenceCount());
         }
     }
 

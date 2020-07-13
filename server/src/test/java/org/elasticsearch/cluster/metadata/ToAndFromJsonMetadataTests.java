@@ -103,7 +103,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 .put(idx1, false)
                 .put(idx2, false)
                 .put(new DataStream("data-stream1", createTimestampField("@timestamp"), List.of(idx1.getIndex())))
-                .put(new DataStream("data-stream2", createTimestampField("@timestamp2"), List.of(idx2.getIndex())))
+                .put(new DataStream("data-stream2", createTimestampField("@timestamp"), List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
@@ -157,7 +157,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
         assertThat(parsedMetadata.dataStreams().get("data-stream1").getIndices(), contains(idx1.getIndex()));
         assertNotNull(parsedMetadata.dataStreams().get("data-stream2"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getName(), is("data-stream2"));
-        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp2"));
+        assertThat(parsedMetadata.dataStreams().get("data-stream2").getTimeStampField().getName(), is("@timestamp"));
         assertThat(parsedMetadata.dataStreams().get("data-stream2").getIndices(), contains(idx2.getIndex()));
     }
 

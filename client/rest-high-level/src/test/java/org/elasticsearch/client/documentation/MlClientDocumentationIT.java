@@ -3040,6 +3040,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setAnalyzedFields(analyzedFields) // <5>
                 .setModelMemoryLimit(new ByteSizeValue(5, ByteSizeUnit.MB)) // <6>
                 .setDescription("this is an example description") // <7>
+                .setMaxNumThreads(1) // <8>
                 .build();
             // end::put-data-frame-analytics-config
 
@@ -3096,6 +3097,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setId("my-analytics-config")  // <1>
                 .setDescription("new description")  // <2>
                 .setModelMemoryLimit(new ByteSizeValue(128, ByteSizeUnit.MB))  // <3>
+                .setMaxNumThreads(4) // <4>
                 .build();
             // end::update-data-frame-analytics-config-update
 

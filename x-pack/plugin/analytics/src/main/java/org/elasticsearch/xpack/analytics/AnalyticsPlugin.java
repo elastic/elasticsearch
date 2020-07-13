@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
@@ -50,6 +50,8 @@ import org.elasticsearch.xpack.analytics.ttest.TTestState;
 import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.ArrayList;
@@ -124,7 +126,9 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return singletonList(
+        return org.elasticsearch.common.collect.List.of(
+            new ActionHandler<>(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
             new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class));
     }
 
@@ -157,7 +161,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator
+            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator
         );
     }
 

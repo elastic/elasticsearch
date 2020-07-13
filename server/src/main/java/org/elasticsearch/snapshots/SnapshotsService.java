@@ -294,8 +294,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 newEntry = new SnapshotsInProgress.Entry(
                         new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
-                        State.STARTED, indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards,
-                        null, userMeta, version);
+                        completed(shards.values()) ? State.SUCCESS : State.STARTED, indexIds, dataStreams,
+                        threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, null, userMeta, version);
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
@@ -314,7 +314,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.info("snapshot [{}] started", snapshot);
                     listener.onResponse(snapshot);
                 } finally {
-                    if (newEntry.state().completed() || completed(newEntry.shards().values())) {
+                    if (newEntry.state().completed()) {
                         endSnapshot(newEntry, newState.metadata(), repositoryData);
                     }
                 }

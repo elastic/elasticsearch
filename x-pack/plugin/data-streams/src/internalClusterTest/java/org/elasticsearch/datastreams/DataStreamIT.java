@@ -517,14 +517,14 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(rolloverResponse.isRolledOver());
 
         Map<?, ?> expectedMapping =
-            Map.of("properties", Map.of("@timestamp", Map.of("type", "date")), "_timestamp", Map.of("path", "@timestamp"));
+            Map.of("properties", Map.of("@timestamp", Map.of("type", "date")), "_data_stream_timestamp", Map.of("path", "@timestamp"));
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
 
         expectedMapping = Map.of("properties", Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")),
-            "_timestamp", Map.of("path", "@timestamp"));
+            "_data_stream_timestamp", Map.of("path", "@timestamp"));
         client().admin().indices().preparePutMapping("logs-foobar")
             .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
             .get();

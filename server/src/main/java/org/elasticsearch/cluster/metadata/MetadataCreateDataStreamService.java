@@ -174,14 +174,14 @@ public class MetadataCreateDataStreamService {
 
     public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
         MetadataFieldMapper fieldMapper =
-            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_timestamp");
-        assert fieldMapper != null : "[_timestamp] meta field mapper must exist";
+            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
+        assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";
 
         Map<String, Object> parsedTemplateMapping =
             MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
-        String configuredPath = ObjectPath.eval("_doc._timestamp.path", parsedTemplateMapping);
+        String configuredPath = ObjectPath.eval("_doc._data_stream_timestamp.path", parsedTemplateMapping);
         if (timestampFieldName.equals(configuredPath) == false) {
-            throw new IllegalArgumentException("[_timestamp] meta field doesn't point to data stream timestamp field [" +
+            throw new IllegalArgumentException("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [" +
                 timestampFieldName + "]");
         }
 

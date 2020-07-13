@@ -553,9 +553,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
             DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder("@timestamp").build(builderContext);
             MetadataFieldMapper mockedTimestampField = mock(MetadataFieldMapper.class);
-            when(mockedTimestampField.name()).thenReturn("_timestamp");
+            when(mockedTimestampField.name()).thenReturn("_data_stream_timestamp");
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
-            when(mockedTimestampFieldType.name()).thenReturn("_timestamp");
+            when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             when(mockedTimestampField.fieldType()).thenReturn(mockedTimestampFieldType);
             DocumentFieldMappers documentFieldMappers =
                 new DocumentFieldMappers(List.of(mockedTimestampField, dateFieldMapper), List.of(), new StandardAnalyzer());
@@ -569,7 +569,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             when(documentMapper.mappers()).thenReturn(documentFieldMappers);
             when(documentMapper.type()).thenReturn("_doc");
             CompressedXContent mapping =
-                new CompressedXContent("{\"_doc\":" + generateMapping(dataStream.getTimeStampField().getName()) + "}");
+                new CompressedXContent("{\"_doc\":" + generateMapping(dataStream.getTimeStampField().getName(), "date") + "}");
             when(documentMapper.mappingSource()).thenReturn(mapping);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);

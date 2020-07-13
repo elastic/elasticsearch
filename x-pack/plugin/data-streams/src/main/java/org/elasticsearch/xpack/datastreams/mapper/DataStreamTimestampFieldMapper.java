@@ -36,9 +36,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class TimestampFieldMapper extends MetadataFieldMapper {
+public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
-    public static final String NAME = "_timestamp";
+    public static final String NAME = "_data_stream_timestamp";
 
     public static class Defaults  {
 
@@ -89,7 +89,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper build(BuilderContext context) {
-            return new TimestampFieldMapper(
+            return new DataStreamTimestampFieldMapper(
                 fieldType,
                 new TimestampFieldType(),
                 path
@@ -118,14 +118,14 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext parserContext) {
-            return new TimestampFieldMapper(Defaults.TIMESTAMP_FIELD_TYPE,
+            return new DataStreamTimestampFieldMapper(Defaults.TIMESTAMP_FIELD_TYPE,
                 new TimestampFieldType(), null);
         }
     }
 
     private final String path;
 
-    private TimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String path) {
+    private DataStreamTimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String path) {
         super(fieldType, mappedFieldType);
         this.path = path;
     }
@@ -251,9 +251,9 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-       TimestampFieldMapper otherTimestampFieldMapper = (TimestampFieldMapper) other;
+       DataStreamTimestampFieldMapper otherTimestampFieldMapper = (DataStreamTimestampFieldMapper) other;
        if (Objects.equals(path, otherTimestampFieldMapper.path) == false) {
-           conflicts.add("cannot update path setting for [_timestamp]");
+           conflicts.add("cannot update path setting for [_data_stream_timestamp]");
        }
     }
 }

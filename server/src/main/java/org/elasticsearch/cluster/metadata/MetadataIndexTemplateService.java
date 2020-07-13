@@ -1138,7 +1138,8 @@ public class MetadataIndexTemplateService {
                     }
                 } catch (Exception e) {
                     final String expectedMessageIfDataStreamsIsUsedAndNotSupported =
-                        "Failed to parse mapping: Root mapping definition has unsupported parameters:  [_timestamp : {path=@timestamp}]";
+                        "Failed to parse mapping: Root mapping definition has unsupported parameters:  " +
+                            "[_data_stream_timestamp : {path=@timestamp}]";
                     if (expectedMessageIfDataStreamsIsUsedAndNotSupported.equals(e.getMessage())) {
                         // Fail like a parsing expection, since we will be moving data_stream template out of server module and
                         // then we would fail with the same error message, like we do here.

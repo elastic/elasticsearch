@@ -47,7 +47,7 @@ import java.util.List;
 import static org.elasticsearch.index.MapperTestUtils.assertConflicts;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
+public class DataStreamTimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -56,7 +56,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testPostParse() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("_data_stream_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type",
                 randomBoolean() ? "date" : "date_nanos").endObject().endObject()
             .endObject().endObject());
@@ -90,7 +90,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNonExistingField() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "non-existing-field").endObject()
+            .startObject("_data_stream_timestamp").field("path", "non-existing-field").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").endObject().endObject()
             .endObject().endObject());
 
@@ -101,7 +101,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateInvalidFieldType() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("_data_stream_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "keyword").endObject().endObject()
             .endObject().endObject());
 
@@ -113,7 +113,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNotIndexed() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("_data_stream_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").field("index", "false").endObject().endObject()
             .endObject().endObject());
 
@@ -124,7 +124,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNotDocValues() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("_data_stream_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").field("doc_values", "false").endObject().endObject()
             .endObject().endObject());
 
@@ -135,7 +135,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNullValue() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("_data_stream_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date")
             .field("null_value", "2020-12-12").endObject().endObject()
             .endObject().endObject());
@@ -148,7 +148,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateIgnoreMalformed() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("_data_stream_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").field("ignore_malformed", "true")
             .endObject().endObject()
             .endObject().endObject());
@@ -161,7 +161,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testValidateNotDisallowedAttribute() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_timestamp").field("path", "@timestamp").endObject()
+            .startObject("_data_stream_timestamp").field("path", "@timestamp").endObject()
             .startObject("properties").startObject("@timestamp").field("type", "date").field("store", "true")
                 .endObject().endObject()
             .endObject().endObject());
@@ -174,20 +174,20 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testCannotUpdateTimestampField() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
-        String mapping1 = "{\"type\":{\"_timestamp\":{\"path\":\"@timestamp\"}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
-        String mapping2 = "{\"type\":{\"_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
+        String mapping1 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp\"}, \"properties\": {\"@timestamp\": {\"type\": \"date\"}}}}}";
+        String mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
             "\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_timestamp]");
+        assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_data_stream_timestamp]");
 
         mapping1 = "{\"type\":{\"properties\":{\"@timestamp\": {\"type\": \"date\"}}}}}";
-        mapping2 = "{\"type\":{\"_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
+        mapping2 = "{\"type\":{\"_data_stream_timestamp\":{\"path\":\"@timestamp2\"}, \"properties\": {\"@timestamp2\": {\"type\": \"date\"}," +
             "\"@timestamp\": {\"type\": \"date\"}}}})";
-        assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_timestamp]");
+        assertConflicts(mapping1, mapping2, parser, "cannot update path setting for [_data_stream_timestamp]");
     }
 
     public void testDifferentTSField() throws IOException {
         String mapping = "{\n" +
-            "      \"_timestamp\": {\n" +
+            "      \"_data_stream_timestamp\": {\n" +
             "        \"path\": \"event.my_timestamp\"\n" +
             "      },\n" +
             "      \"properties\": {\n" +

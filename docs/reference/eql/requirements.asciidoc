@@ -21,10 +21,11 @@ with core ECS fields by default.
 [[eql-required-fields]]
 === Required fields
 
-In {es}, EQL assumes each document in an index corresponds to an event.
+In {es}, EQL assumes each document in a data stream or index corresponds to an
+event.
 
-To search an index using EQL, each document in the index must contain the
-following field archetypes:
+To search a data stream or index using EQL, each document in the data stream or
+index must contain the following field archetypes:
 
 Event category::
 A field containing the event classification, such as `process`, `file`, or

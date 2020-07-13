@@ -319,7 +319,6 @@ You can shrink an index to reduce its overhead when the request volume drops.
 For example, you might opt to shrink an index once it is no longer the write index. 
 See the {ref}/indices-shrink-index.html[shrink index API].
 // end::shrink-def[]
---
 
 [[glossary-snapshot]] snapshot ::
 // tag::snapshot-def[]

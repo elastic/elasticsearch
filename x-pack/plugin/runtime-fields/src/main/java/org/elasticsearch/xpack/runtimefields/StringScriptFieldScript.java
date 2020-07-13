@@ -14,11 +14,9 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.IntPredicate;
-import java.util.function.Predicate;
 
 public abstract class StringScriptFieldScript extends AbstractScriptFieldScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("string_script_field", Factory.class);
@@ -34,37 +32,26 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        StringScriptFieldScript newInstance(LeafReaderContext ctx, Consumer<String> sync) throws IOException;
-
-        /**
-         * Wrap a {@link Predicate} that tests the result of the script. If the
-         * script produces more than one value the result of the predicate is
-         * {@code OR}ed together.
-         */
-        default IntPredicate wrapPredicate(LeafReaderContext ctx, Predicate<String> pred) throws IOException {
-            return new IntPredicate() {
-                boolean result;
-
-                final StringScriptFieldScript script = newInstance(ctx, str -> {
-                    result = result || pred.test(str);
-                });
-
-                @Override
-                public boolean test(int docId) {
-                    result = false;
-                    script.setDocument(docId);
-                    script.execute();
-                    return result;
-                }
-            };
-        }
+        StringScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    private final Consumer<String> sync;
+    private final List<String> results = new ArrayList<>();
 
-    public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx, Consumer<String> sync) {
+    public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
-        this.sync = sync;
+    }
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     * <p>
+     * @return a mutable {@link List} that contains the results of the script
+     * and will be modified the next time you call {@linkplain #resultsForDoc}.
+     */
+    public final List<String> resultsForDoc(int docId) {
+        results.clear();
+        setDocument(docId);
+        execute();
+        return results;
     }
 
     public static class Value {
@@ -75,7 +62,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         }
 
         public void value(String v) {
-            script.sync.accept(v);
+            script.results.add(v);
         }
     }
 }

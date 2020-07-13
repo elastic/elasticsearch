@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.IntPredicate;
 
 public class StringScriptFieldTermQuery extends Query {
     private final StringScriptFieldScript.LeafFactory leafFactory;
@@ -45,12 +44,17 @@ public class StringScriptFieldTermQuery extends Query {
 
             @Override
             public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                IntPredicate script = leafFactory.wrapPredicate(ctx, str -> term.equals(str));
+                StringScriptFieldScript script = leafFactory.newInstance(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() throws IOException {
-                        return script.test(approximation().docID());
+                        for (String result : script.resultsForDoc(approximation().docID())) {
+                            if (term.equals(result)) {
+                                return true;
+                            }
+                        }
+                        return false;
                     }
 
                     @Override

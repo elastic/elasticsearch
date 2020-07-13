@@ -19,11 +19,11 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
-    StringScriptFieldScript,
     StringScriptFieldScript.Factory,
     StringScriptFieldScript.LeafFactory,
     String> {
@@ -104,11 +104,8 @@ public class StringScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     }
 
     @Override
-    protected StringScriptFieldScript newInstance(
-        StringScriptFieldScript.LeafFactory leafFactory,
-        LeafReaderContext context,
-        List<String> result
-    ) throws IOException {
-        return leafFactory.newInstance(context, result::add);
+    protected IntFunction<List<String>> newInstance(StringScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context)
+        throws IOException {
+        return leafFactory.newInstance(context)::resultsForDoc;
     }
 }

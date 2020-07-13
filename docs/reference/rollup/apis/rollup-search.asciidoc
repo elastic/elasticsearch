@@ -41,7 +41,7 @@ Rules for the `<target>` parameter:
 - At least one data stream, index, or wildcard expression must be specified.
 This target can include a rollup or non-rollup index. For data streams, the
 stream's backing indices can only serve as non-rollup indices. Omitting the
-index parameter, or using `_all`, is not permitted.
+`<target>` parameter or using `_all`, is not permitted.
 - Multiple non-rollup indices may be specified
 - Only one rollup index may be specified. If more than one are supplied, an
 exception occurs.

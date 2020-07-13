@@ -40,6 +40,7 @@ public interface HistogramAggregatorSupplier extends AggregatorSupplier {
         long minDocCount,
         double minBound,
         double maxBound,
+        DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,

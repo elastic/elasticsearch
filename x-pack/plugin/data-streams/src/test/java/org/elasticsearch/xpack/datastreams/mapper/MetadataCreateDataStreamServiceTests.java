@@ -72,7 +72,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             )
             .putMapping("_doc", mapping)
             .build();
-        IndicesModule indicesModule = new IndicesModule(List.of(new DataStreamsPlugin()));
+        IndicesModule indicesModule = new IndicesModule(List.of(new DataStreamsPlugin(Settings.EMPTY)));
         MapperService mapperService = MapperTestUtils.newMapperService(
             xContentRegistry(),
             createTempDir(),

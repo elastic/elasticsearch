@@ -4,7 +4,7 @@
 <titleabbrev>Get snapshot status</titleabbrev>
 ++++
 
-Retrieves a complete breakdown of the current state for each shard participating in the snapshot.
+Retrieves a detailed description of the current state for each shard participating in the snapshot.
 
 ////
 [source,console]
@@ -80,24 +80,24 @@ Universally unique identifier (UUID) of the snapshot.
 +
 --
 (string)
-The snapshot `state` can be one of the following values:
+Indicates the current snapshot state.
 
 .Values for `state`
 [%collapsible%open]
 ====
-`IN_PROGRESS`::
-  The snapshot is currently running.
-
-`SUCCESS`::
-  The snapshot finished and all shards were stored successfully.
-
 `FAILED`::
   The snapshot finished with an error and failed to store any data.
+
+`IN_PROGRESS`::
+  The snapshot is currently running.
 
 `PARTIAL`::
   The global cluster state was stored, but data of at least one shard was not stored successfully.
   The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
   that were not processed correctly.
+
+`SUCCESS`::
+  The snapshot finished and all shards were stored successfully.
 ====
 --
 
@@ -105,11 +105,12 @@ The snapshot `state` can be one of the following values:
 (boolean)
 Indicates whether the current cluster state is included in the snapshot.
 
+[[get-snapshot-status-shards-stats]]
 `shards_stats`::
 (object)
 Contains a count of shards in the snapshot.
 +
-.Properties of `shards`
+.Properties of `shards_stats`
 [%collapsible%open]
 ====
 `initializing`::
@@ -137,6 +138,7 @@ Number of shards that failed to be included in the snapshot.
 Total number of shards included in the snapshot.
 ====
 
+[[get-snapshot-status-stats]]
 `stats`::
 (object)
 Provides details on the number (`file_count`) and size (`size_in_bytes`) of files included in the snapshot.
@@ -170,11 +172,47 @@ The total time, in milliseconds, that
 List of objects containing information about the
 indices included in the snapshot.
 +
-Detailed information for each index includes:
+.Properties of `indices`
+[%collapsible%open]
+====
+`shards_stats`::
+See <<get-snapshot-status-shards-stats,`shards_stats`>>.
 
-* `shards_stats`
-* `stats`
-* `shards`
+`stats`::
+See <<get-snapshot-status-stats,`stats`>>.
+
+`shards`::
+(list of objects)
+List of objects containing information about the
+shards that include the snapshot.
++
+.Properties of `shards`
+[%collapsible%open]
+=====
+`stage`::
+(string)
+Indicates the current state of the shards that include the snapshot.
++
+.Properties of `stage`
+[%collapsible%open]
+======
+`DONE`::
+Number of shards containing a completed copy of the snapshot.
+
+`FAILURE`::
+Number of shards containing a failed copy of the snapshot.
+
+`FINALIZE`::
+Number of shards containing a copy of the snapshot in the finalizing stage.
+
+`INIT`::
+Number of shards containing a copy of the snapshot in the initializing stage.
+
+`STARTED`::
+Number of shards containing a copy of the snapshot in the started stage.
+======
+=====
+====
 
 [[get-snapshot-status-api-example]]
 ==== {api-example-title}

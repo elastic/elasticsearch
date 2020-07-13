@@ -4,11 +4,10 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.assembler;
+package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.eql.execution.payload.AbstractPayload;
-import org.elasticsearch.xpack.eql.execution.sequence.Sequence;
 import org.elasticsearch.xpack.eql.session.Results.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 

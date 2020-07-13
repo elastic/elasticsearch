@@ -486,6 +486,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         assertEquals(3, model.getReferenceCount());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59445")
     public void testReferenceCountingForPipeline() throws ExecutionException, InterruptedException, IOException {
         String modelId = "test-reference-counting-for-pipeline";
         withTrainedModel(modelId, 1L);

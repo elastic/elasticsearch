@@ -32,38 +32,54 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     public void testValidateTimestampFieldMappingNoFieldMapping() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService("{}")));
-        assertThat(e.getMessage(),
-            equalTo("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateTimestampFieldMapping("@timestamp", createMapperService("{}"))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]")
+        );
 
         String mapping = generateMapping("@timestamp2", "date");
-        e = expectThrows(IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
-        assertThat(e.getMessage(),
-            equalTo("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
+        e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
+        assertThat(
+            e.getMessage(),
+            equalTo("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]")
+        );
     }
 
     public void testValidateTimestampFieldMappingInvalidFieldType() {
         String mapping = generateMapping("@timestamp", "keyword");
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
-        assertThat(e.getMessage(), equalTo("the configured timestamp field [@timestamp] is of type [keyword], " +
-            "but [date,date_nanos] is expected"));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("the configured timestamp field [@timestamp] is of type [keyword], " + "but [date,date_nanos] is expected")
+        );
     }
 
     MapperService createMapperService(String mapping) throws IOException {
         String indexName = "test";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
             .putMapping(mapping)
             .build();
         IndicesModule indicesModule = new IndicesModule(List.of(new DataStreamsPlugin()));
-        MapperService mapperService =
-            MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, indicesModule, indexName);
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            xContentRegistry(),
+            createTempDir(),
+            Settings.EMPTY,
+            indicesModule,
+            indexName
+        );
         mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
         return mapperService;
     }

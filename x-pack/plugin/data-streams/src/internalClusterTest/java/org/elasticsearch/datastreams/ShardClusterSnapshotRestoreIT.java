@@ -44,11 +44,15 @@ public class ShardClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase
     public void testDeleteDataStreamDuringSnapshot() throws Exception {
         Client client = client();
 
-        createRepository("test-repo", "mock", Settings.builder()
-            .put("location", randomRepoPath()).put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-            .put("block_on_data", true));
-
+        createRepository(
+            "test-repo",
+            "mock",
+            Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .put("block_on_data", true)
+        );
 
         String dataStream = "datastream";
         DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", List.of(dataStream));
@@ -59,24 +63,30 @@ public class ShardClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
                 .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
-                .execute().actionGet();
+                .execute()
+                .actionGet();
         }
         refresh();
         assertDocCount(dataStream, 100L);
 
         logger.info("--> snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setIndices(dataStream).setWaitForCompletion(true).setPartial(false).execute();
+        ActionFuture<CreateSnapshotResponse> future = client.admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
+            .setIndices(dataStream)
+            .setWaitForCompletion(true)
+            .setPartial(false)
+            .execute();
         logger.info("--> wait for block to kick in");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
 
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {
             logger.info("--> delete index while non-partial snapshot is running");
-            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{dataStream})).actionGet();
+            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { dataStream })).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
-            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: ["+dataStream));
+            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [" + dataStream));
         } finally {
             logger.info("--> unblock all data nodes");
             unblockAllDataNodes("test-repo");

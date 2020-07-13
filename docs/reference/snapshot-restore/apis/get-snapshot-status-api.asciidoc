@@ -45,7 +45,7 @@ If you specify both the repository name and snapshot, the request retrieves deta
 ==== {api-path-parms-title}
 
 `<repository>`::
-(Required, string)
+(Optional, string)
 Snapshot repository name used to limit the request.
 +
 Omitting a repository name retrieves a list of all snapshots currently running in the cluster.

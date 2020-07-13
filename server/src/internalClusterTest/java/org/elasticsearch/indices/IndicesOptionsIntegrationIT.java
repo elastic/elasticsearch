@@ -19,7 +19,6 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
@@ -28,12 +27,10 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
@@ -46,7 +43,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -665,16 +661,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         return client().admin().indices().prepareGetMappings(indices);
     }
 
-    static PutMappingRequestBuilder putMapping(String source, String... indices) {
-        return client().admin().indices().preparePutMapping(indices).setSource(source, XContentType.JSON);
-    }
-
     static GetSettingsRequestBuilder getSettings(String... indices) {
         return client().admin().indices().prepareGetSettings(indices);
-    }
-
-    static UpdateSettingsRequestBuilder updateSettings(Settings.Builder settings, String... indices) {
-        return client().admin().indices().prepareUpdateSettings(indices).setSettings(settings);
     }
 
     private static CreateSnapshotRequestBuilder snapshot(String name, String... indices) {
@@ -688,15 +676,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
                 .setIndices(indices);
     }
 
-    static ClusterHealthRequestBuilder health(String... indices) {
-        return client().admin().cluster().prepareHealth(indices);
-    }
-
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
         verify(requestBuilder, fail, 0);
     }
 
-    private static void verify(ActionRequestBuilder requestBuilder, boolean fail, long expectedCount) {
+    private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
             if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();

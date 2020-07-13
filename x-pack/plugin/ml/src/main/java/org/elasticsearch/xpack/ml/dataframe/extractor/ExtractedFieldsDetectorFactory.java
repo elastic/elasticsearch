@@ -68,8 +68,7 @@ public class ExtractedFieldsDetectorFactory {
         ActionListener<Map<String, Long>> fieldCardinalitiesHandler = ActionListener.wrap(
             fieldCardinalities -> {
                 ExtractedFieldsDetector detector =
-                    new ExtractedFieldsDetector(
-                        index, config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
+                    new ExtractedFieldsDetector(config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
                 listener.onResponse(detector);
             },
             listener::onFailure

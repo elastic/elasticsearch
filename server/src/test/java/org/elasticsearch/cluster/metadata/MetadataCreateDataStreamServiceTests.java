@@ -25,17 +25,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -152,34 +149,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
     }
 
-    public void testValidateTimestampFieldMapping() throws Exception {
-        String mapping = generateMapping("@timestamp", "date");
-        validateTimestampFieldMapping("@timestamp", createMapperService(mapping));
-        mapping = generateMapping("@timestamp", "date_nanos");
-        validateTimestampFieldMapping("@timestamp", createMapperService(mapping));
-    }
-
-    public void testValidateTimestampFieldMappingNoFieldMapping() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService("{}")));
-        assertThat(e.getMessage(),
-            equalTo("[_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
-
-        String mapping = generateMapping("@timestamp2", "date");
-        e = expectThrows(IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
-        assertThat(e.getMessage(),
-            equalTo("[_timestamp] meta field doesn't point to data stream timestamp field [@timestamp]"));
-    }
-
-    public void testValidateTimestampFieldMappingInvalidFieldType() {
-        String mapping = generateMapping("@timestamp", "keyword");
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping)));
-        assertThat(e.getMessage(), equalTo("the configured timestamp field [@timestamp] is of type [keyword], " +
-            "but [date,date_nanos] is expected"));
-    }
-
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean()))
@@ -203,35 +172,4 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         return s;
     }
 
-    public static String generateMapping(String timestampFieldName) {
-        return generateMapping(timestampFieldName, "date");
-    }
-
-    static String generateMapping(String timestampFieldName, String type) {
-        return "{\n" +
-            "      \"_timestamp\": {\n" +
-            "        \"path\": \"" + timestampFieldName + "\"\n" +
-            "      }," +
-            "      \"properties\": {\n" +
-            "        \"" + timestampFieldName + "\": {\n" +
-            "          \"type\": \"" + type + "\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-    }
-
-    MapperService createMapperService(String mapping) throws IOException {
-        String indexName = "test";
-        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
-            .putMapping(mapping)
-            .build();
-        MapperService mapperService =
-            MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, indexName);
-        mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
-        return mapperService;
-    }
 }

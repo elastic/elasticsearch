@@ -99,8 +99,8 @@ public class ModelLoadingService implements ClusterStateListener {
     }
 
     private static class ModelAndConsumer {
-        private LocalModel model;
-        private EnumSet<Consumer> consumers;
+        private final LocalModel model;
+        private final EnumSet<Consumer> consumers;
 
         private ModelAndConsumer(LocalModel model, Consumer consumer) {
             this.model = model;
@@ -203,7 +203,12 @@ public class ModelLoadingService implements ClusterStateListener {
         ModelAndConsumer cachedModel = localModelCache.get(modelId);
         if (cachedModel != null) {
             cachedModel.consumers.add(consumer);
-            cachedModel.model.acquire();
+            try {
+                cachedModel.model.acquire();
+            } catch (CircuitBreakingException e) {
+                modelActionListener.onFailure(e);
+                return;
+            }
             modelActionListener.onResponse(cachedModel.model);
             logger.trace(() -> new ParameterizedMessage("[{}] loaded from cache", modelId));
             return;
@@ -230,6 +235,12 @@ public class ModelLoadingService implements ClusterStateListener {
             ModelAndConsumer cachedModel = localModelCache.get(modelId);
             if (cachedModel != null) {
                 cachedModel.consumers.add(consumer);
+                try {
+                    cachedModel.model.acquire();
+                } catch (CircuitBreakingException e) {
+                    modelActionListener.onFailure(e);
+                    return true;
+                }
                 modelActionListener.onResponse(cachedModel.model);
                 return true;
             }
@@ -263,8 +274,16 @@ public class ModelLoadingService implements ClusterStateListener {
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
                 provider.getTrainedModelForInference(modelId, ActionListener.wrap(
                     inferenceDefinition -> {
-                        // Since we have used the previously stored estimate to help guard against OOM we need to adjust the memory
-                        // So that the memory this model uses in the circuit breaker is the most accurate estimate.
+                        try {
+                            // Since we have used the previously stored estimate to help guard against OOM we need
+                            // to adjust the memory so that the memory this model uses in the circuit breaker
+                            // is the most accurate estimate.
+                            updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
+                        } catch (CircuitBreakingException ex) {
+                            handleLoadFailure(modelId, ex);
+                            return;
+                        }
+
                         long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
                         if (estimateDiff < 0) {
                             trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
@@ -307,6 +326,14 @@ public class ModelLoadingService implements ClusterStateListener {
                         InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null ?
                             inferenceConfigFromTargetType(inferenceDefinition.getTargetType()) :
                             trainedModelConfig.getInferenceConfig();
+
+                        try {
+                            updateCircuitBreakerEstimate(modelId, inferenceDefinition, trainedModelConfig);
+                        } catch (CircuitBreakingException ex) {
+                            modelActionListener.onFailure(ex);
+                            return;
+                        }
+
                         // Remove the bytes as we cannot control how long the caller will keep the model in memory
                         trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
                         modelActionListener.onResponse(new LocalModel(
@@ -329,6 +356,21 @@ public class ModelLoadingService implements ClusterStateListener {
             },
             modelActionListener::onFailure
         ));
+    }
+
+    private void updateCircuitBreakerEstimate(String modelId, InferenceDefinition inferenceDefinition,
+                                              TrainedModelConfig trainedModelConfig) throws CircuitBreakingException {
+        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
+        if (estimateDiff < 0) {
+            trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
+        } else if (estimateDiff > 0) { // rare case where estimate is now HIGHER
+            try {
+                trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(estimateDiff, modelId);
+            } catch (CircuitBreakingException ex) { // if we failed here, we should remove the initial estimate as well
+                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                throw ex;
+            }
+        }
     }
 
     private void handleLoadSuccess(String modelId,

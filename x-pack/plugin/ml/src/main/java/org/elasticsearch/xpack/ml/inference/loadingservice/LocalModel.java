@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 
+import java.io.Closeable;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -41,7 +42,7 @@ import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WA
  * New references must call {@link #acquire()} and {@link #release()} as the model
  * is used.
  */
-public class LocalModel {
+public class LocalModel implements Closeable {
 
     private final InferenceDefinition trainedModelDefinition;
     private final String modelId;
@@ -197,7 +198,15 @@ public class LocalModel {
     }
 
     long acquire() {
-        return referenceCount.incrementAndGet();
+        long count = referenceCount.incrementAndGet();
+        if (count == 1) {
+            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelDefinition.ramBytesUsed(), modelId);
+        }
+        return count;
+    }
+
+    long getReferenceCount() {
+        return referenceCount.get();
     }
 
     public long release() {
@@ -207,5 +216,13 @@ public class LocalModel {
         }
 
         return referenceCount.get();
+    }
+
+    /**
+     * Convenience method so the class can be used in try-with-resource
+     * constructs to invoke {@link #release()}.
+     */
+    public void close() {
+        release();
     }
 }

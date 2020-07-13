@@ -52,9 +52,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class LocalModelTests extends ESTestCase {
@@ -314,6 +316,61 @@ public class LocalModelTests extends ESTestCase {
         expectedMap.put("b2", "b_value");
 
         assertThat(fields, equalTo(expectedMap));
+    }
+
+    public void testReferenceCounting() throws IOException {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        String modelId = "ref-count-model";
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar");
+        InferenceDefinition definition = InferenceDefinition.builder()
+            .setTrainedModel(buildClassificationInference(false))
+            .build();
+
+        {
+            CircuitBreaker breaker = mock(CircuitBreaker.class);
+            LocalModel model = new LocalModel(modelId,
+                "test-node",
+                definition,
+                new TrainedModelInput(inputFields),
+                null,
+                ClassificationConfig.EMPTY_PARAMS,
+                modelStatsService,
+                breaker
+            );
+
+            model.release();
+            verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
+            verifyNoMoreInteractions(breaker);
+
+            // reacquire
+            model.acquire();
+            verify(breaker, times(1)).addEstimateBytesAndMaybeBreak(eq(definition.ramBytesUsed()), eq(modelId));
+            verifyNoMoreInteractions(breaker);
+        }
+
+        {
+            CircuitBreaker breaker = mock(CircuitBreaker.class);
+            LocalModel model = new LocalModel(modelId,
+                "test-node",
+                definition,
+                new TrainedModelInput(inputFields),
+                null,
+                ClassificationConfig.EMPTY_PARAMS,
+                modelStatsService,
+                breaker
+            );
+
+            model.acquire();
+            model.acquire();
+            model.release();
+            model.release();
+            model.release();
+            verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
+            verifyNoMoreInteractions(breaker);
+
+            model.release();
+            verifyNoMoreInteractions(breaker);
+        }
     }
 
     private static SingleValueInferenceResults getSingleValue(LocalModel model,

@@ -49,69 +49,72 @@ public class InferencePipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
 
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
-        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
+        try (model) {
+            InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
+                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+            List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
-        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-            Map<String, Object> inputFields = new HashMap<>();
+            List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
+            for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
+                Map<String, Object> inputFields = new HashMap<>();
 
-            if (bucket.getDocCount() == 0) {
-                // ignore this empty bucket unless the doc count is used
-                if (bucketPathMap.containsKey("_count") == false) {
-                    newBuckets.add(bucket);
-                    continue;
-                }
-            }
-
-            for (Map.Entry<String, String> entry : bucketPathMap.entrySet()) {
-                String aggName = entry.getKey();
-                String bucketPath = entry.getValue();
-                Object propertyValue = resolveBucketValue(originalAgg, bucket, bucketPath);
-
-                if (propertyValue instanceof Number) {
-                    double doubleVal = ((Number) propertyValue).doubleValue();
-                    // NaN or infinite values indicate a missing value or a
-                    // valid result of an invalid calculation. Either way only
-                    // a valid number will do
-                    if (Double.isFinite(doubleVal)) {
-                        inputFields.put(aggName, doubleVal);
+                if (bucket.getDocCount() == 0) {
+                    // ignore this empty bucket unless the doc count is used
+                    if (bucketPathMap.containsKey("_count") == false) {
+                        newBuckets.add(bucket);
+                        continue;
                     }
-                } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-                    double doubleVal = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
-                    if (Double.isFinite(doubleVal)) {
-                        inputFields.put(aggName, doubleVal);
-                    }
-                } else if (propertyValue instanceof StringTerms.Bucket) {
-                    StringTerms.Bucket b = (StringTerms.Bucket) propertyValue;
-                    inputFields.put(aggName, b.getKeyAsString());
-                } else if (propertyValue instanceof String) {
-                    inputFields.put(aggName, propertyValue);
-                } else if (propertyValue != null) {
-                    // Doubles, String terms or null are valid, any other type is an error
-                    throw invalidAggTypeError(bucketPath, propertyValue);
                 }
+
+                for (Map.Entry<String, String> entry : bucketPathMap.entrySet()) {
+                    String aggName = entry.getKey();
+                    String bucketPath = entry.getValue();
+                    Object propertyValue = resolveBucketValue(originalAgg, bucket, bucketPath);
+
+                    if (propertyValue instanceof Number) {
+                        double doubleVal = ((Number) propertyValue).doubleValue();
+                        // NaN or infinite values indicate a missing value or a
+                        // valid result of an invalid calculation. Either way only
+                        // a valid number will do
+                        if (Double.isFinite(doubleVal)) {
+                            inputFields.put(aggName, doubleVal);
+                        }
+                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
+                        double doubleVal = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                        if (Double.isFinite(doubleVal)) {
+                            inputFields.put(aggName, doubleVal);
+                        }
+                    } else if (propertyValue instanceof StringTerms.Bucket) {
+                        StringTerms.Bucket b = (StringTerms.Bucket) propertyValue;
+                        inputFields.put(aggName, b.getKeyAsString());
+                    } else if (propertyValue instanceof String) {
+                        inputFields.put(aggName, propertyValue);
+                    } else if (propertyValue != null) {
+                        // Doubles, String terms or null are valid, any other type is an error
+                        throw invalidAggTypeError(bucketPath, propertyValue);
+                    }
+                }
+
+
+                InferenceResults inference;
+                try {
+                    inference = model.infer(inputFields, configUpdate);
+                } catch (Exception e) {
+                    inference = new WarningInferenceResults(e.getMessage());
+                }
+
+                final List<InternalAggregation> aggs = bucket.getAggregations().asList().stream().map(
+                    (p) -> (InternalAggregation) p).collect(Collectors.toList());
+
+                InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);
+                aggs.add(aggResult);
+                InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
+                newBuckets.add(newBucket);
             }
 
-
-            InferenceResults inference;
-            try {
-                inference = model.infer(inputFields, configUpdate);
-            } catch (Exception e) {
-                inference = new WarningInferenceResults(e.getMessage());
-            }
-
-            final List<InternalAggregation> aggs = bucket.getAggregations().asList().stream().map(
-                (p) -> (InternalAggregation) p).collect(Collectors.toList());
-
-            InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);
-            aggs.add(aggResult);
-            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
-            newBuckets.add(newBucket);
+            return originalAgg.create(newBuckets);
         }
 
-        return originalAgg.create(newBuckets);
     }
 
     public static Object resolveBucketValue(MultiBucketsAggregation agg,

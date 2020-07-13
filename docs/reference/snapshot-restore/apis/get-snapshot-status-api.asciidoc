@@ -223,6 +223,6 @@ The API returns the following response:
   ]
 }
 ----
-// TESTRESPONSE[s/"uuid": "ITWHQY2fR2OqX-TYt6mUNA"/"uuid": $body.snapshots.0.uuid/]
-// TESTRESPONSE[s/"start_time_in_millis": 1594158151205/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
-// TESTRESPONSE[s/"time_in_millis": 0/"time_in_millis": $body.snapshots.0.time_in_millis/]
+// TESTRESPONSE[s/"uuid" : "ITWHQY2fR2OqX-TYt6mUNA"/"uuid" : $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"start_time_in_millis" : 1594158151205/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 0/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]

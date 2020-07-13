@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -71,6 +72,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -221,20 +223,40 @@ public class CompositeRolesStore {
 
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (authType == Authentication.AuthenticationType.API_KEY) {
-            apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
-                final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
-                if (descriptors == null) {
-                    roleActionListener.onFailure(new IllegalStateException("missing role descriptors"));
-                } else if (apiKeyRoleDescriptors.getLimitedByRoleDescriptors() == null) {
-                    buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", roleActionListener);
-                } else {
-                    buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc",
-                        ActionListener.wrap(role -> buildAndCacheRoleFromDescriptors(apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
-                            apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc", ActionListener.wrap(
-                                limitedBy -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedBy)),
-                                roleActionListener::onFailure)), roleActionListener::onFailure));
-                }
-            }, roleActionListener::onFailure));
+            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
+                buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(
+                    role -> {
+                        if (role == Role.EMPTY) {
+                            buildAndCacheRoleForApiKey(authentication, true, roleActionListener);
+                        } else {
+                            buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
+                                limitedByRole -> roleActionListener.onResponse(
+                                    limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole)),
+                                roleActionListener::onFailure
+                            ));
+                        }
+                    },
+                    roleActionListener::onFailure
+                ));
+            } else {
+                apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
+                    final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
+                    if (descriptors == null) {
+                        roleActionListener.onFailure(new IllegalStateException("missing role descriptors"));
+                    } else if (apiKeyRoleDescriptors.getLimitedByRoleDescriptors() == null) {
+                        buildAndCacheRoleFromDescriptors(descriptors,
+                            apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", roleActionListener);
+                    } else {
+                        buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc",
+                            ActionListener.wrap(
+                                role -> buildAndCacheRoleFromDescriptors(apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
+                                    apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc", ActionListener.wrap(
+                                        limitedBy -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedBy)),
+                                        roleActionListener::onFailure)), roleActionListener::onFailure));
+                    }
+                }, roleActionListener::onFailure));
+            }
+
         } else {
             Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
             if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
@@ -293,6 +315,23 @@ public class CompositeRolesStore {
             }
             listener.onResponse(role);
         }, listener::onFailure));
+    }
+
+    private void buildAndCacheRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
+        final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndRoleBytes(authentication, limitedBy);
+        final String roleDescriptorsHash = MessageDigests.toHexString(
+            MessageDigests.sha256().digest(BytesReference.toBytes(apiKeyIdAndBytes.v2())));
+        final RoleKey roleKey = new RoleKey(org.elasticsearch.common.collect.Set.of("apikey:" + roleDescriptorsHash),
+            limitedBy ? "apikey_limited_role" : "apikey_role");
+        final Role existing = roleCache.get(roleKey);
+        if (existing == null) {
+            final long invalidationCounter = numInvalidation.get();
+            final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(apiKeyIdAndBytes.v1(), apiKeyIdAndBytes.v2());
+            buildThenMaybeCacheRole(roleKey, roleDescriptors, Collections.emptySet(),
+                true, invalidationCounter, roleActionListener);
+        } else {
+            roleActionListener.onResponse(existing);
+        }
     }
 
     public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {

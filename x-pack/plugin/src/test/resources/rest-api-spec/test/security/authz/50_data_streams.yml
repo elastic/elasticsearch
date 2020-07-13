@@ -62,11 +62,11 @@ setup:
 
   - do:
       allowed_warnings:
-        - "index template [my-template1] has index patterns [s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+        - "index template [my-template1] has index patterns [s*, create-doc-data-stream1, write-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template1
         body:
-          index_patterns: [s* create-doc-data-stream1, write-data-stream1]
+          index_patterns: [s*, create-doc-data-stream1, write-data-stream1]
           template:
             mappings:
               properties:
@@ -197,7 +197,7 @@ teardown:
   - is_true: acknowledged
 
 ---
-"Test auto mapping updates unauthorized for ingest privileges":
+"Test auto mapping updates unauthorized for create_doc privilege":
   - skip:
       version: " - 7.99.99"
       reason: "change to 7.8.99 after backport"
@@ -220,30 +220,23 @@ teardown:
         index:  create-doc-data-stream1
         body:   { bar: baz, "@timestamp": "2000-12-12" }
 
+# mapped field does not update the mapping, hence it's authorized
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  create-doc-data-stream1
         body:   { foo: bar, "@timestamp": "2555-12-12" }
 
-# unmapped new field on empty data stream with create_doc privilege is not allowed
+  - set: { _seq_no: seqno }
+  - set: { _primary_term: primary_term }
+
+# unmapped new field on non-empty data stream with create_doc privilege is not authorized
   - do:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       index:
         index:  create-doc-data-stream1
         body:   { bar: baz, "@timestamp": "2000-12-12" }
-
-  - do:
-      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      index:
-        id:       1
-        op_type:  create
-        index:  create-doc-data-stream1
-        body:   { foo: bar, "@timestamp": "2000-12-12" }
-
-  - set: { _seq_no: seqno }
-  - set: { _primary_term: primary_term }
 
 # unmapped new field on backing index when update with create_doc privilege is not allowed
   - do:
@@ -288,6 +281,8 @@ teardown:
   - do: # superuser
       indices.delete_data_stream:
         name: write-data-stream1
+  - is_true: acknowledged
+
 ---
 "Test that create data stream is limited to authorized namespace":
   - skip:
@@ -357,7 +352,7 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       indices.get_data_stream:
-        name: outside_of_namespace
+        name: s-outside-of-authed-namespace
 
   - do:
       headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user

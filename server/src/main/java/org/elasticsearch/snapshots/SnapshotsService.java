@@ -314,7 +314,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.info("snapshot [{}] started", snapshot);
                     listener.onResponse(snapshot);
                 } finally {
-                    if (newEntry.state().completed() || newEntry.shards().isEmpty()) {
+                    if (newEntry.state().completed() || completed(newEntry.shards().values())) {
                         endSnapshot(newEntry, newState.metadata(), repositoryData);
                     }
                 }

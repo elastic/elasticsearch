@@ -26,7 +26,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningFailureException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Booleans;
@@ -652,20 +651,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     static String toStr(Response response) throws IOException {
         return EntityUtils.toString(response.getEntity());
-    }
-
-    static void assertNoFailures(Map<?, ?> response) {
-        int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
-        assertEquals(0, failed);
-    }
-
-    void assertTotalHits(int expectedTotalHits, Map<?, ?> response) {
-        int actualTotalHits = extractTotalHits(response);
-        assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
-    }
-
-    static int extractTotalHits(Map<?, ?> response) {
-        return (Integer) XContentMapValues.extractValue("hits.total.value", response);
     }
 
     /**

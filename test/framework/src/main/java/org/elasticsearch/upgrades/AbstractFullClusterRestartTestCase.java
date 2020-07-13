@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase {
 
-    private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
+    private static final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
 
     @Before
     public void init() throws IOException {
@@ -59,11 +59,11 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
         }
     }
 
-    public final boolean isRunningAgainstOldCluster() {
+    public static boolean isRunningAgainstOldCluster() {
         return runningAgainstOldCluster;
     }
 
-    private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
 
     /**
      * @return true if test is running against an old cluster before that last major, in this case
@@ -73,7 +73,7 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
         return isRunningAgainstOldCluster() && oldClusterVersion.before(Version.V_7_0_0);
     }
 
-    public final Version getOldClusterVersion() {
+    public static Version getOldClusterVersion() {
         return oldClusterVersion;
     }
 
@@ -122,7 +122,7 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
         return true;
     }
 
-    protected void assertNoFailures(Map<?, ?> response) {
+    protected static void assertNoFailures(Map<?, ?> response) {
         int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
         assertEquals(0, failed);
     }
@@ -132,7 +132,7 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
         assertEquals(response.toString(), expectedTotalHits, actualTotalHits);
     }
 
-    protected int extractTotalHits(Map<?, ?> response) {
+    protected static int extractTotalHits(Map<?, ?> response) {
         if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_0_0)) {
             return (Integer) XContentMapValues.extractValue("hits.total", response);
         } else {

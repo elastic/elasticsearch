@@ -66,10 +66,10 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
                 t.setDescription("Runs all non-test checks");
             });
 
-            project.getPluginManager().withPlugin("java", p -> {
-                project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit));
-                project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit));
-            });
+            project.getPluginManager().withPlugin("lifecycle-base", p ->
+                project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(precommit)));
+            project.getPluginManager().withPlugin("java", p ->
+                project.getTasks().withType(Test.class).configureEach(t -> t.mustRunAfter(precommit)));
         }
     }
 }

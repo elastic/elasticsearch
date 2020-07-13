@@ -122,15 +122,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             this(name, true, true, Collections.emptyMap());
         }
 
-        protected BooleanFieldType(BooleanFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new BooleanFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

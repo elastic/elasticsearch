@@ -91,15 +91,6 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             super(name, indexed, hasDocValues, meta);
         }
 
-        protected GeoShapeFieldType(GeoShapeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public GeoShapeFieldType clone() {
-            return new GeoShapeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

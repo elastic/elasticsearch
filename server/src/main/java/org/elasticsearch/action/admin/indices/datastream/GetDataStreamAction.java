@@ -20,12 +20,13 @@ package org.elasticsearch.action.admin.indices.datastream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -43,7 +44,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -54,10 +54,12 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response> {
 
@@ -68,12 +70,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
-        private final String name;
+        private String[] names;
 
-        public Request(String name) {
-            this.name = name;
+        public Request(String[] names) {
+            this.names = names;
         }
 
         @Override
@@ -83,13 +85,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readOptionalString();
+            this.names = in.readOptionalStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(name);
+            out.writeOptionalStringArray(names);
         }
 
         @Override
@@ -97,12 +99,35 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(name, request.name);
+            return Arrays.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Arrays.hashCode(names);
+        }
+
+        @Override
+        public String[] indices() {
+            return names;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
+            // a data stream's backing indices are retrieved from its metadata
+            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.names = indices;
+            return this;
         }
     }
 
@@ -261,7 +286,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state,
                                        ActionListener<Response> listener) throws Exception {
-            List<DataStream> dataStreams = getDataStreams(state, request);
+            List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
             List<Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
             for (DataStream dataStream : dataStreams) {
                 String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
@@ -280,26 +305,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             listener.onResponse(new Response(dataStreamInfos));
         }
 
-        static List<DataStream> getDataStreams(ClusterState clusterState, Request request) {
+        static List<DataStream> getDataStreams(ClusterState clusterState, IndexNameExpressionResolver iner, Request request) {
+            List<String> results = iner.dataStreamNames(clusterState, request.indicesOptions(), request.names);
             Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
-            // return all data streams if no name was specified
-            final String requestedName = request.name == null ? "*" : request.name;
-
-            final List<DataStream> results = new ArrayList<>();
-                if (Regex.isSimpleMatchPattern(requestedName)) {
-                    for (Map.Entry<String, DataStream> entry : dataStreams.entrySet()) {
-                        if (Regex.simpleMatch(requestedName, entry.getKey())) {
-                            results.add(entry.getValue());
-                        }
-                    }
-                } else if (dataStreams.containsKey(request.name)) {
-                    results.add(dataStreams.get(request.name));
-                } else {
-                    throw new ResourceNotFoundException("data_stream matching [" + request.name + "] not found");
-                }
-            results.sort(Comparator.comparing(DataStream::getName));
-            return results;
+            return results.stream()
+                .map(dataStreams::get)
+                .sorted(Comparator.comparing(DataStream::getName))
+                .collect(Collectors.toList());
         }
 
         @Override

@@ -179,6 +179,7 @@ indices included in the snapshot.
 See <<get-snapshot-status-shards-stats,`shards_stats`>>.
 
 `stats`::
+(object)
 See <<get-snapshot-status-stats,`stats`>>.
 
 `shards`::

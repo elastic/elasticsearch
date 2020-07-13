@@ -160,14 +160,26 @@ Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
 Common Schema (ECS)]. If an index does not contain the `event.category` field,
 this value is required.
 
+`fetch_size`::
+(Optional, integer)
+Maximum number of events to search at a time for sequence queries. Defaults to
+`1000`.
++
+This value must be greater than `2` but cannot exceed the value of the
+<<index-max-result-window,`index.max_result_window`>> setting, which defaults to
+`10000`.
++
+Internally, a sequence query fetches and paginates sets of events to search for
+matches. This parameter controls the size of those sets. This parameter does not
+limit the total number of events searched or the number of matching events
+returned.
++
+A greater `fetch_size` value often increases search speed but uses more memory.
+
 `filter`::
 (Optional, <<query-dsl,query DSL object>>)
 Query, written in query DSL, used to filter the events on which the EQL query
 runs.
-
-`implicit_join_key_field`::
-(Optional, string)
-Reserved for future use.
 
 `keep_alive`::
 +
@@ -219,10 +231,6 @@ If both parameters are specified, only the query parameter is used.
 IMPORTANT: This parameter supports a subset of EQL syntax. See
 <<eql-unsupported-syntax>>.
 
-`search_after`::
-(Optional, string)
-Reserved for future use.
-
 `size`::
 (Optional, integer or float)
 For <<eql-basic-syntax,basic queries>>, the maximum number of matching events to
@@ -231,7 +239,10 @@ return.
 For <<eql-sequences,sequence queries>>, the maximum number of matching sequences
 to return.
 +
-Defaults to `50`. This value must be greater than `0`.
+Defaults to `10`. This value must be greater than `0`.
++
+NOTE: You cannot use <<eql-pipe-ref,pipes>>, such as `head` or `tail`, to exceed
+this value.
 
 [[eql-search-api-tiebreaker-field]]
 `tiebreaker_field`::

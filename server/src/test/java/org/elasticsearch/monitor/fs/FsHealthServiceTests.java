@@ -305,8 +305,7 @@ public class FsHealthServiceTests extends ESTestCase {
         AtomicBoolean injectIOException = new AtomicBoolean();
         AtomicInteger injectedPaths = new AtomicInteger();
 
-        private String pathPrefix = "/";
-        private long delay;
+        private final long delay;
         private final ThreadPool threadPool;
 
         FileSystemFsyncHungProvider(FileSystem inner, long delay, ThreadPool threadPool) {
@@ -325,7 +324,7 @@ public class FsHealthServiceTests extends ESTestCase {
                 @Override
                 public void force(boolean metaData) throws IOException {
                     if (injectIOException.get()) {
-                        if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
+                        if (path.getFileName().toString().equals(FsHealthService.FsHealthMonitor.TEMP_FILE_NAME)) {
                             injectedPaths.incrementAndGet();
                             final long startTimeMillis = threadPool.relativeTimeInMillis();
                             do {

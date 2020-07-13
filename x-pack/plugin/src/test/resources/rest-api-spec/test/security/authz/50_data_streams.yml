@@ -304,3 +304,58 @@ teardown:
       indices.delete_data_stream:
         name: s-outside-of-authed-namespace
   - is_true: acknowledged
+
+---
+"Test that data streams stats is limited to authorized namespace":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: s-outside-of-authed-namespace
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 2 }
+  - match: { backing_indices: 2 }
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
+  - match: { data_streams.0.backing_indices: 1 }
+  - match: { data_streams.0.maximum_timestamp: 0 }
+  - match: { data_streams.1.data_stream: 's-outside-of-authed-namespace' }
+  - match: { data_streams.1.backing_indices: 1 }
+  - match: { data_streams.1.maximum_timestamp: 0 }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 1 }
+  - match: { backing_indices: 1 }
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
+  - match: { data_streams.0.backing_indices: 1 }
+  - match: { data_streams.0.maximum_timestamp: 0 }
+
+  - do:
+      headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 0 }
+  - match: { backing_indices: 0 }
+  - length: { data_streams: 0 }
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: restricted-data-stream1
+  - is_true: acknowledged

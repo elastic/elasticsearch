@@ -59,7 +59,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
@@ -159,7 +158,7 @@ public class CompletionFieldMapper extends FieldMapper {
                 } else if (Fields.CONTEXTS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
                     builder.contextMappings(ContextMappings.load(fieldNode, parserContext.indexVersionCreated()));
                     iterator.remove();
-                } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
+                } else if (parseMultiField(builder::addMultiField, name, parserContext, fieldName, fieldNode)) {
                     iterator.remove();
                 }
             }
@@ -206,13 +205,6 @@ public class CompletionFieldMapper extends FieldMapper {
                 new NamedAnalyzer("completion", AnalyzerScope.INDEX, new CompletionAnalyzer(Lucene.STANDARD_ANALYZER)),
                 new NamedAnalyzer("completion", AnalyzerScope.INDEX, new CompletionAnalyzer(Lucene.STANDARD_ANALYZER)),
                 Collections.emptyMap());
-        }
-
-        private CompletionFieldType(CompletionFieldType ref) {
-            super(ref);
-            this.contextMappings = ref.contextMappings;
-            this.preserveSep = ref.preserveSep;
-            this.preservePositionIncrements = ref.preservePositionIncrements;
         }
 
         public void setPreserveSep(boolean preserveSep) {
@@ -301,33 +293,6 @@ public class CompletionFieldMapper extends FieldMapper {
                 new Term(name(), indexedValueForSearch(value)), null,
                 fuzziness.asDistance(), transpositions, nonFuzzyPrefixLength, minFuzzyPrefixLength,
                 unicodeAware, maxExpansions);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
-
-            CompletionFieldType that = (CompletionFieldType) o;
-
-            if (preserveSep != that.preserveSep) return false;
-            if (preservePositionIncrements != that.preservePositionIncrements) return false;
-            return Objects.equals(contextMappings, that.contextMappings);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(),
-                    preserveSep,
-                    preservePositionIncrements,
-                    contextMappings);
-        }
-
-        @Override
-        public CompletionFieldType clone() {
-            return new CompletionFieldType(this);
         }
 
         @Override

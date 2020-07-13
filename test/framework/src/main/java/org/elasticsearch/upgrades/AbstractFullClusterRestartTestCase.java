@@ -117,6 +117,11 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
         return true;
     }
 
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
     protected void assertNoFailures(Map<?, ?> response) {
         int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
         assertEquals(0, failed);

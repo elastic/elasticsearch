@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
@@ -218,25 +217,25 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     // Once the cache limit is reached, cached documents are collected into (3/4 * shard_size) buckets
     // A new bucket should be added when there is a document that is distant from all existing buckets
     public void testNewBucketCreation() throws Exception {
-        final List<Number> dataset = Arrays.asList(-1, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 40, 30, 25, 32, 38, 80, 50, 75);
+        final List<Number> dataset = Arrays.asList(-1, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 40, 30, 25, 32, 36, 80, 50, 75, 60);
         double doubleError = 1d / 10000d;
 
         // Search (no reduce)
 
         // Expected clusters: [ (-1), (1), (3), (5), (7), (9), (11), (13), (15), (17),
-        //                      (19), (25, 30, 32), (38, 40), (50), (75, 80) ]
-        // Corresponding keys (centroids): [ -1, 1, 3, ..., 17, 19, 29, 39, 50, 77.5]
+        //                      (19), (25, 30, 32), (36, 40, 50), (60), (75, 80) ]
+        // Corresponding keys (centroids): [ -1, 1, 3, ..., 17, 19, 29, 42, 77.5]
         // Note: New buckets are created for 30, 50, and 80 because they are distant from the other buckets
-        final List<Double> keys = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 29d, 39d, 50d, 77.5d);
-        final List<Double> mins = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 25d, 38d, 50d, 75d);
-        final List<Double> maxes = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 32d, 40d, 50d, 80d);
-        final List<Integer> docCounts = Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 1, 2);
+        final List<Double> keys = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 29d, 42d, 60d, 77.5d);
+        final List<Double> mins = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 25d, 36d, 60d, 75d);
+        final List<Double> maxes = Arrays.asList(-1d, 1d, 3d, 5d, 7d, 9d, 11d, 13d, 15d, 17d, 19d, 32d, 50d, 60d, 80d);
+        final List<Integer> docCounts = Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 1, 2);
         assert keys.size() == docCounts.size() && keys.size() == keys.size();
 
         final Map<Double, Integer> expectedDocCountOnlySearch = new HashMap<>();
         final Map<Double, Double> expectedMinsOnlySearch = new HashMap<>();
         final Map<Double, Double> expectedMaxesOnlySearch = new HashMap<>();
-        for(int i=0; i<keys.size(); i++){
+        for(int i=0; i < keys.size(); i++){
             expectedDocCountOnlySearch.put(keys.get(i), docCounts.get(i));
             expectedMinsOnlySearch.put(keys.get(i), mins.get(i));
             expectedMaxesOnlySearch.put(keys.get(i), maxes.get(i));
@@ -251,6 +250,31 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     long expectedDocCount = expectedDocCountOnlySearch.getOrDefault(bucket.getKey(), 0).longValue();
                     double expectedCentroid = expectedMinsOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue();
                     double expectedMax = expectedMaxesOnlySearch.getOrDefault(bucket.getKey(), 0d).doubleValue();
+                    assertEquals(bucket.getKeyAsString(), expectedDocCount, bucket.getDocCount());
+                    assertEquals(bucket.getKeyAsString(), expectedCentroid, bucket.min(), doubleError);
+                    assertEquals(bucket.getKeyAsString(), expectedMax, bucket.max(), doubleError);
+                });
+            });
+
+        // Rerun the test with very large keys which can cause an overflow
+        final Map<Double, Integer> expectedDocCountBigKeys = new HashMap<>();
+        final Map<Double, Double> expectedMinsBigKeys = new HashMap<>();
+        final Map<Double, Double> expectedMaxesBigKeys = new HashMap<>();
+        for(int i=0; i< keys.size(); i++){
+            expectedDocCountBigKeys.put(Long.MAX_VALUE * keys.get(i), docCounts.get(i));
+            expectedMinsBigKeys.put(Long.MAX_VALUE * keys.get(i), Long.MAX_VALUE * mins.get(i));
+            expectedMaxesBigKeys.put(Long.MAX_VALUE * keys.get(i), Long.MAX_VALUE * maxes.get(i));
+        }
+
+        testSearchCase(DEFAULT_QUERY, dataset.stream().map(n -> Double.valueOf(n.doubleValue() * Long.MAX_VALUE)).collect(toList()), false,
+            aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(16).setInitialBuffer(12),
+            histogram -> {
+                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(expectedDocCountOnlySearch.size(), buckets.size());
+                buckets.forEach(bucket -> {
+                    long expectedDocCount = expectedDocCountBigKeys.getOrDefault(bucket.getKey(), 0).longValue();
+                    double expectedCentroid = expectedMinsBigKeys.getOrDefault(bucket.getKey(), 0d).doubleValue();
+                    double expectedMax = expectedMaxesBigKeys.getOrDefault(bucket.getKey(), 0d).doubleValue();
                     assertEquals(expectedDocCount, bucket.getDocCount());
                     assertEquals(expectedCentroid, bucket.min(), doubleError);
                     assertEquals(expectedMax, bucket.max(), doubleError);
@@ -308,7 +332,6 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 .setShardSize(4)
                 .subAggregation(AggregationBuilders.stats("stats").field(NUMERIC_FIELD)),
             histogram -> {
-                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 double deltaError = 1d/10000d;
 
                 // Expected clusters: [ (1, 2), (5), (8,9) ]
@@ -343,7 +366,6 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                 .setShardSize(4)
                 .subAggregation(new StatsAggregationBuilder("stats").field(NUMERIC_FIELD)),
             histogram -> {
-                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 double deltaError = 1d / 10000d;
 
                 // Expected clusters: [ (0, 1, 2, 3), (4, 5, 6, 7), (8, 9, 10, 11) ]
@@ -381,16 +403,15 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                                         .shardSize(2)
                                         .size(1)),
             histogram -> {
-                final List<InternalVariableWidthHistogram.Bucket> buckets = histogram.getBuckets();
                 double deltaError = 1d / 10000d;
 
                 // This is a test to make sure that the sub aggregations get reduced
                 // This terms sub aggregation has shardSize (2) != size (1), so we will get 1 bucket only if
                 // InternalVariableWidthHistogram reduces the sub aggregations.
 
-                InternalTerms terms = histogram.getBuckets().get(0).getAggregations().get("terms");
+                LongTerms terms = histogram.getBuckets().get(0).getAggregations().get("terms");
                 assertEquals(1L, terms.getBuckets().size(), deltaError);
-                assertEquals(1L, ((InternalTerms.Bucket) terms.getBuckets().get(0)).getKey());
+                assertEquals(1L, terms.getBuckets().get(0).getKey());
             });
     }
 

@@ -16,15 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.snapshots;
 
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.util.Map;
+import java.io.IOException;
 
-public class GeoPointFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new GeoPointFieldType(name, true, true, meta);
+class UpdateIndexShardSnapshotStatusResponse extends ActionResponse {
+
+    UpdateIndexShardSnapshotStatusResponse() {}
+
+    UpdateIndexShardSnapshotStatusResponse(StreamInput in) throws IOException {
+        super(in);
     }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
 }

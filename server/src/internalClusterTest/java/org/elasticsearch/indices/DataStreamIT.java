@@ -119,7 +119,7 @@ public class DataStreamIT extends ESIntegTestCase {
         createDataStreamRequest = new CreateDataStreamAction.Request("metrics-bar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
 
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"*"});
         GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         getDataStreamResponse.getDataStreams().sort(Comparator.comparing(dataStreamInfo -> dataStreamInfo.getDataStream().getName()));
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(2));
@@ -302,7 +302,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyDocs(dataStreamName, numDocs, 1, 1);
 
         String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("*");
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"*"});
         GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
@@ -421,6 +421,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetIndex().addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().cluster().prepareSearchShards(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareOpen(dataStreamName), false);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareShardStores(dataStreamName), false);
 
         request = new CreateDataStreamAction.Request("logs-barbaz");
         client().admin().indices().createDataStream(request).actionGet();
@@ -456,6 +457,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetIndex().addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().cluster().prepareSearchShards(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareOpen(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, client().admin().indices().prepareShardStores(wildcardExpression), false);
     }
 
     public void testCannotDeleteComposableTemplateUsedByDataStream() throws Exception {
@@ -528,7 +530,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
         client().admin().indices().createDataStream(createDataStreamRequest).get();
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request("logs-foobar");
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"logs-foobar"});
         GetDataStreamAction.Response getDataStreamResponse = client().admin().indices().getDataStreams(getDataStreamRequest).actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo("logs-foobar"));
@@ -680,7 +682,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs("metrics-foo", "@timestamp", numDocsFoo);
 
         GetDataStreamAction.Response response =
-            client().admin().indices().getDataStreams(new GetDataStreamAction.Request("metrics-foo")).actionGet();
+            client().admin().indices().getDataStreams(new GetDataStreamAction.Request(new String[]{"metrics-foo"})).actionGet();
         assertThat(response.getDataStreams().size(), is(1));
         GetDataStreamAction.Response.DataStreamInfo metricsFooDataStream = response.getDataStreams().get(0);
         assertThat(metricsFooDataStream.getDataStream().getName(), is("metrics-foo"));

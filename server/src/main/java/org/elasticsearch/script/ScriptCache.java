@@ -136,6 +136,10 @@ public class ScriptCache {
         return scriptMetrics.stats();
     }
 
+    public ScriptContextStats stats(String context) {
+        return scriptMetrics.stats(context);
+    }
+
     /**
      * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
      * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
@@ -243,7 +247,6 @@ public class ScriptCache {
             this.tokenSuccessfullyTaken = tokenSuccessfullyTaken;
         }
     }
-
 
     public static class CompilationRate {
         public final int count;

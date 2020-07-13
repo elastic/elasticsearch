@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -585,7 +584,6 @@ public class ScriptServiceTests extends ESTestCase {
         );
         assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
-        String d = randomValueOtherThanMany(Arrays.asList(a, b, c)::contains, () -> randomFrom(contextNames));
         assertEquals(new ScriptCache.CompilationRate(aRate),
                      scriptService.cacheHolder.get().contextCache.get(a).get().rate);
         assertEquals(new ScriptCache.CompilationRate(bRate),

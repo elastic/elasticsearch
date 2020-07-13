@@ -1419,8 +1419,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings, clusterService, transportService,
                     Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool
                 );
-                snapshotsService =
-                    new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);
+                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                snapshotsService = new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService,
+                        transportService, actionFilters);
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
@@ -1453,10 +1454,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     null
                 );
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
-                snapshotShardsService = new SnapshotShardsService(
-                    settings, clusterService, repositoriesService, threadPool,
-                    transportService, indicesService, actionFilters, indexNameExpressionResolver);
+                snapshotShardsService =
+                        new SnapshotShardsService(settings, clusterService, repositoriesService, transportService, indicesService);
                 final ShardStateAction shardStateAction = new ShardStateAction(
                     clusterService, transportService, allocationService,
                     new BatchedRerouteService(clusterService, allocationService::reroute),

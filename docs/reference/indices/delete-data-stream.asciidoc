@@ -1,3 +1,4 @@
+[role="xpack"]
 [[indices-delete-data-stream]]
 === Delete data stream API
 ++++

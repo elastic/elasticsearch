@@ -96,18 +96,9 @@ public class Murmur3FieldMapper extends FieldMapper {
             super(name, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
-        protected Murmur3FieldType(Murmur3FieldType ref) {
-            super(ref);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public Murmur3FieldType clone() {
-            return new Murmur3FieldType(this);
         }
 
         @Override

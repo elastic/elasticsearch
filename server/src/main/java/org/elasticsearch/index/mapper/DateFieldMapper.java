@@ -292,7 +292,7 @@ public final class DateFieldMapper extends FieldMapper {
                 } else if (propName.equals("format")) {
                     builder.format(propNode.toString());
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -315,32 +315,6 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateFieldType(String name) {
             this(name, true, true, DEFAULT_DATE_TIME_FORMATTER, Resolution.MILLISECONDS, Collections.emptyMap());
-        }
-
-        DateFieldType(DateFieldType other) {
-            super(other);
-            this.dateTimeFormatter = other.dateTimeFormatter;
-            this.dateMathParser = other.dateMathParser;
-            this.resolution = other.resolution;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new DateFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) {
-                return false;
-            }
-            DateFieldType that = (DateFieldType) o;
-            return Objects.equals(dateTimeFormatter, that.dateTimeFormatter) && Objects.equals(resolution, that.resolution);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), dateTimeFormatter, resolution);
         }
 
         @Override

@@ -78,6 +78,14 @@ index settings, aliases, mappings, and index templates.
 * <<indices-synced-flush-api>>
 * <<indices-forcemerge>>
 
+[float]
+[[dangling-indices-api]]
+=== Dangling indices:
+* <<dangling-indices-list>>
+* <<dangling-index-import>>
+* <<dangling-index-delete>>
+
+
 
 include::indices/add-alias.asciidoc[]
 
@@ -162,3 +170,9 @@ include::indices/aliases.asciidoc[]
 include::indices/update-settings.asciidoc[]
 
 include::indices/resolve.asciidoc[]
+
+include::indices/dangling-indices-list.asciidoc[]
+
+include::indices/dangling-index-import.asciidoc[]
+
+include::indices/dangling-index-delete.asciidoc[]

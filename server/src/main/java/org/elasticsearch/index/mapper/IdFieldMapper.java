@@ -121,15 +121,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected IdFieldType(IdFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IdFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

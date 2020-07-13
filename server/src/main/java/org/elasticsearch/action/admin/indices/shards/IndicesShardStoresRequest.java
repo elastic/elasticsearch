@@ -107,6 +107,11 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /**
      * Returns the shard criteria to get store information on
      */

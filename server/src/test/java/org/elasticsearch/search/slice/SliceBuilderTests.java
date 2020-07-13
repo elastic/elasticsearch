@@ -120,10 +120,6 @@ public class SliceBuilderTests extends ESTestCase {
     private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
                                                  String fieldName, DocValuesType dvType, int numShards, int shardId) {
         MappedFieldType fieldType = new MappedFieldType(fieldName, true, dvType != null, TextSearchInfo.NONE, Collections.emptyMap()) {
-            @Override
-            public MappedFieldType clone() {
-                return null;
-            }
 
             @Override
             public String typeName() {

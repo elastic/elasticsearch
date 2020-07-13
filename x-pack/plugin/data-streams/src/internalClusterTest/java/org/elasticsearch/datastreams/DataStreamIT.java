@@ -67,6 +67,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
 import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -333,28 +334,6 @@ public class DataStreamIT extends ESIntegTestCase {
         );
     }
 
-    public void testTimeStampValidationNoFieldMapping() throws Exception {
-        // Adding a template without a mapping for timestamp field and expect template creation to fail.
-        PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
-        createTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("logs-*"),
-                new Template(null, new CompressedXContent("{}"), null),
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate("@timestamp")
-            )
-        );
-
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet()
-        );
-        assertThat(e.getCause().getCause().getMessage(), equalTo("the configured timestamp field [@timestamp] does not exist"));
-    }
-
     public void testTimeStampValidationInvalidFieldMapping() throws Exception {
         // Adding a template with an invalid mapping for timestamp field and expect template creation to fail.
         String mapping = "{\n"
@@ -575,17 +554,17 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testTimestampFieldCustomAttributes() throws Exception {
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\",\n" +
-            "          \"format\": \"yyyy-MM\",\n" +
-            "          \"meta\": {\n" +
-            "            \"x\": \"y\"\n" +
-            "          }\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
+        String mapping = "{\n"
+            + "      \"properties\": {\n"
+            + "        \"@timestamp\": {\n"
+            + "          \"type\": \"date\",\n"
+            + "          \"format\": \"yyyy-MM\",\n"
+            + "          \"meta\": {\n"
+            + "            \"x\": \"y\"\n"
+            + "          }\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }";
         putComposableIndexTemplate("id1", mapping, List.of("logs-foo*"), null);
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
@@ -768,9 +747,7 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testGetDataStream() throws Exception {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2)
-            .build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings);
 
         int numDocsFoo = randomIntBetween(2, 16);
@@ -952,9 +929,9 @@ public class DataStreamIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
             String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
-            bulkRequest.add(new IndexRequest(dataStream)
-                .opType(DocWriteRequest.OpType.CREATE)
-                .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", timestampField, value), XContentType.JSON));
+            bulkRequest.add(
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, value), XContentType.JSON));
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
@@ -985,15 +962,19 @@ public class DataStreamIT extends ESIntegTestCase {
         putComposableIndexTemplate(id, null, patterns, null);
     }
 
-    static void putComposableIndexTemplate(String id, @Nullable String mappings, List<String> patterns,
-                                           @Nullable Settings settings) throws IOException {
+    static void putComposableIndexTemplate(String id, @Nullable String mappings, List<String> patterns, @Nullable Settings settings)
+        throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
                 new Template(settings, mappings == null ? null : new CompressedXContent(mappings), null),
-                null, null, null, null,
-                new ComposableIndexTemplate.DataStreamTemplate("@timestamp"))
+                null,
+                null,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate("@timestamp")
+            )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
     }

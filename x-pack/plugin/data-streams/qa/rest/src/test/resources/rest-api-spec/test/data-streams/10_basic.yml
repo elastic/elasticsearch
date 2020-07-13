@@ -1,6 +1,9 @@
 setup:
   - skip:
       features: allowed_warnings
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
+
   - do:
       allowed_warnings:
         - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"

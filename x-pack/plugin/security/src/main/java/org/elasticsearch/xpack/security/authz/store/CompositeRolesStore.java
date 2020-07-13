@@ -225,12 +225,12 @@ public class CompositeRolesStore {
         final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
         if (authType == Authentication.AuthenticationType.API_KEY) {
             if (authentication.getVersion().onOrAfter(Version.V_7_9_0)) {
-                getOrBuildRoleForApiKey(authentication, false, ActionListener.wrap(
+                buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(
                     role -> {
                         if (role == Role.EMPTY) {
-                            getOrBuildRoleForApiKey(authentication, true, roleActionListener);
+                            buildAndCacheRoleForApiKey(authentication, true, roleActionListener);
                         } else {
-                            getOrBuildRoleForApiKey(authentication, true, ActionListener.wrap(
+                            buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
                                 limitedByRole -> roleActionListener.onResponse(
                                     limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole)),
                                 roleActionListener::onFailure
@@ -318,7 +318,7 @@ public class CompositeRolesStore {
         }, listener::onFailure));
     }
 
-    private void getOrBuildRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
+    private void buildAndCacheRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
         final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndRoleBytes(authentication, limitedBy);
         final MessageDigest digest = MessageDigests.sha256();
         final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest(BytesReference.toBytes(apiKeyIdAndBytes.v2())));

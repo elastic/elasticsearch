@@ -39,6 +39,9 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
  * A lightweight utility that can find the current user and authentication information for the local thread.
  */
 public class SecurityContext {
+
+    public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
+
     private final Logger logger = LogManager.getLogger(SecurityContext.class);
 
     private final ThreadContext threadContext;
@@ -158,16 +161,16 @@ public class SecurityContext {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                 authentication.getLookedUpBy(), version, authentication.getAuthenticationType(),
-                rewriteMetadataIfNecessary(version, authentication)));
+                rewriteMetadataForApiKeyRoleDescriptors(version, authentication)));
             consumer.accept(original);
         }
     }
 
-    private Map<String, Object> rewriteMetadataIfNecessary(Version streamVersion, Authentication authentication) {
+    private Map<String, Object> rewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
         Map<String, Object> metadata = authentication.getMetadata();
         if (authentication.getAuthenticationType() == AuthenticationType.API_KEY
-            && authentication.getVersion().onOrAfter(Version.V_7_9_0)
-            && streamVersion.before(Version.V_7_9_0)) {
+            && authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
+            && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
             metadata = new HashMap<>(metadata);
             metadata.put(
                 API_KEY_ROLE_DESCRIPTORS_KEY,

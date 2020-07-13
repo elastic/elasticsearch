@@ -6,6 +6,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.BinaryPoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.versionfield.VersionEncoder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -395,6 +397,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             // TODO adrien: encode the first 16 bytes as points for efficient range query
             Field field = new Field(fieldType().name(), encodedVersion, fieldType);
             context.doc().add(field);
+            byte[] first16bytes = Arrays.copyOfRange(encodedVersion.bytes, encodedVersion.offset, 16);
+            context.doc().add(new BinaryPoint(fieldType().name(), first16bytes));
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 createFieldNamesField(context);

@@ -1,9 +1,9 @@
 ---
-"Data streams":
+"DBQ from data stream":
   - skip:
       features: allowed_warnings
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       allowed_warnings:
@@ -26,11 +26,46 @@
   - is_true: acknowledged
 
   - do:
-      indices.get_field_mapping:
-        index: simple-data-stream1
-        fields: foo
+      index:
+        index:   simple-data-stream1
+        id:      1
+        op_type: create
+        body:
+          foo: bar
+          '@timestamp': '2020-12-12'
 
-  - is_true: \.ds-simple-data-stream1-000001
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      delete_by_query:
+        index: simple-data-stream1
+        body:
+          query:
+            match_all: {}
+
+  - is_false: timed_out
+  - match: {deleted: 1}
+  - is_false: created
+  - is_false: updated
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {noops: 0}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      count:
+        index: .ds-simple-data-stream1-000001
+
+  - match: {count: 0}
 
   - do:
       indices.delete_data_stream:

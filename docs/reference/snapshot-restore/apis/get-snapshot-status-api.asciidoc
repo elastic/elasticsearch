@@ -45,14 +45,18 @@ If you specify both the repository name and snapshot, the request retrieves deta
 ==== {api-path-parms-title}
 
 `<repository>`::
-(Optional, string)
-Snapshot repository name used to limit the request.
+(Required, string)
+Snapshot repository name used to limit the request. Wildcard (`*`) expressions are supported.
 +
-Omitting a repository name retrieves a list of all snapshots currently running in the cluster.
+To retrieve a list of all snapshots in the cluster, omit this and the `<snapshot>` parameter.
 
 `<snapshot>`::
-(Optional, string)
+(Required, string)
 Comma-separated list of snapshot names to retrieve status for.
++
+To retrieve a list of all snapshots in a specified repository, omit this parameter.
++
+NOTE: Wildcard (`*`) expressions are not supported for `<snapshot>`.
 
 [role="child_attributes"]
 [[get-snapshot-status-api-request-body]]
@@ -67,6 +71,9 @@ If `true`, the request ignores snapshots that are unavailable, such as those tha
 [role="child_attributes"]
 [[get-snapshot-status-api-response-body]]
 ==== {api-response-body-title}
+`repository`::
+(string)
+Name of the repository that includes the snapshot.
 
 `snapshot`::
 (string)
@@ -176,11 +183,9 @@ indices included in the snapshot.
 [%collapsible%open]
 ====
 `shards_stats`::
-(object)
 See <<get-snapshot-status-shards-stats,`shards_stats`>>.
 
 `stats`::
-(object)
 See <<get-snapshot-status-stats,`stats`>>.
 
 `shards`::
@@ -219,7 +224,7 @@ Number of shards containing a copy of the snapshot in the started stage.
 [[get-snapshot-status-api-example]]
 ==== {api-example-title}
 
-The following request returns information for `snapshot_2` in the `my_repository` repository.
+The following request returns detailed status information for `snapshot_2` in the `my_repository` repository. This response includes additional information beyond the <<get-snapshot-api,Get snapshot API>>, such as shard status and file statistics.
 
 [source,console]
 ----

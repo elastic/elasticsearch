@@ -12,6 +12,9 @@ import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -26,6 +29,7 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void test() throws IOException {
         try {
             // Cannot use expectThrows here because blacklisted tests will throw an
@@ -38,7 +42,19 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
                     String apiName = ((DoSection) section).getApiCallSection().getApi();
 
                     if (apiName.startsWith("ml.")) {
-                        fail("call to ml endpoint should have failed because of missing role");
+                        fail("call to ml endpoint [" + apiName + "] should have failed because of missing role");
+                    } else if (apiName.startsWith("search")) {
+                        DoSection doSection = (DoSection) section;
+                        List<Map<String, Object>> bodies = doSection.getApiCallSection().getBodies();
+                        boolean containsInferenceAgg = false;
+                        for (Map<String, Object> body : bodies) {
+                            Map<String, Object> aggs = (Map<String, Object>)body.get("aggs");
+                            containsInferenceAgg = containsInferenceAgg || containsKey("inference", aggs);
+                        }
+
+                        if (containsInferenceAgg) {
+                            fail("call to [search] with the ml inference agg should have failed because of missing role");
+                        }
                     }
                 }
             }
@@ -49,9 +65,13 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
                 assertThat(ae.getMessage(), containsString("but was Integer [0]"));
             } else {
                 assertThat(ae.getMessage(),
-                        either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml")));
+                    either(containsString("action [cluster:monitor/xpack/ml"))
+                        .or(containsString("action [cluster:admin/xpack/ml"))
+                        .or(containsString("security_exception")));
                 assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
-                assertThat(ae.getMessage(), containsString("is unauthorized for user [no_ml]"));
+                assertThat(ae.getMessage(),
+                    either(containsString("is unauthorized for user [no_ml]"))
+                        .or(containsString("user [no_ml] is not an ml user and does not have sufficient privilege to use ml inference")));
             }
         }
     }
@@ -59,6 +79,28 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
     @Override
     protected String[] getCredentials() {
         return new String[]{"no_ml", "x-pack-test-password"};
+    }
+
+    @SuppressWarnings("unchecked")
+    static boolean containsKey(String key, Map<String, Object> mapOfMaps) {
+        Set<String> keys = mapOfMaps.keySet();
+        for (String keyEntry : keys) {
+            if (key.equals(keyEntry)) {
+                return true;
+            }
+        }
+
+        Set<Map.Entry<String, Object>> entries = mapOfMaps.entrySet();
+        for (Map.Entry<String, Object> entry : entries) {
+            if (entry.getValue() instanceof Map<?,?>) {
+                boolean isInNestedMap = containsKey(key, (Map<String, Object>)entry.getValue());
+                if (isInNestedMap) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
 

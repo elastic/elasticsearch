@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.ml.inference.aggs;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -25,6 +27,12 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
@@ -32,9 +40,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
 
@@ -186,8 +196,9 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         if (model != null) {
             return this;
         }
+
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
-        context.registerAsyncAction((client, listener) -> {
+        BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) ->
             modelLoadingService.get().getModelForSearch(modelId, ActionListener.delegateFailure(listener, (delegate, model) -> {
                 loadedModel.set(model);
 
@@ -199,8 +210,45 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                     delegate.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                 }
             }));
+
+
+        context.registerAsyncAction((client, listener) -> {
+            if (licenseState.isSecurityEnabled()) {
+                // check the user has ml privileges
+                SecurityContext securityContext =new SecurityContext(Settings.EMPTY, client.threadPool().getThreadContext());
+                useSecondaryAuthIfAvailable(securityContext, () -> {
+                    final String username = securityContext.getUser().principal();
+                    final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+                    privRequest.username(username);
+                    privRequest.clusterPrivileges("manage_ml", "monitor_ml");
+                    privRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[]{});
+                    privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[]{});
+
+                    ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
+                        r -> {
+                            if (hasMlPrivilege(r)) {
+                                modelLoadAction.accept(client, listener);
+                            } else {
+                                listener.onFailure(Exceptions.authorizationError(
+                                    "user [" + username + "] is not an ml user and does not have sufficient privilege " +
+                                        "to use ml inference"));
+                            }
+                        },
+                        listener::onFailure);
+
+                    client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                });
+            } else {
+                modelLoadAction.accept(client, listener);
+            }
         });
         return new InferencePipelineAggregationBuilder(name, bucketPathMap, loadedModel::get, modelId, inferenceConfig, licenseState);
+    }
+
+    static boolean hasMlPrivilege(HasPrivilegesResponse privilegesResponse) {
+        Map<String, Boolean> clusterPrivileges = privilegesResponse.getClusterPrivileges();
+        return Boolean.TRUE.equals(clusterPrivileges.get("manage_ml")) ||
+            Boolean.TRUE.equals(clusterPrivileges.get("monitor_ml"));
     }
 
     @Override

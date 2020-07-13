@@ -385,13 +385,20 @@ public class ModelLoadingService implements ClusterStateListener {
                 loadedModel.release();
                 return;
             }
-            for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
-                loadedModel.acquire();
-                listener.onResponse(loadedModel);
-            }
+
+            // temporarily increase the reference count before adding to
+            // the cache in case the model is evicted before the listeners
+            // are called in which case acquire() would throw.
+            loadedModel.acquire();
             localModelCache.put(modelId, new ModelAndConsumer(loadedModel, consumer));
             shouldNotAudit.remove(modelId);
         } // synchronized (loadingListeners)
+        for (ActionListener<LocalModel> listener = listeners.poll(); listener != null; listener = listeners.poll()) {
+            loadedModel.acquire();
+            listener.onResponse(loadedModel);
+        }
+        // account for the acquire in the synchronized block above
+        loadedModel.release();
     }
 
     private void handleLoadFailure(String modelId, Exception failure) {

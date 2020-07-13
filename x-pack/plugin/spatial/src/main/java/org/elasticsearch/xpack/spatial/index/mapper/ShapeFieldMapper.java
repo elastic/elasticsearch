@@ -81,15 +81,6 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
             super(name, indexed, hasDocValues, meta);
         }
 
-        public ShapeFieldType(ShapeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public ShapeFieldType clone() {
-            return new ShapeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

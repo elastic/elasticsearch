@@ -38,6 +38,7 @@ include-tagged::{doc-tests-file}[{api}-config]
 <5> The fields to be included in / excluded from the analysis
 <6> The memory limit for the model created as part of the analysis process
 <7> Optionally, a human-readable description
+<8> The maximum number of threads to be used by the analysis. Defaults to 1.
 
 [id="{upid}-{api}-query-config"]
 

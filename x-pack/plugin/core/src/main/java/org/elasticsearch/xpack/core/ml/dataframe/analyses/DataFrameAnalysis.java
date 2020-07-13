@@ -79,6 +79,11 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
     InferenceConfig inferenceConfig(FieldInfo fieldInfo);
 
     /**
+     * @return {@code true} if this analysis trains a model that can be used for inference
+     */
+    boolean supportsInference();
+
+    /**
      * Summarizes information about the fields that is necessary for analysis to generate
      * the parameters needed for the process configuration.
      */

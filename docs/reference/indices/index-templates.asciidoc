@@ -500,13 +500,6 @@ PUT /_index_template/template_1
 }
 --------------------------------------------------
 
-Required properties of a data stream definition:
-
-`timestamp_field`::
-(Optional, string) The name of the timestamp field. This field must be present
-in all documents indexed into the data stream and must be of type
-<<date, `date`>> or <<date_nanos, `date_nanos`>>. Must be `@timestamp`, which is the default.
-
 [[multiple-component-templates]]
 ===== Composing multiple component templates
 

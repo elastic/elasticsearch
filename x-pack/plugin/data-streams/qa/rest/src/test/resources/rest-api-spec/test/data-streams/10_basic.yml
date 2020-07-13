@@ -113,7 +113,7 @@ setup:
 "Get data stream":
   - skip:
       version: " - 7.8.99"
-      reason: "change to 7.8.99 after backport"
+      reason: "data streams available in 7.9+"
 
   - do:
       indices.create_data_stream:

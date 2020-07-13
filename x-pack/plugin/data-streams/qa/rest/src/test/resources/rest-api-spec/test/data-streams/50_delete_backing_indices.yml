@@ -72,7 +72,7 @@ setup:
 "Attempt to delete write index on data stream is rejected":
   - skip:
       version: " - 7.8.99"
-      reason:  "mute bwc until backported"
+      reason:  "data streams available in 7.9+"
 
   - do:
       indices.create_data_stream:

@@ -65,6 +65,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.time.DateUtils.toLong;
@@ -468,6 +469,14 @@ public final class DateFieldMapper extends FieldMapper {
             } else {
                 return Relation.INTERSECTS;
             }
+        }
+
+        @Override
+        public Function<byte[], Number> pointReaderIfPossible() {
+            if (isSearchable()) {
+                return resolution()::parsePointAsMillis;
+            }
+            return null;
         }
 
         @Override

@@ -1262,6 +1262,19 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(snapshotResponse.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
     }
 
+    public void testPartialSnapshotAllShardsMissing() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        createIndex("some-index");
+        stopNode(dataNode);
+        ensureStableCluster(1);
+        final CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
+                .setPartial(true).setWaitForCompletion(true).get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), is(SnapshotState.PARTIAL));
+    }
+
     private long calculateTotalFilesSize(List<Path> files) {
         return files.stream().mapToLong(f -> {
             try {

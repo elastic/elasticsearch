@@ -6,16 +6,23 @@
 
 package org.elasticsearch.xpack.datastreams;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.xpack.datastreams.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.datastreams.mapper.DataStreamTimestampFieldMapper;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ActionModule.DATASTREAMS_FEATURE_ENABLED;
 
-public class DataStreamsPlugin extends Plugin implements MapperPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
@@ -24,5 +31,15 @@ public class DataStreamsPlugin extends Plugin implements MapperPlugin {
         } else {
             return Map.of();
         }
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        var dsUsageAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class);
+        var dsInfoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class);
+        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+        actions.add(dsUsageAction);
+        actions.add(dsInfoAction);
+        return actions;
     }
 }

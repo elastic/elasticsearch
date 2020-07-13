@@ -58,6 +58,10 @@ using metrics.
   `http`::
       HTTP connection information.
 
+  `indexing_pressure`::
+        Indexing pressure statistics about total and current indexing load and
+        indexing rejections.
+
   `indices`::
       Indices stats about size, document count, indexing and deletion times,
       search times, field cache size, merges and flushes.
@@ -2096,6 +2100,62 @@ Number of failed operations for the processor.
 ==========
 =========
 ========
+=======
+======
+
+[[cluster-nodes-stats-api-response-body-indexing-pressure]]
+`indexing_pressure`::
+(object)
+Contains indexing pressure statistics for the node.
++
+.Properties of `indexing_pressure`
+[%collapsible%open]
+======
+`total`::
+(object)
+Contains statistics for cumulative indexing load since the node started.
++
+.Properties of `<circuit_breaker_name>`
+[%collapsible%open]
+=======
+`coordinating_and_primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating or primary stage.
+
+`replica_bytes`::
+(integer)
+Bytes consumed by indexing requests in the replica stage.
+
+`all_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating, primary, or replica stage.
+
+`coordinating_and_primary_memory_limit_rejections`::
+(integer)
+Rejections of indexing requests in the coordinating or primary stage.
+
+`replica_memory_limit_rejections`::
+(integer)
+Rejections of indexing requests in the replica stage.
+=======
+`current`::
+(object)
+Contains statistics for current indexing load.
++
+.Properties of `<circuit_breaker_name>`
+[%collapsible%open]
+=======
+`coordinating_and_primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating or primary stage.
+
+`replica_bytes`::
+(integer)
+Bytes consumed by indexing requests in the replica stage.
+
+`all_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating, primary, or replica stage.
 =======
 ======
 

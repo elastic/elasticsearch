@@ -33,8 +33,8 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.HEAD;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_UNTIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_ONE;
@@ -44,14 +44,15 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FIVE_
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_TWO;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.PIPE_HEAD;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.PIPE_TAIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_MAXSPAN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FIVE_OR_MORE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.TAIL;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.UNTIL;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /**
@@ -148,9 +149,9 @@ public class Verifier {
                 if (p instanceof Project) {
                     isLikelyAnEventQuery.set(true);
                 } else if (p instanceof Head) {
-                    b.set(HEAD.ordinal());
+                    b.set(PIPE_HEAD.ordinal());
                 } else if (p instanceof Tail) {
-                    b.set(TAIL.ordinal());
+                    b.set(PIPE_TAIL.ordinal());
                 } else if (p instanceof Join) {
                     Join j = (Join) p;
 
@@ -172,6 +173,9 @@ public class Verifier {
                             default: b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
                                      break;
                         }
+                        if (j.until().keys().isEmpty() == false) {
+                            b.set(SEQUENCE_UNTIL.ordinal());
+                        }
                     } else {
                         b.set(FeatureMetric.JOIN.ordinal());
                         int queriesCount = j.queries().size();
@@ -185,10 +189,9 @@ public class Verifier {
                             default: b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
                                      break;
                         }
-                    }
-                    
-                    if (j.until().keys().isEmpty() == false) {
-                        b.set(UNTIL.ordinal());
+                        if (j.until().keys().isEmpty() == false) {
+                            b.set(JOIN_UNTIL.ordinal());
+                        }
                     }
 
                     int joinKeysCount = j.queries().get(0).keys().size();

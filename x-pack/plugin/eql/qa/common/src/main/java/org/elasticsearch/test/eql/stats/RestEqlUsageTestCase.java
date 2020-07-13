@@ -72,33 +72,36 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
 
     /**
      * "Flatten" the response from ES putting all the features metrics in the same Map.
-     *           "features": {
-     *              "head": 3,
+     *          "features": {
      *              "joins": {
-     *                  "join_five_or_more_queries": 0,
-     *                  "join_four_queries": 0,
-     *                  "join_two_queries": 0,
-     *                  "join_three_queries": 0
+     *                  "join_queries_three": 0,
+     *                  "join_queries_two": 0,
+     *                  "join_until": 0,
+     *                  "join_queries_five_or_more": 0,
+     *                  "join_queries_four": 0
      *              },
-     *              "sequence": 3,
+     *              "sequence": 0,
      *              "keys": {
      *                  "join_keys_two": 0,
      *                  "join_keys_one": 0,
-     *                  "join_keys_three": 3,
+     *                  "join_keys_three": 0,
      *                  "join_keys_five_or_more": 0,
      *                  "join_keys_four": 0
      *              },
-     *              "tail": 0,
-     *              "until": 3,
      *              "join": 0,
      *              "sequences": {
-     *                  "sequence_five_or_more_queries": 0,
-     *                  "sequence_two_queries": 3,
-     *                  "sequence_three_queries": 0,
-     *                  "sequence_four_queries": 0,
+     *                  "sequence_queries_three": 0,
+     *                  "sequence_queries_four": 0,
+     *                  "sequence_queries_two": 0,
+     *                  "sequence_until": 0,
+     *                  "sequence_queries_five_or_more": 0,
      *                  "sequence_maxspan": 0
      *              },
-     *              "event": 0
+     *              "event": 0,
+     *              "pipes": {
+     *                  "pipe_tail": 0,
+     *                  "pipe_head": 0
+     *              }
      *          }
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -107,6 +110,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
         featuresMetrics.putAll((Map) featuresMetrics.get("keys"));
         featuresMetrics.putAll((Map) featuresMetrics.get("sequences"));
         featuresMetrics.putAll((Map) featuresMetrics.get("joins"));
+        featuresMetrics.putAll((Map) featuresMetrics.get("pipes"));
         return featuresMetrics;
     }
 
@@ -124,7 +128,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
         }
 
         Map<String, Object> responseAsMap = getStats();
-        Set<String> metricsToCheck = Set.of("head", "event");
+        Set<String> metricsToCheck = Set.of("pipe_head", "event");
         assertFeaturesMetrics(randomEventExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -138,7 +142,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
             runEql("sequence [process where serial_event_id = 1] [process where serial_event_id = 2]");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_two", "head");
+        metricsToCheck = Set.of("sequence", "sequence_queries_two", "pipe_head");
         assertFeaturesMetrics(randomSequenceExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -152,7 +156,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
             runEql("process where serial_event_id < 4 | tail 2");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("tail", "event");
+        metricsToCheck = Set.of("pipe_tail", "event");
         assertFeaturesMetrics(randomTailExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -173,7 +177,8 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 " | tail 2");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_maxspan", "sequence_queries_four", "head", "tail", "join_keys_one", "until");
+        metricsToCheck = Set.of("sequence", "sequence_maxspan", "sequence_queries_four", "pipe_head", "pipe_tail", "join_keys_one",
+            "sequence_until");
         assertFeaturesMetrics(randomMaxspanExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -190,7 +195,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 "  [process where opcode == 2] by user");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_three", "head", "join_keys_one", "sequence_maxspan");
+        metricsToCheck = Set.of("sequence", "sequence_queries_three", "pipe_head", "join_keys_one", "sequence_maxspan");
         assertFeaturesMetrics(randomThreeQueriesSequences, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -210,7 +215,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 "| tail 4");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_five_or_more", "tail", "join_keys_three", "sequence_maxspan");
+        metricsToCheck = Set.of("sequence", "sequence_queries_five_or_more", "pipe_tail", "join_keys_three", "sequence_maxspan");
         assertFeaturesMetrics(randomFiveQueriesSequences, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -226,7 +231,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 "  [process where opcode == 1]");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_two", "head", "join_keys_four");
+        metricsToCheck = Set.of("sequence", "sequence_queries_two", "pipe_head", "join_keys_four");
         assertFeaturesMetrics(randomFourJoinKeysExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -242,7 +247,7 @@ public abstract class RestEqlUsageTestCase extends ESRestTestCase {
                 "  [process where opcode == 1]");
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_queries_two", "head", "join_keys_five_or_more");
+        metricsToCheck = Set.of("sequence", "sequence_queries_two", "pipe_head", "join_keys_five_or_more");
         assertFeaturesMetrics(randomFiveJoinKeysExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);

@@ -38,6 +38,7 @@ public class Metrics {
     protected static String SEQUENCE_PREFIX = "sequences.";
     protected static String JOIN_PREFIX = "joins.";
     protected static String KEYS_PREFIX = "keys.";
+    protected static String PIPES_PREFIX = "pipes.";
 
     public Metrics() {
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
@@ -111,6 +112,8 @@ public class Metrics {
                 prefix += KEYS_PREFIX;
             } else if (featureName.startsWith("join_")) {
                 prefix += JOIN_PREFIX;
+            } else if (featureName.startsWith("pipe_")) {
+                prefix += PIPES_PREFIX;
             }
             counters.inc(prefix + featureName, entry.getValue().count());
         }

@@ -176,6 +176,7 @@ indices included in the snapshot.
 [%collapsible%open]
 ====
 `shards_stats`::
+(object)
 See <<get-snapshot-status-shards-stats,`shards_stats`>>.
 
 `stats`::

@@ -20,6 +20,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -33,20 +36,31 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -74,6 +88,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(DummyPlugin.class);
+    }
+
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
         request.patterns(singletonList("test_shards*"));
@@ -706,7 +726,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -769,7 +789,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(3));
@@ -1062,6 +1082,96 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo", template), equalTo(state));
     }
 
+    public void testUnreferencedDataStreamsWhenAddingTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        state = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata())
+                .put(new DataStream("unreferenced",
+                    new DataStream.TimestampField("@timestamp"),
+                    Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))))
+                .put(IndexMetadata.builder(".ds-unreferenced-000001")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .build()))
+                .build())
+            .build();
+
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        Template mappingTemplate = new Template(null, new CompressedXContent(mapping), null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"),
+            mappingTemplate, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+
+        state = service.addIndexTemplateV2(state, false, "logs", template);
+
+        ClusterState stateWithDS = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata())
+                .put(new DataStream("logs-mysql-default",
+                    new DataStream.TimestampField("@timestamp"),
+                    Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))))
+                .put(IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                    .settings(Settings.builder()
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .build()))
+                .build())
+            .build();
+
+        // Test replacing it with a version without the data stream config
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"), null, null,
+                100L, null, null, null);
+            service.addIndexTemplateV2(stateWithDS, false, "logs", nonDSTemplate);
+        });
+
+        assertThat(e.getMessage(),
+            containsString("composable template [logs] with index patterns [logs-*-*], priority [100] and no data stream " +
+                "configuration would cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
+
+        // Test adding a higher priority version that would cause problems
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-my*-*"), null, null,
+                105L, null, null, null);
+            service.addIndexTemplateV2(stateWithDS, false, "logs2", nonDSTemplate);
+        });
+
+        assertThat(e.getMessage(),
+            containsString("composable template [logs2] with index patterns [logs-my*-*], priority [105] and no data stream " +
+                "configuration would cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
+
+        // Change the pattern to one that doesn't match the data stream
+        e = expectThrows(IllegalArgumentException.class, () -> {
+            ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), mappingTemplate,
+                null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            service.addIndexTemplateV2(stateWithDS, false, "logs", newTemplate);
+        });
+
+        assertThat(e.getMessage(),
+            containsString("composable template [logs] with index patterns [logs-postgres-*], priority [100] would " +
+                "cause data streams [unreferenced, logs-mysql-default] to no longer match a data stream template"));
+
+        // Add an additional template that matches our data stream at a lower priority
+        ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), mappingTemplate,
+            null, 50L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+        ClusterState stateWithDSAndTemplate = service.addIndexTemplateV2(stateWithDS, false, "logs-mysql", mysqlTemplate);
+
+        // We should be able to replace the "logs" template, because we have the "logs-mysql" template that can handle the data stream
+        ComposableIndexTemplate nonDSTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), null, null,
+            100L, null, null, null);
+        service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
                 Settings.EMPTY,
@@ -1187,6 +1297,85 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
                 assertThat(actualMappings, equalTo(expectedMappings));
             }
+        }
+    }
+
+    // Composable index template with data_stream definition need _timestamp meta field mapper,
+    // this is a dummy impl, so that tests don't fail with the fact that the _timestamp field can't be found.
+    // (tests using this dummy impl doesn't test the _timestamp validation, but need it to tests other functionality)
+    public static class DummyPlugin extends Plugin implements MapperPlugin {
+
+        @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Map.of("_data_stream_timestamp", new MetadataFieldMapper.TypeParser() {
+
+                @Override
+                public MetadataFieldMapper.Builder<?> parse(String name,
+                                                            Map<String, Object> node,
+                                                            ParserContext parserContext) throws MapperParsingException {
+                    String path = (String) node.remove("path");
+                    return new MetadataFieldMapper.Builder(name, new FieldType()) {
+                        @Override
+                        public MetadataFieldMapper build(Mapper.BuilderContext context) {
+                            return newInstance(path);
+                        }
+                    };
+                }
+
+                @Override
+                public MetadataFieldMapper getDefault(ParserContext parserContext) {
+                    return newInstance(null);
+                }
+
+                MetadataFieldMapper newInstance(String path) {
+                    FieldType fieldType = new FieldType();
+                    fieldType.freeze();
+                    MappedFieldType mappedFieldType =
+                        new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Map.of()) {
+                        @Override
+                        public String typeName() {
+                            return "_data_stream_timestamp";
+                        }
+
+                        @Override
+                        public Query termQuery(Object value, QueryShardContext context) {
+                            return null;
+                        }
+
+                        @Override
+                        public Query existsQuery(QueryShardContext context) {
+                            return null;
+                        }
+                    };
+                    return new MetadataFieldMapper(fieldType, mappedFieldType) {
+                        @Override
+                        public void preParse(ParseContext context) throws IOException {
+
+                        }
+
+                        @Override
+                        protected void parseCreateField(ParseContext context) throws IOException {
+
+                        }
+
+                        @Override
+                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                            if (path == null) {
+                                return builder;
+                            }
+
+                            builder.startObject(simpleName());
+                            builder.field("path", path);
+                            return builder.endObject();
+                        }
+
+                        @Override
+                        protected String contentType() {
+                            return "_data_stream_timestamp";
+                        }
+                    };
+                }
+            });
         }
     }
 }

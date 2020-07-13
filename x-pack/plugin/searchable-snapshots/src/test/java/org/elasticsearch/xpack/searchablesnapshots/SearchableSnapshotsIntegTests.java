@@ -89,16 +89,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(prepareCreate(indexName, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true)));
         assertAcked(client().admin().indices().prepareAliases().addAlias(indexName, aliasName));
 
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 10_000); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
-        }
-        indexRandom(true, true, indexRequestBuilders);
-        refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        populateIndex(indexName, 10_000);
 
         final TotalHits originalAllHits = internalCluster().client()
             .prepareSearch(indexName)
@@ -359,6 +350,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(restoredIndexName);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59287")
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
@@ -441,10 +433,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        final Path repo = randomRepoPath();
-        assertAcked(
-            client().admin().cluster().preparePutRepository(fsRepoName).setType("fs").setSettings(Settings.builder().put("location", repo))
-        );
+        createRepo(fsRepoName);
 
         final int dataNodesCount = internalCluster().numDataNodes();
         final Settings.Builder originalIndexSettings = Settings.builder();
@@ -459,19 +448,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 replicaLimit == dataNodesCount ? "0-all" : "0-" + replicaLimit
             );
         }
-        assertAcked(prepareCreate(indexName, originalIndexSettings));
-        ensureGreen(indexName);
-
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = between(10, 100); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
-        }
-        indexRandom(true, true, indexRequestBuilders);
-        refresh(indexName);
-        assertThat(
-            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        createAndPopulateIndex(indexName, originalIndexSettings);
 
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()

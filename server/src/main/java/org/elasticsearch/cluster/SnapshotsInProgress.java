@@ -39,7 +39,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -93,7 +92,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
         private final List<IndexId> indices;
         private final List<String> dataStreams;
-        private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
         private final long repositoryStateId;
         // see #useShardGenerations
@@ -112,14 +110,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.indices = indices;
             this.dataStreams = dataStreams;
             this.startTime = startTime;
-            if (shards == null) {
-                this.shards = ImmutableOpenMap.of();
-                this.waitingIndices = ImmutableOpenMap.of();
-            } else {
-                this.shards = shards;
-                this.waitingIndices = findWaitingIndices(shards);
-                assert assertShardsConsistent(state, indices, shards);
-            }
+            this.shards = shards;
+            assert assertShardsConsistent(state, indices, shards);
             this.repositoryStateId = repositoryStateId;
             this.failure = failure;
             this.userMetadata = userMetadata;
@@ -140,23 +132,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
-                     List<String> dataStreams, long startTime, long repositoryStateId,
-                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Map<String, Object> userMetadata, Version version) {
-            this(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards,
-                null, userMetadata, version);
-        }
-
-        public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
                      long startTime, long repositoryStateId, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards,
                      Map<String, Object> userMetadata, Version version) {
             this(snapshot, includeGlobalState, partial, state, indices, Collections.emptyList(), startTime, repositoryStateId, shards,
                 null, userMetadata, version);
-        }
-
-        public Entry(Entry entry, State state, List<IndexId> indices, long repositoryStateId,
-                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards, Version version, String failure) {
-            this(entry.snapshot, entry.includeGlobalState, entry.partial, state, indices, entry.dataStreams, entry.startTime,
-                repositoryStateId, shards, failure, entry.userMetadata, version);
         }
 
         public Entry(Entry entry, State state, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
@@ -171,6 +150,18 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public Entry(Entry entry, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this(entry, entry.state, shards, entry.failure);
+        }
+
+        public Entry withRepoGen(long newRepoGen) {
+            assert newRepoGen > repositoryStateId : "Updated repository generation [" + newRepoGen
+                    + "] must be higher than current generation [" + repositoryStateId + "]";
+            return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, newRepoGen, shards, failure,
+                    userMetadata, version);
+        }
+
+        public Entry withShards(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+            return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards,
+                    failure, userMetadata, version);
         }
 
         @Override
@@ -192,10 +183,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public List<IndexId> indices() {
             return indices;
-        }
-
-        public ImmutableOpenMap<String, List<ShardId>> waitingIndices() {
-            return waitingIndices;
         }
 
         public boolean includeGlobalState() {
@@ -316,23 +303,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public boolean isFragment() {
             return false;
         }
-
-        private ImmutableOpenMap<String, List<ShardId>> findWaitingIndices(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-            Map<String, List<ShardId>> waitingIndicesMap = new HashMap<>();
-            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> entry : shards) {
-                if (entry.value.state() == ShardState.WAITING) {
-                    waitingIndicesMap.computeIfAbsent(entry.key.getIndexName(), k -> new ArrayList<>()).add(entry.key);
-                }
-            }
-            if (waitingIndicesMap.isEmpty()) {
-                return ImmutableOpenMap.of();
-            }
-            ImmutableOpenMap.Builder<String, List<ShardId>> waitingIndicesBuilder = ImmutableOpenMap.builder();
-            for (Map.Entry<String, List<ShardId>> entry : waitingIndicesMap.entrySet()) {
-                waitingIndicesBuilder.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
-            }
-            return waitingIndicesBuilder.build();
-        }
     }
 
     /**
@@ -351,7 +321,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     }
 
     public static class ShardSnapshotStatus {
+
+        /**
+         * Shard snapshot status for shards that are waiting for another operation to finish before they can be assigned to a node.
+         */
+        public static final ShardSnapshotStatus UNASSIGNED_QUEUED =
+                new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.QUEUED, null);
+
         private final ShardState state;
+
+        @Nullable
         private final String nodeId;
 
         @Nullable
@@ -364,17 +343,23 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(nodeId, ShardState.INIT, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state, String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable String generation) {
             this(nodeId, state, null, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state, String reason, String generation) {
+        public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, String reason, @Nullable String generation) {
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
             this.generation = generation;
+            assert assertConsistent();
+        }
+
+        private boolean assertConsistent() {
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
+            assert (state != ShardState.INIT && state != ShardState.WAITING) || nodeId != null : "Null node id for state [" + state + "]";
+            return true;
         }
 
         public ShardSnapshotStatus(StreamInput in) throws IOException {
@@ -392,16 +377,27 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return state;
         }
 
+        @Nullable
         public String nodeId() {
             return nodeId;
         }
 
+        @Nullable
         public String generation() {
             return this.generation;
         }
 
         public String reason() {
             return reason;
+        }
+
+        /**
+         * Checks if this shard snapshot is actively executing.
+         * A shard is defined as actively executing if it either is in a state that may write to the repository
+         * ({@link ShardState#INIT} or {@link ShardState#ABORTED}) or about to write to it in state {@link ShardState#WAITING}.
+         */
+        public boolean isActive() {
+            return state == ShardState.INIT || state == ShardState.ABORTED || state == ShardState.WAITING;
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -481,6 +477,19 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private final List<Entry> entries;
 
+    private static boolean assertConsistentEntries(List<Entry> entries) {
+        final Map<String, Set<ShardId>> assignedShardsByRepo = new HashMap<>();
+        for (Entry entry : entries) {
+            for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
+                if (shard.value.isActive()) {
+                    assert assignedShardsByRepo.computeIfAbsent(entry.repository(), k -> new HashSet<>()).add(shard.key) :
+                            "Found duplicate shard assignments in " + entries;
+                }
+            }
+        }
+        return true;
+    }
+
     public static SnapshotsInProgress of(List<Entry> entries) {
         if (entries.isEmpty()) {
             return EMPTY;
@@ -490,6 +499,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     private SnapshotsInProgress(List<Entry> entries) {
         this.entries = entries;
+        assert assertConsistentEntries(entries);
     }
 
     public List<Entry> entries() {
@@ -527,14 +537,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             boolean includeGlobalState = in.readBoolean();
             boolean partial = in.readBoolean();
             State state = State.fromValue(in.readByte());
-            int indices = in.readVInt();
-            List<IndexId> indexBuilder = new ArrayList<>();
-            for (int j = 0; j < indices; j++) {
-                indexBuilder.add(new IndexId(in.readString(), in.readString()));
-            }
+            List<IndexId> indexBuilder = in.readList(IndexId::new);
             long startTime = in.readLong();
-            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
             int shards = in.readVInt();
+            ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> builder = ImmutableOpenMap.builder(shards);
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = new ShardId(in);
                 builder.put(shardId, new ShardSnapshotStatus(in));
@@ -628,7 +634,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         FAILED((byte) 3, true, true),
         ABORTED((byte) 4, false, true),
         MISSING((byte) 5, true, true),
-        WAITING((byte) 6, false, false);
+        /**
+         * Shard snapshot is waiting for the primary to snapshot to become available.
+         */
+        WAITING((byte) 6, false, false),
+        /**
+         * Shard snapshot is waiting for another shard snapshot for the same shard and to the same repository to finish.
+         */
+        QUEUED((byte) 7, false, false);
 
         private final byte value;
 
@@ -664,6 +677,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     return MISSING;
                 case 6:
                     return WAITING;
+                case 7:
+                    return QUEUED;
                 default:
                     throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
             }

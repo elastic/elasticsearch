@@ -20,6 +20,14 @@ public class KeyAndOrdinal {
         this.ordinal = ordinal;
     }
 
+    public SequenceKey key() {
+        return key;
+    }
+
+    public Ordinal ordinal() {
+        return ordinal;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(key, ordinal);

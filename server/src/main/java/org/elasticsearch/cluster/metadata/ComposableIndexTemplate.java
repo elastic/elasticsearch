@@ -32,11 +32,14 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED_TIMESTAMP_FIELD;
 
 /**
  * An index template is comprised of a set of index patterns, an optional template, and a list of
@@ -256,6 +259,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         private final String timestampField;
 
         public DataStreamTemplate(String timestampField) {
+            if (FIXED_TIMESTAMP_FIELD.equals(timestampField) == false) {
+                throw new IllegalArgumentException("unexpected timestamp field [" + timestampField + "]");
+            }
+
             this.timestampField = timestampField;
         }
 
@@ -265,6 +272,13 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         DataStreamTemplate(StreamInput in) throws IOException {
             this(in.readString());
+        }
+
+        /**
+         * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
+         */
+        public Map<String, Object> getDataSteamMappingSnippet() {
+            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_data_stream_timestamp", Map.of("path", timestampField)));
         }
 
         @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -81,7 +82,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -108,7 +109,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
                 // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
                 return execution.create(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude,
-                    context, parent, subAggCollectMode, showTermDocCountError, collectsFromSingleBucket, metadata);
+                    context, parent, subAggCollectMode, showTermDocCountError, cardinality, metadata);
 
             }
         };
@@ -133,7 +134,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     Aggregator parent,
                                     SubAggCollectionMode subAggCollectMode,
                                     boolean showTermDocCountError,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -161,7 +162,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
                 }
                 return new NumericTermsAggregator(name, factories, resultStrategy, numericValuesSource, format, order,
-                    bucketCountThresholds, context, parent, subAggCollectMode, longFilter, collectsFromSingleBucket, metadata);
+                    bucketCountThresholds, context, parent, subAggCollectMode, longFilter, cardinality, metadata);
             }
         };
     }
@@ -225,7 +226,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected Aggregator doCreateInternal(SearchContext searchContext,
                                           Aggregator parent,
-                                          boolean collectsFromSingleBucket,
+                                          CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             TermsAggregationBuilder.NAME);
@@ -247,7 +248,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         return termsAggregatorSupplier.build(name, factories, config.getValuesSource(), order, config.format(),
             bucketCountThresholds, includeExclude, executionHint, searchContext, parent, collectMode,
-            showTermDocCountError, collectsFromSingleBucket, metadata);
+            showTermDocCountError, cardinality, metadata);
     }
 
     /**
@@ -305,7 +306,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               Aggregator parent,
                               SubAggCollectionMode subAggCollectMode,
                               boolean showTermDocCountError,
-                              boolean collectsFromSingleBucket,
+                              CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new MapStringTermsAggregator(
@@ -321,7 +322,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     parent,
                     subAggCollectMode,
                     showTermDocCountError,
-                    collectsFromSingleBucket,
+                    cardinality,
                     metadata
                 );
             }
@@ -339,7 +340,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               SearchContext context, Aggregator parent,
                               SubAggCollectionMode subAggCollectMode,
                               boolean showTermDocCountError,
-                              boolean collectsFromSingleBucket,
+                              CardinalityUpperBound cardinality,
                               Map<String, Object> metadata) throws IOException {
 
                 final long maxOrd = getMaxOrd(valuesSource, context.searcher());
@@ -351,7 +352,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
                 if (factories == AggregatorFactories.EMPTY &&
                         includeExclude == null &&
-                        collectsFromSingleBucket &&
+                        cardinality == CardinalityUpperBound.ONE &&
                         ordinalsValuesSource.supportsGlobalOrdinalsMapping() &&
                         // we use the static COLLECT_SEGMENT_ORDS to allow tests to force specific optimizations
                         (COLLECT_SEGMENT_ORDS!= null ? COLLECT_SEGMENT_ORDS.booleanValue() : ratio <= 0.5 && maxOrd <= 2048)) {
@@ -371,7 +372,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 }
                 final IncludeExclude.OrdinalsFilter filter = includeExclude == null ? null : includeExclude.convertToOrdinalsFilter(format);
                 boolean remapGlobalOrds;
-                if (collectsFromSingleBucket && REMAP_GLOBAL_ORDS != null) {
+                if (cardinality == CardinalityUpperBound.ONE && REMAP_GLOBAL_ORDS != null) {
                     /*
                      * We use REMAP_GLOBAL_ORDS to allow tests to force
                      * specific optimizations but this particular one
@@ -382,7 +383,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 } else {
                     remapGlobalOrds = true;
                     if (includeExclude == null &&
-                            collectsFromSingleBucket &&
+                            cardinality == CardinalityUpperBound.ONE &&
                             (factories == AggregatorFactories.EMPTY ||
                                 (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
                         /*
@@ -409,7 +410,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     remapGlobalOrds,
                     subAggCollectMode,
                     showTermDocCountError,
-                    collectsFromSingleBucket,
+                    cardinality,
                     metadata
                 );
             }
@@ -443,7 +444,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                    Aggregator parent,
                                    SubAggCollectionMode subAggCollectMode,
                                    boolean showTermDocCountError,
-                                   boolean collectsFromSingleBucket,
+                                   CardinalityUpperBound cardinality,
                                    Map<String, Object> metadata) throws IOException;
 
         @Override

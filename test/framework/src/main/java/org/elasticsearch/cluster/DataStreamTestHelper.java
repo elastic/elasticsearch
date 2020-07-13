@@ -26,8 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
-
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 
 public final class DataStreamTestHelper {
@@ -55,6 +53,29 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStream.TimestampField createTimestampField(String fieldName) {
-        return new DataStream.TimestampField(fieldName, Map.of("type", "date"));
+        return new DataStream.TimestampField(fieldName);
+    }
+
+    public static String generateMapping(String timestampFieldName) {
+        return "{\n" +
+            "      \"properties\": {\n" +
+            "        \"" + timestampFieldName + "\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+    }
+
+    public static String generateMapping(String timestampFieldName, String type) {
+        return "{\n" +
+            "      \"_data_stream_timestamp\": {\n" +
+            "        \"path\": \"" + timestampFieldName + "\"\n" +
+            "      }," +
+            "      \"properties\": {\n" +
+            "        \"" + timestampFieldName + "\": {\n" +
+            "          \"type\": \"" + type + "\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
     }
 }

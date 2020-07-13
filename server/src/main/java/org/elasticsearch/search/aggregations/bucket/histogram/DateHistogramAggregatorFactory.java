@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -80,17 +81,18 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         return minDocCount;
     }
 
-    @Override
     protected Aggregator doCreateInternal(
         SearchContext searchContext,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
-        Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            DateHistogramAggregationBuilder.NAME);
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
+            .getAggregator(config, DateHistogramAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof DateHistogramAggregationSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected DateHistogramAggregationSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
+            throw new AggregationExecutionException(
+                "Registry miss-match - expected DateHistogramAggregationSupplier, found [" + aggregatorSupplier.getClass().toString() + "]"
+            );
         }
         // TODO: Is there a reason not to get the prepared rounding in the supplier itself?
         Rounding.Prepared preparedRounding = config.getValuesSource()
@@ -108,7 +110,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             config,
             searchContext,
             parent,
-            collectsFromSingleBucket,
+            cardinality,
             metadata
         );
     }
@@ -118,6 +120,6 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds,
-            config, searchContext, parent, false, metadata);
+            config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

@@ -48,6 +48,11 @@ public final class DestinationIndex {
 
     public static final String ID_COPY = "ml__id_copy";
 
+    /**
+     * The field that indicates whether a doc was used for training or not
+     */
+    public static final String IS_TRAINING = "is_training";
+
     // Metadata fields
     static final String CREATION_DATE_MILLIS = "creation_date_in_millis";
     static final String VERSION = "version";

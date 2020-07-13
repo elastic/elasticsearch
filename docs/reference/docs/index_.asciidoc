@@ -180,7 +180,7 @@ automatic creation of indices that match specified patterns, or set it to
 comma-separated list of patterns you want to allow, or prefix each pattern with
 `+` or `-` to indicate whether it should be allowed or blocked.  When a list is
 specified, the default behaviour is to disallow.
-+
+
 IMPORTANT: The `action.auto_create_index` setting only affects the automatic
 creation of indices. It does not affect the creation of data streams.
 
@@ -301,6 +301,9 @@ document itself. This does come at the (very minimal) cost of an
 additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
+
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
 
 [float]
 [[index-distributed]]

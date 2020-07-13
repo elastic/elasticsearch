@@ -5,17 +5,24 @@
  */
 package org.elasticsearch.xpack.restart;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -35,6 +42,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +50,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -626,5 +636,57 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDataStreams() throws Exception {
+        assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
+        if (isRunningAgainstOldCluster()) {
+            String mapping = "{\n" +
+                "      \"properties\": {\n" +
+                "        \"@timestamp\": {\n" +
+                "          \"type\": \"date\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }";
+            Template template = new Template(null, new CompressedXContent(mapping), null);
+            createComposableTemplate(client(), "dst", "ds", template);
+
+            Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
+            XContentBuilder builder = JsonXContent.contentBuilder().startObject()
+                .field("f", "v")
+                .field("@timestamp", new Date())
+                .endObject();
+            indexRequest.setJsonEntity(Strings.toString(builder));
+            assertOK(client().performRequest(indexRequest));
+        }
+
+        Request getDataStream = new Request("GET", "/_data_stream/ds");
+        Response response = client().performRequest(getDataStream);
+        assertOK(response);
+        List<Object> dataStreams = (List<Object>) entityAsMap(response).get("data_streams");
+        assertEquals(1, dataStreams.size());
+        Map<String, Object> ds = (Map<String, Object>) dataStreams.get(0);
+        List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
+        assertEquals("ds", ds.get("name"));
+        assertEquals(1, indices.size());
+        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
+        assertNumHits("ds", 1, 1);
+    }
+
+    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
+        throws IOException {
+        XContentBuilder builder = jsonBuilder();
+        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        StringEntity templateJSON = new StringEntity(
+            String.format(Locale.ROOT, "{\n" +
+                "  \"index_patterns\": \"%s\",\n" +
+                "  \"data_stream\": { \"timestamp_field\": \"@timestamp\" },\n" +
+                "  \"template\": %s\n" +
+                "}", indexPattern, Strings.toString(builder)),
+            ContentType.APPLICATION_JSON);
+        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
+        createIndexTemplateRequest.setEntity(templateJSON);
+        client.performRequest(createIndexTemplateRequest);
     }
 }

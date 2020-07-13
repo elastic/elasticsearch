@@ -872,6 +872,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
+        public Settings getSettings() {
+            return Settings.EMPTY;
+        }
+
+        @Override
         public IndexAnalyzers getIndexAnalyzers() {
             NamedAnalyzer defaultAnalyzer = new NamedAnalyzer(AnalysisRegistry.DEFAULT_ANALYZER_NAME,
                 AnalyzerScope.GLOBAL, new StandardAnalyzer());
@@ -896,10 +901,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
     protected DateFieldMapper.DateFieldType dateField(String name, DateFieldMapper.Resolution resolution) {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
-        builder.withResolution(resolution);
-        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
-        return builder.build(new BuilderContext(settings, new ContentPath())).fieldType();
+        return new DateFieldMapper.DateFieldType(name, resolution);
     }
 
     /**

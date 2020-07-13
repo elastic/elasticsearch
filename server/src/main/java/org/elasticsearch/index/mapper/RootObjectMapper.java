@@ -252,23 +252,25 @@ public class RootObjectMapper extends ObjectMapper {
 
     @SuppressWarnings("rawtypes")
     public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
-        return findTemplateBuilder(context, name, matchType.defaultMappingType(), matchType);
+        return findTemplateBuilder(context, name, matchType, null);
     }
 
     /**
      * Find a template. Returns {@code null} if no template could be found.
      * @param name        the field name
-     * @param dynamicType the field type to give the field if the template does not define one
      * @param matchType   the type of the field in the json document or null if unknown
+     * @param dateFormat  a dateformatter to use if the type is a date, null if not a date or is using the default format
      * @return a mapper builder, or null if there is no template for such a field
      */
     @SuppressWarnings("rawtypes")
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, XContentFieldType matchType) {
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
+        String dynamicType = matchType.defaultMappingType();
         Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
+        parserContext.setDateFormatter(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {

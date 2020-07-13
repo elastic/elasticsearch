@@ -887,11 +887,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
                 Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build(),
                 new ContentPath());
-        MappedFieldType ft = new DateFieldMapper.Builder(fieldName)
-                .index(indexed)
-                .withResolution(resolution)
-                .build(builderContext)
-                .fieldType();
+        MappedFieldType ft = new DateFieldMapper.DateFieldType(fieldName, indexed, true,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, Collections.emptyMap());
         when(config.fieldContext()).thenReturn(new FieldContext(fieldName, null, ft));
         return config;
     }

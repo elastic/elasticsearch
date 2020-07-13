@@ -162,10 +162,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
                 "the configured timestamp field [" + path + "] has disallowed [null_value] attribute specified"
             );
         }
-        if (dateFieldMapper.getIgnoreMalformed().explicit()) {
-            throw new IllegalArgumentException(
-                "the configured timestamp field [" + path + "] has disallowed [ignore_malformed] attribute specified"
-            );
+        if (dateFieldMapper.getIgnoreMalformed()) {
+            throw new IllegalArgumentException("the configured timestamp field [" + path +
+                "] has disallowed [ignore_malformed] attribute specified");
         }
 
         // Catch all validation that validates whether disallowed mapping attributes have been specified

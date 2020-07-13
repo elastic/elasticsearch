@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -88,6 +89,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Supplier<QueryShardContext> queryShardContextSupplier;
 
+            private DateFormatter dateFormatter;
+
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
                                  Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
@@ -100,6 +103,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             public IndexAnalyzers getIndexAnalyzers() {
                 return mapperService.getIndexAnalyzers();
+            }
+
+            public Settings getSettings() {
+                return mapperService.getIndexSettings().getSettings();
             }
 
             public SimilarityProvider getSimilarity(String name) {
@@ -120,6 +127,14 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             public Supplier<QueryShardContext> queryShardContextSupplier() {
                 return queryShardContextSupplier;
+            }
+
+            public DateFormatter getDateFormatter() {
+                return dateFormatter;
+            }
+
+            public void setDateFormatter(DateFormatter dateFormatter) {
+                this.dateFormatter = dateFormatter;
             }
 
             public boolean isWithinMultiField() { return false; }

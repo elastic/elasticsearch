@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
@@ -34,8 +32,9 @@ dependencies {
   compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'OSS'
 }
 
 test.enabled = false
+integTest.enabled = false

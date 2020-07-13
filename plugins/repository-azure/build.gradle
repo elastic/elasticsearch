@@ -22,7 +22,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'

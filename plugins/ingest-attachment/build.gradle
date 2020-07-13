@@ -83,6 +83,8 @@ restResources {
   }
 }
 
+integTest.enabled = false
+
 tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }

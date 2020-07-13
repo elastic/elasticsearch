@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
@@ -28,3 +27,4 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
+integTest.enabled = false

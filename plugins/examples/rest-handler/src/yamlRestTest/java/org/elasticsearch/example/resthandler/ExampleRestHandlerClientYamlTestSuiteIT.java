@@ -26,11 +26,11 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 /**
  * {@link ExampleRestHandlerClientYamlTestSuiteIT} executes the plugin's REST API integration tests.
  * <p>
- * The tests can be executed using the command: ./gradlew :example-plugins:rest-handler:check
+ * The tests can be executed using the command: ./gradlew :example-plugins:rest-handler:yamlRestTest
  * <p>
  * This class extends {@link ESClientYamlSuiteTestCase}, which takes care of parsing the YAML files
- * located in the src/test/resources/rest-api-spec/test/ directory and validates them against the
- * custom REST API definition files located in src/test/resources/rest-api-spec/api/.
+ * located in the src/yamlRestTest/resources/rest-api-spec/test/ directory and validates them against the
+ * custom REST API definition files located in src/yamlRestTest/resources/rest-api-spec/api/.
  * <p>
  * Once validated, {@link ESClientYamlSuiteTestCase} executes the REST tests against a single node
  * integration cluster which has the plugin already installed by the Gradle build script.

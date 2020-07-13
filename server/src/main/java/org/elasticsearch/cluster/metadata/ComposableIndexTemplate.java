@@ -250,7 +250,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private static final ObjectParser<DataStreamTemplate, Void> PARSER = new ObjectParser<>(
             "data_stream_template",
-            () -> new DataStreamTemplate()
+            DataStreamTemplate::new
         );
 
         public DataStreamTemplate() {
@@ -260,7 +260,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return FIXED_TIMESTAMP_FIELD;
         }
 
-        DataStreamTemplate(StreamInput in) throws IOException {
+        DataStreamTemplate(StreamInput in) {
             this();
         }
 

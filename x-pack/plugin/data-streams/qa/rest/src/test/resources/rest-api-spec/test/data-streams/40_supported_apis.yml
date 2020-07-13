@@ -2,6 +2,8 @@
 setup:
   - skip:
       features: allowed_warnings
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
   - do:
       allowed_warnings:
         - "index template [logs_template] has index patterns [logs-foobar] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs_template] will take precedence during new index creation"
@@ -14,8 +16,7 @@ setup:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -43,8 +44,8 @@ teardown:
 ---
 "Verify get mapping api":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.get_mapping:
@@ -55,7 +56,7 @@ teardown:
 ---
 "Verify shard stores api":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.9.99"
       reason: "change to 7.8.99 after backport"
       features: allowed_warnings
 
@@ -74,8 +75,7 @@ teardown:
             settings:
               number_of_shards: "1"
               number_of_replicas: "0"
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -128,8 +128,7 @@ teardown:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:

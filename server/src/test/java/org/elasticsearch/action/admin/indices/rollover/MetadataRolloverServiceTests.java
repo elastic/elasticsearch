@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -55,9 +56,14 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -543,12 +549,20 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
+            Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
+            TimestampFieldMapper.Builder fieldBuilder = new TimestampFieldMapper.Builder();
+            fieldBuilder.setPath("@timestamp");
+            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder("@timestamp").build(builderContext);
+            DocumentFieldMappers documentFieldMappers =
+                new DocumentFieldMappers(List.of(fieldBuilder.build(builderContext), dateFieldMapper), List.of(), new StandardAnalyzer());
+
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
             DocumentMapper documentMapper = mock(DocumentMapper.class);
+            when(documentMapper.mappers()).thenReturn(documentFieldMappers);
             when(documentMapper.type()).thenReturn("_doc");
             CompressedXContent mapping = new CompressedXContent(generateMapping(dataStream.getTimeStampField().getName()));
             when(documentMapper.mappingSource()).thenReturn(mapping);

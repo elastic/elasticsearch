@@ -84,7 +84,14 @@ public class S3HttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
         try {
-            if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
+            if (Regex.simpleMatch("HEAD /" + path + "/*", request)) {
+                final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
+                if (blob == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                }
+            } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();
                 byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                     "<InitiateMultipartUploadResult>\n" +

@@ -237,32 +237,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
-        public KeyedFlatObjectFieldType clone() {
-            return new KeyedFlatObjectFieldType(this);
-        }
-
-        private KeyedFlatObjectFieldType(KeyedFlatObjectFieldType ref) {
-            super(ref);
-            this.key = ref.key;
-            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
-        }
-
         private KeyedFlatObjectFieldType(String name, String key, RootFlatObjectFieldType ref) {
             this(name, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
-            KeyedFlatObjectFieldType that = (KeyedFlatObjectFieldType) o;
-            return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), splitQueriesOnWhitespace);
         }
 
         @Override
@@ -481,29 +457,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        private RootFlatObjectFieldType(RootFlatObjectFieldType ref) {
-            super(ref);
-            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
-        }
-
-        public RootFlatObjectFieldType clone() {
-            return new RootFlatObjectFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
-            RootFlatObjectFieldType that = (RootFlatObjectFieldType) o;
-            return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), splitQueriesOnWhitespace);
         }
 
         @Override

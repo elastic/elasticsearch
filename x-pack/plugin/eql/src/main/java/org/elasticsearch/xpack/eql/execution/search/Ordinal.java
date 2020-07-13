@@ -77,6 +77,10 @@ public class Ordinal implements Comparable<Ordinal> {
         return 1;
     }
 
+    public boolean between(Ordinal left, Ordinal right) {
+        return (compareTo(left) <= 0 && compareTo(right) >= 0) || (compareTo(right) <= 0 && compareTo(left) >= 0);
+    }
+
     public Object[] toArray() {
         return tiebreaker != null ? new Object[] { timestamp, tiebreaker } : new Object[] { timestamp };
     }

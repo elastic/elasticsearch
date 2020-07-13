@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 
@@ -24,8 +23,6 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
     private int dependentVariableIndex;
     private String dependentVariable;
     private long randomizeSeed;
-    private long trainingDocsCount;
-    private long testDocsCount;
 
     @Before
     public void setUpTests() {
@@ -39,8 +36,8 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
         randomizeSeed = randomLong();
     }
 
-    public void testProcess_GivenRowsWithoutDependentVariableValue() {
-        CrossValidationSplitter crossValidationSplitter = createSplitter(50.0, 0);
+    public void testIsTraining_GivenRowsWithoutDependentVariableValue() {
+        CrossValidationSplitter splitter = createSplitter(50.0, 0);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -50,17 +47,13 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
-
-            // As all these rows have no dependent variable value, they're not for training and should be unaffected
+            assertThat(splitter.isTraining(processedRow), is(false));
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
-        assertThat(trainingDocsCount, equalTo(0L));
-        assertThat(testDocsCount, equalTo(100L));
     }
 
-    public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
-        CrossValidationSplitter crossValidationSplitter = createSplitter(100.0, 100L);
+    public void testIsTraining_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
+        CrossValidationSplitter splitter = createSplitter(100.0, 100L);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -69,16 +62,12 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
-
-            // We should pick them all as training percent is 100
+            assertThat(splitter.isTraining(processedRow), is(true));
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
-        assertThat(trainingDocsCount, equalTo(100L));
-        assertThat(testDocsCount, equalTo(0L));
     }
 
-    public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
+    public void testIsTraining_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
         double trainingPercent = randomDoubleBetween(1.0, 100.0, true);
         double trainingFraction = trainingPercent / 100;
         long rowCount = 1000;
@@ -86,7 +75,7 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
         int runCount = 20;
         int[] trainingRowsPerRun = new int[runCount];
         for (int testIndex = 0; testIndex < runCount; testIndex++) {
-            CrossValidationSplitter crossValidationSplitter = createSplitter(trainingPercent, rowCount);
+            CrossValidationSplitter splitter = createSplitter(trainingPercent, rowCount);
             int trainingRows = 0;
             for (int i = 0; i < rowCount; i++) {
                 String[] row = new String[fields.size()];
@@ -95,15 +84,10 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
                 }
 
                 String[] processedRow = Arrays.copyOf(row, row.length);
-                crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
+                boolean isTraining = splitter.isTraining(processedRow);
+                assertThat(Arrays.equals(processedRow, row), is(true));
 
-                for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
-                    if (fieldIndex != dependentVariableIndex) {
-                        assertThat(processedRow[fieldIndex], equalTo(row[fieldIndex]));
-                    }
-                }
-                if (DataFrameDataExtractor.NULL_VALUE.equals(processedRow[dependentVariableIndex]) == false) {
-                    assertThat(processedRow[dependentVariableIndex], equalTo(row[dependentVariableIndex]));
+                if (isTraining) {
                     trainingRows++;
                 }
             }
@@ -114,8 +98,8 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
         assertThat(meanTrainingRows, closeTo(trainingFraction * rowCount, 1.0));
     }
 
-    public void testProcess_ShouldHaveAtLeastOneTrainingRow() {
-        CrossValidationSplitter crossValidationSplitter = createSplitter(1.0, 1);
+    public void testIsTraining_ShouldHaveAtLeastOneTrainingRow() {
+        CrossValidationSplitter splitter = createSplitter(1.0, 1);
 
         // We have some non-training rows and then a training row to check
         // we maintain the first training row and not just the first row
@@ -130,23 +114,14 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
             }
 
             String[] processedRow = Arrays.copyOf(row, row.length);
-            crossValidationSplitter.process(processedRow, this::incrementTrainingDocsCount, this::incrementTestDocsCount);
 
+            boolean shouldBeForTraining = row[dependentVariableIndex] != DataFrameDataExtractor.NULL_VALUE;
+            assertThat(splitter.isTraining(processedRow), is(shouldBeForTraining));
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
-        assertThat(trainingDocsCount, equalTo(1L));
-        assertThat(testDocsCount, equalTo(9L));
     }
 
     private CrossValidationSplitter createSplitter(double trainingPercent, long classCount) {
         return new SingleClassReservoirCrossValidationSplitter(fields, dependentVariable, trainingPercent, randomizeSeed, classCount);
-    }
-
-    private void incrementTrainingDocsCount() {
-        trainingDocsCount++;
-    }
-
-    private void incrementTestDocsCount() {
-        testDocsCount++;
     }
 }

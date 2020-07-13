@@ -64,6 +64,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.cache.TestUtils;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -548,7 +549,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
                 final Path cacheDir = createTempDir();
-                final CacheService cacheService = new CacheService(Settings.EMPTY);
+                final CacheService cacheService = TestUtils.createDefaultCacheService();
                 releasables.add(cacheService);
                 cacheService.start();
 
@@ -604,7 +605,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
     }
 
     public void testClearCache() throws Exception {
-        try (CacheService cacheService = new CacheService(Settings.EMPTY)) {
+        try (CacheService cacheService = TestUtils.createDefaultCacheService()) {
             cacheService.start();
 
             final int nbRandomFiles = randomIntBetween(3, 10);

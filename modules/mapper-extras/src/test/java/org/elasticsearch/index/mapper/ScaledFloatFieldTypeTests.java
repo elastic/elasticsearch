@@ -40,14 +40,9 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 
-public class ScaledFloatFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
+public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new ScaledFloatFieldMapper.ScaledFloatFieldType(name, true, true, meta, 100);
-    }
 
     public void testTermQuery() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft

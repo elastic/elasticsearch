@@ -62,7 +62,7 @@ gets indexed and when it becomes visible, increasing the
 
 If you have a large amount of data that you want to load all at once into
 Elasticsearch, it may be beneficial to set `index.number_of_replicas` to `0` in
-order to speep up indexing. Having no replicas means that losing a single node
+order to speed up indexing. Having no replicas means that losing a single node
 may incur data loss, so it is important that the data lives elsewhere so that
 this initial load can be retried in case of an issue. Once the initial load is
 finished, you can set `index.number_of_replicas` back to its original value.

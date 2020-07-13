@@ -55,9 +55,8 @@ teardown:
 ---
 "Verify shard stores api":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
-      features: allowed_warnings
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       allowed_warnings:
@@ -112,9 +111,8 @@ teardown:
 ---
 "Verify search shards api":
   - skip:
-      features: allowed_warnings
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       allowed_warnings:
@@ -151,8 +149,8 @@ teardown:
 "Verify get field mappings api":
   - skip:
       features: allowed_warnings
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       allowed_warnings:
@@ -189,8 +187,8 @@ teardown:
 ---
 "Open write index for data stream opens all backing indices":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to - 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -258,8 +256,8 @@ teardown:
 ---
 "Verify rank eval with data streams":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:

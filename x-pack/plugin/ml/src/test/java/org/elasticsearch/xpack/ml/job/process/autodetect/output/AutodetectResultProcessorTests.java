@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -343,46 +342,27 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb", "1kb"));
     }
 
-    public void testProcessResult_modelSizeStatsWithCategorizationStatusChanges() {
+    public void testProcessResult_categorizationStatusChangeAnnotationCausesNotification() {
         AutodetectResult result = mock(AutodetectResult.class);
         processorUnderTest.setDeleteInterimRequired(false);
 
-        // First one with ok
-        ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.OK).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(result);
-
-        // Now one with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(result);
-
-        // Another with warn
-        modelSizeStats = new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
-        processorUnderTest.processResult(result);
-
-        verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister, times(3)).persistModelSizeStats(any(ModelSizeStats.class), any());
-        // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
-        verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
-    }
-
-    public void testProcessResult_modelSizeStatsWithFirstCategorizationStatusWarn() {
-        AutodetectResult result = mock(AutodetectResult.class);
-        processorUnderTest.setDeleteInterimRequired(false);
-
-        // First one with warn - this works because a default constructed ModelSizeStats has CategorizationStatus.OK
-        ModelSizeStats modelSizeStats =
-            new ModelSizeStats.Builder(JOB_ID).setCategorizationStatus(CategorizationStatus.WARN).build();
-        when(result.getModelSizeStats()).thenReturn(modelSizeStats);
+        Annotation annotation = new Annotation.Builder()
+            .setType(Annotation.Type.ANNOTATION)
+            .setJobId(JOB_ID)
+            .setAnnotation("Categorization status changed to 'warn' for partition 'foo'")
+            .setEvent(Annotation.Event.CATEGORIZATION_STATUS_CHANGE)
+            .setCreateTime(new Date())
+            .setCreateUsername(XPackUser.NAME)
+            .setTimestamp(new Date())
+            .setPartitionFieldName("part")
+            .setPartitionFieldValue("foo")
+            .build();
+        when(result.getAnnotation()).thenReturn(annotation);
         processorUnderTest.processResult(result);
 
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
-        verify(persister).persistModelSizeStats(any(ModelSizeStats.class), any());
-        // We should have only fired one notification; only the change from ok to warn should have fired, not the subsequent warn
-        verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_CATEGORIZATION_STATUS_WARN, "warn", 0));
+        verify(bulkAnnotationsPersister).persistAnnotation(annotation);
+        verify(auditor).warning(JOB_ID, "Categorization status changed to 'warn' for partition 'foo' after 0 buckets");
     }
 
     public void testProcessResult_modelSnapshot() {

@@ -33,11 +33,11 @@ public class IndexingPressure {
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
         Setting.memorySizeSetting("indexing_pressure.memory.limit", "10%", Setting.Property.NodeScope);
 
-    private final AtomicLong pendingPrimaryAndCoordinatingBytes = new AtomicLong(0);
-    private final AtomicLong pendingReplicaBytes = new AtomicLong(0);
-    private final AtomicLong totalPrimaryAndCoordinatingBytes = new AtomicLong(0);
+    private final AtomicLong currentCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    private final AtomicLong currentReplicaBytes = new AtomicLong(0);
+    private final AtomicLong totalCoordinatingAndPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalReplicaBytes = new AtomicLong(0);
-    private final AtomicLong primaryAndCoordinatingRejections = new AtomicLong(0);
+    private final AtomicLong coordinatingAndPrimaryRejections = new AtomicLong(0);
     private final AtomicLong replicaRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
@@ -53,50 +53,50 @@ public class IndexingPressure {
     }
 
     public Releasable markIndexingOperationStarted(long bytes, boolean forceExecution) {
-        long writeBytes = this.pendingPrimaryAndCoordinatingBytes.addAndGet(bytes);
-        long replicaWriteBytes = this.pendingReplicaBytes.get();
+        long writeBytes = this.currentCoordinatingAndPrimaryBytes.addAndGet(bytes);
+        long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = writeBytes + replicaWriteBytes;
         if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
             long bytesWithoutOperation = writeBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
-            this.pendingPrimaryAndCoordinatingBytes.getAndAdd(-bytes);
-            this.primaryAndCoordinatingRejections.getAndIncrement();
+            this.currentCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            this.coordinatingAndPrimaryRejections.getAndIncrement();
             throw new EsRejectedExecutionException("rejected execution of operation [" +
-                "primary_and_coordinating_bytes=" + bytesWithoutOperation + ", " +
+                "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
-                "total_bytes=" + totalBytesWithoutOperation + ", " +
-                "current_operation_bytes=" + bytes + ", " +
-                "max_primary_and_coordinating_bytes=" + primaryAndCoordinatingLimits + "]", false);
+                "all_bytes=" + totalBytesWithoutOperation + ", " +
+                "operation_bytes=" + bytes + ", " +
+                "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
-        totalPrimaryAndCoordinatingBytes.getAndAdd(bytes);
-        return () -> this.pendingPrimaryAndCoordinatingBytes.getAndAdd(-bytes);
+        totalCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+        return () -> this.currentCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
     }
 
     public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
-        long replicaWriteBytes = this.pendingReplicaBytes.getAndAdd(bytes);
+        long replicaWriteBytes = this.currentReplicaBytes.getAndAdd(bytes);
         if (forceExecution == false && replicaWriteBytes > replicaLimits) {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
-            this.pendingReplicaBytes.getAndAdd(-bytes);
+            this.currentReplicaBytes.getAndAdd(-bytes);
             this.replicaRejections.getAndIncrement();
             throw new EsRejectedExecutionException("rejected execution of replica operation [" +
                 "replica_bytes=" + replicaBytesWithoutOperation + ", " +
-                "current_replica_operation_bytes=" + bytes + ", " +
+                "replica_operation_bytes=" + bytes + ", " +
                 "max_replica_bytes=" + replicaLimits + "]", false);
         }
         totalReplicaBytes.getAndAdd(bytes);
-        return () -> this.pendingReplicaBytes.getAndAdd(-bytes);
+        return () -> this.currentReplicaBytes.getAndAdd(-bytes);
     }
 
-    public long getPendingPrimaryAndCoordinatingBytes() {
-        return pendingPrimaryAndCoordinatingBytes.get();
+    public long getCurrentCoordinatingAndPrimaryBytes() {
+        return currentCoordinatingAndPrimaryBytes.get();
     }
 
-    public long getPendingReplicaBytes() {
-        return pendingReplicaBytes.get();
+    public long getCurrentReplicaBytes() {
+        return currentReplicaBytes.get();
     }
 
-    public long getTotalPrimaryAndCoordinatingBytes() {
-        return totalPrimaryAndCoordinatingBytes.get();
+    public long getTotalCoordinatingAndPrimaryBytes() {
+        return totalCoordinatingAndPrimaryBytes.get();
     }
 
     public long getTotalReplicaBytes() {
@@ -104,8 +104,8 @@ public class IndexingPressure {
     }
 
     public IndexingPressureStats stats() {
-        return new IndexingPressureStats(totalPrimaryAndCoordinatingBytes.get(), totalReplicaBytes.get(),
-            pendingPrimaryAndCoordinatingBytes.get(), pendingReplicaBytes.get(), primaryAndCoordinatingRejections.get(),
+        return new IndexingPressureStats(totalCoordinatingAndPrimaryBytes.get(), totalReplicaBytes.get(),
+            currentCoordinatingAndPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingAndPrimaryRejections.get(),
             replicaRejections.get());
     }
 }

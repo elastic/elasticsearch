@@ -76,13 +76,13 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
         ArrayList<Object> values = new ArrayList<>(((Map<Object, Object>) nodeStatsMap.get("nodes")).values());
         assertThat(values.size(), equalTo(2));
         XContentTestUtils.JsonMapView node1 = new XContentTestUtils.JsonMapView((Map<String, Object>) values.get(0));
-        Integer node1IndexingBytes = node1.get("indexing_pressure.total_primary_and_coordinating_bytes");
-        Integer node1ReplicaBytes = node1.get("indexing_pressure.total_replica_bytes");
-        Integer node1Rejections = node1.get("indexing_pressure.primary_and_coordinating_rejections");
+        Integer node1IndexingBytes = node1.get("indexing_pressure.total.coordinating_and_primary_bytes");
+        Integer node1ReplicaBytes = node1.get("indexing_pressure.total.replica_bytes");
+        Integer node1Rejections = node1.get("indexing_pressure.total.coordinating_and_primary_memory_limit_rejections");
         XContentTestUtils.JsonMapView node2 = new XContentTestUtils.JsonMapView((Map<String, Object>) values.get(1));
-        Integer node2IndexingBytes = node2.get("indexing_pressure.total_primary_and_coordinating_bytes");
-        Integer node2ReplicaBytes = node2.get("indexing_pressure.total_replica_bytes");
-        Integer node2Rejections = node2.get("indexing_pressure.primary_and_coordinating_rejections");
+        Integer node2IndexingBytes = node2.get("indexing_pressure.total.coordinating_and_primary_bytes");
+        Integer node2ReplicaBytes = node2.get("indexing_pressure.total.replica_bytes");
+        Integer node2Rejections = node2.get("indexing_pressure.total.coordinating_and_primary_memory_limit_rejections");
 
         if (node1IndexingBytes == 0) {
             assertThat(node2IndexingBytes, greaterThan(0));
@@ -116,9 +116,9 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
         ArrayList<Object> values2 = new ArrayList<>(((Map<Object, Object>) nodeStatsMap2.get("nodes")).values());
         assertThat(values2.size(), equalTo(2));
         XContentTestUtils.JsonMapView node1AfterRejection = new XContentTestUtils.JsonMapView((Map<String, Object>) values2.get(0));
-        node1Rejections = node1AfterRejection.get("indexing_pressure.primary_and_coordinating_rejections");
+        node1Rejections = node1AfterRejection.get("indexing_pressure.total.coordinating_and_primary_memory_limit_rejections");
         XContentTestUtils.JsonMapView node2AfterRejection = new XContentTestUtils.JsonMapView((Map<String, Object>) values2.get(1));
-        node2Rejections = node2AfterRejection.get("indexing_pressure.primary_and_coordinating_rejections");
+        node2Rejections = node2AfterRejection.get("indexing_pressure.total.coordinating_and_primary_memory_limit_rejections");
 
         if (node1Rejections == 0) {
             assertThat(node2Rejections, equalTo(1));

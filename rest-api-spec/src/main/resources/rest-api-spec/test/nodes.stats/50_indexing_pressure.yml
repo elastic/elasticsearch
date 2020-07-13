@@ -14,12 +14,14 @@
       nodes.stats:
         metric: [ indexing_pressure ]
 
-  - gte:  { nodes.$node_id.indexing_pressure.total_primary_and_coordinating_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total_replica_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.pending_primary_and_coordinating_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.pending_replica_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.primary_and_coordinating_rejections: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.replica_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_and_primary_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.replica_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.all_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_and_primary_memory_limit_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.replica_memory_limit_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.coordinating_and_primary_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.replica_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.all_bytes: 0 }
 
 # TODO:
 #

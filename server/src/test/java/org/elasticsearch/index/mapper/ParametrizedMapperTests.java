@@ -257,7 +257,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = "{\"type\":\"test_mapper\",\"index\":false,\"store\":true}";
         TestMapper mapper = fromMapping(mapping, Version.V_7_8_0);
-        assertWarnings("Parameter [store] is unused on type [test_mapper] and will be removed in future");
+        assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"index\":false}}", Strings.toString(mapper));
 

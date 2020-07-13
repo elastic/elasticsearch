@@ -79,11 +79,10 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
 
         private final Parameter<Boolean> nullValue
-            = new Parameter<>("null_value", false, null, (n, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
+            = new Parameter<>("null_value", false, null, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), m -> toType(m).nullValue);
 
         private final Parameter<Float> boost = Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
-        private final Parameter<Map<String, String>> meta
-            = new Parameter<>("meta", true, Collections.emptyMap(), TypeParsers::parseMeta, m -> m.fieldType().meta());
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
             super(name);
@@ -120,15 +119,6 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
 
         public BooleanFieldType(String name) {
             this(name, true, true, Collections.emptyMap());
-        }
-
-        protected BooleanFieldType(BooleanFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new BooleanFieldType(this);
         }
 
         @Override

@@ -210,14 +210,6 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected JoinFieldType(JoinFieldType ref) {
-            super(ref);
-        }
-
-        public JoinFieldType clone() {
-            return new JoinFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

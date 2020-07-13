@@ -100,8 +100,6 @@ public class FsHealthServiceTests extends ESTestCase {
     }
 
     public void testFailsHealthOnIOException() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/59380", Constants.WINDOWS);
-        
         FileSystem fileSystem = PathUtils.getDefaultFileSystem();
         FileSystemIOExceptionProvider disruptFileSystemProvider = new FileSystemIOExceptionProvider(fileSystem);
         fileSystem = disruptFileSystemProvider.getFileSystem(null);
@@ -116,6 +114,7 @@ public class FsHealthServiceTests extends ESTestCase {
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
             //disrupt file system
+            disruptFileSystemProvider.restrictPathPrefix(""); // disrupt all paths
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
@@ -221,9 +220,9 @@ public class FsHealthServiceTests extends ESTestCase {
             assertEquals("health check passed", fsHealthService.getHealth().getInfo());
 
             //disrupt file system writes on single path
-            disruptWritesFileSystemProvider.injectIOException.set(true);
             String disruptedPath = randomFrom(paths).toString();
             disruptWritesFileSystemProvider.restrictPathPrefix(disruptedPath);
+            disruptWritesFileSystemProvider.injectIOException.set(true);
             fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(UNHEALTHY, fsHealthService.getHealth().getStatus());
@@ -241,7 +240,7 @@ public class FsHealthServiceTests extends ESTestCase {
         AtomicBoolean injectIOException = new AtomicBoolean();
         AtomicInteger injectedPaths = new AtomicInteger();
 
-        private String pathPrefix = "/";
+        private String pathPrefix;
 
         FileSystemIOExceptionProvider(FileSystem inner) {
             super("disrupt_fs_health://", inner);
@@ -258,6 +257,7 @@ public class FsHealthServiceTests extends ESTestCase {
         @Override
         public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
             if (injectIOException.get()){
+                assert pathPrefix != null : "must set pathPrefix before starting disruptions";
                 if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
                     injectedPaths.incrementAndGet();
                     throw new IOException("fake IOException");
@@ -272,7 +272,7 @@ public class FsHealthServiceTests extends ESTestCase {
         AtomicBoolean injectIOException = new AtomicBoolean();
         AtomicInteger injectedPaths = new AtomicInteger();
 
-        private String pathPrefix = "/";
+        private String pathPrefix = null;
 
         FileSystemFsyncIOExceptionProvider(FileSystem inner) {
             super("disrupt_fs_health://", inner);
@@ -292,6 +292,7 @@ public class FsHealthServiceTests extends ESTestCase {
                 @Override
                 public void force(boolean metaData) throws IOException {
                     if (injectIOException.get()) {
+                        assert pathPrefix != null : "must set pathPrefix before starting disruptions";
                         if (path.toString().startsWith(pathPrefix) && path.toString().endsWith(".es_temp_file")) {
                             injectedPaths.incrementAndGet();
                             throw new IOException("fake IOException");

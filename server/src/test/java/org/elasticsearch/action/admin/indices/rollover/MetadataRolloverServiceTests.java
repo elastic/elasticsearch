@@ -60,10 +60,11 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -81,7 +82,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.generateMapping;
+import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -550,11 +551,14 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
-            TimestampFieldMapper.Builder fieldBuilder = new TimestampFieldMapper.Builder();
-            fieldBuilder.setPath("@timestamp");
             DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder("@timestamp").build(builderContext);
+            MetadataFieldMapper mockedTimestampField = mock(MetadataFieldMapper.class);
+            when(mockedTimestampField.name()).thenReturn("_data_stream_timestamp");
+            MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
+            when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
+            when(mockedTimestampField.fieldType()).thenReturn(mockedTimestampFieldType);
             DocumentFieldMappers documentFieldMappers =
-                new DocumentFieldMappers(List.of(fieldBuilder.build(builderContext), dateFieldMapper), List.of(), new StandardAnalyzer());
+                new DocumentFieldMappers(List.of(mockedTimestampField, dateFieldMapper), List.of(), new StandardAnalyzer());
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
@@ -564,7 +568,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.mappers()).thenReturn(documentFieldMappers);
             when(documentMapper.type()).thenReturn("_doc");
-            CompressedXContent mapping = new CompressedXContent(generateMapping(dataStream.getTimeStampField().getName()));
+            CompressedXContent mapping =
+                new CompressedXContent("{\"_doc\":" + generateMapping(dataStream.getTimeStampField().getName(), "date") + "}");
             when(documentMapper.mappingSource()).thenReturn(mapping);
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);

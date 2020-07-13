@@ -325,8 +325,7 @@ teardown:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       security.put_role:

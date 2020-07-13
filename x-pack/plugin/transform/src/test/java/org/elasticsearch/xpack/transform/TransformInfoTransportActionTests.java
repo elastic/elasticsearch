@@ -42,7 +42,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         boolean available = randomBoolean();
-        when(licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 

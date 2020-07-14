@@ -46,11 +46,12 @@ import static java.util.Collections.unmodifiableSet;
  */
 public final class IndicesPermission {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndicesPermission.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndicesPermission.class));
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
-    private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
+    private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("create", "create_doc", "index", "write")));
 
     private final Map<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
@@ -286,11 +287,11 @@ public final class IndicesPermission {
                             for (String privilegeName : group.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(() -> {
-                                        deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" +
-                                                privilegeName + "]", "the index privilege [" + privilegeName + "] allowed the update " +
-                                                "mapping action [" + action + "] on index [" + indexOrAlias + "], this privilege " +
-                                                "will not permit mapping updates in the next major release - users who require access " +
-                                                "to update mappings must be granted explicit privileges");
+                                        deprecationLogger.deprecatedAndMaybeLog("[" + indexOrAlias + "] mapping update for ingest " +
+                                                "privilege [" + privilegeName + "]", "the index privilege [" + privilegeName + "] allowed" +
+                                                " the update mapping action [" + action + "] on index [" + indexOrAlias + "], this " +
+                                                "privilege will not permit mapping updates in the next major release - users who require " +
+                                                "access to update mappings must be granted explicit privileges");
                                     });
                                 }
                             }

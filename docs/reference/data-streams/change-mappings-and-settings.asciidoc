@@ -52,31 +52,13 @@ PUT /_ilm/policy/logs_policy
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {},
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {},
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_data_stream/logs
@@ -120,13 +102,10 @@ for a new field, `message`, to the template.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {},
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
         "message": {                              <1>
           "type": "text"
         }
@@ -187,13 +166,10 @@ mapping parameter to `true`.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {},
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
         "host": {
           "properties": {
             "ip": {
@@ -271,15 +247,8 @@ template's `index.refresh_interval` index setting to `30s` (30 seconds).
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {},
+  "data_stream": { },
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "index.refresh_interval": "30s"             <1>
     }
@@ -335,15 +304,8 @@ The following <<indices-templates,put index template API>> requests adds new
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {},
+  "data_stream": { },
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "sort.field": [ "@timestamp"],             <1>
       "sort.order": [ "desc"]                    <2>
@@ -448,7 +410,7 @@ uses the `logs_data_stream` template as its basis, with the following changes:
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {},
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {

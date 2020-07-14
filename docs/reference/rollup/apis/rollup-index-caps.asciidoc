@@ -14,7 +14,7 @@ experimental[]
 [[rollup-get-rollup-index-caps-request]]
 ==== {api-request-title}
 
-`GET <index>/_rollup/data`
+`GET <target>/_rollup/data`
 
 [[rollup-get-rollup-index-caps-prereqs]]
 ==== {api-prereq-title}
@@ -38,9 +38,9 @@ and what aggregations can be performed on each job?
 [[rollup-get-rollup-index-caps-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-  (Required, string) Index or index-pattern of concrete rollup indices to check
-  for capabilities.
+`<target>`::
+(Required, string) Data stream or index to check for rollup capabilities.
+Wildcard (`*`) expressions are supported.
 
 [[rollup-get-rollup-index-caps-example]]
 ==== {api-examples-title}

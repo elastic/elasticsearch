@@ -35,6 +35,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
+    public void testExistsQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(build("for (def v : source.foo) { value(v.toString())}").existsQuery(mockContext())), equalTo(1));
+            }
+        }
+    }
+
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -42,6 +53,19 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(build("value(source.foo.toString())").termQuery("1", mockContext())), equalTo(1));
+            }
+        }
+    }
+
+    public void testTermsQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 3}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 4}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(build("value(source.foo.toString())").termsQuery(List.of("1", "2"), mockContext())), equalTo(2));
             }
         }
     }

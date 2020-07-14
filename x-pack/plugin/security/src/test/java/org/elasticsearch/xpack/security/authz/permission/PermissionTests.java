@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.CREATE;

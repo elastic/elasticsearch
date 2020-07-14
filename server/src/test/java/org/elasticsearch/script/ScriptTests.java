@@ -159,6 +159,13 @@ public class ScriptTests extends ESTestCase {
 
     public void testParseFromObjectWrongFormat() {
         {
+            NullPointerException exc = expectThrows(
+                NullPointerException.class,
+                () -> Script.parse((Object)null)
+            );
+            assertEquals("Script must not be null", exc.getMessage());
+        }
+        {
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
                 () -> Script.parse(3)
@@ -172,14 +179,6 @@ public class ScriptTests extends ESTestCase {
             );
             assertEquals("Expected one of [source] or [id] fields, but found none", exc.getMessage());
         }
-    }
-
-    public void testParseFromObjectUnsupportedFields() {
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Script.parse(Map.of("source", "script", "unsupported", "value"))
-        );
-        assertEquals("Unsupported field [unsupported]", exc.getMessage());
     }
 
     public void testParseFromObjectWrongOptionsFormat() {

@@ -413,7 +413,7 @@ public final class Script implements ToXContentObject, Writeable {
      */
     @SuppressWarnings("unchecked")
     public static Script parse(Object config) {
-        Objects.requireNonNull(config, "script must not be null");
+        Objects.requireNonNull(config, "Script must not be null");
         if (config instanceof String) {
             return new Script((String) config);
         } else if (config instanceof Map) {
@@ -458,8 +458,6 @@ public final class Script implements ToXContentObject, Writeable {
                     } else {
                         throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
-                } else {
-                    throw new ElasticsearchParseException("Unsupported field [" + parameterName + "]");
                 }
             }
             if (script == null) {

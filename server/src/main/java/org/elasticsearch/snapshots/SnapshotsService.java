@@ -123,7 +123,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
-    public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_8_0_0;
+    public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_7_9_0;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 

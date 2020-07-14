@@ -55,7 +55,7 @@ public class ShardClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase
         );
 
         String dataStream = "datastream";
-        DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", Collections.singletonList(dataStream));
+        DataStreamIT.putComposableIndexTemplate("dst", Collections.singletonList(dataStream));
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {

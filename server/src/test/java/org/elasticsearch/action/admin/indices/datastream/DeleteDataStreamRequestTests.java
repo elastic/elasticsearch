@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -135,8 +136,8 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
         return new SnapshotsInProgress.Entry(new Snapshot(repo, new SnapshotId("", "")), false, partial,
-            SnapshotsInProgress.State.STARTED, Collections.emptyList(), Collections.singletonList(dataStreamName), 0, 1, null, null, null
-            , null);
+            SnapshotsInProgress.State.STARTED, Collections.emptyList(), Collections.singletonList(dataStreamName), 0, 1,
+            ImmutableOpenMap.of(), null, null, null);
     }
 
     public void testDeleteNonexistentDataStream() {

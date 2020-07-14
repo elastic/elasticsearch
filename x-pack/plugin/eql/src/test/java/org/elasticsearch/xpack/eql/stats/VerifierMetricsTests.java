@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.eql.optimizer.OptimizerTests;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
+import java.util.Set;
+
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -24,9 +26,6 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FOUR;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_ONE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_TWO;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FIVE_OR_MORE;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FOUR;
-import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_UNTIL;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.PIPE_HEAD;
@@ -38,11 +37,6 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_F
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
-import static org.elasticsearch.xpack.eql.stats.Metrics.FPREFIX;
-import static org.elasticsearch.xpack.eql.stats.Metrics.JOIN_PREFIX;
-import static org.elasticsearch.xpack.eql.stats.Metrics.KEYS_PREFIX;
-import static org.elasticsearch.xpack.eql.stats.Metrics.PIPES_PREFIX;
-import static org.elasticsearch.xpack.eql.stats.Metrics.SEQUENCE_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
     
@@ -50,21 +44,17 @@ public class VerifierMetricsTests extends ESTestCase {
     private PreAnalyzer preAnalyzer = new PreAnalyzer();
     private EqlFunctionRegistry eqlFunctionRegistry = new EqlFunctionRegistry();
     private IndexResolution index = OptimizerTests.loadIndexResolution("mapping-default.json");
-    protected static String FEATURES_KEYS_PREFIX = FPREFIX + KEYS_PREFIX;
-    protected static String FEATURES_JOIN_PREFIX = FPREFIX + JOIN_PREFIX;
-    protected static String FEATURES_SEQUENCE_PREFIX = FPREFIX + SEQUENCE_PREFIX;
-    protected static String FEATURES_PIPES_PREFIX = FPREFIX + PIPES_PREFIX;
     
     public void testEventQuery() {
         Counters c = eql("process where serial_event_id < 4");
-        assertCounters(0, 1L, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(EVENT, PIPE_HEAD));
     }
     
     public void testSequenceQuery() {
         Counters c = eql("sequence\r\n" + 
             "  [process where serial_event_id = 1]\r\n" + 
             "  [process where serial_event_id = 2]");
-        assertCounters(1L, 0, 0, 1L, 0, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO));
     }
 
     @AwaitsFix(bugUrl = "waiting for the join implementation")
@@ -74,17 +64,17 @@ public class VerifierMetricsTests extends ESTestCase {
             "  [file where file_name=\"*.com\"] by pid\r\n" + 
             "until [process where opcode=1] by ppid\r\n" + 
             "| head 1");
-        assertCounters(0, 0, 1L, 1L, 0, 0, 0, 1L, 1L, 0, 0, 0, 0, 0, 0, 0, 1L, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(JOIN, PIPE_HEAD, JOIN_UNTIL, JOIN_QUERIES_TWO, JOIN_KEYS_ONE));
     }
     
     public void testHeadQuery() {
         Counters c = eql("process where serial_event_id < 4 | head 2");
-        assertCounters(0, 1L, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(EVENT, PIPE_HEAD));
     }
     
     public void testTailQuery() {
         Counters c = eql("process where serial_event_id < 4 | tail 2");
-        assertCounters(0, 1L, 0, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(EVENT, PIPE_TAIL));
     }
     
     public void testSequenceMaxSpanQuery() {
@@ -96,7 +86,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "until [process where opcode=1] by ppid\r\n" + 
             "| head 4\r\n" + 
             "| tail 2");
-        assertCounters(1L, 0, 0, 1L, 1L, 1L, 1L, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 1L, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL, SEQUENCE_QUERIES_FOUR, JOIN_KEYS_ONE));
     }
     
     public void testSequenceWithTwoQueries() {
@@ -106,7 +96,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "until [process where opcode=1] by ppid\r\n" + 
             "| head 4\r\n" + 
             "| tail 2");
-        assertCounters(1L, 0, 0, 1L, 1L, 1L, 1L, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 1L, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, PIPE_TAIL, SEQUENCE_MAXSPAN, SEQUENCE_UNTIL, SEQUENCE_QUERIES_TWO, JOIN_KEYS_ONE));
     }
     
     public void testSequenceWithThreeQueries() {
@@ -115,7 +105,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "  [process where opcode == 1] by user\r\n" + 
             "  [file where parent_process_name == \"file_delete_event\"] by exit_code\r\n" + 
             "| head 4");
-        assertCounters(1L, 0, 0, 1L, 0, 1L, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 0, 1L, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_MAXSPAN, SEQUENCE_QUERIES_THREE, JOIN_KEYS_ONE));
     }
     
     public void testSequenceWithFiveQueries() {
@@ -126,7 +116,7 @@ public class VerifierMetricsTests extends ESTestCase {
             "  [process where serial_event_id < 4] by exit_code\r\n" + 
             "  [process where opcode == 1] by user\r\n" + 
             "| head 4");
-        assertCounters(1L, 0, 0, 1L, 0, 1L, 0, 0, 0, 0, 0, 1L, 0, 0, 0, 0, 1L, 0, 0, 0, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_MAXSPAN, SEQUENCE_QUERIES_FIVE_OR_MORE, JOIN_KEYS_ONE));
     }
 
     public void testSequenceWithSevenQueries() {
@@ -139,55 +129,37 @@ public class VerifierMetricsTests extends ESTestCase {
             "  [process where true]\r\n" + 
             "  [process where true]\r\n" + 
             "| tail 1");
-        assertCounters(1L, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 1L, 0, 0, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_TAIL, SEQUENCE_QUERIES_FIVE_OR_MORE, JOIN_KEYS_TWO));
     }
     
     public void testSequenceWithThreeKeys() {
         Counters c = eql("sequence by exit_code, user, serial_event_id\r\n" + 
             "  [process where serial_event_id < 4]\r\n" + 
             "  [process where opcode == 1]\r\n");
-        assertCounters(1L, 0, 0, 1L, 0, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, 0, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO, JOIN_KEYS_THREE));
     }
 
     public void testSequenceWithFourKeys() {
         Counters c = eql("sequence by exit_code, user, serial_event_id, pid\r\n" + 
             "  [process where serial_event_id < 4]\r\n" + 
             "  [process where opcode == 1]\r\n");
-        assertCounters(1L, 0, 0, 1L, 0, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, 0, c);
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO, JOIN_KEYS_FOUR));
     }
 
     public void testSequenceWithFiveKeys() {
         Counters c = eql("sequence by exit_code, user, serial_event_id, pid, ppid\r\n" + 
             "  [process where serial_event_id < 4]\r\n" + 
             "  [process where opcode == 1]\r\n");
-        assertCounters(1L, 0, 0, 1L, 0, 0, 0, 0, 1L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, c);
-    }    
+        assertCounters(c, Set.of(SEQUENCE, PIPE_HEAD, SEQUENCE_QUERIES_TWO, JOIN_KEYS_FIVE_OR_MORE));
+    }
 
-    private void assertCounters(long sequence, long event, long join, long head, long tail, long seqMaxSpan, long seqUntil, long joinUntil,
-        long seqQTwo, long seqQThree, long seqQFour, long seqQFive, long joinQTwo, long joinQThree, long joinQFour, long joingQFive,
-        long keysOne, long keysTwo, long keysThree, long keysFour, long keysFive, Counters c)
-    {
-        assertEquals(sequence, c.get(FPREFIX + SEQUENCE));
-        assertEquals(event, c.get(FPREFIX + EVENT));
-        assertEquals(join, c.get(FPREFIX + JOIN));
-        assertEquals(head, c.get(FEATURES_PIPES_PREFIX + PIPE_HEAD));
-        assertEquals(tail, c.get(FEATURES_PIPES_PREFIX + PIPE_TAIL));
-        assertEquals(seqMaxSpan, c.get(FEATURES_SEQUENCE_PREFIX + SEQUENCE_MAXSPAN));
-        assertEquals(seqUntil, c.get(FEATURES_SEQUENCE_PREFIX + SEQUENCE_UNTIL));
-        assertEquals(joinUntil, c.get(FEATURES_JOIN_PREFIX + JOIN_UNTIL));
-        assertEquals(seqQTwo, c.get(FEATURES_SEQUENCE_PREFIX + SEQUENCE_QUERIES_TWO));
-        assertEquals(seqQThree, c.get(FEATURES_SEQUENCE_PREFIX + SEQUENCE_QUERIES_THREE));
-        assertEquals(seqQFour, c.get(FEATURES_SEQUENCE_PREFIX + SEQUENCE_QUERIES_FOUR));
-        assertEquals(seqQFive, c.get(FEATURES_SEQUENCE_PREFIX + SEQUENCE_QUERIES_FIVE_OR_MORE));
-        assertEquals(joinQTwo, c.get(FEATURES_JOIN_PREFIX + JOIN_QUERIES_TWO));
-        assertEquals(joinQThree, c.get(FEATURES_JOIN_PREFIX + JOIN_QUERIES_THREE));
-        assertEquals(joinQFour, c.get(FEATURES_JOIN_PREFIX + JOIN_QUERIES_FOUR));
-        assertEquals(joingQFive, c.get(FEATURES_JOIN_PREFIX + JOIN_QUERIES_FIVE_OR_MORE));
-        assertEquals(keysOne, c.get(FEATURES_KEYS_PREFIX + JOIN_KEYS_ONE));
-        assertEquals(keysTwo, c.get(FEATURES_KEYS_PREFIX + JOIN_KEYS_TWO));
-        assertEquals(keysThree, c.get(FEATURES_KEYS_PREFIX + JOIN_KEYS_THREE));
-        assertEquals(keysFour, c.get(FEATURES_KEYS_PREFIX + JOIN_KEYS_FOUR));
-        assertEquals(keysFive, c.get(FEATURES_KEYS_PREFIX + JOIN_KEYS_FIVE_OR_MORE));
+    private void assertCounters(Counters actual, Set<FeatureMetric> metrics) {
+        MetricsHolder expected = new MetricsHolder();
+        expected.set(metrics);
+        
+        for (FeatureMetric metric : FeatureMetric.values()) {
+            assertEquals(expected.get(metric), actual.get(metric.prefixedName()));
+        }
     }
     
     private Counters eql(String query) {
@@ -205,5 +177,30 @@ public class VerifierMetricsTests extends ESTestCase {
         analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(query), index));
         
         return metrics == null ? null : metrics.stats();
+    }
+
+    private class MetricsHolder {
+        long[] metrics;
+
+        MetricsHolder() {
+            this.metrics = new long[FeatureMetric.values().length];
+            for (int i = 0; i < this.metrics.length; i++) {
+                this.metrics[i] = 0;
+            }
+        }
+
+        void set(Set<FeatureMetric> metrics) {
+            for (FeatureMetric metric : metrics) {
+                set(metric);
+            }
+        }
+
+        void set(FeatureMetric metric) {
+            this.metrics[metric.ordinal()] = 1L;
+        }
+
+        long get(FeatureMetric metric) {
+            return this.metrics[metric.ordinal()];
+        }
     }
 }

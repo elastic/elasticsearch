@@ -34,11 +34,6 @@ public class Metrics {
     // map that holds counters for each eql "feature" (join, pipe, sequence...)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
     protected static String QPREFIX = "queries.";
-    protected static String FPREFIX = "features.";
-    protected static String SEQUENCE_PREFIX = "sequences.";
-    protected static String JOIN_PREFIX = "joins.";
-    protected static String KEYS_PREFIX = "keys.";
-    protected static String PIPES_PREFIX = "pipes.";
 
     public Metrics() {
         Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
@@ -103,19 +98,7 @@ public class Metrics {
 
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
-            String featureName = entry.getKey().toString();
-            String prefix = FPREFIX;
-
-            if (featureName.startsWith("sequence_")) {
-                prefix += SEQUENCE_PREFIX;
-            } else if (featureName.startsWith("join_k")) {
-                prefix += KEYS_PREFIX;
-            } else if (featureName.startsWith("join_")) {
-                prefix += JOIN_PREFIX;
-            } else if (featureName.startsWith("pipe_")) {
-                prefix += PIPES_PREFIX;
-            }
-            counters.inc(prefix + featureName, entry.getValue().count());
+            counters.inc(entry.getKey().prefixedName(), entry.getValue().count());
         }
 
         return counters;

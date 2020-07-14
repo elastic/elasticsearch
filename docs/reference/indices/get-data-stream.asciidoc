@@ -35,9 +35,7 @@ PUT /_ilm/policy/my-lifecycle-policy
 PUT /_index_template/my-index-template
 {
   "index_patterns": [ "my-data-stream*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {

@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.ingest.IngestStats;
@@ -95,6 +96,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AdaptiveSelectionStats adaptiveSelectionStats;
 
+    @Nullable
+    private IndexingPressureStats indexingPressureStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -125,6 +129,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                 scriptCacheStats = scriptStats.toScriptCacheStats();
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        } else {
+            indexingPressureStats = null;
+        }
     }
 
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
@@ -135,7 +144,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
                      @Nullable DiscoveryStats discoveryStats,
                      @Nullable IngestStats ingestStats,
                      @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
-                     @Nullable ScriptCacheStats scriptCacheStats) {
+                     @Nullable ScriptCacheStats scriptCacheStats,
+                     @Nullable IndexingPressureStats indexingPressureStats) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -152,6 +162,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.ingestStats = ingestStats;
         this.adaptiveSelectionStats = adaptiveSelectionStats;
         this.scriptCacheStats = scriptCacheStats;
+        this.indexingPressureStats = indexingPressureStats;
     }
 
     public long getTimestamp() {
@@ -251,6 +262,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return scriptCacheStats;
     }
 
+    @Nullable
+    public IndexingPressureStats getIndexingPressureStats() {
+        return indexingPressureStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -276,6 +292,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             out.writeOptionalWriteable(adaptiveSelectionStats);
         } if (out.getVersion().onOrAfter(Version.V_7_8_0) && out.getVersion().before(Version.V_7_9_0)) {
             out.writeOptionalWriteable(scriptCacheStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeOptionalWriteable(indexingPressureStats);
         }
     }
 
@@ -342,6 +361,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getScriptCacheStats() != null) {
             getScriptCacheStats().toXContent(builder, params);
+        }
+        if (getIndexingPressureStats() != null) {
+            getIndexingPressureStats().toXContent(builder, params);
         }
         return builder;
     }

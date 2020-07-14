@@ -275,7 +275,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected static void createDataStreamAndTemplate(String dataStreamName, String timeField, String mapping) throws IOException {
+    protected static void createDataStreamAndTemplate(String dataStreamName, String mapping) throws IOException {
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
                 .indexTemplate(new ComposableIndexTemplate(Collections.singletonList(dataStreamName),
@@ -284,7 +284,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     null,
                     null,
                     null,
-                    new ComposableIndexTemplate.DataStreamTemplate(timeField))))
+                    new ComposableIndexTemplate.DataStreamTemplate())))
             .actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
     }

@@ -7,6 +7,8 @@
 ++++
 
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
+For data streams, the API reloads search analyzers and resources for the
+stream's backing indices.
 
 [source,console]
 --------------------------------------------------
@@ -18,9 +20,9 @@ POST /twitter/_reload_search_analyzers
 [[indices-reload-analyzers-api-request]]
 === {api-request-title}
 
-`POST /<index>/_reload_search_analyzers`
+`POST /<target>/_reload_search_analyzers`
 
-`GET /<index>/_reload_search_analyzers`
+`GET /<target>/_reload_search_analyzers`
 
 
 [discrete]
@@ -63,10 +65,12 @@ in the future.
 [[indices-reload-analyzers-api-path-params]]
 === {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Required, string)
-Comma-separated list or wildcard expression of index names
-used to limit the request.
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, use `_all` or `*`.
 
 
 [discrete]

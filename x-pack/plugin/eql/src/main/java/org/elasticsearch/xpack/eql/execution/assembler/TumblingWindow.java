@@ -13,7 +13,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
+import org.elasticsearch.xpack.eql.execution.sequence.KeyAndOrdinal;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
+import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 
@@ -38,7 +40,7 @@ public class TumblingWindow implements Executable {
     private final QueryClient client;
     private final List<Criterion<BoxedQueryRequest>> criteria;
     private final Criterion<BoxedQueryRequest> until;
-    private final Matcher matcher;
+    private final SequenceMatcher matcher;
     // shortcut
     private final int maxStages;
     private final int windowSize;
@@ -58,7 +60,7 @@ public class TumblingWindow implements Executable {
     public TumblingWindow(QueryClient client,
                           List<Criterion<BoxedQueryRequest>> criteria,
                           Criterion<BoxedQueryRequest> until,
-                          Matcher matcher) {
+                          SequenceMatcher matcher) {
         this.client = client;
 
         this.until = until;

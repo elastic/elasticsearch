@@ -61,8 +61,7 @@ setup:
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
 ---
 teardown:

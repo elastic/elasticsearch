@@ -51,6 +51,11 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
     enum ClusterType {
         OLD,
         MIXED,

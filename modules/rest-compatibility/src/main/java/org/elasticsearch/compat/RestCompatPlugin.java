@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -33,9 +33,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV7;
-import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingActionV7;
-import org.elasticsearch.rest.action.admin.indices.RestGetMappingActionV7;
-import org.elasticsearch.rest.action.admin.indices.RestPutMappingActionV7;
 import org.elasticsearch.rest.action.document.RestDeleteActionV7;
 import org.elasticsearch.rest.action.document.RestGetActionV7;
 import org.elasticsearch.rest.action.document.RestIndexActionV7;
@@ -49,6 +46,7 @@ import org.elasticsearch.script.mustache.RestSearchTemplateActionV7;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 public class RestCompatPlugin extends Plugin implements ActionPlugin {
@@ -64,7 +62,8 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (Version.CURRENT.major == 8) {
-            return validatedList(
+            return validateCompatibleHandlers(
+                7,
                 new RestDeleteByQueryActionV7(),
                 new RestUpdateByQueryActionV7(),
                 new RestCreateIndexActionV7(),
@@ -79,20 +78,25 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
                 new RestSearchTemplateActionV7(),
                 new RestMultiSearchTemplateActionV7(settings),
                 new RestDeleteActionV7(),
-                new RestUpdateActionV7(),
-                new RestGetFieldMappingActionV7(),
-                new RestGetMappingActionV7(),
-                new RestPutMappingActionV7()
+                new RestUpdateActionV7()
             );
         }
         return Collections.emptyList();
     }
 
-    private List<RestHandler> validatedList(RestHandler... handlers) {
-        List<RestHandler> handlers1 = List.of(handlers);
+    // default scope for testing
+    List<RestHandler> validateCompatibleHandlers(int expectedVersion, RestHandler... handlers) {
         for (RestHandler handler : handlers) {
-            assert handler.compatibleWithVersion().major == Version.CURRENT.major - 1 : "Handler is of incorrect version. " + handler;
+            if (handler.compatibleWithVersion().major != expectedVersion) {
+                String msg = String.format(
+                    Locale.ROOT,
+                    "Handler %s is of incorrect version %s.",
+                    handler.getClass().getSimpleName(),
+                    handler.compatibleWithVersion()
+                );
+                throw new IllegalStateException(msg);
+            }
         }
-        return handlers1;
+        return List.of(handlers);
     }
 }

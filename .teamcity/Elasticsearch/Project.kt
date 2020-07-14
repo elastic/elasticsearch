@@ -1,7 +1,7 @@
 package Elasticsearch
 
+import VersionedProject
 import includeDevelopmentBranchProjects
-import jetbrains.buildServer.configs.kotlin.v2019_2.Project
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -22,7 +22,7 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.Project
  * under the License.
  */
 
-object Elasticsearch : Project({
+object Elasticsearch : VersionedProject({
     uuid = "7ec11a10-4663-40da-8b01-bb9bcc3c82c7"
     id("Elasticsearch")
     parentId("_Root")

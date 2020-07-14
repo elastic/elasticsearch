@@ -437,13 +437,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     }
 
-    abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
+    public abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
 
         private final SortedBinaryDocValues in;
         protected BytesRefBuilder[] values = new BytesRefBuilder[0];
         protected int count;
 
-        BinaryScriptDocValues(SortedBinaryDocValues in) {
+        public BinaryScriptDocValues(SortedBinaryDocValues in) {
             this.in = in;
         }
 

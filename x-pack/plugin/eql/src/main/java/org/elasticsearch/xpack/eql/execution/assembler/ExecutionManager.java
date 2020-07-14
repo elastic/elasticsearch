@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
+import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
@@ -57,7 +59,7 @@ public class ExecutionManager {
         String timestampName = Expressions.name(timestamp);
         String tiebreakerName = Expressions.isPresent(tiebreaker) ? Expressions.name(tiebreaker) : null;
 
-        // secondary criteria
+        // secondary criteriam
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
         
         // build a criterion for each query
@@ -68,10 +70,8 @@ public class ExecutionManager {
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec) {
-                QueryRequest original = ((EsQueryExec) query).queryRequest(session);
-                
-                // increase the request size based on the fetch size (since size is applied already through limit)
-
+                SearchSourceBuilder source = ((EsQueryExec) query).source(session);
+                QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, tiebreakerName);
                 Criterion<BoxedQueryRequest> criterion =
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i > 0 && descending);

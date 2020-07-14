@@ -4,19 +4,23 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.assembler;
+package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
+import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
+import org.elasticsearch.xpack.eql.execution.assembler.Executable;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
-import org.elasticsearch.xpack.eql.execution.sequence.KeyAndOrdinal;
-import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
-import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
+import org.elasticsearch.xpack.eql.session.EmptyPayload;
 import org.elasticsearch.xpack.eql.session.Payload;
+import org.elasticsearch.xpack.eql.session.Results.Type;
 import org.elasticsearch.xpack.eql.util.ReversedIterator;
 
 import java.util.Iterator;
@@ -98,7 +102,7 @@ public class TumblingWindow implements Executable {
 
         if (hits.isEmpty() == false) {
             if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
-                listener.onResponse(payload());
+                payload(listener);
                 return;
             }
         }
@@ -120,7 +124,7 @@ public class TumblingWindow implements Executable {
             }
             // there aren't going to be any matches so cancel search
             else {
-                listener.onResponse(payload());
+                payload(listener);
             }
             return;
         }
@@ -231,7 +235,7 @@ public class TumblingWindow implements Executable {
 
                 // if the limit has been reached, return what's available
                 if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
-                    listener.onResponse(payload());
+                    payload(listener);
                     return;
                 }
             }
@@ -281,48 +285,83 @@ public class TumblingWindow implements Executable {
         return criterion.reverse() != base.reverse();
     }
 
-    Iterable<Tuple<KeyAndOrdinal, SearchHit>> wrapValues(Criterion<?> criterion, List<SearchHit> hits) {
-        return () -> {
-            final Iterator<SearchHit> iter = criterion.reverse() ? new ReversedIterator<>(hits) : hits.iterator();
+    private void payload(ActionListener<Payload> listener) {
+        List<Sequence> completed = matcher.completed();
 
-            return new Iterator<Tuple<KeyAndOrdinal, SearchHit>>() {
+        if (completed.isEmpty()) {
+            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
+            matcher.clear();
+            return;
+        }
+
+        client.get(hits(completed), wrap(searchHits -> {
+            listener.onResponse(new SequencePayload(completed, searchHits, false, timeTook()));
+            matcher.clear();
+        }, listener::onFailure));
+    }
+
+    private TimeValue timeTook() {
+        return new TimeValue(System.currentTimeMillis() - startTime);
+    }
+    Iterable<List<HitReference>> hits(List<Sequence> sequences) {
+        return () -> {
+            final Iterator<Sequence> delegate = criteria.get(0).reverse() != criteria.get(1).reverse() ?
+                    new ReversedIterator<>(sequences) :
+                    sequences.iterator();
+            
+            return new Iterator<List<HitReference>>() {
 
                 @Override
                 public boolean hasNext() {
-                    return iter.hasNext();
+                    return delegate.hasNext();
                 }
 
                 @Override
-                public Tuple<KeyAndOrdinal, SearchHit> next() {
-                    SearchHit hit = iter.next();
-                    SequenceKey k = criterion.key(hit);
-                    Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), hit);
+                public List<HitReference> next() {
+                    return delegate.next().hits();
                 }
             };
         };
     }
 
-    Iterable<KeyAndOrdinal> wrapUntilValues(Iterable<Tuple<KeyAndOrdinal, SearchHit>> iterable) {
+    Iterable<Tuple<KeyAndOrdinal, HitReference>> wrapValues(Criterion<?> criterion, List<SearchHit> hits) {
         return () -> {
-            final Iterator<Tuple<KeyAndOrdinal, SearchHit>> iter = iterable.iterator();
+            final Iterator<SearchHit> delegate = criterion.reverse() ? new ReversedIterator<>(hits) : hits.iterator();
+
+            return new Iterator<Tuple<KeyAndOrdinal, HitReference>>() {
+
+                @Override
+                public boolean hasNext() {
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public Tuple<KeyAndOrdinal, HitReference> next() {
+                    SearchHit hit = delegate.next();
+                    SequenceKey k = criterion.key(hit);
+                    Ordinal o = criterion.ordinal(hit);
+                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(hit));
+                }
+            };
+        };
+    }
+
+    <E> Iterable<KeyAndOrdinal> wrapUntilValues(Iterable<Tuple<KeyAndOrdinal, E>> iterable) {
+        return () -> {
+            final Iterator<Tuple<KeyAndOrdinal, E>> delegate = iterable.iterator();
 
             return new Iterator<KeyAndOrdinal>() {
 
                 @Override
                 public boolean hasNext() {
-                    return iter.hasNext();
+                    return delegate.hasNext();
                 }
 
                 @Override
                 public KeyAndOrdinal next() {
-                    return iter.next().v1();
+                    return delegate.next().v1();
                 }
             };
         };
-    }
-
-    Payload payload() {
-        return matcher.payload(startTime);
     }
 }

@@ -84,7 +84,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
       "relation": "eq"
     },
     "events": [
-      {
+       {
         "_index": "sec_logs",
         "_id": "1",
         "_score": null,
@@ -102,10 +102,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607252645000
-        ]
+        }
       },
       {
         "_index": "sec_logs",
@@ -125,10 +122,7 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607339167000
-        ]
+        }
       }
     ]
   }
@@ -220,10 +214,7 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "name": "cmd.exe",
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
-            },
-            "sort": [
-              1607339228000
-            ]
+            }
           },
           {
             "_index": "sec_logs",
@@ -243,10 +234,7 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "sort": [
-              1607339229000
-            ]
+            }
           }
         ]
       }
@@ -255,6 +243,7 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[skip: response format updated]
 
 You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
 constrain a sequence to a specified timespan.
@@ -357,10 +346,7 @@ contains the shared `agent.id` value for each matching event.
                 "name": "cmd.exe",
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
-            },
-            "sort": [
-              1607339228000
-            ]
+            }
           },
           {
             "_index": "sec_logs",
@@ -380,10 +366,7 @@ contains the shared `agent.id` value for each matching event.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "sort": [
-              1607339229000
-            ]
+            }
           }
         ]
       }
@@ -392,6 +375,7 @@ contains the shared `agent.id` value for each matching event.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[skip: response format updated]
 
 You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
 event for sequences. Matching sequences must end before this event.
@@ -495,15 +479,7 @@ GET /sec_logs/_eql/search
 ----
 // TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
-The API returns the following response. Note the `sort` property of each
-matching event contains an array of two items:
-
-* The first item is the event's <<eql-search-api-timestamp-field,timestamp>>,
-converted to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
-epoch].
-
-* The second item is the event's `event.id` value. This value is used as a sort
-tiebreaker for events with the same timestamp.
+The API returns the following response.
 
 [source,console-result]
 ----
@@ -518,7 +494,7 @@ tiebreaker for events with the same timestamp.
       "relation": "eq"
     },
     "events": [
-      {
+        {
         "_index": "sec_logs",
         "_id": "1",
         "_score": null,
@@ -536,13 +512,9 @@ tiebreaker for events with the same timestamp.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
+        }
         },
-        "sort": [
-          1607252645000,                                <1>
-          "edwCRnyD"                                    <2>
-          ]
-        },
-            {
+        {
         "_index": "sec_logs",
         "_id": "3",
         "_score": null,
@@ -560,21 +532,13 @@ tiebreaker for events with the same timestamp.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607339167000,                                <1>
-          "cMyt5SZ2"                                    <2>
-        ]
-      }
+        }   
+        }
     ]
   }
 }
 ----
 // TESTRESPONSE[s/"took": 34/"took": $body.took/]
-<1> The event's <<eql-search-api-timestamp-field,timestamp>>, converted to
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
-epoch]
-<2> The event's `event.id` value.
 ====
 
 

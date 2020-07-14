@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,15 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7;
+package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.document.RestIndexAction;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,7 +46,7 @@ public class RestIndexActionV7 {
     public static class CompatibleRestIndexAction extends RestIndexAction {
         @Override
         public String getName() {
-            return "document_index_action_v7";
+            return super.getName() + "_v7";
         }
 
         @Override

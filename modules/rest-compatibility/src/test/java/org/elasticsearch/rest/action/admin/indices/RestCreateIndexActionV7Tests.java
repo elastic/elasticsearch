@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,27 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7;
+package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class RestCreateIndexActionV7Tests extends RestActionTestCase {
-
-    String mimeType = "application/vnd.elasticsearch+json;compatible-with=7";
-    List<String> contentTypeHeader = Collections.singletonList(mimeType);
 
     RestCreateIndexActionV7 restHandler = new RestCreateIndexActionV7();
 
@@ -61,14 +56,13 @@ public class RestCreateIndexActionV7Tests extends RestActionTestCase {
 
         Map<String, String> params = new HashMap<>();
         params.put(RestCreateIndexActionV7.INCLUDE_TYPE_NAME_PARAMETER, "true");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest request = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index")
             .withParams(params)
             .withContent(new BytesArray(content), null)
             .build();
 
-        CreateIndexRequest createIndexRequest = restHandler.prepareRequest(request);
+        CreateIndexRequest createIndexRequest = restHandler.prepareV7Request(request);
         // some_type is replaced with _doc
         assertThat(createIndexRequest.mappings(), equalTo("{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"}}}}"));
     }

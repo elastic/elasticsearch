@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -528,11 +529,16 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         // the ordinal for encoding! Only append to the end!
         Positions, Offsets, Payloads, FieldStatistics, TermStatistics
     }
+    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser) throws IOException {
+        parseRequest(termVectorsRequest, parser, k -> false);
+    }
 
     /**
      * populates a request object (pre-populated with defaults) based on a parser.
      */
-    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser) throws IOException {
+    public static void parseRequest(TermVectorsRequest termVectorsRequest,
+                                    XContentParser parser,
+                                    Function<String,Boolean> typeConsumer) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         List<String> fields = new ArrayList<>();
@@ -585,7 +591,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.version = parser.longValue();
                 } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
-                } else {
+                } else if(typeConsumer.apply(currentFieldName) == false) {
                     throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);
                 }
             }

@@ -17,17 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7;
+package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RestIndexActionV7Tests extends RestActionTestCase {
@@ -46,8 +45,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
 
     public void testTypeInPath() {
         // using CompatibleRestIndexAction
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest deprecatedRequest = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/some_type/some_id")
             .build();
         dispatchRequest(deprecatedRequest);
@@ -56,8 +54,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
 
     public void testCreateWithTypeInPath() {
         // using CompatibleCreateHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest deprecatedRequest = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index/some_type/some_id/_create")
             .build();
         dispatchRequest(deprecatedRequest);
@@ -66,8 +63,7 @@ public class RestIndexActionV7Tests extends RestActionTestCase {
 
     public void testAutoIdWithType() {
         // using CompatibleAutoIdHandler
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest deprecatedRequest = new FakeCompatRestRequestBuilder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/")
             .build();
         dispatchRequest(deprecatedRequest);

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat;
+package org.elasticsearch.compat;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -26,13 +26,21 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.index.reindex.RestDeleteByQueryActionV7;
+import org.elasticsearch.index.reindex.RestUpdateByQueryActionV7;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.compat.version7.RestCreateIndexActionV7;
-import org.elasticsearch.rest.compat.version7.RestGetActionV7;
-import org.elasticsearch.rest.compat.version7.RestIndexActionV7;
+import org.elasticsearch.rest.action.admin.indices.RestCreateIndexActionV7;
+import org.elasticsearch.rest.action.document.RestGetActionV7;
+import org.elasticsearch.rest.action.document.RestIndexActionV7;
+import org.elasticsearch.rest.action.document.RestMultiTermVectorsActionV7;
+import org.elasticsearch.rest.action.document.RestTermVectorsActionV7;
+import org.elasticsearch.rest.action.search.RestMultiSearchActionV7;
+import org.elasticsearch.rest.action.search.RestSearchActionV7;
+import org.elasticsearch.script.mustache.RestMultiSearchTemplateActionV7;
+import org.elasticsearch.script.mustache.RestSearchTemplateActionV7;
 
 import java.util.Collections;
 import java.util.List;
@@ -53,11 +61,19 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
     ) {
         if (Version.CURRENT.major == 8) {
             return validateCompatibleHandlers(7,
+                new RestDeleteByQueryActionV7(),
+                new RestUpdateByQueryActionV7(),
+                new RestCreateIndexActionV7(),
                 new RestGetActionV7(),
                 new RestIndexActionV7.CompatibleRestIndexAction(),
                 new RestIndexActionV7.CompatibleCreateHandler(),
                 new RestIndexActionV7.CompatibleAutoIdHandler(nodesInCluster),
-                new RestCreateIndexActionV7()
+                new RestTermVectorsActionV7(),
+                new RestMultiTermVectorsActionV7(),
+                new RestSearchActionV7(),
+                new RestMultiSearchActionV7(settings),
+                new RestSearchTemplateActionV7(),
+                new RestMultiSearchTemplateActionV7(settings)
             );
         }
         return Collections.emptyList();
@@ -65,7 +81,6 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
 
     // default scope for testing
     List<RestHandler> validateCompatibleHandlers(int expectedVersion, RestHandler... handlers) {
-        List<RestHandler> handlers1 = List.of(handlers);
         for (RestHandler handler : handlers) {
             if (handler.compatibleWithVersion().major != expectedVersion) {
                 String msg = String.format(Locale.ROOT,"Handler %s is of incorrect version %s.",
@@ -74,6 +89,6 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
                 throw new IllegalStateException(msg);
             }
         }
-        return handlers1;
+        return List.of(handlers);
     }
 }

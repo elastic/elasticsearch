@@ -42,6 +42,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -57,7 +58,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-    private final boolean allowExplicitIndex;
+    protected final boolean allowExplicitIndex;
 
     public RestMultiSearchAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
@@ -83,10 +84,21 @@ public class RestMultiSearchAction extends BaseRestHandler {
         return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
+    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+        return parseRequest(restRequest,allowExplicitIndex, key->false);
+    }
+
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
+     *
+     * @param typeConsumer - is a function used when parsing a request body. if it contains a types field it will consume it,
+     *                     allowing the same parsing logic to work in v7 and v8.
+     *                     It takes a string - field name, returns a boolean - if the field was "type or types"
      */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+    public static MultiSearchRequest parseRequest(RestRequest restRequest,
+                                                  boolean allowExplicitIndex,
+                                                  Function<String,Boolean> typeConsumer
+        /*TODO rename to unexpected field consumer?*/) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -112,7 +124,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
             RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
             multiRequest.add(searchRequest);
-        });
+        }, typeConsumer);
         List<SearchRequest> requests = multiRequest.requests();
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
@@ -129,8 +141,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a multi-line {@link RestRequest} body, instantiating a {@link SearchRequest} for each line and applying the given consumer.
      */
-    public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer) throws IOException {
+    public static void parseMultiLineRequest(RestRequest request,
+                                             IndicesOptions indicesOptions,
+                                             boolean allowExplicitIndex,
+                                             CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+                                             Function<String, Boolean> typeConsumer) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String searchType = request.param("search_type");
@@ -141,7 +156,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing,
-                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex);
+                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, typeConsumer);
     }
 
     @Override

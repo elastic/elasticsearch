@@ -35,6 +35,11 @@ public class CcrRestIT extends ESClientYamlSuiteTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", ccrUserAuthHeaderValue).build();
     }
 
+    @Before
+    public void waitForRequirements() throws Exception {
+        ESRestTestCase.waitForActiveLicense(adminClient());
+    }
+
     @After
     public void cleanup() throws Exception {
         ESRestTestCase.waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(ShardChangesAction.NAME));

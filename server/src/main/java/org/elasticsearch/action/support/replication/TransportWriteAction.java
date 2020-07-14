@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -60,27 +60,27 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
-    private final boolean forceExecutionOnPrimary;
-    private final WriteMemoryLimits writeMemoryLimits;
+    private final boolean forceExecution;
+    private final IndexingPressure indexingPressure;
     private final String executor;
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
                                    Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary,
-                                   WriteMemoryLimits writeMemoryLimits) {
+                                   IndexingPressure indexingPressure) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE thread pool in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
-        this.forceExecutionOnPrimary = forceExecutionOnPrimary;
-        this.writeMemoryLimits = writeMemoryLimits;
+        this.forceExecution = forceExecutionOnPrimary;
+        this.indexingPressure = indexingPressure;
     }
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+        return indexingPressure.markIndexingOperationStarted(primaryOperationSize(request), forceExecution);
     }
 
     @Override
@@ -90,7 +90,7 @@ public abstract class TransportWriteAction<
         if (rerouteWasLocal) {
             return () -> {};
         } else {
-            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+            return indexingPressure.markIndexingOperationStarted(primaryOperationSize(request), forceExecution);
         }
     }
 
@@ -100,7 +100,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return writeMemoryLimits.markReplicaWriteStarted(replicaOperationSize(request));
+        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), forceExecution);
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {
@@ -156,7 +156,7 @@ public abstract class TransportWriteAction<
 
             @Override
             public boolean isForceExecution() {
-                return forceExecutionOnPrimary;
+                return forceExecution;
             }
         });
     }

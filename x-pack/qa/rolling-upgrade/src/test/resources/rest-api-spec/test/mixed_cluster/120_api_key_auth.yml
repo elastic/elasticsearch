@@ -1,0 +1,25 @@
+---
+"Test API key authentication will work in a mixed cluster":
+
+  - skip:
+      features: headers
+      version: "all"
+      reason: "API key realm name is in metadata since v7.5. https://github.com/elastic/elasticsearch/issues/59425"
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-api-key"
+          }
+  - match: { name: "my-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      nodes.info: {}
+  - match: { _nodes.failed: 0 }
+

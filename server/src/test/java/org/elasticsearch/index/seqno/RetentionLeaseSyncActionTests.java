@@ -20,7 +20,7 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -105,7 +105,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits());
+                new IndexingPressure(Settings.EMPTY));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.dispatchedShardOperationOnPrimary(request, indexShard,
@@ -142,7 +142,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits());
+                new IndexingPressure(Settings.EMPTY));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -182,7 +182,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 threadPool,
                 shardStateAction,
                 new ActionFilters(Collections.emptySet()),
-                new WriteMemoryLimits());
+                new IndexingPressure(Settings.EMPTY));
 
         assertNull(action.indexBlockLevel());
     }

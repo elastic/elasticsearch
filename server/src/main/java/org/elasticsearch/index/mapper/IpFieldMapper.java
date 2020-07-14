@@ -148,15 +148,6 @@ public class IpFieldMapper extends FieldMapper {
             this(name, true, true, Collections.emptyMap());
         }
 
-        IpFieldType(IpFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IpFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

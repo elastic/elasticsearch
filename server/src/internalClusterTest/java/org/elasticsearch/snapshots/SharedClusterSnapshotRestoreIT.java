@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -35,7 +34,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -52,7 +50,6 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
@@ -79,7 +76,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.DataStreamIT;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.ingest.IngestTestPlugin;
@@ -134,7 +130,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -2235,56 +2230,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_WRITE);
             disableIndexBlock("test-idx", IndexMetadata.SETTING_BLOCKS_READ);
         }
-    }
-
-    public void testDeleteDataStreamDuringSnapshot() throws Exception {
-        Client client = client();
-
-        createRepository("test-repo", "mock", Settings.builder()
-            .put("location", randomRepoPath()).put("compress", randomBoolean())
-            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-            .put("block_on_data", true));
-
-
-        String dataStream = "test-ds";
-        DataStreamIT.putComposableIndexTemplate("dst", "@timestamp", org.elasticsearch.common.collect.List.of(dataStream));
-
-        logger.info("--> indexing some data");
-        for (int i = 0; i < 100; i++) {
-            client.prepareIndex(dataStream, "_doc")
-                .setOpType(DocWriteRequest.OpType.CREATE)
-                .setId(Integer.toString(i))
-                .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
-                .execute().actionGet();
-        }
-        refresh();
-        assertDocCount(dataStream, 100L);
-
-        logger.info("--> snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-            .setIndices(dataStream).setWaitForCompletion(true).setPartial(false).execute();
-        logger.info("--> wait for block to kick in");
-        waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
-
-        // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
-        try {
-            logger.info("--> delete index while non-partial snapshot is running");
-            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{dataStream})).actionGet();
-            fail("Expected deleting index to fail during snapshot");
-        } catch (SnapshotInProgressException e) {
-            assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [test-ds"));
-        } finally {
-            logger.info("--> unblock all data nodes");
-            unblockAllDataNodes("test-repo");
-        }
-        logger.info("--> waiting for snapshot to finish");
-        CreateSnapshotResponse createSnapshotResponse = future.get();
-
-        logger.info("Snapshot successfully completed");
-        SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
-        assertThat(snapshotInfo.state(), equalTo((SnapshotState.SUCCESS)));
-        assertThat(snapshotInfo.dataStreams(), contains(dataStream));
-        assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName(dataStream, 1)));
     }
 
     public void testCloseOrDeleteIndexDuringSnapshot() throws Exception {

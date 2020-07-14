@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -33,21 +35,31 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -75,6 +87,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singletonList(DummyPlugin.class);
+    }
+
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
         request.patterns(singletonList("test_shards*"));
@@ -1287,6 +1305,85 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
                 assertThat(actualMappings, equalTo(expectedMappings));
             }
+        }
+    }
+
+    // Composable index template with data_stream definition need _timestamp meta field mapper,
+    // this is a dummy impl, so that tests don't fail with the fact that the _timestamp field can't be found.
+    // (tests using this dummy impl doesn't test the _timestamp validation, but need it to tests other functionality)
+    public static class DummyPlugin extends Plugin implements MapperPlugin {
+
+        @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Collections.singletonMap("_data_stream_timestamp", new MetadataFieldMapper.TypeParser() {
+
+                @Override
+                public MetadataFieldMapper.Builder<?> parse(String name,
+                                                            Map<String, Object> node,
+                                                            ParserContext parserContext) throws MapperParsingException {
+                    String path = (String) node.remove("path");
+                    return new MetadataFieldMapper.Builder(name, new FieldType()) {
+                        @Override
+                        public MetadataFieldMapper build(Mapper.BuilderContext context) {
+                            return newInstance(path);
+                        }
+                    };
+                }
+
+                @Override
+                public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext) {
+                    return newInstance(null);
+                }
+
+                MetadataFieldMapper newInstance(String path) {
+                    FieldType fieldType = new FieldType();
+                    fieldType.freeze();
+                    MappedFieldType mappedFieldType =
+                        new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
+                        @Override
+                        public String typeName() {
+                            return "_data_stream_timestamp";
+                        }
+
+                        @Override
+                        public Query termQuery(Object value, QueryShardContext context) {
+                            return null;
+                        }
+
+                        @Override
+                        public Query existsQuery(QueryShardContext context) {
+                            return null;
+                        }
+                    };
+                    return new MetadataFieldMapper(fieldType, mappedFieldType) {
+                        @Override
+                        public void preParse(ParseContext context) throws IOException {
+
+                        }
+
+                        @Override
+                        protected void parseCreateField(ParseContext context) throws IOException {
+
+                        }
+
+                        @Override
+                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                            if (path == null) {
+                                return builder;
+                            }
+
+                            builder.startObject(simpleName());
+                            builder.field("path", path);
+                            return builder.endObject();
+                        }
+
+                        @Override
+                        protected String contentType() {
+                            return "_data_stream_timestamp";
+                        }
+                    };
+                }
+            });
         }
     }
 }

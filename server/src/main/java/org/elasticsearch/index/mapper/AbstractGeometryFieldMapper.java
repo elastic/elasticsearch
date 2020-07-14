@@ -191,10 +191,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
-        protected AbstractGeometryFieldType(AbstractGeometryFieldType ref) {
-            super(ref);
-        }
-
         public void setGeometryQueryBuilder(QueryProcessor geometryQueryBuilder)  {
             this.geometryQueryBuilder = geometryQueryBuilder;
         }

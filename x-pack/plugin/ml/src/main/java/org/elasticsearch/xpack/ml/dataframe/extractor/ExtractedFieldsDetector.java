@@ -15,7 +15,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -54,17 +53,15 @@ public class ExtractedFieldsDetector {
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
         "_source", "_type", "_uid", "_version", "_feature", "_ignored", DestinationIndex.ID_COPY,
-        TimestampFieldMapper.NAME);
+        "_data_stream_timestamp");
 
-    private final String[] index;
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, int docValueFieldsLimit,
-                            FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> cardinalitiesForFieldsWithConstraints) {
-        this.index = Objects.requireNonNull(index);
+    ExtractedFieldsDetector(DataFrameAnalyticsConfig config, int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse,
+                            Map<String, Long> cardinalitiesForFieldsWithConstraints) {
         this.config = Objects.requireNonNull(config);
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);

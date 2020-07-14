@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -81,7 +82,7 @@ public class TransportBulkActionTests extends ESTestCase {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()),
-                    new WriteMemoryLimits());
+                    new IndexingPressure(Settings.EMPTY));
         }
 
         @Override

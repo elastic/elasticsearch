@@ -102,15 +102,6 @@ public class AllFieldMapper extends MetadataFieldMapper {
             super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
-        protected AllFieldType(AllFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new AllFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

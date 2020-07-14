@@ -71,7 +71,7 @@ public class MlWithSecurityInsufficientRoleIT extends MlWithSecurityIT {
                 assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
                 assertThat(ae.getMessage(),
                     either(containsString("is unauthorized for user [no_ml]"))
-                        .or(containsString("user [no_ml] does not have the privilege to get trained models so cannot use ml inference")));
+                        .or(containsString("user [no_ml] does not have the privilege to get trained models")));
             }
         }
     }

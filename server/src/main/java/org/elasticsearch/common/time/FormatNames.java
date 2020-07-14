@@ -19,10 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.LazyInitializable;
-
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -118,13 +114,6 @@ public enum FormatNames {
     private final String camelCaseName;
     private final String snakeCaseName;
 
-    // DateFormatters and FormatNames are being used even before the logging is initialized.
-    // If LogManager.getLogger is called before logging config is loaded
-    // it results in errors sent to status logger and startup to fail.
-    // Hence a lazy initialization.
-    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() ->  DeprecationLogger.getLogger(FormatNames.class));
-
     FormatNames(String camelCaseName, String snakeCaseName) {
         this.camelCaseName = camelCaseName;
         this.snakeCaseName = snakeCaseName;
@@ -145,17 +134,10 @@ public enum FormatNames {
 
     public boolean matches(String format) {
         if (format.equals(camelCaseName)) {
-            deprecate();
-            return true;
+            throw new IllegalArgumentException("Camel case format names are no longer supported. " +
+                "Use snake case name " + snakeCaseName + " instead.");
         }
         return format.equals(snakeCaseName);
-    }
-
-    private void deprecate() {
-        String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
-            "Use snake case name {} instead.";
-        deprecationLogger.getOrCompute()
-            .deprecate("camelCaseDateFormat", msg, camelCaseName, snakeCaseName);
     }
 
     public String getSnakeCaseName() {

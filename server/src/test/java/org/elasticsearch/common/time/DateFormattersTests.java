@@ -398,23 +398,7 @@ public class DateFormattersTests extends ESTestCase {
             "strictWeekyearWeekDay", "strictYear", "strictYearMonth", "strictYearMonthDay"
         };
         for (String name : deprecatedNames) {
-            DateFormatter dateFormatter = DateFormatter.forPattern(name);
-            String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-            assertThat(dateFormatter.pattern(), equalTo(name));
-
-            assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                "Use snake case name " + snakeCaseName + " instead.");
-        }
-
-        for (String name : deprecatedNames) {
-            if (name.equals("strictDateOptionalTimeNanos") == false) {
-                DateFormatter dateFormatter = Joda.forPattern(name);
-                String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-                assertThat(dateFormatter.pattern(), equalTo(name));
-
-                assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                    "Use snake case name " + snakeCaseName + " instead.");
-            }
+            expectThrows(IllegalArgumentException.class, ()-> DateFormatter.forPattern(name) );
         }
     }
 }

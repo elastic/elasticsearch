@@ -2,8 +2,8 @@
 setup:
   - skip:
       features: ["headers", "allowed_warnings"]
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
 
   - do:
       cluster.health:
@@ -88,8 +88,8 @@ teardown:
 ---
 "Test backing indices inherit parent data stream privileges":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: ["headers"]
 
   - do: # superuser
@@ -150,8 +150,8 @@ teardown:
 ---
 "Test that requests not supporting data streams do not include data streams among authorized indices":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: ["headers"]
 
   - do: # superuser
@@ -182,8 +182,8 @@ teardown:
 ---
 "Test that create data stream is limited to authorized namespace":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
@@ -205,8 +205,8 @@ teardown:
 ---
 "Test that get data stream is limited to authorized namespace":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
 
   - do: # superuser
       indices.create_data_stream:
@@ -270,8 +270,8 @@ teardown:
 ---
 "Test that delete data stream is limited to authorized namespace":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
 
   - do: # superuser
       indices.create_data_stream:
@@ -309,8 +309,8 @@ teardown:
 ---
 "auto_configure privilege permits auto-create of data streams":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: ["headers", "allowed_warnings"]
 
   - do:

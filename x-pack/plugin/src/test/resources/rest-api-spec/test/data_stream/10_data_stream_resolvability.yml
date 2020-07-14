@@ -152,8 +152,8 @@
 ---
 "Verify data stream resolvability in ILM remove policy API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -241,8 +241,8 @@
 ---
 "Verify data stream resolvability for graph explore API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -297,8 +297,8 @@
 ---
 "Verify data stream resolvability in migrations API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -336,8 +336,8 @@
 ---
 "Verify data stream resolvability in async search":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -406,8 +406,8 @@
 ---
 "Verify data stream resolvability in rollup search":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:

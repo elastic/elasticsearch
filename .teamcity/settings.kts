@@ -30,9 +30,11 @@ project {
     defaultTemplate = DefaultTemplate
 
     val stagesProject = subProject {
+        id("Stages")
         name = "Stages"
 
         buildType {
+            id("Passed Intake")
             name = "Passed Intake"
             type = BuildTypeSettings.Type.COMPOSITE
 
@@ -41,6 +43,7 @@ project {
     }
 
     val checksProject = subProject {
+        id("Checks")
         name = "Checks"
 
         buildType(SanityCheck)

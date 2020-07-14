@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.ObjectArrayList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -136,7 +135,7 @@ public abstract class TestCluster implements Closeable {
      */
     public void wipeAllDataStreams() {
         // Feature flag may not be enabled in all gradle modules that use ESIntegTestCase
-        if (size() > 0 && ActionModule.DATASTREAMS_FEATURE_ENABLED) {
+        if (size() > 0) {
             AcknowledgedResponse response =
                 client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[]{"*"})).actionGet();
             assertAcked(response);

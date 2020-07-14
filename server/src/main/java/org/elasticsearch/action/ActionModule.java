@@ -21,7 +21,6 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -413,21 +412,6 @@ public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
 
-    public static final boolean DATASTREAMS_FEATURE_ENABLED;
-
-    static {
-        final String property = System.getProperty("es.datastreams_feature_enabled");
-        if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
-            DATASTREAMS_FEATURE_ENABLED = true;
-        } else if ("false".equals(property) || property == null) {
-            DATASTREAMS_FEATURE_ENABLED = false;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.datastreams_feature_enabled to be unset or [true|false] but was [" + property + "]"
-            );
-        }
-    }
-
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopedSettings;
@@ -614,12 +598,10 @@ public class ActionModule extends AbstractModule {
         actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actions::register);
 
         // Data streams:
-        if (DATASTREAMS_FEATURE_ENABLED) {
-            actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
-            actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
-            actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
-            actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
-        }
+        actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
+        actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
+        actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
+        actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
 
         // Persistent tasks:
         actions.register(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class);
@@ -790,12 +772,10 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteDanglingIndexAction());
 
         // Data Stream API
-        if (DATASTREAMS_FEATURE_ENABLED) {
-            registerHandler.accept(new RestCreateDataStreamAction());
-            registerHandler.accept(new RestDeleteDataStreamAction());
-            registerHandler.accept(new RestGetDataStreamsAction());
-            registerHandler.accept(new RestResolveIndexAction());
-        }
+        registerHandler.accept(new RestCreateDataStreamAction());
+        registerHandler.accept(new RestDeleteDataStreamAction());
+        registerHandler.accept(new RestGetDataStreamsAction());
+        registerHandler.accept(new RestResolveIndexAction());
 
         // CAT API
         registerHandler.accept(new RestAllocationAction());

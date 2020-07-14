@@ -1,0 +1,123 @@
+<?xml version="1.0"?>
+<!--
+  ~ Licensed to Elasticsearch under one or more contributor
+  ~ license agreements. See the NOTICE file distributed with
+  ~ this work for additional information regarding copyright
+  ~ ownership. Elasticsearch licenses this file to you under
+  ~ the Apache License, Version 2.0 (the "License"); you may
+  ~ not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing,
+  ~ software distributed under the License is distributed on an
+  ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  ~ KIND, either express or implied.  See the License for the
+  ~ specific language governing permissions and limitations
+  ~ under the License.
+  -->
+
+<project>
+    <modelVersion>4.0.0</modelVersion>
+    <name>Elasticsearch Teamcity Config DSL Script</name>
+    <groupId>org.elastic.elasticsearch</groupId>
+    <artifactId>elasticsearch-teamcity-dsl</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <parent>
+        <groupId>org.jetbrains.teamcity</groupId>
+        <artifactId>configs-dsl-kotlin-parent</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <repositories>
+        <repository>
+            <id>jetbrains-all</id>
+            <url>https://download.jetbrains.com/teamcity-repository</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>teamcity-server</id>
+            <url>https://teamcity.app.elastic.dev/app/dsl-plugins-repository</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>JetBrains</id>
+            <url>https://download.jetbrains.com/teamcity-repository</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <build>
+        <sourceDirectory>${basedir}</sourceDirectory>
+        <plugins>
+            <plugin>
+                <artifactId>kotlin-maven-plugin</artifactId>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <version>${kotlin.version}</version>
+
+                <configuration/>
+                <executions>
+                    <execution>
+                        <id>compile</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>test-compile</id>
+                        <phase>process-test-sources</phase>
+                        <goals>
+                            <goal>test-compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.jetbrains.teamcity</groupId>
+                <artifactId>teamcity-configs-maven-plugin</artifactId>
+                <version>${teamcity.dsl.version}</version>
+                <configuration>
+                    <format>kotlin</format>
+                    <dstDir>target/generated-configs</dstDir>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.jetbrains.teamcity</groupId>
+            <artifactId>configs-dsl-kotlin</artifactId>
+            <version>${teamcity.dsl.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.teamcity</groupId>
+            <artifactId>configs-dsl-kotlin-plugins</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <type>pom</type>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib-jdk8</artifactId>
+            <version>${kotlin.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-script-runtime</artifactId>
+            <version>${kotlin.version}</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
+</project>

@@ -381,6 +381,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return List.of(new CcrPrimaryFollowerAllocationDecider());
+        return Collections.singletonList(new CcrPrimaryFollowerAllocationDecider());
     }
 }

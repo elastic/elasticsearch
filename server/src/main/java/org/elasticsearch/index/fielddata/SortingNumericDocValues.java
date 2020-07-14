@@ -24,6 +24,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.Sorter;
 
+import java.util.function.LongConsumer;
+
 /**
  * Base class for building {@link SortedNumericDocValues} instances based on unsorted content.
  */
@@ -33,8 +35,13 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     protected long[] values;
     protected int valuesCursor;
     private final Sorter sorter;
+    private LongConsumer circuitBreakerConsumer;
 
     protected SortingNumericDocValues() {
+        this(null);
+    }
+
+    protected SortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
         values = new long[1];
         valuesCursor = 0;
         sorter = new InPlaceMergeSorter() {
@@ -51,6 +58,9 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
                 return Long.compare(values[i], values[j]);
             }
         };
+        this.circuitBreakerConsumer = circuitBreakerConsumer;
+        // account for initial values size of 1
+        this.circuitBreakerConsumer.accept(Long.BYTES);
     }
 
     /**
@@ -58,9 +68,30 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
      * store at least that many entries.
      */
     protected final void resize(int newSize) {
+        int oldValuesLength = values.length;
+        long oldValuesSizeInBytes = values.length * Long.BYTES;
+
+        // If array is expected to grow, increment the circuit breaker
+        // to include both the additional bytes used by the grown array
+        // as well as the overhead of keeping both arrays in memory while
+        // copying.
+        if (newSize > values.length) {
+            int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
+            long bytesDiff = (newValuesLength - oldValuesLength) * Long.BYTES;
+            circuitBreakerConsumer.accept(bytesDiff);
+            circuitBreakerConsumer.accept(oldValuesSizeInBytes);
+        }
+
+        // resize
         count = newSize;
         values = ArrayUtil.grow(values, count);
         valuesCursor = 0;
+
+        // old array is released, so its overhead is no longer accounted for
+        // in the circuit breaker.
+        if (oldValuesLength < values.length) {
+            circuitBreakerConsumer.accept(-oldValuesSizeInBytes);
+        }
     }
 
     /**

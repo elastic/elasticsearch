@@ -8,7 +8,16 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 
+import java.util.function.LongConsumer;
+
+/**
+ * Wrapper class for GeoGrid to expose the protected values array for testing
+ */
 abstract class ByteTrackingSortingNumericDocValues extends AbstractSortingNumericDocValues {
+
+    public ByteTrackingSortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
+        super(circuitBreakerConsumer);
+    }
 
     public long getValuesBytes() {
         return values.length * Long.BYTES;

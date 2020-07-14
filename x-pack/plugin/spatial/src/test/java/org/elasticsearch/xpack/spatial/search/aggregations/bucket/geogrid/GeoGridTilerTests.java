@@ -37,7 +37,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.LATITUDE_MASK;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.NORMALIZED_LATITUDE_MASK;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoGridTilerTests extends ESTestCase {
     private static final GeoTileGridTiler GEOTILE = new GeoTileGridTiler();
     private static final GeoHashGridTiler GEOHASH = new GeoHashGridTiler();
-    private static final Consumer<Long> NOOP_BREAKER = (l) -> {};
+    private static final LongConsumer NOOP_BREAKER = (l) -> {};
 
     public void testGeoTile() throws Exception {
         double x = randomDouble();
@@ -485,7 +485,7 @@ public class GeoGridTilerTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         CircuitBreaker limitedBreaker = service.getBreaker("limited");
 
-        Consumer<Long> circuitBreakerConsumer = (l) -> limitedBreaker.addEstimateBytesAndMaybeBreak(l, "agg");
+        LongConsumer circuitBreakerConsumer = (l) -> limitedBreaker.addEstimateBytesAndMaybeBreak(l, "agg");
         expectThrows(CircuitBreakingException.class, () -> {
             GeoShapeCellValues values = new GeoShapeCellValues(null, precision, tiler, circuitBreakerConsumer);
             tiler.setValues(values, value, precision);

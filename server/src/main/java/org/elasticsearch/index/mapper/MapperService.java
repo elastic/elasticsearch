@@ -179,9 +179,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Update mapping by only merging the metadata that is different between received and stored entries
      */
-    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
         assert newIndexMetadata.getIndex().equals(index()) : "index mismatch: expected " + index()
             + " but was " + newIndexMetadata.getIndex();
+
+        if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
+            return false;
+        }
 
         final DocumentMapper updatedMapper;
         try {
@@ -232,34 +236,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             final IndexMetadata newIndexMetadata,
             final DocumentMapper updatedMapper) {
         if (Assertions.ENABLED && currentIndexMetadata != null) {
-            if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-                // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
-                assert updatedMapper == mapper;
-
-                MappingMetadata mapping = newIndexMetadata.mapping();
-                if (mapping != null) {
-                    final CompressedXContent currentSource = currentIndexMetadata.mapping().source();
-                    final CompressedXContent newSource = mapping.source();
-                    assert currentSource.equals(newSource) :
-                            "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
-                                    + "to be the same as new mapping [" + newSource + "]";
-                }
-
-            } else {
-                // if the mapping version is changed, it should increase, there should be updates, and the mapping should be different
-                final long currentMappingVersion = currentIndexMetadata.getMappingVersion();
-                final long newMappingVersion = newIndexMetadata.getMappingVersion();
-                assert currentMappingVersion < newMappingVersion :
-                        "expected current mapping version [" + currentMappingVersion + "] "
-                                + "to be less than new mapping version [" + newMappingVersion + "]";
-                assert updatedMapper != null;
-                final MappingMetadata currentMapping = currentIndexMetadata.mapping();
-                if (currentMapping != null) {
-                    final CompressedXContent currentSource = currentMapping.source();
-                    final CompressedXContent newSource = updatedMapper.mappingSource();
-                    assert currentSource.equals(newSource) == false :
-                        "expected current mapping [" + currentSource + "] to be different than new mapping";
-                }
+            // the mapping version should have changed, it should increase, there should be updates, and the mapping should be different
+            final long currentMappingVersion = currentIndexMetadata.getMappingVersion();
+            final long newMappingVersion = newIndexMetadata.getMappingVersion();
+            assert currentMappingVersion < newMappingVersion :
+                    "expected current mapping version [" + currentMappingVersion + "] "
+                            + "to be less than new mapping version [" + newMappingVersion + "]";
+            assert updatedMapper != null;
+            final MappingMetadata currentMapping = currentIndexMetadata.mapping();
+            if (currentMapping != null) {
+                final CompressedXContent currentSource = currentMapping.source();
+                final CompressedXContent newSource = updatedMapper.mappingSource();
+                assert currentSource.equals(newSource) == false :
+                    "expected current mapping [" + currentSource + "] to be different than new mapping";
             }
         }
     }

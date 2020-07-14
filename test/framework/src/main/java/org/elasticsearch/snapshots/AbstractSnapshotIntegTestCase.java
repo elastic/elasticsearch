@@ -53,7 +53,6 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
 import java.io.IOException;
@@ -325,8 +324,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> writing downgraded RepositoryData for repository metadata version [{}]", version);
         final RepositoryData repositoryData = getRepositoryData(repoName);
         final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
-        final boolean writeShardGens = version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
-        repositoryData.snapshotsToXContent(jsonBuilder, writeShardGens);
+        repositoryData.snapshotsToXContent(jsonBuilder, version);
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -334,7 +332,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 repositoryData.getGenId(), randomBoolean());
         Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
                 BytesReference.toBytes(BytesReference.bytes(
-                        downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), writeShardGens))),
+                        downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         return oldVersionSnapshot;
     }

@@ -118,6 +118,7 @@ import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglin
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
+import org.elasticsearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
@@ -310,6 +311,7 @@ import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestDataStreamsStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteDataStreamAction;
@@ -630,6 +632,7 @@ public class ActionModule extends AbstractModule {
             actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
             actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
             actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
+            actions.register(DataStreamsStatsAction.INSTANCE, DataStreamsStatsAction.TransportAction.class);
         }
 
         // Persistent tasks:
@@ -795,6 +798,7 @@ public class ActionModule extends AbstractModule {
             registerHandler.accept(new RestDeleteDataStreamAction());
             registerHandler.accept(new RestGetDataStreamsAction());
             registerHandler.accept(new RestResolveIndexAction());
+            registerHandler.accept(new RestDataStreamsStatsAction());
         }
 
         // CAT API

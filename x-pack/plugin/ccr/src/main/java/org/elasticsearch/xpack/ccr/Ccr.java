@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,6 +37,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrReposito
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
+import org.elasticsearch.xpack.ccr.allocation.CcrPrimaryFollowerAllocationDecider;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 import org.elasticsearch.xpack.ccr.repository.CcrRestoreSourceService;
@@ -125,7 +128,7 @@ import static org.elasticsearch.xpack.core.XPackSettings.CCR_ENABLED_SETTING;
 /**
  * Container class for CCR functionality.
  */
-public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin {
+public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, EnginePlugin, RepositoryPlugin, ClusterPlugin {
 
     public static final String CCR_THREAD_POOL_NAME = "ccr";
     public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
@@ -369,5 +372,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     @Override
     public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
         return Collections.singletonList(CcrRequests.CCR_INDICES_ALIASES_REQUEST_VALIDATOR);
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return List.of(new CcrPrimaryFollowerAllocationDecider());
     }
 }

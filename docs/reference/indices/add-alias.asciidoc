@@ -37,6 +37,8 @@ to add to the alias.
 +
 To add all indices in the cluster to the alias,
 use a value of `_all`.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `<alias>`::
 (Required, string)

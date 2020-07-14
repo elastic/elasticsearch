@@ -124,15 +124,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             super(NAME, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        protected SeqNoFieldType(SeqNoFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new SeqNoFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

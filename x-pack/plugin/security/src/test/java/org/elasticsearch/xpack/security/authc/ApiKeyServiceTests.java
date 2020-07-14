@@ -800,19 +800,19 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testApiKeyDocDeserialization() throws IOException {
         final String apiKeyDocumentSource =
-            "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":null,\"api_key_invalidated\":false," +
+            "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":1591919944599,\"api_key_invalidated\":false," +
                 "\"api_key_hash\":\"{PBKDF2}10000$abc\",\"role_descriptors\":{\"a\":{\"cluster\":[\"all\"]}}," +
                 "\"limited_by_role_descriptors\":{\"limited_by\":{\"cluster\":[\"all\"]," +
                 "\"metadata\":{\"_reserved\":true},\"type\":\"role\"}}," +
                 "\"name\":\"key-1\",\"version\":7000099," +
-                "\"creator\":{\"principal\":\"admin\",\"metadata\":{\"foo\":\"bar\"},\"realm\":\"file1\",\"realm_type\":\"file\"}}\n";
+                "\"creator\":{\"principal\":\"admin\",\"metadata\":{\"foo\":\"bar\"},\"realm\":\"file1\",\"realm_type\":\"file\"}}";
         final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(XContentHelper.createParser(NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
             new BytesArray(apiKeyDocumentSource),
             XContentType.JSON));
         assertEquals("api_key", apiKeyDoc.docType);
         assertEquals(1591919944598L, apiKeyDoc.creationTime);
-        assertEquals(-1L, apiKeyDoc.expirationTime);
+        assertEquals(1591919944599L, apiKeyDoc.expirationTime);
         assertFalse(apiKeyDoc.invalidated);
         assertEquals("{PBKDF2}10000$abc", apiKeyDoc.hash);
         assertEquals("key-1", apiKeyDoc.name);
@@ -828,7 +828,24 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals("bar", ((Map<String, Object>)creator.get("metadata")).get("foo"));
     }
 
+    public void testApiKeyDocDeserializationWithNullValues() throws IOException {
+        final String apiKeyDocumentSource =
+            "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":null,\"api_key_invalidated\":false," +
+                "\"api_key_hash\":\"{PBKDF2}10000$abc\",\"role_descriptors\":{}," +
+                "\"limited_by_role_descriptors\":{\"limited_by\":{\"cluster\":[\"all\"]}}," +
+                "\"name\":null,\"version\":7000099," +
+                "\"creator\":{\"principal\":\"admin\",\"metadata\":{},\"realm\":\"file1\"}}";
+        final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE,
+            new BytesArray(apiKeyDocumentSource),
+            XContentType.JSON));
+        assertEquals(-1L, apiKeyDoc.expirationTime);
+        assertNull(apiKeyDoc.name);
+        assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
+    }
+
     public static class Utils {
+
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
 
         public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,
@@ -846,24 +863,27 @@ public class ApiKeyServiceTests extends ESTestCase {
                             new SecureString("pass".toCharArray())),
                     Clock.systemUTC(), authenticationResultFuture);
 
-            final TestThreadPool threadPool = new TestThreadPool("utils");
-            try {
-                final ThreadContext threadContext = threadPool.getThreadContext();
-                final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-                authenticationContextSerializer.writeToContext(
-                    apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01"), threadContext);
-                final CompletableFuture<Authentication> authFuture = new CompletableFuture<>();
-                securityContext.executeAfterRewritingAuthentication((c) -> {
-                    try {
-                        authFuture.complete(authenticationContextSerializer.readFromContext(threadContext));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }, version);
-                return authFuture.get();
-            } finally {
-                terminate(threadPool);
+            AuthenticationResult authenticationResult = authenticationResultFuture.get();
+            if (randomBoolean()) {
+                // maybe remove realm name to simulate old API Key authentication
+                Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
+                authenticationResultMetadata.remove(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+                authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
             }
+
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+            authenticationContextSerializer.writeToContext(
+                    apiKeyService.createApiKeyAuthentication(authenticationResult, "node01"), threadContext);
+            final CompletableFuture<Authentication> authFuture = new CompletableFuture<>();
+            securityContext.executeAfterRewritingAuthentication((c) -> {
+                try {
+                    authFuture.complete(authenticationContextSerializer.readFromContext(threadContext));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }, version);
+            return authFuture.get();
         }
 
         public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,

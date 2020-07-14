@@ -34,7 +34,7 @@ project {
         name = "Stages"
 
         buildType {
-            id("Passed Intake")
+            id("Passed_Intake")
             name = "Passed Intake"
             type = BuildTypeSettings.Type.COMPOSITE
 

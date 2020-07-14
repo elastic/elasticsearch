@@ -866,8 +866,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             AuthenticationResult authenticationResult = authenticationResultFuture.get();
             if (randomBoolean()) {
                 // maybe remove realm name to simulate old API Key authentication
+                assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
                 Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
                 authenticationResultMetadata.remove(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+                authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
+            }
+            if (randomBoolean()) {
+                // simulate authentication with nameless API Key, see https://github.com/elastic/elasticsearch/issues/59484
+                assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
+                Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
+                authenticationResultMetadata.remove(ApiKeyService.API_KEY_NAME_KEY);
                 authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
             }
 

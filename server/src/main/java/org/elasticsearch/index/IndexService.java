@@ -603,9 +603,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
-            shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
+            shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField,
+            mapperService().forSearch(runtimeMappings),
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, runtimeMappings);
+            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry);
     }
 
     /**

@@ -70,7 +70,6 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -103,7 +102,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Function<String, MappedFieldType> lookupFieldType;
 
     public QueryShardContext(int shardId,
                              IndexSettings indexSettings,
@@ -121,20 +119,18 @@ public class QueryShardContext extends QueryRewriteContext {
                              String clusterAlias,
                              Predicate<String> indexNameMatcher,
                              BooleanSupplier allowExpensiveQueries,
-                             ValuesSourceRegistry valuesSourceRegistry,
-                             Map<String, Object> runtimeMappings) {
+                             ValuesSourceRegistry valuesSourceRegistry) {
         this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
             scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, indexNameMatcher,
             new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-                indexSettings.getIndex().getUUID()), allowExpensiveQueries, valuesSourceRegistry,
-            mapperService.newFieldTypeLookup(runtimeMappings));
+                indexSettings.getIndex().getUUID()), allowExpensiveQueries, valuesSourceRegistry);
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
             source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
             source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry, source.lookupFieldType);
+            source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry);
     }
 
     private QueryShardContext(int shardId,
@@ -153,8 +149,7 @@ public class QueryShardContext extends QueryRewriteContext {
                               Predicate<String> indexNameMatcher,
                               Index fullyQualifiedIndex,
                               BooleanSupplier allowExpensiveQueries,
-                              ValuesSourceRegistry valuesSourceRegistry,
-                              Function<String, MappedFieldType> lookupFieldType) {
+                              ValuesSourceRegistry valuesSourceRegistry) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -171,7 +166,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
-        this.lookupFieldType = lookupFieldType;
     }
 
     private void reset() {
@@ -247,7 +241,7 @@ public class QueryShardContext extends QueryRewriteContext {
         if (name.equals(TypeFieldMapper.NAME)) {
             deprecationLogger.deprecate("query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
-        return failIfFieldMappingNotFound(name, lookupFieldType.apply(name));
+        return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 
     public ObjectMapper getObjectMapper(String name) {

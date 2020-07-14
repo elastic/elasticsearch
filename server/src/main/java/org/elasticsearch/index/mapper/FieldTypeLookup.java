@@ -35,8 +35,8 @@ import java.util.Set;
  */
 class FieldTypeLookup implements Iterable<MappedFieldType> {
 
-    private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-    private final Map<String, String> aliasToConcreteName = new HashMap<>();
+    private final Map<String, MappedFieldType> fullNameToFieldType;
+    private final Map<String, String> aliasToConcreteName;
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
     FieldTypeLookup() {
@@ -48,6 +48,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
+        fullNameToFieldType = new HashMap<>(fieldMappers.size());
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -57,6 +58,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
+        aliasToConcreteName = new HashMap<>(fieldAliasMappers.size());
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
@@ -64,6 +66,16 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
+    }
+
+    private FieldTypeLookup(
+        Map<String, MappedFieldType> fullNameToFieldType,
+        Map<String, String> aliasToConcreteName,
+        DynamicKeyFieldTypeLookup dynamicKeyLookup
+    ) {
+        this.fullNameToFieldType = fullNameToFieldType;
+        this.aliasToConcreteName = aliasToConcreteName;
+        this.dynamicKeyLookup = dynamicKeyLookup;
     }
 
     /**
@@ -104,5 +116,28 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
         Iterator<MappedFieldType> concreteFieldTypes = fullNameToFieldType.values().iterator();
         Iterator<MappedFieldType> keyedFieldTypes = dynamicKeyLookup.fieldTypes();
         return Iterators.concat(concreteFieldTypes, keyedFieldTypes);
+    }
+
+    /**
+     * Returns a copy of this lookup with runtime mappings merged into it.
+     */
+    public FieldTypeLookup withRuntimeMappings(Collection<FieldMapper> runtimeMappings) {
+        Map<String, MappedFieldType> mappers = new HashMap<>(fullNameToFieldType.size() + runtimeMappings.size());
+        mappers.putAll(fullNameToFieldType);
+        for (FieldMapper fm : runtimeMappings) {
+            if (false == fm.isRuntimeField()) {
+                throw new IllegalArgumentException(
+                    "[" + fm.typeName() + "] are not supported in runtime mappings"
+                );
+            }
+            MappedFieldType fromIndexMapping = fullNameToFieldType.get(fm.name());
+            if (fromIndexMapping != null) {
+                throw new IllegalArgumentException(
+                    "[" + fm.name() + "] can't be defined in the search's runtime mappings and the index's mappings"
+                );
+            }
+            mappers.put(fm.name(), fm.fieldType());
+        }
+        return new FieldTypeLookup(mappers, aliasToConcreteName, dynamicKeyLookup);
     }
 }

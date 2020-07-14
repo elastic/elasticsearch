@@ -150,6 +150,38 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.idFieldDataEnabled = idFieldDataEnabled;
     }
 
+    private MapperService(
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        DocumentMapper mapper,
+        FieldTypeLookup fieldTypes,
+        Map<String, ObjectMapper> fullPathObjectMappers,
+        boolean hasNested,
+        DocumentMapperParser documentParser,
+        Version indexVersionCreated,
+        MapperAnalyzerWrapper indexAnalyzer,
+        MapperAnalyzerWrapper searchAnalyzer,
+        MapperAnalyzerWrapper searchQuoteAnalyzer,
+        Map<String, MappedFieldType> unmappedFieldTypes,
+        MapperRegistry mapperRegistry,
+        BooleanSupplier idFieldDataEnabled
+    ) {
+        super(indexSettings);
+        this.indexAnalyzers = indexAnalyzers;
+        this.mapper = mapper;
+        this.fieldTypes = fieldTypes;
+        this.fullPathObjectMappers = fullPathObjectMappers;
+        this.hasNested = hasNested;
+        this.documentParser = documentParser;
+        this.indexVersionCreated = indexVersionCreated;
+        this.indexAnalyzer = indexAnalyzer;
+        this.searchAnalyzer = searchAnalyzer;
+        this.searchQuoteAnalyzer = searchQuoteAnalyzer;
+        this.unmappedFieldTypes = unmappedFieldTypes;
+        this.mapperRegistry = mapperRegistry;
+        this.idFieldDataEnabled = idFieldDataEnabled;
+    }
+
     public boolean hasNested() {
         return this.hasNested;
     }
@@ -624,9 +656,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * @param runtimeMappings extra mappings parse and to add to the request
      *        lookup or {@code null} if there aren't any extra mappings  
      */
-    public Function<String, MappedFieldType> newFieldTypeLookup(Map<String, Object> runtimeMappings) {
+    public MapperService forSearch(Map<String, Object> runtimeMappings) {
         if (runtimeMappings == null || runtimeMappings.size() == 0) {
-            return this::fieldType;
+            return this;
         }
         Mapper.BuilderContext builderContext = new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(0));
         Collection<ObjectMapper> objectMappers = new ArrayList<>();
@@ -645,36 +677,30 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
             Mapper.Builder<?> builder = parser.parse(runtimeEntry.getKey(), definition, documentMapperParser().parserContext());
             Mapper mapper = builder.build(builderContext);
-            
+
+            // MapperUtils.collect will find the mappers declared in objectss
             MapperUtils.collect(mapper, objectMappers, fieldMappers, fieldAliasMappers);
 
-        }
-        // We don't do anything with the collected ObjectMappers
-        Map<String, MappedFieldType> extra = new HashMap<>();
-        for (FieldMapper fm : fieldMappers) {
-            if (false == fm.isRuntimeField()) {
-                throw new IllegalArgumentException(
-                    "[" + fm.typeName() + "] are not supported in runtime mappings"
-                );
-            }
-            MappedFieldType fromIndexMapping = fieldType(fm.name());
-            if (fromIndexMapping != null) {
-                throw new IllegalArgumentException(
-                    "[" + fm.name() + "] can't be defined in the search's runtime mappings and the index's mappings"
-                );
-            }
-            extra.put(fm.name(), fm.fieldType());
         }
         if (false == fieldAliasMappers.isEmpty()) {
             throw new IllegalArgumentException("aliases are not supported in runtime mappings");
         }
-        return fullName -> {
-            MappedFieldType searchTime = extra.get(fullName);
-            if (searchTime != null) {
-                return searchTime;
-            }
-            return fieldType(fullName);
-        };
+        return new MapperService(
+            indexSettings,
+            indexAnalyzers,
+            mapper,
+            fieldTypes.withRuntimeMappings(fieldMappers),
+            fullPathObjectMappers,
+            hasNested,
+            documentParser,
+            indexVersionCreated,
+            indexAnalyzer,
+            searchAnalyzer,
+            searchQuoteAnalyzer,
+            unmappedFieldTypes,
+            mapperRegistry,
+            idFieldDataEnabled
+        );
     }
 
     /**

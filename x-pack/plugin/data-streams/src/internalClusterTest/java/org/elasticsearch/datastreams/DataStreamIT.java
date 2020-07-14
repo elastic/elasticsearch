@@ -974,7 +974,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName)
+                new ComposableIndexTemplate.DataStreamTemplate()
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();

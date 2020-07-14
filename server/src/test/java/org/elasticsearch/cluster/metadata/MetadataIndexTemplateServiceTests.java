@@ -840,7 +840,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                         "      }\n" +
                         "    }\n" +
                         "  }"), null),
-                List.of("ct1"), 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+                List.of("ct1"), 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "logs-data-stream-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-data-stream-template",
@@ -947,7 +947,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             state = service.addComponentTemplate(state, true, "ct1", ct1);
             ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs*"), null, List.of("ct1"), 0L, 1L, null,
-                new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+                new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "logs-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-template",
@@ -982,7 +982,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "      }\n" +
                 "    }"), null);
             ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("timeseries*"), template, null, 0L, 1L, null,
-                new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+                new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template",

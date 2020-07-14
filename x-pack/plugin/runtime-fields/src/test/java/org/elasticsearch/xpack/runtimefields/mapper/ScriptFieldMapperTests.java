@@ -66,6 +66,27 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("Failed to parse mapping: script must be specified for script field [my_field]", exception.getMessage());
     }
 
+    public void testStoredScriptsAreNotSupported() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("my_field")
+            .field("type", "script")
+            .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
+            .startObject("script")
+            .field("id", "test")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
+        assertEquals("Failed to parse mapping: stored scripts specified but not supported when defining script field [my_field]",
+            exception.getMessage());
+    }
+
+
     @AwaitsFix(bugUrl = "Nik: help! :)")
     public void testDefaultMapping() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()

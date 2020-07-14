@@ -14,14 +14,12 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -134,52 +132,12 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        @SuppressWarnings("unchecked")
         static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
-            if (scriptObject instanceof Map) {
-                Map<String, ?> scriptMap = (Map<String, ?>) scriptObject;
-                Object sourceObject = scriptMap.remove("source");
-                if (sourceObject == null) {
-                    throw new IllegalArgumentException("script source must be specified for script field [" + name + "]");
-                }
-                Object langObject = scriptMap.remove("lang");
-                if (langObject != null && langObject.toString().equals(PainlessScriptEngine.NAME) == false) {
-                    throw new IllegalArgumentException(
-                        "script lang [" + langObject.toString() + "] not supported for script field [" + name + "]"
-                    );
-                }
-                Map<String, Object> params;
-                Object paramsObject = scriptMap.remove("params");
-                if (paramsObject != null) {
-                    if (paramsObject instanceof Map == false) {
-                        throw new IllegalArgumentException("unable to parse params for script field [" + name + "]");
-                    }
-                    params = (Map<String, Object>) paramsObject;
-                } else {
-                    params = Collections.emptyMap();
-                }
-                Map<String, String> options;
-                Object optionsObject = scriptMap.remove("options");
-                if (optionsObject != null) {
-                    if (optionsObject instanceof Map == false) {
-                        throw new IllegalArgumentException("unable to parse options for script field [" + name + "]");
-                    }
-                    options = (Map<String, String>) optionsObject;
-                } else {
-                    options = Collections.emptyMap();
-                }
-                if (scriptMap.size() > 0) {
-                    throw new IllegalArgumentException(
-                        "unsupported parameters specified for script field [" + name + "]: " + scriptMap.keySet()
-                    );
-                }
-                return new Script(ScriptType.INLINE, PainlessScriptEngine.NAME, sourceObject.toString(), options, params);
-            } else if (scriptObject instanceof String) {
-                return new Script((String) scriptObject);
-            } else {
-                throw new IllegalArgumentException("unable to parse script for script field [" + name + "]");
-
+            Script script = Script.parse(scriptObject);
+            if (script.getType() == ScriptType.STORED) {
+                throw new IllegalArgumentException("stored scripts specified but not supported when defining script field [" + name + "]");
             }
+            return script;
         }
     }
 

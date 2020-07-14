@@ -103,15 +103,6 @@ public class RankFeatureFieldMapper extends FieldMapper {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected RankFeatureFieldType(RankFeatureFieldType ref) {
-            super(ref);
-            this.positiveScoreImpact = ref.positiveScoreImpact;
-        }
-
-        public RankFeatureFieldType clone() {
-            return new RankFeatureFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

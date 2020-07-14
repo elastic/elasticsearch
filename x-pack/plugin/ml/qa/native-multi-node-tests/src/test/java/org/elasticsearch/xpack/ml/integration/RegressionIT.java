@@ -60,6 +60,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59413")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -484,7 +485,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "    }";
         if (dataStream) {
             try {
-                createDataStreamAndTemplate(sourceIndex, "@timestamp", mapping);
+                createDataStreamAndTemplate(sourceIndex, mapping);
             } catch (IOException ex) {
                 throw new ElasticsearchException(ex);
             }
@@ -537,5 +538,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     protected String stateDocId() {
         return jobId + "_regression_state#1";
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

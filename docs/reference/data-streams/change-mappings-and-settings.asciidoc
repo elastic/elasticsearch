@@ -1,3 +1,4 @@
+[role="xpack"]
 [[data-streams-change-mappings-and-settings]]
 == Change mappings and settings for a data stream
 
@@ -51,9 +52,7 @@ PUT /_ilm/policy/logs_policy
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {
@@ -68,9 +67,7 @@ PUT /_index_template/logs_data_stream
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {
@@ -123,9 +120,7 @@ for a new field, `message`, to the template.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {
@@ -192,9 +187,7 @@ mapping parameter to `true`.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {
@@ -278,9 +271,7 @@ template's `index.refresh_interval` index setting to `30s` (30 seconds).
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {
@@ -344,9 +335,7 @@ The following <<indices-templates,put index template API>> requests adds new
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {
@@ -459,9 +448,7 @@ uses the `logs_data_stream` template as its basis, with the following changes:
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "mappings": {
       "properties": {

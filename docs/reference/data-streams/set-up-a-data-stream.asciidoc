@@ -1,3 +1,4 @@
+[role="xpack"]
 [[set-up-a-data-stream]]
 == Set up a data stream
 
@@ -95,7 +96,7 @@ PUT /_ilm/policy/logs_policy
 Each data stream requires an <<indices-templates,index template>>. The data
 stream uses this template to create its backing indices.
 
-Index templates for data streams must contain:
+An index template for a data stream must contain:
 
 * A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
 property.
@@ -130,20 +131,24 @@ this pattern.
 ----
 ====
 
-* A `data_stream` definition containing `@timestamp` in the `timestamp_field`
-property. The `@timestamp` field must be included in every document indexed to
-the data stream.
+* A `data_stream` object with an empty body (`{ }`).
 
-* A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the
-`@timestamp` field.
+The template can also contain:
+
+* An optional field mapping for the `@timestamp` field. Both the <<date,`date`>> and
+<<date_nanos,`date_nanos`>> field data types are supported. If no mapping is specified,
+a <<date,`date`>> field data type with default options is used.
++
+This mapping can include other <<mapping-params,mapping parameters>>, such as
+<<mapping-date-format,`format`>>.
 +
 IMPORTANT: Carefully consider the `@timestamp` field's mapping, including
-<<mapping-params,mapping parameters>> such as <<mapping-date-format,`format`>>.
+its <<mapping-params,mapping parameters>>.
 Once the stream is created, you can only update the `@timestamp` field's mapping
 by reindexing the data stream. See
 <<data-streams-use-reindex-to-change-mappings-settings>>.
 
-* If you intend to use {ilm-init}, you must specify the
+* If you intend to use {ilm-init}, the
   <<configure-a-data-stream-ilm-policy,lifecycle policy>> in the
   `index.lifecycle.name` setting.
 
@@ -166,17 +171,8 @@ configures the `logs_data_stream` template.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "index.lifecycle.name": "logs_policy"
     }

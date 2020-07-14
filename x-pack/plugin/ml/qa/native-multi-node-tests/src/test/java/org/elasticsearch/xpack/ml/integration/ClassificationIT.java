@@ -727,7 +727,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "    }";
         if (isDatastream) {
             try {
-                createDataStreamAndTemplate(index, "@timestamp", mapping);
+                createDataStreamAndTemplate(index, mapping);
             } catch (IOException ex) {
                 throw new ElasticsearchException(ex);
             }
@@ -889,5 +889,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private String expectedDestIndexAuditMessage() {
         return (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]";
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

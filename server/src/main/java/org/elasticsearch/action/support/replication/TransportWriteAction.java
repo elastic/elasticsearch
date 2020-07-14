@@ -94,7 +94,9 @@ public abstract class TransportWriteAction<
                 return () -> {};
             }
         } else {
-            // If this primary request was received directly from the network, we must mark a new primary operation.
+            // If this primary request was received directly from the network, we must mark a new primary
+            // operation. This happens if the write action skips the reroute step (ex: rsync) or during
+            // primary delegation, after the primary relocation hand-off.
             return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
         }
     }

@@ -182,10 +182,10 @@ public abstract class TransportReplicationAction<
         runReroutePhase(task, request, listener, true);
     }
 
-    private void runReroutePhase(Task task, Request request, ActionListener<Response> listener, boolean executedByClient) {
+    private void runReroutePhase(Task task, Request request, ActionListener<Response> listener, boolean initiatedByNodeClient) {
         try {
-            new ReroutePhase((ReplicationTask) task, request, listener, executedByClient).run();
-        } catch (Exception e) {
+            new ReroutePhase((ReplicationTask) task, request, listener, initiatedByNodeClient).run();
+        } catch (RuntimeException e) {
             listener.onFailure(e);
         }
     }
@@ -667,7 +667,7 @@ public abstract class TransportReplicationAction<
     final class ReroutePhase extends AbstractRunnable {
         private final ActionListener<Response> listener;
         private final Request request;
-        private final boolean executedByClient;
+        private final boolean initiatedByNodeClient;
         private final ReplicationTask task;
         private final ClusterStateObserver observer;
         private final AtomicBoolean finished = new AtomicBoolean();
@@ -676,9 +676,9 @@ public abstract class TransportReplicationAction<
             this(task, request, listener, false);
         }
 
-        ReroutePhase(ReplicationTask task, Request request, ActionListener<Response> listener, boolean executedByClient) {
+        ReroutePhase(ReplicationTask task, Request request, ActionListener<Response> listener, boolean initiatedByNodeClient) {
             this.request = request;
-            this.executedByClient = executedByClient;
+            this.initiatedByNodeClient = initiatedByNodeClient;
             if (task != null) {
                 this.request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
@@ -765,7 +765,7 @@ public abstract class TransportReplicationAction<
             }
             performAction(node, transportPrimaryAction, true,
                 new ConcreteShardRequest<>(request, primary.allocationId().getId(), indexMetadata.primaryTerm(primary.id()), true,
-                    executedByClient));
+                    initiatedByNodeClient));
         }
 
         private void performRemoteAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
@@ -1119,6 +1119,8 @@ public abstract class TransportReplicationAction<
         private final R request;
         // Indicates if this primary shard request originated by a reroute on this local node.
         private final boolean sentFromLocalReroute;
+        // Indicates if this local reroute was initiated by the NodeClient executing a transport action. This
+        // is only true if sentFromLocalReroute is true.
         private final boolean localRerouteInitiatedByNodeClient;
 
         public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
@@ -1174,6 +1176,7 @@ public abstract class TransportReplicationAction<
             // the local transport. It should never be serialized to be sent over the wire. If it is sent over
             // the wire, then it was NOT sent from a local reroute.
             assert sentFromLocalReroute == false;
+            assert localRerouteInitiatedByNodeClient == false;
             out.writeString(targetAllocationID);
             out.writeVLong(primaryTerm);
             request.writeTo(out);

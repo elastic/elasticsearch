@@ -1,3 +1,4 @@
+[role="xpack"]
 [[indices-create-data-stream]]
 === Create data stream API
 ++++
@@ -24,9 +25,7 @@ PUT /_index_template/template
       }
     }
   },
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": {}
 }
 ----
 ////

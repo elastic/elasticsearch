@@ -40,12 +40,6 @@ abstract class AbstractStringScriptFieldQuery extends Query {
      */
     public abstract boolean matches(List<String> values);
 
-    /**
-     * Builds the portion of {@link #toString()} that comes from the core of the query.
-     * See {@link Query#toString(String)} for how queries handle {@link #fieldName}.
-     */
-    public abstract String bareToString();
-
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, boost) {
@@ -77,14 +71,6 @@ abstract class AbstractStringScriptFieldQuery extends Query {
 
     protected final String fieldName() {
         return fieldName;
-    }
-
-    @Override
-    public final String toString(String field) {
-        if (fieldName.contentEquals(field)) {
-            return bareToString();
-        }
-        return fieldName + ":" + bareToString();
     }
 
     @Override

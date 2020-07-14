@@ -21,8 +21,11 @@ public class StringScriptFieldExistsQuery extends AbstractStringScriptFieldQuery
     }
 
     @Override
-    public String bareToString() {
-        return "*";
+    public final String toString(String field) {
+        if (fieldName().contentEquals(field)) {
+            return "*";
+        }
+        return fieldName() + ":*";
     }
 
     // Superclass's equals and hashCode are great for this class

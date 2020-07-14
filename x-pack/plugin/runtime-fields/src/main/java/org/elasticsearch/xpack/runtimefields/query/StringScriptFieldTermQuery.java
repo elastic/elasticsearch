@@ -37,8 +37,11 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
     }
 
     @Override
-    public String bareToString() {
-        return term;
+    public final String toString(String field) {
+        if (fieldName().contentEquals(field)) {
+            return term;
+        }
+        return fieldName() + ":" + term;
     }
 
     @Override
@@ -53,5 +56,9 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
         }
         StringScriptFieldTermQuery other = (StringScriptFieldTermQuery) obj;
         return other.term.equals(other.term);
+    }
+
+    String term() {
+        return term;
     }
 }

@@ -287,9 +287,10 @@ public final class IndicesPermission {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(() -> {
                                         deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" +
-                                                privilegeName + "]", "the mapping update action [" + action + "] on the [" +
-                                                indexOrAlias + "] index, is granted by the [" + privilegeName + "] privilege," +
-                                                " but the privilege has been tightened to not allow it in the next major release");
+                                                privilegeName + "]", "the index privilege [" + privilegeName + "] allowed the update " +
+                                                "mapping action [" + action + "] on index [" + indexOrAlias + "], this privilege " +
+                                                "will not permit mapping updates in the next major release - users who require access " +
+                                                "to update mappings must be granted explicit privileges");
                                     });
                                 }
                             }

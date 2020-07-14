@@ -9,6 +9,8 @@ Retrieves a detailed description of the current state for each shard participati
 ////
 [source,console]
 ----
+PUT /index_1
+
 PUT /_snapshot/my_repository
 {
   "type": "fs",
@@ -19,7 +21,16 @@ PUT /_snapshot/my_repository
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 
-PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
+{
+  "indices": [],
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "Elastic Machine",
+    "taken_because": "backup testing"
+  }
+}
 ----
 // TESTSETUP
 ////
@@ -41,6 +52,10 @@ Use the get snapshot status API to retrieve detailed information about snapshots
 
 If you specify both the repository name and snapshot, the request retrieves detailed status information for the given snapshot, even if not currently running.
 
+WARNING: Using this API to return any status results other than the currently running snapshots (`_current`) can be very expensive. Each request to retrieve snapshot status results in file reads from every shard in a snapshot, for each snapshot.
++
+For example, if you have 100 snapshots with 1,000 shards each, the API request will result in 100,000 file reads (100 snapshots * 1,000 shards). Depending on the latency of your file storage, the request can take extremely long to retrieve results.
+
 [[get-snapshot-status-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -48,7 +63,7 @@ If you specify both the repository name and snapshot, the request retrieves deta
 (Required, string)
 Snapshot repository name used to limit the request. Wildcard (`*`) expressions are supported.
 +
-To retrieve a list of all snapshots in the cluster, omit this and the `<snapshot>` parameter.
+Use `_current` after the repository name to limit the request only to the currently running snapshots. This usage is preferred to return only snapshots that are currently running and not degrade response time.
 
 `<snapshot>`::
 (Required, string)
@@ -155,23 +170,30 @@ Provides details on the number (`file_count`) and size (`size_in_bytes`) of file
 ====
 `incremental`::
 (object)
-Number and size of files that are not already in the repository and need to be copied as part of the incremental snapshot.
+Number and size of files that still need to be copied as part of the incremental snapshot.
++
+For completed snapshots, this property indicates the number and size
+of files that were not already in the repository and were copied as
+part of the incremental snapshot.
 
 `processed`::
 (object)
-Number and size of files that are still being copied.
+Number and size of files that have already been uploaded to the snapshot. After a file is uploaded, the processed `file_count` and `size_in_bytes` are incremented in `stats`.
 
 `total`::
 (object)
 Total number and size of files that are referenced by the snapshot.
 
+[[get-snapshot-status-start-time]]
 `start_time_in_millis`::
 (long)
 The time, in milliseconds, when the snapshot creation process started.
 
+[[get-snapshot-status-total-time]]
 `time_in_millis`::
 (long)
-The total time, in milliseconds, that
+The total time, in milliseconds, that it took for the snapshot process
+to complete.
 ====
 
 `indices`::
@@ -183,9 +205,11 @@ indices included in the snapshot.
 [%collapsible%open]
 ====
 `shards_stats`::
+(object)
 See <<get-snapshot-status-shards-stats,`shards_stats`>>.
 
 `stats`::
+(object)
 See <<get-snapshot-status-stats,`stats`>>.
 
 `shards`::
@@ -204,20 +228,39 @@ Indicates the current state of the shards that include the snapshot.
 [%collapsible%open]
 ======
 `DONE`::
-Number of shards containing a completed copy of the snapshot.
+Number of shards in the snapshot that were successfully stored in the repository.
 
 `FAILURE`::
-Number of shards containing a failed copy of the snapshot.
+Number of shards in the snapshot that were not successfully stored in
+the repository.
 
 `FINALIZE`::
-Number of shards containing a copy of the snapshot in the finalizing stage.
+Number of shards in the snapshot that are in the finalizing stage
+of being stored in the repository.
 
 `INIT`::
-Number of shards containing a copy of the snapshot in the initializing stage.
+Number of shards in the snapshot that are in the initializing stage
+of being stored in the repository.
 
 `STARTED`::
-Number of shards containing a copy of the snapshot in the started stage.
+Number of shards in the snapshot that are in the started stage
+of being stored in the repository.
 ======
+`stats`::
+(object)
+See <<get-snapshot-status-stats,`stats`>>.
+
+`total`::
+(object)
+Total number and size of files that are referenced by the snapshot.
+
+`start_time_in_millis`::
+(long)
+See <<get-snapshot-status-start-time,`start_time_in_millis`>>.
+
+`time_in_millis`::
+(long)
+See <<get-snapshot-status-total-time,`time_in_millis`>>.
 =====
 ====
 
@@ -242,32 +285,91 @@ The API returns the following response:
       "repository" : "my_repository",
       "uuid" : "ITWHQY2fR2OqX-TYt6mUNA",
       "state" : "SUCCESS",
-      "include_global_state" : true,
+      "include_global_state" : false,
       "shards_stats" : {
         "initializing" : 0,
         "started" : 0,
         "finalizing" : 0,
-        "done" : 0,
+        "done" : 10,
         "failed" : 0,
-        "total" : 0
+        "total" : 10
       },
       "stats" : {
         "incremental" : {
-          "file_count" : 0,
-          "size_in_bytes" : 0
+          "file_count" : 72,
+          "size_in_bytes" : 11013810
         },
         "total" : {
-          "file_count" : 0,
-          "size_in_bytes" : 0
+          "file_count" : 76,
+          "size_in_bytes" : 11014642
         },
         "start_time_in_millis" : 1594158151205,
-        "time_in_millis" : 0
+        "time_in_millis" : 1011
       },
-      "indices" : { }
+      "indices" : {
+        "index_1" : {
+            "shards_stats" : {
+              "initializing" : 0,
+              "started" : 0,
+              "finalizing" : 0,
+              "done" : 1,
+              "failed" : 0,
+              "total" : 1
+            },
+            "stats" : {
+              "incremental" : {
+                "file_count" : 4,
+                "size_in_bytes" : 5587
+              },
+              "total" : {
+                "file_count" : 4,
+                "size_in_bytes" : 5587
+              },
+              "start_time_in_millis" : 1594754139076,
+              "time_in_millis" : 0
+            },
+            "shards" : {
+              "0" : {
+                "stage" : "DONE",
+                "stats" : {
+                  "incremental" : {
+                    "file_count" : 4,
+                    "size_in_bytes" : 5587
+                  },
+                  "total" : {
+                    "file_count" : 4,
+                    "size_in_bytes" : 5587
+                  },
+                  "start_time_in_millis" : 1594754139076,
+                  "time_in_millis" : 0
+                }
+              }
+            }
+          }
+       }
     }
   ]
 }
+
 ----
 // TESTRESPONSE[s/"uuid" : "ITWHQY2fR2OqX-TYt6mUNA"/"uuid" : $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"done" : 10/"done" : $body.snapshots.0.shards_stats.done/]
+// TESTRESPONSE[s/"total" : 10/"total" : $body.snapshots.0.shards_stats.total/]
+// TESTRESPONSE[s/"size_in_bytes" : 11013810/"size_in_bytes" : $body.snapshots.0.stats.incremental.size_in_bytes/]
+// TESTRESPONSE[s/"size_in_bytes" : 11014642/"size_in_bytes" : $body.snapshots.0.stats.total.size_in_bytes/]
+// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.stats.total.size_in_bytes/]
+// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.stats.incremental.size_in_bytes/]
+// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.shards.0.stats.incremental.size_in_bytes/]
+// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.shards.0.stats.total.size_in_bytes/]
+// TESTRESPONSE[s/"file_count" : 72/"file_count" : $body.snapshots.0.stats.incremental.file_count/]
+// TESTRESPONSE[s/"file_count" : 76/"file_count" : $body.snapshots.0.stats.total.file_count/]
+// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.stats.incremental.file_count/]
+// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.stats.total.file_count/]
+// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.shards.0.stats.incremental.file_count/]
+// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.shards.0.stats.total.file_count/]
 // TESTRESPONSE[s/"start_time_in_millis" : 1594158151205/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
-// TESTRESPONSE[s/"time_in_millis" : 0/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
+// TESTRESPONSE[s/"start_time_in_millis" : 1594158151205/"start_time_in_millis" : $body.snapshots.0.indices.index_1.start_time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 1011/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 1011/"time_in_millis" : $body.snapshots.0.indices.index_1.time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 1011/"time_in_millis" : $body.snapshots.0.indices.index_1.shards.0.time_in_millis/]
+// TESTRESPONSE[s/"start_time_in_millis" : 1594754139076/"start_time_in_millis" : $body.snapshots.0.indices.index_1.shards.0.stats.start_time_in_millis/]

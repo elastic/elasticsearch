@@ -27,4 +27,5 @@ public class CompatibleConstants {
     public static final String COMPATIBLE_ACCEPT_HEADER = "Accept";
     public static final String COMPATIBLE_CONTENT_TYPE_HEADER = "Content-Type";
 
+    public static final String COMPATIBLE_PARAMS_KEY = "COMPATIBLE_VERSION";
 }

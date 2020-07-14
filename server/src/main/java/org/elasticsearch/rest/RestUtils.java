@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.path.PathTrie;
@@ -40,6 +41,11 @@ public class RestUtils {
         @Override
         public String decode(String value) {
             return RestUtils.decodeComponent(value);
+        }
+
+        @Override
+        public String decodeForCompatible(String compatibleVersion, String value) {
+            return RestUtils.decodeComponent(compatibleVersion, value);
         }
     };
 
@@ -110,7 +116,13 @@ public class RestUtils {
      *                                  escape sequence.
      */
     public static String decodeComponent(final String s) {
-        return decodeComponent(s, StandardCharsets.UTF_8, DECODE_PLUS_AS_SPACE);
+        return decodeComponent(s, StandardCharsets.UTF_8, false);
+    }
+
+    public static String decodeComponent(final String compatibleWithVersion, final String s) {
+        boolean isCompatible = compatibleWithVersion!=null ? Version.V_7_0_0.major == Byte.parseByte(compatibleWithVersion) : false;
+        boolean decodePlusAsSpace = isCompatible && DECODE_PLUS_AS_SPACE;
+        return decodeComponent(s, StandardCharsets.UTF_8, decodePlusAsSpace);
     }
 
     /**

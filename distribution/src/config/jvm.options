@@ -64,3 +64,4 @@ ${error.file}
 
 ## GC logging
 -Xlog:gc*,gc+age=trace,safepoint:file=${loggc}:utctime,pid,tags:filecount=32,filesize=64m
+-Des.rest.url_plus_as_space=true

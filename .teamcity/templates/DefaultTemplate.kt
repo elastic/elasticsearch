@@ -57,6 +57,7 @@ object DefaultTemplate : Template({
             }
 
             scriptContent = """
+                #!/usr/bin/env bash
                 # drop page cache and kernel slab objects on linux
                 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
                 rm -Rfv ~/.gradle/init.d

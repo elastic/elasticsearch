@@ -299,7 +299,6 @@ GET /sec_logs/_eql/search
 }
 ----
 // TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
-// TESTRESPONSE[skip: response format updated]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event.
@@ -376,6 +375,7 @@ contains the shared `agent.id` value for each matching event.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[skip: response format updated]
 
 You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
 event for sequences. Matching sequences must end before this event.

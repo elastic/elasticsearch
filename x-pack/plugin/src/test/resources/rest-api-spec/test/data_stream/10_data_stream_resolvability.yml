@@ -1,8 +1,8 @@
 ---
 "Verify data stream resolvability for xpack apis":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -17,8 +17,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -54,8 +53,8 @@
 ---
 "Verify data stream resolvability in ilm explain api":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -88,8 +87,7 @@
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
           template:
             settings:
               index.lifecycle.name: "my_lifecycle"
@@ -119,8 +117,8 @@
 ---
 "Verify data stream resolvability rollup":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -135,8 +133,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -196,8 +193,7 @@
                   type: date
             settings:
               index.lifecycle.name: "my_moveable_timeseries_lifecycle"
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -261,8 +257,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -318,8 +313,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -358,8 +352,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -433,8 +426,7 @@
                   type: keyword
                 price:
                   type: integer
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:

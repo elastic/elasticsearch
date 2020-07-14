@@ -39,15 +39,11 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
     private Consumer<IndexRequest> consumer;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void initialize() {
-        consumer = getConsumer();
+        consumer = mock(Consumer.class);
         clusterService = mock(ClusterService.class);
         service = new DeprecationIndexingService(clusterService, consumer);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Consumer<IndexRequest> getConsumer() {
-        return mock(Consumer.class);
     }
 
     /**
@@ -138,8 +134,8 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         assertThat(payloadMap, hasEntry("message", "a first and second message"));
     }
 
-    private ClusterChangedEvent getEvent(boolean enabled) {
-        Settings settings = Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), enabled).build();
+    private ClusterChangedEvent getEvent(boolean shouldWriteDeprecationLogs) {
+        Settings settings = Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), shouldWriteDeprecationLogs).build();
         final Metadata metadata = Metadata.builder().clusterUUID("cluster-uuid").transientSettings(settings).build();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("local-node-id").build();
 
@@ -158,6 +154,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
 
         verify(consumer).accept(argument.capture());
 
-        return argument.getValue().sourceAsMap();
+        final IndexRequest indexRequest = argument.getValue();
+        return indexRequest.sourceAsMap();
     }
 }

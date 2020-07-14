@@ -21,12 +21,16 @@ package templates
 
 import DefaultRoot
 import jetbrains.buildServer.configs.kotlin.v2019_2.Template
+import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.placeholder
+import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.script
 
 object DefaultTemplate : Template({
     name = "Default Template"
 
     vcs {
         root(DefaultRoot)
+
+        checkoutDir = "%teamcity.build.id%/dev/shm"
     }
 
     params {
@@ -42,5 +46,37 @@ object DefaultTemplate : Template({
         param("env.JAVA14_HOME", "/var/lib/jenkins/.java/openjdk14")
         param("env.GRADLE_OPTS", "-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m")
         param("env.GRADLEW", "./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/")
+    }
+
+    steps {
+        script {
+            name = "Setup Build Environment"
+
+            conditions {
+                contains("teamcity.agent.jvm.os.name", "Linux")
+            }
+
+            scriptContent = """
+                # drop page cache and kernel slab objects on linux
+                [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
+                rm -Rfv ~/.gradle/init.d
+                mkdir -p ~/.gradle/init.d && cp -v .ci/init.gradle ~/.gradle/init.d
+                if [ -f /proc/cpuinfo ] ; then
+                   MAX_WORKERS=`grep '^cpu\scores' /proc/cpuinfo  | uniq | sed 's/\s\+//g' |  cut -d':' -f 2`
+                else
+                   if [[ "${'$'}OSTYPE" == "darwin"* ]]; then
+                      MAX_WORKERS=`sysctl -n hw.physicalcpu | sed 's/\s\+//g'`
+                   else
+                      echo "Unsupported OS Type:${'$'}OSTYPE"
+                      exit 1
+                   fi
+                fi
+                if pwd | grep -v -q ^/dev/shm ; then
+                   echo "Not running on a ramdisk, reducing number of workers"
+                   MAX_WORKERS=${'$'}((${'$'}MAX_WORKERS*2/3))
+                fi
+            """.trimIndent()
+        }
+        placeholder {  }
     }
 })

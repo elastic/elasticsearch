@@ -29,25 +29,19 @@ project {
 
     defaultTemplate = DefaultTemplate
 
-    val stagesProject = subProject {
-        id("Stages")
-        name = "Stages"
+    buildType {
+        id("Passed_Intake")
+        name = "Passed Intake"
+        type = BuildTypeSettings.Type.COMPOSITE
 
-        buildType {
-            id("Passed_Intake")
-            name = "Passed Intake"
-            type = BuildTypeSettings.Type.COMPOSITE
-
-            dependsOn(SanityCheck)
-        }
+        dependsOn(SanityCheck)
     }
 
-    val checksProject = subProject {
+   subProject {
         id("Checks")
         name = "Checks"
 
         buildType(SanityCheck)
     }
 
-    subProjectsOrder = listOf(stagesProject, checksProject)
 }

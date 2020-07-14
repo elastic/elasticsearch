@@ -23,9 +23,7 @@ PUT /_index_template/template
       }
     }
   },
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": {}
 }
 
 PUT /_data_stream/my-data-stream

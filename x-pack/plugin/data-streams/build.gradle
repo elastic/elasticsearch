@@ -18,6 +18,11 @@ tasks.named('internalClusterTest').configure {
     systemProperty 'es.datastreams_feature_enabled', 'true'
   }
 }
+tasks.named('test').configure {
+  if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.datastreams_feature_enabled', 'true'
+  }
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')

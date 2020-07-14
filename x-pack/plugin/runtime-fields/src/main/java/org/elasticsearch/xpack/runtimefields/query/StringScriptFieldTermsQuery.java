@@ -12,19 +12,20 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
-public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
-    private final String term;
+public class StringScriptFieldTermsQuery extends AbstractStringScriptFieldQuery {
+    private final Set<String> terms;
 
-    public StringScriptFieldTermQuery(StringScriptFieldScript.LeafFactory leafFactory, String fieldName, String term) {
+    public StringScriptFieldTermsQuery(StringScriptFieldScript.LeafFactory leafFactory, String fieldName, Set<String> terms) {
         super(leafFactory, fieldName);
-        this.term = Objects.requireNonNull(term);
+        this.terms = terms;
     }
 
     @Override
     public boolean matches(List<String> values) {
         for (String value : values) {
-            if (term.equals(value)) {
+            if (terms.contains(value)) {
                 return true;
             }
         }
@@ -33,20 +34,24 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
 
     @Override
     public void visit(QueryVisitor visitor) {
-        visitor.consumeTerms(this, new Term(fieldName(), term));
+        if (visitor.acceptField(fieldName())) {
+            for (String term : terms) {
+                visitor.consumeTerms(this, new Term(fieldName(), term));
+            }
+        }
     }
 
     @Override
     public final String toString(String field) {
         if (fieldName().contentEquals(field)) {
-            return term;
+            return terms.toString();
         }
-        return fieldName() + ":" + term;
+        return fieldName() + ":" + terms;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), term);
+        return Objects.hash(super.hashCode(), terms);
     }
 
     @Override
@@ -54,11 +59,11 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
         if (false == super.equals(obj)) {
             return false;
         }
-        StringScriptFieldTermQuery other = (StringScriptFieldTermQuery) obj;
-        return term.equals(other.term);
+        StringScriptFieldTermsQuery other = (StringScriptFieldTermsQuery) obj;
+        return terms.equals(other.terms);
     }
 
-    String term() {
-        return term;
+    Set<String> terms() {
+        return terms;
     }
 }

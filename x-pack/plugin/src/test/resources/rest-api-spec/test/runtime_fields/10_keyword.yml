@@ -21,6 +21,14 @@ setup:
                 type: script
                 runtime_type: keyword
                 script: value(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))
+              days_starting_with_t:
+                type: script
+                runtime_type: keyword
+                script: |
+                  String dow = doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT);
+                  if (dow.startsWith('T')) {
+                    value(dow);
+                  }
 
   - do:
       bulk:
@@ -68,6 +76,20 @@ setup:
   - match: {aggregations.dow.buckets.1.doc_count: 1}
 
 ---
+"exists query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            exists:
+              field: days_starting_with_t
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 4.0}
+  - match: {hits.hits.1._source.voltage: 5.2}
+
+---
 "term query":
   - do:
       search:
@@ -78,3 +100,17 @@ setup:
               day_of_week: Monday
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"terms query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            terms:
+              day_of_week: [Monday, Tuesday]
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.8}
+  - match: {hits.hits.1._source.voltage: 5.2}

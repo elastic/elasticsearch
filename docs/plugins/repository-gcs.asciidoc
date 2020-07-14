@@ -234,7 +234,7 @@ The following settings are supported:
     calls to the Google Cloud Storage Service during snapshot create as well as restore operations compared to using
     the default value and thus make both operations slower as well as more costly.
     Specify the chunk size as a value and unit, for example:
-    `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Google Cloud Storage Service.
+    `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Google Cloud Storage Service which is `5TB`.
 
 `compress`::
 

@@ -6,7 +6,6 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.version
 version = "2020.1"
 
 val developmentBranches = listOf("master", "7.x", "7.8", "6.8")
-val projectName = DslContext.getParameter("projectName", "UNKNOWN")
 
 project {
     subProjectsOrder = developmentBranches.map { devBranch ->
@@ -14,13 +13,17 @@ project {
             id(devBranch.replace('.', '_'))
             name = devBranch
 
-            vcsRoot(GitVcsRoot {
-                id("${projectName}_${devBranch.replace('.', '_')}")
-
-                name = "${projectName} ($devBranch)"
-                url = "https://github.com/elastic/${projectName.toLowerCase()}.git"
-                branch = "refs/heads/$devBranch"
-            })
+            vcsRoot(createVcsRoot(devBranch))
         }
     }.map { it.id!! }
+}
+
+fun createVcsRoot(branchName: String): GitVcsRoot {
+    return GitVcsRoot {
+        id("${DslContext.projectName}_${branchName.replace('.', '_')}")
+
+        name = "${DslContext.projectName} ($branchName)"
+        url = "https://github.com/elastic/${DslContext.projectName.toLowerCase()}.git"
+        branch = "refs/heads/$branchName"
+    }
 }

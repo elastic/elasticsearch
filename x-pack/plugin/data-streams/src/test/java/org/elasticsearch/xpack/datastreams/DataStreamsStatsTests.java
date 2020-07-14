@@ -11,8 +11,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
@@ -109,8 +107,9 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         String dataStreamName = createDataStream();
         createDocument(dataStreamName);
         assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
-        assertTrue(client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-000001")).actionGet()
-            .isAcknowledged());
+        assertTrue(
+            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-000001")).actionGet().isAcknowledged()
+        );
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();
         assertEquals(2, stats.getSuccessfulShards());

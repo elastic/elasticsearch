@@ -56,8 +56,6 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, transportClientRatio = 0.0D)
 public class IndexingPressureIT extends ESIntegTestCase {
 
-    // TODO: Add additional REST tests when metrics are exposed
-
     public static final String INDEX_NAME = "test";
 
     private static final Settings unboundedWriteQueue = Settings.builder().put("thread_pool.write.queue_size", -1).build();
@@ -140,11 +138,19 @@ public class IndexingPressureIT extends ESIntegTestCase {
             IndexingPressure replicaWriteLimits = internalCluster().getInstance(IndexingPressure.class, replicaName);
             IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
-            assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+            assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+            assertThat(primaryWriteLimits.getCurrentPrimaryBytes(), greaterThan(bulkShardRequestSize));
+            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingBytes());
             assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+
+            assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentPrimaryBytes());
             assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
-            assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+
+            assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCoordinatingBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentPrimaryBytes());
             assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
 
             latchBlockingReplicationSend.countDown();
@@ -167,14 +173,25 @@ public class IndexingPressureIT extends ESIntegTestCase {
             final long secondBulkShardRequestSize = request.ramBytesUsed();
 
             if (usePrimaryAsCoordinatingNode) {
-                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(),
-                    greaterThan(bulkShardRequestSize + secondBulkRequestSize));
-                assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertBusy(() -> {
+                    assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                        greaterThan(bulkShardRequestSize + secondBulkRequestSize));
+                    assertEquals(secondBulkRequestSize, primaryWriteLimits.getCurrentCoordinatingBytes());
+                    assertThat(primaryWriteLimits.getCurrentPrimaryBytes(),
+                        greaterThan(bulkShardRequestSize + secondBulkRequestSize));
+
+                    assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
+                    assertEquals(0, replicaWriteLimits.getCurrentCoordinatingBytes());
+                    assertEquals(0, replicaWriteLimits.getCurrentPrimaryBytes());
+                });
             } else {
-                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(secondBulkRequestSize, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+
+                assertEquals(secondBulkRequestSize, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(secondBulkRequestSize, replicaWriteLimits.getCurrentCoordinatingBytes());
+                assertEquals(0, replicaWriteLimits.getCurrentPrimaryBytes());
             }
-            assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertBusy(() -> assertThat(replicaWriteLimits.getCurrentReplicaBytes(),
                 greaterThan(bulkShardRequestSize + secondBulkShardRequestSize)));
 
@@ -183,11 +200,19 @@ public class IndexingPressureIT extends ESIntegTestCase {
             successFuture.actionGet();
             secondFuture.actionGet();
 
-            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentPrimaryBytes());
             assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+
+            assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentPrimaryBytes());
             assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
-            assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+
+            assertEquals(0, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentPrimaryBytes());
             assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
         } finally {
             if (replicationSendPointReached.getCount() > 0) {
@@ -237,11 +262,11 @@ public class IndexingPressureIT extends ESIntegTestCase {
             IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
             assertBusy(() -> {
-                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
                 assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
-                assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertThat(replicaWriteLimits.getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertEquals(bulkRequestSize, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
             });
 
@@ -259,11 +284,11 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
             successFuture.actionGet();
 
-            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
-            assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
         }
     }
@@ -301,11 +326,11 @@ public class IndexingPressureIT extends ESIntegTestCase {
             IndexingPressure coordinatingWriteLimits = internalCluster().getInstance(IndexingPressure.class, coordinatingOnlyNode);
 
             assertBusy(() -> {
-                assertThat(primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
+                assertThat(primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(bulkShardRequestSize));
                 assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
-                assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertThat(replicaWriteLimits.getCurrentReplicaBytes(), greaterThan(bulkShardRequestSize));
-                assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+                assertEquals(0, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
                 assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
             });
 
@@ -317,11 +342,11 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
             successFuture.actionGet();
 
-            assertEquals(0, primaryWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, primaryWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryWriteLimits.getCurrentReplicaBytes());
-            assertEquals(0, replicaWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, replicaWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, replicaWriteLimits.getCurrentReplicaBytes());
-            assertEquals(0, coordinatingWriteLimits.getCurrentCoordinatingAndPrimaryBytes());
+            assertEquals(0, coordinatingWriteLimits.getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, coordinatingWriteLimits.getCurrentReplicaBytes());
         }
     }

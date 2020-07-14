@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do :
@@ -24,7 +24,7 @@ teardown:
 "Reindex from data stream into another data stream":
   - skip:
       version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -57,7 +57,7 @@ teardown:
 "Reindex from index into data stream":
   - skip:
       version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -90,7 +90,7 @@ teardown:
 "Reindex from data stream into an index":
   - skip:
       version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:

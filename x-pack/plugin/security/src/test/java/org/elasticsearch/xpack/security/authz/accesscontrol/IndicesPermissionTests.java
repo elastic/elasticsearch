@@ -430,20 +430,20 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(authzMap.get("test1").isGranted(), is(true));
         assertThat(authzMap.get("test_write1").isGranted(), is(true));
         assertWarnings("the index privilege [index] allowed the update mapping action [" + PutMappingAction.NAME + "] on " +
-                        "index [test1], this privilege will not permit mapping updates in the next major release -" +
+                        "index [test1], this privilege will not permit mapping updates in the next major release - " +
                         "users who require access to update mappings must be granted explicit privileges",
                 "the index privilege [index] allowed the update mapping action [" + PutMappingAction.NAME + "] on " +
-                        "index [test_write1], this privilege will not permit mapping updates in the next major release -" +
+                        "index [test_write1], this privilege will not permit mapping updates in the next major release - " +
                         "users who require access to update mappings must be granted explicit privileges",
                 "the index privilege [write] allowed the update mapping action [" + PutMappingAction.NAME + "] on " +
-                        "index [test_write1], this privilege will not permit mapping updates in the next major release -" +
+                        "index [test_write1], this privilege will not permit mapping updates in the next major release - " +
                         "users who require access to update mappings must be granted explicit privileges"
         );
         authzMap = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);
         assertThat(authzMap.get("test1").isGranted(), is(true));
         assertThat(authzMap.get("test_write1").isGranted(), is(true));
         assertWarnings("the index privilege [index] allowed the update mapping action [" + AutoPutMappingAction.NAME + "] on " +
-                        "index [test1], this privilege will not permit mapping updates in the next major release -" +
+                        "index [test1], this privilege will not permit mapping updates in the next major release - " +
                         "users who require access to update mappings must be granted explicit privileges");
 
         authzMap = core.authorize(AutoPutMappingAction.NAME, Sets.newHashSet("test_write2"), lookup, fieldPermissionsCache);

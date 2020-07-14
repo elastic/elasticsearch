@@ -716,3 +716,4 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
+// TESTRESPONSE[skip: response format updated]

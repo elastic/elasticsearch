@@ -835,7 +835,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY));
                 String apiKeyName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
-                    logEntry.with(API_KEY_NAME_FIELD_NAME, (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY));
+                    logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
                 String creatorRealmName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
                 if (creatorRealmName != null) {

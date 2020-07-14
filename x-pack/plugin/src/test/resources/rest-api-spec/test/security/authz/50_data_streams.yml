@@ -359,7 +359,7 @@ teardown:
 
   - do: # superuser
       indices.delete_data_stream:
-        name: restricted-data-stream1
+        name: s-outside-of-authed-namespace
   - is_true: acknowledged
 
 ---

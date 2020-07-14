@@ -30,8 +30,9 @@ fun Project.includeDevelopmentBranchProjects() {
             id("${this@includeDevelopmentBranchProjects.id}_${branch.replace('.', '_')}")
             name = branch
 
-            val kotlinDslRoot = createVcsRoot(name, "${branch}_teamcity")
-            vcsRoot(createVcsRoot(name, branch))
+            val kotlinDslRoot = createVcsRoot(this@includeDevelopmentBranchProjects.name, "${branch}_teamcity")
+            val defaultRoot = createVcsRoot(this@includeDevelopmentBranchProjects.name, branch)
+            vcsRoot(defaultRoot)
             vcsRoot(kotlinDslRoot)
 
             features {

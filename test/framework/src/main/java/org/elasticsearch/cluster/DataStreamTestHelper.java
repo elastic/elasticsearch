@@ -19,13 +19,20 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 
 public final class DataStreamTestHelper {
@@ -77,5 +84,22 @@ public final class DataStreamTestHelper {
             "        }\n" +
             "      }\n" +
             "    }";
+    }
+
+    public static List<Index> randomIndexInstances() {
+        int numIndices = ESTestCase.randomIntBetween(0, 128);
+        List<Index> indices = new ArrayList<>(numIndices);
+        for (int i = 0; i < numIndices; i++) {
+            indices.add(new Index(ESTestCase.randomAlphaOfLength(10).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(LuceneTestCase.random())));
+        }
+        return indices;
+    }
+
+    public static DataStream randomInstance() {
+        List<Index> indices = randomIndexInstances();
+        long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
+        String dataStreamName = ESTestCase.randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
+        return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
     }
 }

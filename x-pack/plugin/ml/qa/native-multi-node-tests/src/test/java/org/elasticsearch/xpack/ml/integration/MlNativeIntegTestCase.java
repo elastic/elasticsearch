@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;

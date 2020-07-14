@@ -8,11 +8,12 @@
       security.create_api_key:
         body:  >
           {
-            "name": "my-api-key"
+            "name": "api-key-in-mixed-cluster"
           }
-  - match: { name: "my-api-key" }
+  - match: { name: "api-key-in-mixed-cluster" }
   - is_true: id
   - is_true: api_key
+  - set: { id: api_key_id }
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
 
   - do:
@@ -21,3 +22,13 @@
       nodes.info: {}
   - match: { _nodes.failed: 0 }
 
+  - do:
+      security.invalidate_api_key:
+        body:  >
+          {
+            "id": "${api_key_id}"
+          }
+  - length: { "invalidated_api_keys" : 1 }
+  - match: { "invalidated_api_keys.0" : "${api_key_id}" }
+  - length: { "previously_invalidated_api_keys" : 0 }
+  - match: { "error_count" : 0 }

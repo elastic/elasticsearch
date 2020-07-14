@@ -28,6 +28,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 public class RestDataStreamsStatsAction extends BaseRestHandler {
@@ -38,7 +39,7 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return Arrays.asList(
             new Route(RestRequest.Method.GET, "/_data_stream/_stats"),
             new Route(RestRequest.Method.GET, "/_data_stream/{name}/_stats")
         );

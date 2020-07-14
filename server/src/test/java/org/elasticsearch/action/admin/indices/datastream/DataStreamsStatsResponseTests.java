@@ -66,7 +66,7 @@ public class DataStreamsStatsResponseTests extends AbstractWireSerializingTestCa
         }
         return new DataStreamsStatsAction.Response(totalShards, successfulShards, failedShards, exceptions,
             dataStreamCount, backingIndicesTotal, new ByteSizeValue(totalStoreSize),
-            dataStreamStats.toArray(DataStreamsStatsAction.DataStreamStats[]::new));
+            dataStreamStats.toArray(new DataStreamsStatsAction.DataStreamStats[0]));
     }
 
     private static long randomRecentTimestamp() {

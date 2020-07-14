@@ -460,6 +460,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
+        private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final IndexAbstractionResolver indexAbstractionResolver;
 
         @Inject
@@ -469,6 +470,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
+            this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
         }
 

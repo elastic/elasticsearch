@@ -25,9 +25,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -39,7 +39,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(DataStreamsPlugin.class);
+        return Collections.singletonList(DataStreamsPlugin.class);
     }
 
     private String timestampFieldName = "@timestamp";
@@ -159,7 +159,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             null
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
+            Collections.singletonList(dataStreamName + "*"),
             idxTemplate,
             null,
             null,

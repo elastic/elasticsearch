@@ -65,7 +65,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         Path location = randomRepoPath();
         createRepository(REPO, "fs", location);
 
-        DataStreamIT.putComposableIndexTemplate("t1", "@timestamp", List.of("ds", "other-ds"));
+        DataStreamIT.putComposableIndexTemplate("t1", List.of("ds", "other-ds"));
 
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
         AcknowledgedResponse response = client.admin().indices().createDataStream(request).get();

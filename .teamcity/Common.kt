@@ -46,8 +46,6 @@ fun Project.includeDevelopmentBranchProjects() {
             name = branch
 
             val kotlinDslRoot = createVcsRoot(this@includeDevelopmentBranchProjects.name, "${branch}_teamcity")
-            val defaultRoot = createVcsRoot(this@includeDevelopmentBranchProjects.name, branch)
-            vcsRoot(defaultRoot)
             vcsRoot(kotlinDslRoot)
 
             features {

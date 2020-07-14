@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <project>
   <modelVersion>4.0.0</modelVersion>
-  <name>Elasticsearch Config DSL Script</name>
-  <groupId>Elasticsearch</groupId>
-  <artifactId>Elasticsearch_dsl</artifactId>
+  <name>Elastic Teamcity Config DSL Script</name>
+  <groupId>org.elastic</groupId>
+  <artifactId>elastic-teamcity-dsl</artifactId>
   <version>1.0-SNAPSHOT</version>
 
   <parent>

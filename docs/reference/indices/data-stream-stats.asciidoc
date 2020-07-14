@@ -140,8 +140,8 @@ Total size, in bytes, of all shards for the data stream's backing indices.
 
 `maximum_timestamp`::
 (integer)
-The data stream's highest `@timestamp` value, converted to a
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp] in milliseconds.
+The data stream's highest `@timestamp` value, converted to milliseconds since
+the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ====
 
 [[data-stream-stats-api-example]]

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[histogram]]
-=== Histogram datatype
+=== Histogram data type
 ++++
 <titleabbrev>Histogram</titleabbrev>
 ++++
@@ -41,6 +41,7 @@ following aggregations and queries:
 * <<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
+* <<search-aggregations-bucket-histogram-aggregation-histogram-fields,histogram>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
 [[mapping-types-histogram-building-histogram]]

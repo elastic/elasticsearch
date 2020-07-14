@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -50,9 +51,10 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
     builder.register(GeoDistanceAggregationBuilder.NAME, CoreValuesSourceType.GEOPOINT,
         (GeoDistanceAggregatorSupplier) (name, factories, distanceType, origin, units, valuesSource, format, rangeFactory, ranges, keyed,
-        context, parent, metadata) -> {
+        context, parent, cardinality, metadata) -> {
             DistanceSource distanceSource = new DistanceSource((ValuesSource.GeoPoint) valuesSource, distanceType, origin, units);
-            return new RangeAggregator(name, factories, distanceSource, format, rangeFactory, ranges, keyed, context, parent, metadata);
+            return new RangeAggregator(name, factories, distanceSource, format, rangeFactory, ranges, keyed, context, parent,
+                cardinality, metadata);
         });
     }
 
@@ -85,11 +87,10 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(final ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry()
             .getAggregator(config, GeoDistanceAggregationBuilder.NAME);
         if (aggregatorSupplier instanceof GeoDistanceAggregatorSupplier == false) {
@@ -97,7 +98,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                 + GeoDistanceAggregatorSupplier.class.getName() + ", found [" + aggregatorSupplier.getClass().toString() + "]");
         }
         return ((GeoDistanceAggregatorSupplier) aggregatorSupplier).build(name,  factories, distanceType,  origin,
-            unit, config.toValuesSource(), config.format(), rangeFactory, ranges, keyed, searchContext, parent, metadata);
+            unit, config.getValuesSource(), config.format(), rangeFactory, ranges, keyed, searchContext, parent, cardinality, metadata);
     }
 
     private static class DistanceSource extends ValuesSource.Numeric {

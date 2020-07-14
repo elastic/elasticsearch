@@ -22,6 +22,7 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
  */
 
 apply plugin: 'elasticsearch.docs-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
@@ -53,7 +54,6 @@ testClusters.integTest {
     setting 'indices.lifecycle.history_index_enabled', 'false'
     if (BuildParams.isSnapshotBuild() == false) {
       systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-      systemProperty 'es.eql_feature_flag_registered', 'true'
       systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
     }
     setting 'xpack.autoscaling.enabled', 'true'

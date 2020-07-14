@@ -24,9 +24,9 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -73,11 +73,10 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
         AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
             MedianAbsoluteDeviationAggregationBuilder.NAME);
 
@@ -85,7 +84,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
             throw new AggregationExecutionException("Registry miss-match - expected MedianAbsoluteDeviationAggregatorSupplier, found [" +
                 aggregatorSupplier.getClass().toString() + "]");
         }
-        return ((MedianAbsoluteDeviationAggregatorSupplier) aggregatorSupplier).build(name, valuesSource, config.format(),
+        return ((MedianAbsoluteDeviationAggregatorSupplier) aggregatorSupplier).build(name, config.getValuesSource(), config.format(),
             searchContext, parent, metadata, compression);
     }
 }

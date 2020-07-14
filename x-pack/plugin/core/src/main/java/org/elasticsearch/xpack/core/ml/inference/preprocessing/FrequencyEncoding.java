@@ -27,7 +27,7 @@ import java.util.Objects;
  */
 public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FrequencyEncoding.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(FrequencyEncoding.class);
 
     public static final ParseField NAME = new ParseField("frequency_encoding");
     public static final ParseField FIELD = new ParseField("field");

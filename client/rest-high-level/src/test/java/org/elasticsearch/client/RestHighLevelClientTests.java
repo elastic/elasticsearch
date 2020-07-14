@@ -61,6 +61,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyM
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -78,6 +80,7 @@ import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
@@ -685,6 +688,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
         assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
         assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("inference")));
 
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
@@ -701,7 +705,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(64, namedXContents.size());
+        assertEquals(69, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -748,7 +752,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME));
-        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
+        assertEquals(Integer.valueOf(12), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
         assertThat(names,
             hasItems(
                 registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
@@ -762,8 +766,10 @@ public class RestHighLevelClientTests extends ESTestCase {
                     Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, HuberMetric.NAME),
                 registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
-        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
+        assertEquals(Integer.valueOf(12), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
         assertThat(names,
             hasItems(
                 registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
@@ -777,14 +783,16 @@ public class RestHighLevelClientTests extends ESTestCase {
                     Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, HuberMetric.NAME),
                 registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
         assertEquals(Integer.valueOf(4), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
         assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
         assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
-        assertEquals(Integer.valueOf(3),
+        assertEquals(Integer.valueOf(4),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
-        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME));
+        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME, Exponent.NAME));
         assertEquals(Integer.valueOf(2),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig.class));
         assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
@@ -801,10 +809,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "render_search_template",
             "scripts_painless_execute",
-            "indices.create_data_stream",
-            "indices.get_data_stream",
-            "indices.delete_data_stream",
-            "indices.simulate_template"
+            "indices.simulate_template",
+            "indices.resolve_index",
+            "indices.add_block"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -815,6 +822,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.stats",
             "cluster.post_voting_config_exclusions",
             "cluster.delete_voting_config_exclusions",
+            "dangling_indices.delete_dangling_index",
+            "dangling_indices.import_dangling_index",
+            "dangling_indices.list_dangling_indices",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",

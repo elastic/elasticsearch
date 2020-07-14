@@ -220,7 +220,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 //
                 // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
                 // cases where (free > total) which would be a different bug.
-                logger.warn("cannot compute used swap when total swap is 0 and free swap is " + free);
+                if (free > 0) {
+                    logger.warn("cannot compute used swap when total swap is 0 and free swap is " + free);
+                }
                 return new ByteSizeValue(0);
             }
             return new ByteSizeValue(total - free);
@@ -280,7 +282,9 @@ public class OsStats implements Writeable, ToXContentFragment {
                 //
                 // We intentionally check for (total == 0) rather than (total - free < 0) so as not to hide
                 // cases where (free > total) which would be a different bug.
-                logger.warn("cannot compute used memory when total memory is 0 and free memory is " + free);
+                if (free > 0) {
+                    logger.warn("cannot compute used memory when total memory is 0 and free memory is " + free);
+                }
                 return new ByteSizeValue(0);
             }
             return new ByteSizeValue(total - free);

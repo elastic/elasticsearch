@@ -1,30 +1,30 @@
+[role="xpack"]
 [[indices-create-data-stream]]
 === Create data stream API
 ++++
 <titleabbrev>Create data stream</titleabbrev>
 ++++
 
-Creates a new data stream.
+Creates a new <<data-streams,data stream>>.
 
-A data stream can only be created if the namespace it targets has a component
-template that exists with a `data_stream` definition.
+Data streams require a matching <<indices-templates,index template>>.
+See <<set-up-a-data-stream>>.
 
+////
 [source,console]
------------------------------------
-PUT _index_template/template
+----
+PUT /_index_template/template
 {
   "index_patterns": ["my-data-stream*"],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": { }
 }
------------------------------------
-// TEST
+----
+////
 
 [source,console]
---------------------------------------------------
-PUT _data_stream/my-data-stream
---------------------------------------------------
+----
+PUT /_data_stream/my-data-stream
+----
 // TEST[continued]
 
 ////
@@ -39,15 +39,7 @@ DELETE /_index_template/template
 [[indices-create-data-stream-request]]
 ==== {api-request-title}
 
-`PUT _data_stream/<data-stream>`
-
-[[indices-create-data-stream-desc]]
-==== {api-description-title}
-You can use the create data stream API to add a new data stream to an {es}
-cluster. When creating a data stream, you must specify the following:
-
-* The name of the data stream
-* The name of the timestamp field.
+`PUT /_data_stream/<data-stream>`
 
 [[indices-create-data-stream-api-path-params]]
 ==== {api-path-parms-title}

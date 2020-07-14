@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -131,11 +130,10 @@ public class ValuesSourceRegistry {
                 aggregatorRegistry.get(aggregationName)
             );
             if (supplier == null) {
-                // TODO: push building the description into ValuesSourceConfig
-                MappedFieldType fieldType = valuesSourceConfig.fieldContext().fieldType();
-                String fieldDescription = fieldType.typeName() + "(" + fieldType.toString() + ")";
-                throw new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" + fieldDescription +
-                    "] is not supported for aggregation [" + aggregationName + "]");            }
+                throw new IllegalArgumentException(
+                    valuesSourceConfig.getDescription() + " is not supported for aggregation [" + aggregationName + "]"
+                );
+            }
             return supplier;
         }
         throw  new AggregationExecutionException("Unregistered Aggregation [" + aggregationName + "]");

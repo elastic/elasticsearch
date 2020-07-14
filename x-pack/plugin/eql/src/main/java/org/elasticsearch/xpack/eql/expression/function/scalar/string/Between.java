@@ -37,11 +37,11 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  */
 public class Between extends ScalarFunction implements OptionalArgument {
 
-    private final Expression source, left, right, greedy, caseSensitive;
+    private final Expression input, left, right, greedy, caseSensitive;
 
-    public Between(Source source, Expression src, Expression left, Expression right, Expression greedy, Expression caseSensitive) {
-        super(source, Arrays.asList(src, left, right, toDefault(greedy), toDefault(caseSensitive)));
-        this.source = src;
+    public Between(Source source, Expression input, Expression left, Expression right, Expression greedy, Expression caseSensitive) {
+        super(source, Arrays.asList(input, left, right, toDefault(greedy), toDefault(caseSensitive)));
+        this.input = input;
         this.left = left;
         this.right = right;
         this.greedy = arguments().get(3);
@@ -58,7 +58,7 @@ public class Between extends ScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(source, sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(input, sourceText(), Expressions.ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -83,48 +83,48 @@ public class Between extends ScalarFunction implements OptionalArgument {
 
     @Override
     protected Pipe makePipe() {
-        return new BetweenFunctionPipe(source(), this, Expressions.pipe(source),
+        return new BetweenFunctionPipe(source(), this, Expressions.pipe(input),
                 Expressions.pipe(left), Expressions.pipe(right),
                 Expressions.pipe(greedy), Expressions.pipe(caseSensitive));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable() && left.foldable() && right.foldable() && greedy.foldable() && caseSensitive.foldable();
+        return input.foldable() && left.foldable() && right.foldable() && greedy.foldable() && caseSensitive.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), left.fold(), right.fold(), greedy.fold(), caseSensitive.fold());
+        return doProcess(input.fold(), left.fold(), right.fold(), greedy.fold(), caseSensitive.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Between::new, source, left, right, greedy, caseSensitive);
+        return NodeInfo.create(this, Between::new, input, left, right, greedy, caseSensitive);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate leftScript = asScript(left);
         ScriptTemplate rightScript = asScript(right);
         ScriptTemplate greedyScript = asScript(greedy);
         ScriptTemplate caseSensitiveScript = asScript(caseSensitive);
 
-        return asScriptFrom(sourceScript, leftScript, rightScript, greedyScript, caseSensitiveScript);
+        return asScriptFrom(inputScript, leftScript, rightScript, greedyScript, caseSensitiveScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate leftScript,
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate leftScript,
                                           ScriptTemplate rightScript, ScriptTemplate greedyScript, ScriptTemplate caseSensitiveScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s,%s)"),
                 "between",
-                sourceScript.template(),
+                inputScript.template(),
                 leftScript.template(),
                 rightScript.template(),
                 greedyScript.template(),
                 caseSensitiveScript.template()),
                 paramsBuilder()
-                        .script(sourceScript.params())
+                        .script(inputScript.params())
                         .script(leftScript.params())
                         .script(rightScript.params())
                         .script(greedyScript.params())

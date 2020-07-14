@@ -24,9 +24,7 @@ import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -44,41 +42,18 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
-
-    @Before
-    public void addModifiers() {
-        addModifier(t -> {
-            KeywordFieldType copy = t.clone();
-            if (copy.normalizer() == null) {
-                copy.setNormalizer(new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer()));
-            } else {
-                copy.setNormalizer(null);
-            }
-            return copy;
-        });
-        addModifier(t -> {
-            KeywordFieldType copy = t.clone();
-            copy.setSplitQueriesOnWhitespace(t.splitQueriesOnWhitespace() == false);
-            return copy;
-        });
-    }
-
-    @Override
-    protected KeywordFieldType createDefaultFieldType() {
-        return new KeywordFieldMapper.KeywordFieldType();
-    }
+public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsFieldWithinQuery() throws IOException {
-        KeywordFieldType ft = new KeywordFieldType();
-        // current impl ignores args and shourd always return INTERSECTS
+        KeywordFieldType ft = new KeywordFieldType("field");
+        // current impl ignores args and should always return INTERSECTS
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(null,
                 RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
                 RandomStrings.randomAsciiOfLengthBetween(random(), 0, 5),
@@ -86,21 +61,16 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
 
-        ft.setIndexOptions(IndexOptions.NONE);
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.termQuery("bar", null));
+                () -> unsearchable.termQuery("bar", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testTermQueryWithNormalizer() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
         Analyzer normalizer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
@@ -113,52 +83,40 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
                 return new LowerCaseFilter(in);
             }
         };
-        ft.setSearchAnalyzer(new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
+        MappedFieldType ft = new KeywordFieldType("field", new NamedAnalyzer("my_normalizer", AnalyzerScope.INDEX, normalizer));
         assertEquals(new TermQuery(new Term("field", "foo bar")), ft.termQuery("fOo BaR", null));
-
-        ft.setIndexOptions(IndexOptions.NONE);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.termQuery("bar", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = new KeywordFieldType("field");
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
         assertEquals(new TermInSetQuery("field", terms),
                 ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
-        ft.setIndexOptions(IndexOptions.NONE);
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.termsQuery(Arrays.asList("foo", "bar"), null));
+                () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-
-        ft.setHasDocValues(true);
-        ft.setOmitNorms(true);
+        KeywordFieldType ft = new KeywordFieldType("field");
+        ft.hasNorms = false;
         assertEquals(new DocValuesFieldExistsQuery("field"), ft.existsQuery(null));
 
-        ft.setHasDocValues(false);
-        ft.setOmitNorms(false);
+        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        ft.hasNorms = true;
         assertEquals(new NormsFieldExistsQuery("field"), ft.existsQuery(null));
 
-        ft.setHasDocValues(false);
-        ft.setOmitNorms(true);
+        ft = new KeywordFieldType("field", true, false, Collections.emptyMap());
+        ft.hasNorms = false;
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), ft.existsQuery(null));
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
                 ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_QSC));
 
@@ -169,15 +127,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new RegexpQuery(new Term("field","foo.*")),
                 ft.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
 
-        ft.setIndexOptions(IndexOptions.NONE);
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
+                () -> unsearchable.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
@@ -187,15 +143,13 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new FuzzyQuery(new Term("field","foo"), 2, 1, 50, true),
                 ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
 
-        ft.setIndexOptions(IndexOptions.NONE);
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
+                () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
@@ -206,11 +160,9 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase<KeywordFieldType> {
     }
 
     public void testNormalizeQueries() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+        MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
-        ft.setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
+        ft = new KeywordFieldType("field", Lucene.STANDARD_ANALYZER);
         assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
     }
 }

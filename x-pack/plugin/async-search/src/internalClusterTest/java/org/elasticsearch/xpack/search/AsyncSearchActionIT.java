@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -18,6 +20,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
@@ -258,7 +261,8 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNotNull(response.getFailure());
         assertFalse(response.isRunning());
         Exception exc = response.getFailure();
-        assertThat(exc.getMessage(), containsString("no such index"));
+        assertThat(exc.getMessage(), containsString("error while executing search"));
+        assertThat(exc.getCause().getMessage(), containsString("no such index"));
     }
 
     public void testCancellation() throws Exception {
@@ -371,7 +375,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getExpirationTime(), greaterThan(now));
 
         // remove the async search index
-        client().admin().indices().prepareDelete(AsyncSearch.INDEX).get();
+        client().admin().indices().prepareDelete(XPackPlugin.ASYNC_RESULTS_INDEX).get();
 
         Exception exc = expectThrows(Exception.class, () -> getAsyncSearch(response.getId()));
         Throwable cause = exc instanceof ExecutionException ?
@@ -396,5 +400,21 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(newResp.getExpirationTime(), lessThan(expirationTime));
         ensureTaskNotRunning(newResp.getId());
         ensureTaskRemoval(newResp.getId());
+    }
+
+    public void testSearchPhaseFailureNoCause() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.setKeepOnCompletion(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
+        request.getSearchRequest().allowPartialSearchResults(false);
+        request.getSearchRequest()
+            // AlreadyClosedException are ignored by the coordinating node
+            .source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), 0)));
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        assertTrue(response.isPartial());
+        assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertNotNull(response.getFailure());
+        ensureTaskNotRunning(response.getId());
     }
 }

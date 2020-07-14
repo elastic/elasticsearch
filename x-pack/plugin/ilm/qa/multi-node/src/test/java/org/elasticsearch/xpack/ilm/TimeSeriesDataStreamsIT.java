@@ -6,19 +6,31 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
-import org.elasticsearch.xpack.core.ilm.ReplaceDataStreamBackingIndexStep;
+import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
@@ -26,25 +38,20 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createFullPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getOnlyIndexSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
-import static org.elasticsearch.xpack.core.ilm.ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
-
-    private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
 
     public void testRolloverAction() throws Exception {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, 1L));
 
-        Settings lifecycleNameSetting = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
-        Template template = new Template(lifecycleNameSetting, null, null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
@@ -60,12 +67,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "warm", new ShrinkAction(1));
 
-        Settings settings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .build();
-        Template template = new Template(settings, null, null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
@@ -73,9 +75,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String shrunkenIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + backingIndexName;
         assertBusy(() -> assertThat(
-            "original index must wait in the " + CONDITIONAL_SKIP_SHRINK_STEP + " until it is not the write index anymore",
-            (Integer) explainIndex(client(), backingIndexName).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
-            30, TimeUnit.SECONDS);
+            "original index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)), 30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
@@ -89,12 +90,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createFullPolicy(client(), policyName, TimeValue.ZERO);
 
-        Settings settings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .build();
-        Template template = new Template(settings, null, null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
 
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
@@ -115,29 +111,125 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         String policyName = "logs-policy";
         createNewSingletonPolicy(client(), policyName, "cold", new SearchableSnapshotAction(snapshotRepo));
 
-        Settings settings = Settings.builder()
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .build();
-        Template template = new Template(settings, null, null);
-        createComposableTemplate(client(), "logs-template", "logs-foo*", template);
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
         String dataStream = "logs-foo";
         indexDocument(client(), dataStream, true);
 
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
         String restoredIndexName = SearchableSnapshotAction.RESTORED_INDEX_PREFIX + backingIndexName;
 
-        assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));
         assertBusy(() -> assertThat(
-            "original index must wait in the " + ReplaceDataStreamBackingIndexStep.NAME + " until it is not the write index anymore",
-            (Integer) explainIndex(client(), backingIndexName).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+            "original index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
             30, TimeUnit.SECONDS);
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
+        assertBusy(() -> assertThat(indexExists(restoredIndexName), is(true)));
         assertBusy(() -> assertFalse(indexExists(backingIndexName)), 60, TimeUnit.SECONDS);
         assertBusy(() -> assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
             TimeUnit.SECONDS);
+    }
+
+    public void testReadOnlyAction() throws Exception {
+        String policyName = "logs-policy";
+        createNewSingletonPolicy(client(), policyName, "warm", new ReadOnlyAction());
+
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(
+            "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
+            30, TimeUnit.SECONDS);
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
+            TimeUnit.SECONDS);
+        assertThat(getOnlyIndexSettings(client(), backingIndexName).get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()),
+            equalTo("true"));
+    }
+
+    public void testFreezeAction() throws Exception {
+        String policyName = "logs-policy";
+        createNewSingletonPolicy(client(), policyName, "cold", new FreezeAction());
+
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(
+            "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
+            30, TimeUnit.SECONDS);
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
+            TimeUnit.SECONDS);
+
+        Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
+        assertThat(settings.get(IndexMetadata.SETTING_BLOCKS_WRITE), equalTo("true"));
+        assertThat(settings.get(IndexSettings.INDEX_SEARCH_THROTTLED.getKey()), equalTo("true"));
+        assertThat(settings.get("index.frozen"), equalTo("true"));
+    }
+
+    public void testForceMergeAction() throws Exception {
+        String policyName = "logs-policy";
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, null));
+
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1);
+        assertBusy(() -> assertThat(
+            "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
+            explainIndex(client(), backingIndexName).get("step"), is(CheckNotDataStreamWriteIndexStep.NAME)),
+            30, TimeUnit.SECONDS);
+
+        // Manual rollover the original index such that it's not the write index in the data stream anymore
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        assertBusy(() -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)), 30,
+            TimeUnit.SECONDS);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetDataStreamReturnsILMPolicy() throws Exception {
+        String policyName = "logs-policy";
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        Request explainRequest = new Request("GET",   "/_data_stream/logs-foo");
+        Response response = client().performRequest(explainRequest);
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        List<Object> dataStreams = (List<Object>) responseMap.get("data_streams");
+        assertThat(dataStreams.size(), is(1));
+        Map<String, Object> logsDataStream = (Map<String, Object>) dataStreams.get(0);
+        assertThat(logsDataStream.get("ilm_policy"), is(policyName));
+    }
+
+    private static Template getTemplate(String policyName) throws IOException {
+        return new Template(getLifcycleSettings(policyName), null, null);
+    }
+
+    private static Settings getLifcycleSettings(String policyName) {
+        return Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .build();
     }
 }

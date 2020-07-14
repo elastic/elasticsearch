@@ -21,26 +21,25 @@ archivesBaseName = 'x-pack-eql'
 // All integration tests live in qa modules
 integTest.enabled = false
 
-tasks.named('internalClusterTest').configure {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.eql_feature_flag_registered', 'true'
-  }
-}
-
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   compileOnly(project(':modules:lang-painless')) {
     exclude group: "org.ow2.asm"
   }
-  compile "org.antlr:antlr4-runtime:${antlrVersion}"
+  api "org.antlr:antlr4-runtime:${antlrVersion}"
   compileOnly project(path: xpackModule('ql'), configuration: 'default')
-  testCompile project(':test:framework')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ql'), configuration: 'testArtifacts')
-  testCompile project(path: ':modules:reindex', configuration: 'runtime')
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
-  testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
+
+  testImplementation project(':test:framework')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ql'), configuration: 'testArtifacts')
+  testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: ':modules:parent-join')
+  testImplementation project(path: ':modules:analysis-common')
+  testImplementation project(path: ':modules:transport-netty4') // for http in RestEqlCancellationIT
+  testImplementation project(path: ':plugins:transport-nio') // for http in RestEqlCancellationIT
+
+  testImplementation 'io.ous:jtoml:2.0.0'
 }
 
 

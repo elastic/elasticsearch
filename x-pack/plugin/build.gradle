@@ -3,17 +3,25 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
 
 dependencies {
-  testCompile project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('core')) // this redundant dependency is here to make IntelliJ happy
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 configurations {
   testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
+}
+
+restResources {
+  restApi {
+    includeCore '*'
+  }
 }
 
 artifacts {

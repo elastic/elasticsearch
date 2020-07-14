@@ -6,10 +6,11 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:plugin:core')
-  testCompile project(':client:rest-high-level')
+  testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':client:rest-high-level')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"

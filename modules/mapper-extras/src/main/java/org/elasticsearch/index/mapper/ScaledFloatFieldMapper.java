@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -33,7 +34,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -72,15 +72,21 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "scaled_float";
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
+    private static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+    }
 
     public static class Builder extends FieldMapper.Builder<Builder> {
 
         private boolean scalingFactorSet = false;
+        private double scalingFactor;
         private Boolean ignoreMalformed;
         private Boolean coerce;
+        private Double nullValue;
 
         public Builder(String name) {
-            super(name, new ScaledFloatFieldType(), new ScaledFloatFieldType());
+            super(name, FIELD_TYPE);
             builder = this;
         }
 
@@ -92,7 +98,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public Builder indexOptions(IndexOptions indexOptions) {
             throw new MapperParsingException(
-                    "index_options not allowed in field [" + name + "] of type [" + builder.fieldType().typeName() + "]");
+                    "index_options not allowed in field [" + name + "] of type [" + CONTENT_TYPE + "]");
         }
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
@@ -111,8 +117,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         public Builder scalingFactor(double scalingFactor) {
-            ((ScaledFloatFieldType) fieldType).setScalingFactor(scalingFactor);
+            this.scalingFactor = scalingFactor;
             scalingFactorSet = true;
+            return this;
+        }
+
+        public Builder nullValue(Double nullValue) {
+            this.nullValue = nullValue;
             return this;
         }
 
@@ -131,9 +142,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (scalingFactorSet == false) {
                 throw new IllegalArgumentException("Field [" + name + "] misses required parameter [scaling_factor]");
             }
-            setupFieldType(context);
-            return new ScaledFloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed, hasDocValues, meta, scalingFactor);
+            return new ScaledFloatFieldMapper(name, fieldType, type, ignoreMalformed(context),
+                    coerce(context), multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
 
@@ -171,32 +182,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     public static final class ScaledFloatFieldType extends SimpleMappedFieldType {
 
-        private double scalingFactor;
+        private final double scalingFactor;
 
-        public ScaledFloatFieldType() {
-            super();
-            setTokenized(false);
-            setHasDocValues(true);
-            setOmitNorms(true);
+        public ScaledFloatFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta, double scalingFactor) {
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.scalingFactor = scalingFactor;
         }
 
-        ScaledFloatFieldType(ScaledFloatFieldType other) {
-            super(other);
-            this.scalingFactor = other.scalingFactor;
+        public ScaledFloatFieldType(String name, double scalingFactor) {
+            this(name, true, true, Collections.emptyMap(), scalingFactor);
         }
 
         public double getScalingFactor() {
             return scalingFactor;
-        }
-
-        public void setScalingFactor(double scalingFactor) {
-            checkIfFrozen();
-            this.scalingFactor = scalingFactor;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new ScaledFloatFieldType(this);
         }
 
         @Override
@@ -302,19 +300,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            return scalingFactor == ((ScaledFloatFieldType) o).scalingFactor;
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Double.hashCode(scalingFactor);
-        }
-
         /**
          * Parses input value and multiplies it with the scaling factor.
          * Uses the round-trip of creating a {@link BigDecimal} from the stringified {@code double}
@@ -333,17 +318,21 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     private Explicit<Boolean> coerce;
 
+    private final Double nullValue;
+    private final double scalingFactor;
+
     private ScaledFloatFieldMapper(
             String simpleName,
-            MappedFieldType fieldType,
-            MappedFieldType defaultFieldType,
+            FieldType fieldType,
+            ScaledFloatFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
-            Settings indexSettings,
             MultiFields multiFields,
-            CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
-        final double scalingFactor = fieldType().getScalingFactor();
+            CopyTo copyTo,
+            Double nullValue) {
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
+        this.scalingFactor = mappedFieldType.scalingFactor;
+        this.nullValue = nullValue;
         if (Double.isFinite(scalingFactor) == false || scalingFactor <= 0) {
             throw new IllegalArgumentException("[scaling_factor] must be a positive number, got [" + scalingFactor + "]");
         }
@@ -358,7 +347,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return fieldType.typeName();
+        return CONTENT_TYPE;
     }
 
     @Override
@@ -394,7 +383,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         if (value == null) {
-            value = fieldType().nullValue();
+            value = nullValue;
         }
 
         if (value == null) {
@@ -414,11 +403,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
             }
         }
-        long scaledValue = Math.round(doubleValue * fieldType().getScalingFactor());
+        long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        boolean indexed = fieldType().indexOptions() != IndexOptions.NONE;
+        boolean indexed = fieldType().isSearchable();
         boolean docValued = fieldType().hasDocValues();
-        boolean stored = fieldType().stored();
+        boolean stored = fieldType.stored();
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, docValued, stored);
         context.doc().addAll(fields);
 
@@ -431,7 +420,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         ScaledFloatFieldMapper mergeWith = (ScaledFloatFieldMapper) other;
         ScaledFloatFieldType ft = (ScaledFloatFieldType) other.fieldType();
-        if (fieldType().scalingFactor != ft.getScalingFactor()) {
+        if (fieldType().scalingFactor != ft.scalingFactor) {
             conflicts.add("mapper [" + name() + "] has different [scaling_factor] values");
         }
         if (mergeWith.ignoreMalformed.explicit()) {
@@ -446,7 +435,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        builder.field("scaling_factor", fieldType().getScalingFactor());
+        builder.field("scaling_factor", scalingFactor);
 
         if (includeDefaults || ignoreMalformed.explicit()) {
             builder.field("ignore_malformed", ignoreMalformed.value());
@@ -454,9 +443,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         if (includeDefaults || coerce.explicit()) {
             builder.field("coerce", coerce.value());
         }
-
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValue());
+        if (nullValue != null) {
+            builder.field("null_value", nullValue);
         }
     }
 

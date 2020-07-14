@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -411,21 +413,21 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService) {
+                                                           ClusterService clusterService, RecoverySettings recoverySettings) {
         HashMap<String, Repository.Factory> repositories =
-            new HashMap<>(super.getRepositories(env, namedXContentRegistry, clusterService));
+            new HashMap<>(super.getRepositories(env, namedXContentRegistry, clusterService, recoverySettings));
         filterPlugins(RepositoryPlugin.class).forEach(
-            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService)));
+            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService, recoverySettings)));
         return repositories;
     }
 
     @Override
     public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                                   ClusterService clusterService) {
+                                                                   ClusterService clusterService, RecoverySettings recoverySettings) {
         HashMap<String, Repository.Factory> internalRepositories =
-            new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry, clusterService));
+            new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings));
         filterPlugins(RepositoryPlugin.class).forEach(r ->
-            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService)));
+            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings)));
         return internalRepositories;
     }
 
@@ -462,6 +464,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .stream()
                 .flatMap(p -> p.indicesAliasesRequestValidators().stream())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return filterPlugins(ClusterPlugin.class)
+            .stream()
+            .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
+            .collect(Collectors.toList());
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

@@ -46,11 +46,32 @@ public class InferenceToXContentCompressorTests extends ESTestCase {
         int max = firstDeflate.getBytes(StandardCharsets.UTF_8).length + 10;
         IOException ex = expectThrows(IOException.class,
             () -> Streams.readFully(InferenceToXContentCompressor.inflate(firstDeflate, max)));
-        assertThat(ex.getMessage(), equalTo("input stream exceeded maximum bytes of [" + max + "]"));
+        assertThat(ex.getMessage(), equalTo("" +
+            "input stream exceeded maximum bytes of [" + max + "]"));
     }
 
     public void testInflateGarbage() {
         expectThrows(IOException.class, () -> Streams.readFully(InferenceToXContentCompressor.inflate(randomAlphaOfLength(10), 100L)));
+    }
+
+    public void testInflateParsingTooLargeStream() throws IOException {
+        TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder()
+            .setPreProcessors(Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
+                OneHotEncodingTests.createRandom(),
+                TargetMeanEncodingTests.createRandom()))
+                .limit(100)
+                .collect(Collectors.toList()))
+            .build();
+        String compressedString = InferenceToXContentCompressor.deflate(definition);
+        int max = compressedString.getBytes(StandardCharsets.UTF_8).length + 10;
+
+        IOException e = expectThrows(IOException.class, ()-> InferenceToXContentCompressor.inflate(compressedString,
+            parser -> TrainedModelDefinition.fromXContent(parser, true).build(),
+            xContentRegistry(),
+            max));
+
+        assertThat(e.getMessage(), equalTo("Cannot parse model definition as the content is larger than the maximum stream size of ["
+            + max + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest"));
     }
 
     @Override

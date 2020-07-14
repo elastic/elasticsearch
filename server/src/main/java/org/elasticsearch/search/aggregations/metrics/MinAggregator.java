@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lease.Releasables;
@@ -31,9 +29,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -61,18 +56,18 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     MinAggregator(String name,
                     ValuesSourceConfig config,
-                    ValuesSource valuesSource,
                     SearchContext context,
                     Aggregator parent,
                     Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = (ValuesSource.Numeric) valuesSource;
+        // TODO: Stop using nulls here
+        this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
         if (valuesSource != null) {
             mins = context.bigArrays().newDoubleArray(1, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.format = config.format();
-        this.pointConverter = getPointReaderOrNull(context, parent, config);
+        this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
         } else {
@@ -159,40 +154,6 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         Releasables.close(mins);
     }
 
-
-    /**
-     * Returns a converter for point values if early termination is applicable to
-     * the context or <code>null</code> otherwise.
-     *
-     * @param context The {@link SearchContext} of the aggregation.
-     * @param parent The parent aggregator.
-     * @param config The config for the values source metric.
-     */
-    static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
-                                                                ValuesSourceConfig config) {
-        if (context.query() != null &&
-                context.query().getClass() != MatchAllDocsQuery.class) {
-            return null;
-        }
-        if (parent != null) {
-            return null;
-        }
-        if (config.fieldContext() != null && config.script() == null && config.missing() == null) {
-            MappedFieldType fieldType = config.fieldContext().fieldType();
-            if (fieldType == null || fieldType.indexOptions() == IndexOptions.NONE) {
-                return null;
-            }
-            Function<byte[], Number> converter = null;
-            if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-                converter = ((NumberFieldMapper.NumberFieldType) fieldType)::parsePoint;
-            } else if (fieldType.getClass() == DateFieldMapper.DateFieldType.class) {
-                DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) fieldType;
-                converter = dft.resolution()::parsePointAsMillis;
-            }
-            return converter;
-        }
-        return null;
-    }
 
     /**
      * Returns the minimum value indexed in the <code>fieldName</code> field or <code>null</code>

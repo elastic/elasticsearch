@@ -28,7 +28,7 @@ public abstract class SourceGenerator {
 
     private SourceGenerator() {}
 
-    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
+    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter) {
         QueryBuilder finalQuery = null;
         // add the source
         if (container.query() != null) {
@@ -59,12 +59,12 @@ public abstract class SourceGenerator {
         sorting(container, source);
         source.fetchSource(FetchSourceContext.FETCH_SOURCE);
 
-        // set fetch size
-        if (size != null) {
-            int sz = size;
-
-            if (source.size() == -1) {
-                source.size(sz);
+        if (container.limit() != null) {
+            // add size and from
+            source.size(container.limit().absLimit());
+            // this should be added only for event queries
+            if (container.limit().offset() > 0) {
+                source.from(container.limit().offset());
             }
         }
 

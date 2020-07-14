@@ -1,0 +1,23 @@
+import org.elasticsearch.gradle.info.BuildParams
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testImplementation project(path: xpackModule('eql'))
+  testImplementation project(path: xpackModule('eql:qa:common'))
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.eql.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.security.enabled', 'true'
+  numberOfNodes = 2
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test-admin", password: 'x-pack-test-password', role: "test-admin"
+  user username: "user1", password: 'x-pack-test-password', role: "user1"
+  user username: "user2", password: 'x-pack-test-password', role: "user2"
+}

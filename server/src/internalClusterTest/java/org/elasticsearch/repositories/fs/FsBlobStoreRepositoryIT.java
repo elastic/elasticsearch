@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 
 import java.io.IOException;
@@ -131,7 +130,7 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             writeBlob(container, "test", new BytesArray(data));
             assertArrayEquals(readBlobFully(container, "test", data.length), data);
-            assertTrue(BlobStoreTestUtil.blobExists(container, "test"));
+            assertTrue(container.blobExists("test"));
         }
     }
 }

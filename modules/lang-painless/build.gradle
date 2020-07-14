@@ -19,13 +19,14 @@
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
 }
 
-testClusters.integTest {
+testClusters.all {
   module project(':modules:mapper-extras').tasks.bundlePlugin.archiveFile
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
@@ -33,16 +34,16 @@ testClusters.integTest {
 }
 
 dependencies {
-  compile 'org.antlr:antlr4-runtime:4.5.3'
-  compile 'org.ow2.asm:asm-util:7.2'
-  compile 'org.ow2.asm:asm-tree:7.2'
-  compile 'org.ow2.asm:asm-commons:7.2'
-  compile 'org.ow2.asm:asm-analysis:7.2'
-  compile 'org.ow2.asm:asm:7.2'
-  compile project('spi')
+  api 'org.antlr:antlr4-runtime:4.5.3'
+  api 'org.ow2.asm:asm-util:7.2'
+  api 'org.ow2.asm:asm-tree:7.2'
+  api 'org.ow2.asm:asm-commons:7.2'
+  api 'org.ow2.asm:asm-analysis:7.2'
+  api 'org.ow2.asm:asm:7.2'
+  api project('spi')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
 }
 
@@ -52,6 +53,8 @@ restResources {
                 'scripts_painless_execute', 'put_script', 'delete_script'
   }
 }
+
+integTest.enabled = false
 
 test {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
@@ -68,7 +71,7 @@ task apiJavadoc(type: Javadoc) {
 }
 
 task apiJavadocJar(type: Jar) {
-  classifier = 'apiJavadoc'
+  archiveClassifier = 'apiJavadoc'
   from apiJavadoc
 }
 
@@ -83,8 +86,8 @@ sourceSets {
 }
 
 dependencies {
-  docCompile project(':server')
-  docCompile project(':modules:lang-painless')
+  docImplementation project(':server')
+  docImplementation project(':modules:lang-painless')
 }
 
 testClusters {
@@ -193,4 +196,3 @@ task regen {
     }
   }
 }
-

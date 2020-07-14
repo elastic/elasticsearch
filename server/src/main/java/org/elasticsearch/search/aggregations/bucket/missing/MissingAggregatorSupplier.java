@@ -19,11 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -34,8 +34,9 @@ public interface MissingAggregatorSupplier extends AggregatorSupplier {
 
     Aggregator build(String name,
                      AggregatorFactories factories,
-                     @Nullable ValuesSource valuesSource,
+                     ValuesSourceConfig valuesSourceConfig,
                      SearchContext aggregationContext,
                      Aggregator parent,
+                     CardinalityUpperBound cardinality,
                      Map<String, Object> metadata) throws IOException;
 }

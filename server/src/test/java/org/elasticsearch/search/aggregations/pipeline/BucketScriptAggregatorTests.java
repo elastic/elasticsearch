@@ -70,12 +70,9 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
     }
 
     public void testScript() throws IOException {
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.INTEGER);
-        fieldType.setName("number_field");
-        fieldType.setHasDocValues(true);
-        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType();
-        fieldType1.setName("the_field");
-        fieldType1.setHasDocValues(true);
+        MappedFieldType fieldType
+            = new NumberFieldMapper.NumberFieldType("number_field", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("the_field");
 
         FiltersAggregationBuilder filters = new FiltersAggregationBuilder("placeholder", new MatchAllQueryBuilder())
             .subAggregation(new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING).field("the_field")

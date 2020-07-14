@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizationStatus;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
@@ -104,7 +105,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
                                                             .setRareCategoryCount(2)
                                                             .setDeadCategoryCount(1)
                                                             .setFailedCategoryCount(3)
-                                                            .setCategorizationStatus(ModelSizeStats.CategorizationStatus.WARN)
+                                                            .setCategorizationStatus(CategorizationStatus.WARN)
                                                             .setTimestamp(date1)
                                                             .setLogTime(date2)
                                                             .build();

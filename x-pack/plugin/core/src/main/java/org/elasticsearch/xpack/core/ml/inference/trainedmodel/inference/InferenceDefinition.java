@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition.T
 
 public class InferenceDefinition {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceDefinition.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(InferenceDefinition.class);
 
     public static final String NAME = "inference_model_definition";
     private final InferenceModel trainedModel;

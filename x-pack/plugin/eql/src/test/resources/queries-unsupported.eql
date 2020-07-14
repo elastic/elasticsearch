@@ -22,10 +22,6 @@ process where process_name == "powershell.exe"
 | head 50
 ;
 
-security where event_id == 4624
-| tail 10
-;
-
 file where true | sort file_name
 ;
 
@@ -82,6 +78,12 @@ sequence by unique_pid [process where true] [file where true] fork=true;
 // no longer supported
 //sequence by unique_pid [process where true] [file where true] fork=1;
 
+sequence
+  [process where true] by unique_pid
+  [file where true] fork=true by unique_pid
+  [process where true] by unique_ppid
+| head 4;
+
 sequence by unique_pid [process where true] [file where true] fork=false;
 
 // no longer supported
@@ -120,9 +122,6 @@ sequence by pid with maxspan=1.0075d
  * https://raw.githubusercontent.com/endgameinc/eql/master/eql/etc/test_queries.toml
  */
 
-process where true | head 6;
-process where bad_field == null | head 5;
-
 process where serial_event_id <= 8 and serial_event_id > 7
 | filter serial_event_id == 8;
 
@@ -143,15 +142,6 @@ process where true
 ;
 
 
-process where not (exit_code > -1)
-  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)
-| head 10
-;
-
-
-process where not (exit_code > -1) | head 7;
-
-process where not (-1 < exit_code) | head 7;
 
 
 process where process_name == "VMACTHLP.exe" and unique_pid == 12 | filter true;
@@ -212,10 +202,6 @@ process where opcode=1 and process_name == "smss.exe"
 
 
 
-file where true
-| tail 3;
-
-
 
 file where true
 | tail 4
@@ -243,46 +229,6 @@ process where true
 | sort md5, event_subtype_full, null_field, process_name
 | sort serial_event_id;
 
-sequence
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2;
-
-sequence with maxspan=1d
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2;
-
-sequence with maxspan=1h
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2;
-
-sequence with maxspan=1m
-  [file where event_subtype_full == "file_create_event"] by file_path
-  [process where opcode == 1] by process_path
-  [process where opcode == 2] by process_path
-  [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2;
-
-sequence with maxspan=10s
-   [file where event_subtype_full == "file_create_event"] by file_path
-   [process where opcode == 1] by process_path
-   [process where opcode == 2] by process_path
-   [file where event_subtype_full == "file_delete_event"] by file_path
-| head 4
-| tail 2;
-
 sequence with maxspan=0.5s
   [file where event_subtype_full == "file_create_event"] by file_path
   [process where opcode == 1] by process_path
@@ -294,51 +240,10 @@ sequence with maxspan=0.5s
 sequence
   [file where opcode=0] by unique_pid
   [file where opcode=0] by unique_pid
-| head 1;
-
-sequence
-  [file where opcode=0] by unique_pid
-  [file where opcode=0] by unique_pid
 | filter events[1].serial_event_id == 92;
-
-sequence
-  [file where opcode=0 and file_name="*.exe"] by unique_pid
-  [file where opcode=0 and file_name="*.exe"] by unique_pid
-until [process where opcode=5000] by unique_ppid
-| head 1;
-
-sequence
-  [file where opcode=0 and file_name="*.exe"] by unique_pid
-  [file where opcode=0 and file_name="*.exe"] by unique_pid
-until [process where opcode=1] by unique_ppid
-| head 1;
-
-join
-  [file where opcode=0 and file_name="*.exe"] by unique_pid
-  [file where opcode=2 and file_name="*.exe"] by unique_pid
-until [process where opcode=1] by unique_ppid
-| head 1
-;
-
-join by string(unique_pid)
-  [process where opcode=1]
-  [file where opcode=0 and file_name="svchost.exe"]
-  [file where opcode == 0 and file_name == "lsass.exe"]
-| head 1
-; 
-
-join by string(unique_pid), unique_pid, unique_pid * 2
-  [process where opcode=1]
-  [file where opcode=0 and file_name="svchost.exe"]
-  [file where opcode == 0 and file_name == "lsass.exe"]
-until [file where opcode == 2]
-: tail 1
-;
 
 any where true
 | unique event_type_full;
-
-
 
 process where opcode=1 and process_name in ("services.exe", "smss.exe", "lsass.exe")
   and descendant of [process where process_name == "cmd.exe" ];
@@ -392,39 +297,6 @@ sequence
 | tail 1
 ;
 
-sequence by user_name
-  [file where opcode=0] by file_path
-  [process where opcode=1] by process_path
-  [process where opcode=2] by process_path
-  [file where opcode=2] by file_path
-| tail 1;
-
-sequence by user_name
-  [file where opcode=0] by pid,file_path
-  [file where opcode=2] by pid,file_path
-until [process where opcode=5] by ppid,process_path
-| head 2;
-
-sequence by pid
-  [file where opcode=0] by file_path
-  [process where opcode=1] by process_path
-  [process where opcode=2] by process_path
-  [file where opcode=2] by file_path
-| tail 1;
-
-join by user_name
-  [file where true] by pid,file_path
-  [process where true] by ppid,process_path
-| head 2;
-
-sequence
-  [process where true] by unique_pid
-  [file where true] fork=true by unique_pid
-  [process where true] by unique_ppid
-| head 4;
-
-
-
 
 process where 'net.EXE' == original_file_name
 | filter process_name="net*.exe"
@@ -442,15 +314,6 @@ process where original_file_name == process_name
 
 process where process_name != original_file_name
 | filter length(original_file_name) > 0;
-
-
-
-
-process where fake_field != "*"
-| head 4;
-
-process where not (fake_field == "*")
-| head 4;
 
 any where process_name == "svchost.exe"
 | unique_count event_type_full, process_name;

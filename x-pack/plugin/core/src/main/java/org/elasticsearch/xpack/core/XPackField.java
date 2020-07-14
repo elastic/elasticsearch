@@ -59,6 +59,10 @@ public final class XPackField {
     public static final String ANALYTICS = "analytics";
     /** Name constant for the enrich plugin. */
     public static final String ENRICH = "enrich";
+    /** Name constant for the searchable snapshots feature. */
+    public static final String SEARCHABLE_SNAPSHOTS = "searchable_snapshots";
+    /** Name constant for the data streams feature. */
+    public static final String DATA_STREAMS = "data_streams";
 
     private XPackField() {}
 

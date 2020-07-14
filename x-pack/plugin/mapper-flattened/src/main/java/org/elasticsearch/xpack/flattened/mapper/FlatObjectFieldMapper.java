@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.flattened.mapper;
 
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
@@ -20,7 +20,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,8 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -47,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -95,12 +93,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     private static final String KEYED_FIELD_SUFFIX = "._keyed";
 
     private static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new RootFlatObjectFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
@@ -113,15 +110,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     public static class Builder extends FieldMapper.Builder<Builder> {
         private int depthLimit = Defaults.DEPTH_LIMIT;
         private int ignoreAbove = Defaults.IGNORE_ABOVE;
+        private String nullValue = null;
+        private boolean eagerGlobalOrdinals = false;
+        private boolean splitQueriesOnWhitespace = false;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
-        }
-
-        @Override
-        public RootFlatObjectFieldType fieldType() {
-            return (RootFlatObjectFieldType) super.fieldType();
         }
 
         @Override
@@ -143,7 +138,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             return builder;
         }
 
@@ -155,8 +150,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return this;
         }
 
+        public Builder nullValue(String nullValue) {
+            this.nullValue = nullValue;
+            return this;
+        }
+
         public Builder splitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
-            fieldType().setSplitQueriesOnWhitespace(splitQueriesOnWhitespace);
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             return builder;
         }
 
@@ -177,13 +177,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public FlatObjectFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            if (fieldType().splitQueriesOnWhitespace()) {
-                NamedAnalyzer whitespaceAnalyzer = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
-                fieldType().setSearchAnalyzer(whitespaceAnalyzer);
+            MappedFieldType ft = new RootFlatObjectFieldType(buildFullName(context), indexed, hasDocValues, meta, splitQueriesOnWhitespace);
+            if (eagerGlobalOrdinals) {
+                ft.setEagerGlobalOrdinals(true);
             }
-            return new FlatObjectFieldMapper(name, fieldType, defaultFieldType,
-                ignoreAbove, depthLimit, context.indexSettings());
+            return new FlatObjectFieldMapper(name, fieldType, ft, ignoreAbove, depthLimit, nullValue);
         }
     }
 
@@ -229,41 +227,18 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         private final String key;
         private boolean splitQueriesOnWhitespace;
 
-        public KeyedFlatObjectFieldType(String key) {
+        public KeyedFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, String key,
+                                        boolean splitQueriesOnWhitespace, Map<String, String> meta) {
+            super(name, indexed, hasDocValues,
+                splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
+                meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.key = key;
-        }
-
-        public KeyedFlatObjectFieldType clone() {
-            return new KeyedFlatObjectFieldType(this);
-        }
-
-        private KeyedFlatObjectFieldType(KeyedFlatObjectFieldType ref) {
-            super(ref);
-            this.key = ref.key;
-            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
         private KeyedFlatObjectFieldType(String name, String key, RootFlatObjectFieldType ref) {
-            super(ref);
-            setName(name);
-            this.key = key;
-            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
-            KeyedFlatObjectFieldType that = (KeyedFlatObjectFieldType) o;
-            return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), splitQueriesOnWhitespace);
+            this(name, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -280,7 +255,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         public void setSplitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
-            checkIfFrozen();
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
@@ -477,32 +451,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     public static final class RootFlatObjectFieldType extends StringFieldType {
         private boolean splitQueriesOnWhitespace;
 
-        public RootFlatObjectFieldType() {
+        public RootFlatObjectFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
+                                       boolean splitQueriesOnWhitespace) {
+            super(name, indexed, hasDocValues,
+                splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        private RootFlatObjectFieldType(RootFlatObjectFieldType ref) {
-            super(ref);
-            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
-        }
-
-        public RootFlatObjectFieldType clone() {
-            return new RootFlatObjectFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
-            RootFlatObjectFieldType that = (RootFlatObjectFieldType) o;
-            return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), splitQueriesOnWhitespace);
         }
 
         @Override
@@ -515,7 +469,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         public void setSplitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
-            checkIfFrozen();
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
@@ -546,22 +499,24 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     private FlatObjectFieldParser fieldParser;
+    private final String nullValue;
     private int depthLimit;
     private int ignoreAbove;
 
     private FlatObjectFieldMapper(String simpleName,
-                                  MappedFieldType fieldType,
-                                  MappedFieldType defaultFieldType,
+                                  FieldType fieldType,
+                                  MappedFieldType mappedFieldType,
                                   int ignoreAbove,
                                   int depthLimit,
-                                  Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, CopyTo.empty());
+                                  String nullValue) {
+        super(simpleName, fieldType, mappedFieldType, CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
-        this.fieldParser = new FlatObjectFieldParser(fieldType.name(), keyedFieldName(),
-            fieldType, depthLimit, ignoreAbove);
+        this.nullValue = nullValue;
+        this.fieldParser = new FlatObjectFieldParser(mappedFieldType.name(), keyedFieldName(),
+            mappedFieldType, depthLimit, ignoreAbove, nullValue);
     }
 
     @Override
@@ -572,10 +527,13 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
         FlatObjectFieldMapper other = ((FlatObjectFieldMapper) mergeWith);
+        if (Objects.equals(this.nullValue, other.nullValue) == false) {
+            conflicts.add("mapper [" + name() + "] has different [null_value] settings");
+        }
         this.depthLimit = other.depthLimit;
         this.ignoreAbove = other.ignoreAbove;
-        this.fieldParser = new FlatObjectFieldParser(fieldType.name(), keyedFieldName(),
-            fieldType, depthLimit, ignoreAbove);
+        this.fieldParser = new FlatObjectFieldParser(mappedFieldType.name(), keyedFieldName(),
+            mappedFieldType, depthLimit, ignoreAbove, nullValue);
     }
 
     @Override
@@ -594,7 +552,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     public String keyedFieldName() {
-        return fieldType.name() + KEYED_FIELD_SUFFIX;
+        return mappedFieldType.name() + KEYED_FIELD_SUFFIX;
     }
 
     @Override
@@ -603,7 +561,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.hasDocValues()) {
+        if (fieldType.indexOptions() == IndexOptions.NONE && mappedFieldType.hasDocValues() == false) {
             context.parser().skipChildren();
             return;
         }
@@ -611,7 +569,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         XContentParser xContentParser = context.parser();
         context.doc().addAll(fieldParser.parse(xContentParser));
 
-        if (!fieldType.hasDocValues()) {
+        if (mappedFieldType.hasDocValues() == false) {
             createFieldNamesField(context);
         }
     }
@@ -619,17 +577,21 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-
+        if (fieldType.indexOptions() != IndexOptions.NONE
+            && (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
+        }
         if (includeDefaults || depthLimit != Defaults.DEPTH_LIMIT) {
             builder.field("depth_limit", depthLimit);
         }
-
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
-
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValue());
+        if (includeDefaults || fieldType().eagerGlobalOrdinals()) {
+            builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
+        }
+        if (nullValue != null) {
+            builder.field("null_value", nullValue);
         }
 
         if (includeDefaults || fieldType().splitQueriesOnWhitespace()) {

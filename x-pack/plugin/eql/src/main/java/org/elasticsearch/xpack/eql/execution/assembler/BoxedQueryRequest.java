@@ -6,11 +6,9 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 
@@ -38,17 +36,6 @@ public class BoxedQueryRequest implements QueryRequest {
 
     public BoxedQueryRequest(QueryRequest original, String timestamp, String tiebreaker) {
         searchSource = original.searchSource();
-
-        // FIXME: is there a way to do this separately without having to mess with source generation here?
-        // disable source for sequences & co if needed
-
-        // disable the whole source if there are no includes
-        if (searchSource.fetchSource() == null || CollectionUtils.isEmpty(searchSource.fetchSource().includes())) {
-            searchSource.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        } else {
-            // use true to fetch only the needed bits from the source
-            searchSource.fetchSource(true);
-        }
 
         // setup range queries and preserve their reference to simplify the update
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");

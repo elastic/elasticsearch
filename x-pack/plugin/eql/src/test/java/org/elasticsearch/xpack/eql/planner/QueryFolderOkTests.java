@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
 
@@ -139,6 +140,6 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         assertThat(query, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));
 
         // test field source extraction
-        assertThat(query, containsString("\"_source\":{\"includes\":[],\"excludes\":[]"));
+        assertThat(query, not(containsString("\"_source\":{\"includes\":[],\"excludes\":[]")));
     }
 }

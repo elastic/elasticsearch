@@ -642,15 +642,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void testDataStreams() throws Exception {
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
         if (isRunningAgainstOldCluster()) {
-            String mapping = "{\n" +
-                "      \"properties\": {\n" +
-                "        \"@timestamp\": {\n" +
-                "          \"type\": \"date\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }";
-            Template template = new Template(null, new CompressedXContent(mapping), null);
-            createComposableTemplate(client(), "dst", "ds", template);
+            createComposableTemplate(client(), "dst", "ds");
 
             Request indexRequest = new Request("POST", "/ds/_doc/1?op_type=create&refresh");
             XContentBuilder builder = JsonXContent.contentBuilder().startObject()
@@ -674,16 +666,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNumHits("ds", 1, 1);
     }
 
-    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
+    private static void createComposableTemplate(RestClient client, String templateName, String indexPattern)
         throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
         StringEntity templateJSON = new StringEntity(
             String.format(Locale.ROOT, "{\n" +
                 "  \"index_patterns\": \"%s\",\n" +
-                "  \"data_stream\": { \"timestamp_field\": \"@timestamp\" },\n" +
-                "  \"template\": %s\n" +
-                "}", indexPattern, Strings.toString(builder)),
+                "  \"data_stream\": {}\n" +
+                "}", indexPattern),
             ContentType.APPLICATION_JSON);
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);

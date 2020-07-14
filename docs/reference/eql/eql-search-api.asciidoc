@@ -433,9 +433,24 @@ Name of the index containing the event.
 
 `_id`::
 (string)
-(string)
 Unique identifier for the event.
 This ID is only unique within the index.
+
+`_version`::
+(integer)
+Version of the document (event). This version is incremented each time the document is
+updated.
+
+`_seq_no`::
+(integer)
+Sequence number assigned to the document (event).
++
+Sequence numbers are used to ensure an older version of a document
+doesn’t overwrite a newer version. See <<optimistic-concurrency-control>>.
+
+`_primary_term`::
+(integer)
+Primary term assigned to the document. See <<optimistic-concurrency-control>>.
 
 `_score`::
 (float)
@@ -445,14 +460,6 @@ Positive 32-bit floating point number used to determine the relevance of the
 `_source`::
 (object)
 Original JSON body passed for the event at index time.
-
-`sort`::
-(array)
-Array of field values used to sort the event.
-+
-By default, the first item in the array is the event's
-<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ======
 =====
 
@@ -483,14 +490,6 @@ Positive 32-bit floating point number used to determine the relevance of the
 `_source`::
 (object)
 Original JSON body passed for the event at index time.
-
-`sort`::
-(array)
-Array of field values used to sort the event.
-+
-By default, the first item in the array is the event's
-<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 =====
 ====
 
@@ -665,6 +664,9 @@ the events in ascending, lexicographic order.
           {
             "_index": "my_index",
             "_id": "4",
+            "_version": 1,
+            "_seq_no": 3,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -692,6 +694,9 @@ the events in ascending, lexicographic order.
           {
             "_index": "my_index",
             "_id": "5",
+            "_version": 1,
+            "_seq_no": 4,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -716,4 +721,3 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
-// TESTRESPONSE[skip: response format updated]

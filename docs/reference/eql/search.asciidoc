@@ -192,6 +192,9 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
           {
             "_index": "sec_logs",
             "_id": "4",
+            "_version" : 1,
+            "_seq_no" : 3,
+            "_primary_term" : 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -219,6 +222,9 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
           {
             "_index": "sec_logs",
             "_id": "5",
+            "_version" : 1,
+            "_seq_no" : 4,
+            "_primary_term" : 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -243,7 +249,6 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
-// TESTRESPONSE[skip: response format updated]
 
 You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
 constrain a sequence to a specified timespan.
@@ -324,6 +329,9 @@ contains the shared `agent.id` value for each matching event.
           {
             "_index": "sec_logs",
             "_id": "4",
+            "_version": 1,
+            "_seq_no": 3,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -351,6 +359,9 @@ contains the shared `agent.id` value for each matching event.
           {
             "_index": "sec_logs",
             "_id": "5",
+            "_version": 1,
+            "_seq_no": 4,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -375,7 +386,6 @@ contains the shared `agent.id` value for each matching event.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
-// TESTRESPONSE[skip: response format updated]
 
 You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
 event for sequences. Matching sequences must end before this event.
@@ -494,7 +504,7 @@ The API returns the following response.
       "relation": "eq"
     },
     "events": [
-        {
+      {
         "_index": "sec_logs",
         "_id": "1",
         "_score": null,
@@ -513,8 +523,8 @@ The API returns the following response.
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
         }
-        },
-        {
+      },
+      {
         "_index": "sec_logs",
         "_id": "3",
         "_score": null,
@@ -532,8 +542,8 @@ The API returns the following response.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        }   
         }
+      }
     ]
   }
 }

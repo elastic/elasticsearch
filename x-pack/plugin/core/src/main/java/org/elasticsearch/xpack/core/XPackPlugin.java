@@ -85,6 +85,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -136,6 +137,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
+    private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
     public XPackPlugin(
             final Settings settings,
@@ -146,7 +148,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
 
-        setLicenseState(new XPackLicenseState(settings));
+        setLicenseState(new XPackLicenseState(settings, () -> getEpochMillisSupplier().getAsLong()));
 
         this.licensing = new Licensing(settings);
     }
@@ -159,9 +161,13 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     protected SSLService getSslService() { return getSharedSslService(); }
     protected LicenseService getLicenseService() { return getSharedLicenseService(); }
     protected XPackLicenseState getLicenseState() { return getSharedLicenseState(); }
+    protected LongSupplier getEpochMillisSupplier() { return getSharedEpochMillisSupplier(); }
     protected void setSslService(SSLService sslService) { XPackPlugin.sslService.set(sslService); }
     protected void setLicenseService(LicenseService licenseService) { XPackPlugin.licenseService.set(licenseService); }
     protected void setLicenseState(XPackLicenseState licenseState) { XPackPlugin.licenseState.set(licenseState); }
+    protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
+        XPackPlugin.epochMillisSupplier.set(epochMillisSupplier);
+    }
 
     public static SSLService getSharedSslService() {
         final SSLService ssl = XPackPlugin.sslService.get();
@@ -172,6 +178,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
     }
     public static LicenseService getSharedLicenseService() { return licenseService.get(); }
     public static XPackLicenseState getSharedLicenseState() { return licenseState.get(); }
+    public static LongSupplier getSharedEpochMillisSupplier() { return epochMillisSupplier.get(); }
 
     /**
      * Checks if the cluster state allows this node to add x-pack metadata to the cluster state,
@@ -267,6 +274,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));
+
+        setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
         // It is useful to override these as they are what guice is injecting into actions
         components.add(sslService);

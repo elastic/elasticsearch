@@ -19,7 +19,8 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Ingest processor that uses lookup geo data based on IP adresses using the MaxMind geo database'
@@ -41,6 +42,8 @@ restResources {
     includeCore '_common', 'indices', 'index', 'cluster', 'nodes', 'get', 'ingest'
   }
 }
+
+integTest.enabled = false
 
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
   from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }

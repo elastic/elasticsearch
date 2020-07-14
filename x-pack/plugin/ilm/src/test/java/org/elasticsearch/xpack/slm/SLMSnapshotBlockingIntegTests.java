@@ -123,8 +123,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             SnapshotLifecyclePolicyItem.SnapshotInProgress inProgress = item.getSnapshotInProgress();
             assertThat(inProgress.getSnapshotId().getName(), equalTo(snapshotName));
             assertThat(inProgress.getStartTime(), greaterThan(0L));
-            assertThat(inProgress.getState(), anyOf(equalTo(SnapshotsInProgress.State.INIT), equalTo(SnapshotsInProgress.State.STARTED),
-                equalTo(SnapshotsInProgress.State.SUCCESS)));
+            assertThat(inProgress.getState(),
+                    anyOf(equalTo(SnapshotsInProgress.State.STARTED), equalTo(SnapshotsInProgress.State.SUCCESS)));
             assertNull(inProgress.getFailure());
         });
 

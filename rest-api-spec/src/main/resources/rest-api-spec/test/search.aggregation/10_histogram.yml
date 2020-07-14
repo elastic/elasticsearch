@@ -528,3 +528,48 @@ setup:
   - match: { profile.shards.0.aggregations.0.description: histo }
   - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
   - match: { profile.shards.0.aggregations.0.debug.total_buckets: 3 }
+
+---
+"histogram with hard bounds":
+  - skip:
+      version: " - 7.99.99"
+      reason:  hard_bounds were introduced in 8.0.0
+
+  - do:
+      indices.create:
+        index: test_3
+        body:
+          mappings:
+            properties:
+              range:
+                type: long_range
+
+  - do:
+      bulk:
+        index: test_3
+        refresh: true
+        body:
+            - '{"index": {}}'
+            - '{"range": {"lte": 10}}'
+            - '{"index": {}}'
+            - '{"range": {"gte": 15}}'
+
+  - do:
+      search:
+        index: test_3
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: range
+                interval: 1
+                hard_bounds:
+                  min: 0
+                  max: 20
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.histo.buckets: 21 }
+  - match: { aggregations.histo.buckets.0.key: 0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.20.key: 20 }
+  - match: { aggregations.histo.buckets.20.doc_count: 1 }

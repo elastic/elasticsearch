@@ -45,10 +45,6 @@ public abstract class ConstantFieldType extends MappedFieldType {
         super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
     }
 
-    public ConstantFieldType(ConstantFieldType other) {
-        super(other);
-    }
-
     @Override
     public final boolean isSearchable() {
         return true;

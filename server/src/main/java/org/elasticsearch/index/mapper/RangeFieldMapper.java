@@ -172,7 +172,7 @@ public class RangeFieldMapper extends FieldMapper {
                 } else if (propName.equals("format")) {
                     builder.format(propNode.toString());
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -210,34 +210,7 @@ public class RangeFieldMapper extends FieldMapper {
             this(name, true, true, formatter, Collections.emptyMap());
         }
 
-        RangeFieldType(RangeFieldType other) {
-            super(other);
-            this.rangeType = other.rangeType;
-            this.dateTimeFormatter = other.dateTimeFormatter;
-            this.dateMathParser = other.dateMathParser;
-        }
-
         public RangeType rangeType() { return rangeType; }
-
-        @Override
-        public RangeFieldType clone() {
-            return new RangeFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            RangeFieldType that = (RangeFieldType) o;
-            return Objects.equals(rangeType, that.rangeType) &&
-            (rangeType == BasicRangeType.DATE) ?
-                Objects.equals(dateTimeFormatter, that.dateTimeFormatter)
-                : dateTimeFormatter == null && that.dateTimeFormatter == null;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), rangeType, dateTimeFormatter);
-        }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {

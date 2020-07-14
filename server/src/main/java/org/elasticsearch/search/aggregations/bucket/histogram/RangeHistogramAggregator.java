@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -50,10 +51,11 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
         long minDocCount,
         double minBound,
         double maxBound,
+        DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
         Aggregator parent,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         super(
@@ -66,10 +68,11 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             minDocCount,
             minBound,
             maxBound,
+            hardBounds,
             valuesSourceConfig.format(),
             context,
             parent,
-            collectsFromSingleBucket,
+            cardinality,
             metadata
         );
         // TODO: Stop using nulls here
@@ -107,9 +110,13 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
                             // The encoding should ensure that this assert is always true.
                             assert from >= previousFrom : "Start of range not >= previous start";
                             final Double to = rangeType.doubleValue(range.getTo());
-                            final double startKey = Math.floor((from - offset) / interval);
-                            final double endKey = Math.floor((to - offset) / interval);
-                            for (double  key = startKey > previousKey ? startKey : previousKey; key <= endKey; key++) {
+                            final double effectiveFrom = (hardBounds != null && hardBounds.getMin() != null) ?
+                                Double.max(from, hardBounds.getMin()) : from;
+                            final double effectiveTo = (hardBounds != null && hardBounds.getMax() != null) ?
+                                Double.min(to, hardBounds.getMax()) : to;
+                            final double startKey = Math.floor((effectiveFrom - offset) / interval);
+                            final double endKey = Math.floor((effectiveTo - offset) / interval);
+                            for (double key = Math.max(startKey, previousKey); key <= endKey; key++) {
                                 if (key == previousKey) {
                                     continue;
                                 }

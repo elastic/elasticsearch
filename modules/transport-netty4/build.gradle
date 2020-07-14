@@ -21,6 +21,8 @@
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.yaml-rest-test'
+
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?

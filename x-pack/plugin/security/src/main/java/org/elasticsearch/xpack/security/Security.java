@@ -1014,7 +1014,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                     "xpack.security.authc.token.thread_pool", false),
                 new FixedExecutorBuilder(settings, SECURITY_CRYPTO_THREAD_POOL_NAME,
                     (allocatedProcessors + 1) / 2, 1000,
-                    "xpack.security.authc.api_key.thread_pool", false)
+                    "xpack.security.crypto.thread_pool", false)
             );
         }
         return Collections.emptyList();

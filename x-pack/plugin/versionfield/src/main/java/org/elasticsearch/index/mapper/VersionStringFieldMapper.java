@@ -160,7 +160,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -186,15 +186,6 @@ public class VersionStringFieldMapper extends FieldMapper {
             );
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);
-        }
-
-        VersionStringFieldType(VersionStringFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new VersionStringFieldType(this);
         }
 
         @Override

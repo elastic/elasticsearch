@@ -594,14 +594,14 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     Response response = assertAccessIsAllowed(user, "PUT", "/" + index + "/_doc/4321", "{ \"" +
                             UUIDs.randomBase64UUID() + "\" : \"foo\" }");
                     String warningHeader = response.getHeader("Warning");
-                    assertThat(warningHeader, containsString("the mapping update action [indices:admin/mapping/auto_put] on the [" +
-                            index + "] index, is granted by the [write] privilege"));
+                    assertThat(warningHeader, containsString("the index privilege [write] allowed the update mapping action [" +
+                            "indices:admin/mapping/auto_put] on index [" + index + "]"));
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321", "{ \"doc\" : { \"foo\" : \"baz\" } }");
                     response = assertAccessIsAllowed(user, "POST", "/" + index + "/_update/321",
                             "{ \"doc\" : { \"" + UUIDs.randomBase64UUID() + "\" : \"baz\" } }");
                     warningHeader = response.getHeader("Warning");
-                    assertThat(warningHeader, containsString("the mapping update action [indices:admin/mapping/auto_put] on the [" +
-                            index + "] index, is granted by the [write] privilege"));
+                    assertThat(warningHeader, containsString("the index privilege [write] allowed the update mapping action [" +
+                            "indices:admin/mapping/auto_put] on index [" + index + "]"));
                 } else {
                     assertUserIsDenied(user, "index", index);
                     assertUserIsDenied(user, "delete", index);

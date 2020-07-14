@@ -44,6 +44,7 @@ import org.elasticsearch.script.mustache.RestSearchTemplateActionV7;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 public class RestCompatPlugin extends Plugin implements ActionPlugin {
@@ -59,7 +60,8 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (Version.CURRENT.major == 8) {
-            return List.of(
+            return validateCompatibleHandlers(
+                7,
                 new RestDeleteByQueryActionV7(),
                 new RestUpdateByQueryActionV7(),
                 new RestCreateIndexActionV7(),
@@ -76,5 +78,21 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
             );
         }
         return Collections.emptyList();
+    }
+
+    // default scope for testing
+    List<RestHandler> validateCompatibleHandlers(int expectedVersion, RestHandler... handlers) {
+        for (RestHandler handler : handlers) {
+            if (handler.compatibleWithVersion().major != expectedVersion) {
+                String msg = String.format(
+                    Locale.ROOT,
+                    "Handler %s is of incorrect version %s.",
+                    handler.getClass().getSimpleName(),
+                    handler.compatibleWithVersion()
+                );
+                throw new IllegalStateException(msg);
+            }
+        }
+        return List.of(handlers);
     }
 }

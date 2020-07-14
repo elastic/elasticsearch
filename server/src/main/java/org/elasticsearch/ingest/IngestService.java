@@ -494,7 +494,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         continue;
                     }
 
-                    executePipelines(i, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, counter, onCompletion, originalThread);
+                    executePipelines(i, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, counter, 
+                                     onCompletion, originalThread);
 
                     i++;
                 }

@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.license.License;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -18,16 +20,29 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 
+import java.io.Closeable;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING;
 
-public class LocalModel {
+/**
+ * LocalModels implement reference counting for proper accounting in
+ * the {@link CircuitBreaker}. When the model is not longer used {@link #release()}
+ * must be called and if the reference count == 0 then the model's bytes
+ * will be removed from the circuit breaker.
+ *
+ * The class is constructed with an initial reference count of 1 and its
+ * bytes <em>must</em> have been added to the circuit breaker before construction.
+ * New references must call {@link #acquire()} and {@link #release()} as the model
+ * is used.
+ */
+public class LocalModel implements Closeable {
 
     private final InferenceDefinition trainedModelDefinition;
     private final String modelId;
@@ -38,14 +53,19 @@ public class LocalModel {
     private volatile long persistenceQuotient = 100;
     private final LongAdder currentInferenceCount;
     private final InferenceConfig inferenceConfig;
+    private final License.OperationMode licenseLevel;
+    private final CircuitBreaker trainedModelCircuitBreaker;
+    private final AtomicLong referenceCount;
 
-    public LocalModel(String modelId,
+    LocalModel(String modelId,
                       String nodeId,
                       InferenceDefinition trainedModelDefinition,
                       TrainedModelInput input,
                       Map<String, String> defaultFieldMap,
                       InferenceConfig modelInferenceConfig,
-                      TrainedModelStatsService trainedModelStatsService) {
+                      License.OperationMode licenseLevel,
+                      TrainedModelStatsService trainedModelStatsService,
+                      CircuitBreaker trainedModelCircuitBreaker) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
@@ -56,6 +76,9 @@ public class LocalModel {
         this.defaultFieldMap = defaultFieldMap == null ? null : new HashMap<>(defaultFieldMap);
         this.currentInferenceCount = new LongAdder();
         this.inferenceConfig = modelInferenceConfig;
+        this.licenseLevel = licenseLevel;
+        this.trainedModelCircuitBreaker = trainedModelCircuitBreaker;
+        this.referenceCount = new AtomicLong(1);
     }
 
     long ramBytesUsed() {
@@ -64,6 +87,10 @@ public class LocalModel {
 
     public String getModelId() {
         return modelId;
+    }
+
+    public License.OperationMode getLicenseLevel() {
+        return licenseLevel;
     }
 
     public InferenceStats getLatestStatsAndReset() {
@@ -78,6 +105,20 @@ public class LocalModel {
         if (persistenceQuotient < 10_000 && currentInferenceCount.sum() > 10_000) {
             persistenceQuotient = 10_000;
         }
+    }
+
+    /**
+     * Infers without updating the stats.
+     * This is mainly for usage by data frame analytics jobs
+     * when they do inference against test data.
+     */
+    public InferenceResults inferNoStats(Map<String, Object> fields) {
+        LocalModel.mapFieldsIfNecessary(fields, defaultFieldMap);
+        Map<String, Object> flattenedFields = MapHelper.dotCollapse(fields, fieldNames);
+        if (flattenedFields.isEmpty()) {
+            new WarningInferenceResults(Messages.getMessage(INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId));
+        }
+        return trainedModelDefinition.infer(flattenedFields, inferenceConfig);
     }
 
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
@@ -154,5 +195,37 @@ public class LocalModel {
                 }
             });
         }
+    }
+
+    long acquire() {
+        long count = referenceCount.incrementAndGet();
+        // protect against a race where the model could be release to a
+        // count of zero then the model is quickly re-acquired
+        if (count == 1) {
+            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelDefinition.ramBytesUsed(), modelId);
+        }
+        return count;
+    }
+
+    public long getReferenceCount() {
+        return referenceCount.get();
+    }
+
+    public long release() {
+        long count = referenceCount.decrementAndGet();
+        assert count >= 0;
+        if (count == 0) {
+            // no references to this model, it no longer needs to be accounted for
+            trainedModelCircuitBreaker.addWithoutBreaking(-ramBytesUsed());
+        }
+        return referenceCount.get();
+    }
+
+    /**
+     * Convenience method so the class can be used in try-with-resource
+     * constructs to invoke {@link #release()}.
+     */
+    public void close() {
+        release();
     }
 }

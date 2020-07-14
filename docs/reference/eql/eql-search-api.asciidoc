@@ -7,11 +7,12 @@
 <titleabbrev>EQL search</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 Returns search results for an <<eql,Event Query Language (EQL)>> query.
 
-In {es}, EQL assumes each document in an index corresponds to an event.
+In {es}, EQL assumes each document in a data stream or index corresponds to an
+event.
 
 ////
 [source,console]
@@ -44,9 +45,9 @@ GET /my_index/_eql/search
 [[eql-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_eql/search`
+`GET /<target>/_eql/search`
 
-`POST /<index>/_eql/search`
+`POST /<target>/_eql/search`
 
 [[eql-search-api-prereqs]]
 ==== {api-prereq-title}
@@ -61,12 +62,13 @@ See <<eql-limitations,EQL limitations>>.
 [[eql-search-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Required, string)
-Comma-separated list of index names or <<indices-aliases,index aliases>> used to
-limit the request. Accepts wildcard expressions.
+Comma-separated list of data streams, indices, or <<indices-aliases,index
+aliases>> used to limit the request. Accepts wildcard (`*`) expressions.
 +
-To search all indices, use `_all` or `*`.
+To search all data streams and indices in a cluster, use
+`_all` or `*`.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -157,17 +159,29 @@ Field containing the event classification, such as `process`, `file`, or
 `network`.
 +
 Defaults to `event.category`, as defined in the {ecs-ref}/ecs-event.html[Elastic
-Common Schema (ECS)]. If an index does not contain the `event.category` field,
-this value is required.
+Common Schema (ECS)]. If a data stream or index does not contain the
+`event.category` field, this value is required.
+
+`fetch_size`::
+(Optional, integer)
+Maximum number of events to search at a time for sequence queries. Defaults to
+`1000`.
++
+This value must be greater than `2` but cannot exceed the value of the
+<<index-max-result-window,`index.max_result_window`>> setting, which defaults to
+`10000`.
++
+Internally, a sequence query fetches and paginates sets of events to search for
+matches. This parameter controls the size of those sets. This parameter does not
+limit the total number of events searched or the number of matching events
+returned.
++
+A greater `fetch_size` value often increases search speed but uses more memory.
 
 `filter`::
 (Optional, <<query-dsl,query DSL object>>)
 Query, written in query DSL, used to filter the events on which the EQL query
 runs.
-
-`implicit_join_key_field`::
-(Optional, string)
-Reserved for future use.
 
 `keep_alive`::
 +
@@ -219,10 +233,6 @@ If both parameters are specified, only the query parameter is used.
 IMPORTANT: This parameter supports a subset of EQL syntax. See
 <<eql-unsupported-syntax>>.
 
-`search_after`::
-(Optional, string)
-Reserved for future use.
-
 `size`::
 (Optional, integer or float)
 For <<eql-basic-syntax,basic queries>>, the maximum number of matching events to
@@ -231,7 +241,10 @@ return.
 For <<eql-sequences,sequence queries>>, the maximum number of matching sequences
 to return.
 +
-Defaults to `50`. This value must be greater than `0`.
+Defaults to `10`. This value must be greater than `0`.
++
+NOTE: You cannot use <<eql-pipe-ref,pipes>>, such as `head` or `tail`, to exceed
+this value.
 
 [[eql-search-api-tiebreaker-field]]
 `tiebreaker_field`::
@@ -254,8 +267,8 @@ field is used to sort the events in ascending, lexicographic order.
 Field containing event timestamp.
 
 Defaults to `@timestamp`, as defined in the
-{ecs-ref}/ecs-event.html[Elastic Common Schema (ECS)]. If an index does not
-contain the `@timestamp` field, this value is required.
+{ecs-ref}/ecs-event.html[Elastic Common Schema (ECS)]. If a data stream or index
+does not contain the `@timestamp` field, this value is required.
 
 Events in the API response are sorted by this field's value, converted to
 milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in

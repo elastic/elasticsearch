@@ -1,3 +1,4 @@
+[role="xpack"]
 [[data-streams-change-mappings-and-settings]]
 == Change mappings and settings for a data stream
 
@@ -579,10 +580,7 @@ contains information about the stream's oldest backing index, `.ds-logs-000001`.
     {
       "name": "logs",
       "timestamp_field": {
-        "name": "@timestamp",
-        "mapping": {
-          "type": "date"
-        }
+        "name": "@timestamp"
       },
       "indices": [
         {

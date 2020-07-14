@@ -4,7 +4,8 @@
 <titleabbrev>Get index settings</titleabbrev>
 ++++
 
-Returns setting information for an index.
+Returns setting information for one or more indices. For data streams, the API
+returns setting information for the stream's backing indices.
 
 [source,console]
 --------------------------------------------------
@@ -16,17 +17,21 @@ GET /twitter/_settings
 [[get-index-settings-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_settings`
+`GET /<target>/_settings`
 
-`GET /<index>/_settings/<setting>`
+`GET /<target>/_settings/<setting>`
 
 
 [[get-index-settings-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
 +
-Use a value of `_all` to retrieve information for all indices in the cluster.
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 `<setting>`::
 (Optional, string) Comma-separated list or wildcard expression of setting names
@@ -58,10 +63,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 [[get-index-settings-api-example]]
 ==== {api-examples-title}
 
-===== Multiple indices
+===== Multiple data streams and indices
 
-The get settings API can be used to get settings for more than one index with a
-single call. To get settings for all indices you can use `_all` for `<index>`.
+The get settings API can be used to get settings for more than one data stream or index with a
+single call. To get settings for all indices in a cluster, you can use `_all` or `*` for `<target>`.
 Wildcard expressions are also supported. The following are some examples:
 
 [source,console]

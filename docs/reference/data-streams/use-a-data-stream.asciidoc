@@ -1,3 +1,4 @@
+[role="xpack"]
 [[use-a-data-stream]]
 == Use a data stream
 
@@ -121,6 +122,64 @@ PUT /logs/_bulk?refresh
 ----
 ====
 --
+
+You can use an <<ingest,ingest pipeline>> with these requests to pre-process
+data before it's indexed.
+
+.*Example: Ingest pipeline*
+[%collapsible]
+====
+The following <<put-pipeline-api,put pipeline API>> request creates the
+`lowercase_message_field` ingest pipeline. The pipeline uses the
+<<lowercase-processor,`lowercase` ingest processor>> to change the `message`
+field value to lowercase before indexing.
+
+[source,console]
+----
+PUT /_ingest/pipeline/lowercase_message_field
+{
+  "description" : "Lowercases the message field value",
+  "processors" : [
+    {
+      "lowercase" : {
+        "field" : "message"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+The following index API request adds a new document to the `logs` data stream.
+
+The request includes a `?pipeline=lowercase_message_field` query parameter.
+This parameter indicates {es} should use the `lowercase_message_field` pipeline
+to pre-process the document before indexing it.
+
+During pre-processing, the pipeline changes the letter case of the document's
+`message` field value from `LOGIN Successful` to `login successful`.
+
+[source,console]
+----
+POST /logs/_doc?pipeline=lowercase_message_field
+{
+  "@timestamp": "2020-12-08T11:12:01.000Z",
+  "user": {
+    "id": "I1YBEOxJ"
+  },
+  "message": "LOGIN Successful"
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_ingest/pipeline/lowercase_message_field
+----
+// TEST[continued]
+////
+====
 
 [discrete]
 [[search-a-data-stream]]

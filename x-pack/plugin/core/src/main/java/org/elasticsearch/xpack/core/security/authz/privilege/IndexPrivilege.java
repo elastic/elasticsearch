@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.common.Strings;
@@ -54,15 +53,13 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns("internal:transport/proxy/indices:data/read/*",
             ClusterSearchShardsAction.NAME);
-    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
-            PutMappingAction.NAME, AutoPutMappingAction.NAME);
+    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
     private static final Automaton CREATE_DOC_AUTOMATON = patterns("indices:data/write/index", "indices:data/write/index[*",
-        "indices:data/write/index:op_type/create", "indices:data/write/bulk*", PutMappingAction.NAME, AutoPutMappingAction.NAME);
+        "indices:data/write/index:op_type/create", "indices:data/write/bulk*");
     private static final Automaton INDEX_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
-        "indices:data/write/update*", PutMappingAction.NAME, AutoPutMappingAction.NAME);
+        "indices:data/write/update*");
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
-    private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", PutMappingAction.NAME,
-        AutoPutMappingAction.NAME);
+    private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");
     private static final Automaton MANAGE_AUTOMATON =
             unionAndMinimize(Arrays.asList(MONITOR_AUTOMATON, patterns("indices:admin/*")));

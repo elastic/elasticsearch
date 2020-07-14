@@ -30,12 +30,23 @@ setup:
           }
 
   - do:
+      security.put_role:
+        name: "data_stream_ingest_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["create-doc-data-stream*"], "privileges": ["create_doc"] },
+              { "names": ["write-data-stream*"], "privileges": ["write"] }
+            ]
+          }
+
+  - do:
       security.put_user:
         username: "test_user"
         body:  >
           {
             "password" : "x-pack-test-password",
-            "roles" : [ "data_stream_role" ],
+            "roles" : [ "data_stream_role", "data_stream_ingest_role" ],
             "full_name" : "user with privileges on some data streams"
           }
 
@@ -51,16 +62,18 @@ setup:
 
   - do:
       allowed_warnings:
-        - "index template [my-template1] has index patterns [s*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+        - "index template [my-template1] has index patterns [s*, create-doc-data-stream1, write-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
       indices.put_index_template:
         name: my-template1
         body:
-          index_patterns: [s*]
+          index_patterns: [s*, create-doc-data-stream1, write-data-stream1]
           template:
             mappings:
               properties:
                 '@timestamp':
                   type: date
+                'foo':
+                  type: keyword
           data_stream: {}
 
 ---
@@ -83,6 +96,11 @@ teardown:
   - do:
       security.delete_role:
         name: "data_stream_role2"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "data_stream_ingest_role"
         ignore: 404
 
 ---
@@ -180,6 +198,93 @@ teardown:
   - is_true: acknowledged
 
 ---
+"Test auto mapping updates unauthorized for create_doc privilege":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: create-doc-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.create_data_stream:
+        name: write-data-stream1
+  - is_true: acknowledged
+
+# unmapped field on empty data stream
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  create-doc-data-stream1
+        body:   { bar: baz, "@timestamp": "2000-12-12" }
+
+# mapped field does not update the mapping, hence it's authorized
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  create-doc-data-stream1
+        body:   { foo: bar, "@timestamp": "2555-12-12" }
+
+  - set: { _seq_no: seqno }
+  - set: { _primary_term: primary_term }
+
+# unmapped new field on non-empty data stream with create_doc privilege is not authorized
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  create-doc-data-stream1
+        body:   { bar: baz, "@timestamp": "2000-12-12" }
+
+# unmapped new field on backing index when update with create_doc privilege is not allowed
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  .ds-create-doc-data-stream1-000001
+        id:       1
+        op_type:  index
+        if_seq_no: $seqno
+        if_primary_term: $primary_term
+        body:   { foo: bar, bar: baz, "@timestamp": "2333-12-12" }
+
+# unmapped new field when write privilege is allowed
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        id:       2
+        op_type:  create
+        index:  write-data-stream1
+        body:   { foo: bar, bar: baz, "@timestamp": "2000-12-12" }
+
+  - set: { _seq_no: seqno }
+  - set: { _primary_term: primary_term }
+
+# unmapped new field on backing index update when write is allowed
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  .ds-write-data-stream1-000001
+        id:       2
+        op_type:  index
+        if_seq_no: $seqno
+        if_primary_term: $primary_term
+        body:   { new: field, bar: baz, "@timestamp": "2333-12-12" }
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: create-doc-data-stream1
+  - is_true: acknowledged
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: write-data-stream1
+  - is_true: acknowledged
+
+---
 "Test that create data stream is limited to authorized namespace":
   - skip:
       version: " - 7.8.99"
@@ -248,7 +353,7 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       indices.get_data_stream:
-        name: outside_of_namespace
+        name: s-outside-of-authed-namespace
 
   - do:
       headers: { Authorization: "Basic bm9fYXV0aHpfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # no_authz_user

@@ -74,9 +74,8 @@ public class InferenceRunner {
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(modelId, localModelPlainActionFuture);
-            LocalModel localModel = localModelPlainActionFuture.actionGet();
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config);
-            try (localModel) {
+            try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
                 inferTestDocs(localModel, testDocsIterator);
             }
         } catch (Exception e) {

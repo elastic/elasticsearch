@@ -3,6 +3,8 @@
 
   - skip:
       features: headers
+      version: "all"
+      reason: "API key realm name is in metadata since v7.5. https://github.com/elastic/elasticsearch/issues/59425"
 
   - do:
       security.create_api_key:

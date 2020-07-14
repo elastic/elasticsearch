@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.xpack.eql.execution.assembler.KeyAndOrdinal;
-
 public class UntilGroup extends OrdinalGroup<KeyAndOrdinal> {
 
     UntilGroup(SequenceKey key) {

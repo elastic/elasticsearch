@@ -1576,7 +1576,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}");
         Template template = new Template(null, mappings, null);
         ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList(dataStreamName), template,
-            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate());
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
             new PutComposableIndexTemplateRequest().name("ds-template").create(true).indexTemplate(indexTemplate);
         AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,

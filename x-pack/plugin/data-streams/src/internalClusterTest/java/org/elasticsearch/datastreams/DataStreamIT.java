@@ -362,7 +362,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getCause().getCause().getMessage(),
-            equalTo("the configured timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected")
+            equalTo("data stream timestamp field [@timestamp] is of type [keyword], but [date,date_nanos] is expected")
         );
     }
 
@@ -594,7 +594,7 @@ public class DataStreamIT extends ESIntegTestCase {
             "properties",
             Map.of("@timestamp", Map.of("type", "date")),
             "_data_stream_timestamp",
-            Map.of("path", "@timestamp")
+            Map.of("enabled", true)
         );
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
@@ -605,7 +605,7 @@ public class DataStreamIT extends ESIntegTestCase {
             "properties",
             Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")),
             "_data_stream_timestamp",
-            Map.of("path", "@timestamp")
+            Map.of("enabled", true)
         );
         client().admin()
             .indices()

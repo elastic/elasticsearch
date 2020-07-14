@@ -396,7 +396,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return context.path().pathAsText(name);
         }
 
-        private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        /**
+         * Writes the current builder parameter values as XContent
+         */
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }

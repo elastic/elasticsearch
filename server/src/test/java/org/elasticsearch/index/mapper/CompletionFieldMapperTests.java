@@ -31,6 +31,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -90,6 +92,28 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
+    }
+
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
+    public void testPre80DefaultConfiguration() throws IOException {
+
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("_doc")
+            .startObject("properties").startObject("completion")
+            .field("type", "completion")
+            .endObject().endObject()
+            .endObject().endObject());
+
+        Version oldVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
+        DocumentMapper defaultMapper = createIndex("test", settings(oldVersion).build()).mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        assertEquals("{\"_doc\":{\"properties\":{\"completion\":{\"type\":\"completion\",\"analyzer\":\"simple\"," +
+            "\"preserve_separators\":true,\"preserve_position_increments\":true,\"max_input_length\":50}}}}",
+            Strings.toString(defaultMapper));
     }
 
     public void testCompletionAnalyzerSettings() throws Exception {

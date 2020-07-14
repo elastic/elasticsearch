@@ -2,8 +2,6 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
   - do:
       allowed_warnings:
         - "index template [logs_template] has index patterns [logs-foobar] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs_template] will take precedence during new index creation"
@@ -26,8 +24,8 @@ teardown:
 ---
 "Verify get index api":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.get:
@@ -39,8 +37,8 @@ teardown:
 ---
 "Verify get mapping api":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
 
   - do:
       indices.get_mapping:
@@ -51,8 +49,8 @@ teardown:
 ---
 "Verify shard stores api":
   - skip:
-      version: " - 7.9.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -104,8 +102,8 @@ teardown:
 "Verify search shards api":
   - skip:
       features: allowed_warnings
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
 
   - do:
       allowed_warnings:
@@ -136,8 +134,8 @@ teardown:
 "Verify get field mappings api":
   - skip:
       features: allowed_warnings
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
 
   - do:
       allowed_warnings:
@@ -168,8 +166,8 @@ teardown:
 ---
 "Open write index for data stream opens all backing indices":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to - 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -231,8 +229,8 @@ teardown:
 ---
 "Verify rank eval with data streams":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:

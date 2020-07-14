@@ -546,14 +546,43 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testGetApiKeysForApiKeyName() throws InterruptedException, ExecutionException {
-        List<CreateApiKeyResponse> responses = createApiKeys(1, null);
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
-                .basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        final Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+
+        final int noOfApiKeys = randomIntBetween(1, 3);
+        final List<CreateApiKeyResponse> createApiKeyResponses1 = createApiKeys(noOfApiKeys, null);
+        final List<CreateApiKeyResponse> createApiKeyResponses2 = createApiKeys(
+            headers, noOfApiKeys, "another-test-key-", null, "monitor");
+
+        Client client = client().filterWithHeader(headers);
         SecurityClient securityClient = new SecurityClient(client);
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
+        List<CreateApiKeyResponse> responses = randomFrom(createApiKeyResponses1, createApiKeyResponses2);
         securityClient.getApiKey(GetApiKeyRequest.usingApiKeyName(responses.get(0).getName(), false), listener);
-        GetApiKeyResponse response = listener.get();
-        verifyGetResponse(1, responses, response, Collections.singleton(responses.get(0).getId()), null);
+        verifyGetResponse(1, responses, listener.get(), Collections.singleton(responses.get(0).getId()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener2 = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingApiKeyName("test-key*", false), listener2);
+        verifyGetResponse(noOfApiKeys, createApiKeyResponses1, listener2.get(),
+            createApiKeyResponses1.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener3 = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingApiKeyName("*", false), listener3);
+        responses = Stream.concat(createApiKeyResponses1.stream(), createApiKeyResponses2.stream()).collect(Collectors.toList());
+        verifyGetResponse(2 * noOfApiKeys, responses, listener3.get(),
+            responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener4 = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingApiKeyName("does-not-exist*", false), listener4);
+        verifyGetResponse(0, Collections.emptyList(), listener4.get(), Collections.emptySet(), null);
+
+        PlainActionFuture<GetApiKeyResponse> listener5 = new PlainActionFuture<>();
+        securityClient.getApiKey(GetApiKeyRequest.usingApiKeyName("another-test-key*", false), listener5);
+        verifyGetResponse(noOfApiKeys, createApiKeyResponses2, listener5.get(),
+            createApiKeyResponses2.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
     }
 
     public void testGetApiKeysOwnedByCurrentAuthenticatedUser() throws InterruptedException, ExecutionException {
@@ -994,13 +1023,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private List<CreateApiKeyResponse> createApiKeys(Map<String, String> headers,
         int noOfApiKeys, TimeValue expiration, String... clusterPrivileges) {
+        return createApiKeys(headers, noOfApiKeys, "test-key-", expiration, clusterPrivileges);
+    }
+
+    private List<CreateApiKeyResponse> createApiKeys(Map<String, String> headers,
+        int noOfApiKeys, String namePrefix, TimeValue expiration, String... clusterPrivileges) {
         List<CreateApiKeyResponse> responses = new ArrayList<>();
         for (int i = 0; i < noOfApiKeys; i++) {
             final RoleDescriptor descriptor = new RoleDescriptor("role", clusterPrivileges, null, null);
             Client client = client().filterWithHeader(headers);
             SecurityClient securityClient = new SecurityClient(client);
             final CreateApiKeyResponse response = securityClient.prepareCreateApiKey()
-                .setName("test-key-" + randomAlphaOfLengthBetween(5, 9) + i).setExpiration(expiration)
+                .setName(namePrefix + randomAlphaOfLengthBetween(5, 9) + i).setExpiration(expiration)
                 .setRoleDescriptors(Collections.singletonList(descriptor)).get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());

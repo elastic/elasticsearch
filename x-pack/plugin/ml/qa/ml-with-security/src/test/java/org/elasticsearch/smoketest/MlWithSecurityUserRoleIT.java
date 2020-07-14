@@ -13,7 +13,6 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;

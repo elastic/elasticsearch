@@ -121,7 +121,7 @@ Total size, in bytes, of all shards for the selected data streams.
 
 `data_streams`::
 (array of objects)
-Contains statistics about the selected data streams.
+Contains statistics for the selected data streams.
 +
 .Properties of objects in `data_streams`
 [%collapsible%open]
@@ -140,8 +140,8 @@ Total size, in bytes, of all shards for the data stream's backing indices.
 
 `maximum_timestamp`::
 (integer)
-https://en.wikipedia.org/wiki/Unix_time[Unix timestamp], in milliseconds, of the
-data stream's highest `@timestamp` value.
+The data stream's highest `@timestamp` value, converted to a
+https://en.wikipedia.org/wiki/Unix_time[Unix timestamp] in milliseconds.
 ====
 
 [[data-stream-stats-api-example]]

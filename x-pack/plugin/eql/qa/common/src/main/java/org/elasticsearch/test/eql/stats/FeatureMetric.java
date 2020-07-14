@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.stats;
+package org.elasticsearch.test.eql.stats;
 
 import java.util.Locale;
 
@@ -31,30 +31,8 @@ public enum FeatureMetric {
     PIPE_HEAD,
     PIPE_TAIL;
 
-    private final String prefix;
-
-    FeatureMetric() {
-        String featureName = this.toString();
-        String prefix = "features.";
-
-        if (featureName.startsWith("sequence_")) {
-            prefix += "sequences.";
-        } else if (featureName.startsWith("join_k")) {
-            prefix += "keys.";
-        } else if (featureName.startsWith("join_")) {
-            prefix += "joins.";
-        } else if (featureName.startsWith("pipe_")) {
-            prefix += "pipes.";
-        }
-        this.prefix = prefix;
-    }
-
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);
-    }
-
-    public String prefixedName() {
-        return this.prefix + this.toString();
     }
 }

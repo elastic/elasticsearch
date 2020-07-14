@@ -134,9 +134,7 @@ this pattern.
 ----
 ====
 
-* A `data_stream` definition containing the `timestamp_field` property.
-  This timestamp field must be included in every document indexed to the data
-  stream.
+* A `data_stream` object with an empty body (`{ }`).
 
 The template can also contain:
 
@@ -176,9 +174,7 @@ configures the `logs_data_stream` template.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": {},
   "template": {
     "settings": {
       "index.lifecycle.name": "logs_policy"

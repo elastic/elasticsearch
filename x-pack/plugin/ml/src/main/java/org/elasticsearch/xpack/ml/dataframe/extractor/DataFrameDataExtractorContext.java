@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitterFactory;
+import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitterFactory;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
 import java.util.List;
@@ -23,11 +23,11 @@ public class DataFrameDataExtractorContext {
     final Map<String, String> headers;
     final boolean includeSource;
     final boolean supportsRowsWithMissingValues;
-    final CrossValidationSplitterFactory crossValidationSplitterFactory;
+    final TrainTestSplitterFactory trainTestSplitterFactory;
 
     DataFrameDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indices, QueryBuilder query, int scrollSize,
                                   Map<String, String> headers, boolean includeSource, boolean supportsRowsWithMissingValues,
-                                  CrossValidationSplitterFactory crossValidationSplitterFactory) {
+                                  TrainTestSplitterFactory trainTestSplitterFactory) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -36,6 +36,6 @@ public class DataFrameDataExtractorContext {
         this.headers = headers;
         this.includeSource = includeSource;
         this.supportsRowsWithMissingValues = supportsRowsWithMissingValues;
-        this.crossValidationSplitterFactory = Objects.requireNonNull(crossValidationSplitterFactory);
+        this.trainTestSplitterFactory = Objects.requireNonNull(trainTestSplitterFactory);
     }
 }

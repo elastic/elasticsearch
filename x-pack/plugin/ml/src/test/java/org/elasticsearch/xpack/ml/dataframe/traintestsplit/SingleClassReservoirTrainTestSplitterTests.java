@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.dataframe.process.crossvalidation;
+package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -17,7 +17,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 
-public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase {
+public class SingleClassReservoirTrainTestSplitterTests extends ESTestCase {
 
     private List<String> fields;
     private int dependentVariableIndex;
@@ -37,7 +37,7 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
     }
 
     public void testIsTraining_GivenRowsWithoutDependentVariableValue() {
-        CrossValidationSplitter splitter = createSplitter(50.0, 0);
+        TrainTestSplitter splitter = createSplitter(50.0, 0);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -53,7 +53,7 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
     }
 
     public void testIsTraining_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
-        CrossValidationSplitter splitter = createSplitter(100.0, 100L);
+        TrainTestSplitter splitter = createSplitter(100.0, 100L);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -75,7 +75,7 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
         int runCount = 20;
         int[] trainingRowsPerRun = new int[runCount];
         for (int testIndex = 0; testIndex < runCount; testIndex++) {
-            CrossValidationSplitter splitter = createSplitter(trainingPercent, rowCount);
+            TrainTestSplitter splitter = createSplitter(trainingPercent, rowCount);
             int trainingRows = 0;
             for (int i = 0; i < rowCount; i++) {
                 String[] row = new String[fields.size()];
@@ -99,7 +99,7 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
     }
 
     public void testIsTraining_ShouldHaveAtLeastOneTrainingRow() {
-        CrossValidationSplitter splitter = createSplitter(1.0, 1);
+        TrainTestSplitter splitter = createSplitter(1.0, 1);
 
         // We have some non-training rows and then a training row to check
         // we maintain the first training row and not just the first row
@@ -121,7 +121,7 @@ public class SingleClassReservoirCrossValidationSplitterTests extends ESTestCase
         }
     }
 
-    private CrossValidationSplitter createSplitter(double trainingPercent, long classCount) {
-        return new SingleClassReservoirCrossValidationSplitter(fields, dependentVariable, trainingPercent, randomizeSeed, classCount);
+    private TrainTestSplitter createSplitter(double trainingPercent, long classCount) {
+        return new SingleClassReservoirTrainTestSplitter(fields, dependentVariable, trainingPercent, randomizeSeed, classCount);
     }
 }

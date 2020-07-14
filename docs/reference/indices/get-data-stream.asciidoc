@@ -36,8 +36,10 @@ PUT /_index_template/my-index-template
 {
   "index_patterns": [ "my-data-stream*" ],
   "data_stream": {},
-  "settings": {
-    "index.lifecycle.name": "my-lifecycle-policy"
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "my-lifecycle-policy"
+    }
   }
 }
 

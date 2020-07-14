@@ -33,7 +33,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "        }\n" +
                 "      },\n" +
                 "      \"data_stream\":{\n" +
-                "        \"timestamp_field\":\"@timestamp\"" +
                 "      }\n" +
                 "    }";
             Request request = new Request("PUT", "/_index_template/1");

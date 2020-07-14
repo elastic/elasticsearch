@@ -4,16 +4,16 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ml.dataframe.process.crossvalidation;
+package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
 import java.util.List;
 
-public class SingleClassReservoirCrossValidationSplitter extends AbstractReservoirCrossValidationSplitter {
+public class SingleClassReservoirTrainTestSplitter extends AbstractReservoirTrainTestSplitter {
 
     private final SampleInfo sampleInfo;
 
-    SingleClassReservoirCrossValidationSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent,
-                                                long randomizeSeed, long classCount) {
+    SingleClassReservoirTrainTestSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent,
+                                          long randomizeSeed, long classCount) {
         super(fieldNames, dependentVariable, trainingPercent, randomizeSeed);
         sampleInfo = new SampleInfo(classCount);
     }

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ml.dataframe.process.crossvalidation;
+package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class StratifiedCrossValidationSplitterTests extends ESTestCase {
+public class StratifiedTrainTestSplitterTests extends ESTestCase {
 
     private static final int ROWS_COUNT = 500;
 
@@ -73,13 +73,13 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
     }
 
     public void testConstructor_GivenMissingDependentVariable() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new StratifiedCrossValidationSplitter(
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new StratifiedTrainTestSplitter(
             Collections.emptyList(), "foo", Collections.emptyMap(), 100.0, 0));
         assertThat(e.getMessage(), equalTo("Could not find dependent variable [foo] in fields []"));
     }
 
     public void testIsTraining_GivenUnknownClass() {
-        CrossValidationSplitter splitter = createSplitter(100.0);
+        TrainTestSplitter splitter = createSplitter(100.0);
         String[] row = new String[fields.size()];
         for (int fieldIndex = 0; fieldIndex < fields.size(); fieldIndex++) {
             row[fieldIndex] = randomAlphaOfLength(5);
@@ -93,7 +93,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
     }
 
     public void testIsTraining_GivenRowsWithoutDependentVariableValue() {
-        CrossValidationSplitter splitter = createSplitter(50.0);
+        TrainTestSplitter splitter = createSplitter(50.0);
 
         for (int i = 0; i < classValuesPerRow.length; i++) {
             String[] row = new String[fields.size()];
@@ -109,7 +109,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
     }
 
     public void testIsTraining_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
-        CrossValidationSplitter splitter = createSplitter(100.0);
+        TrainTestSplitter splitter = createSplitter(100.0);
 
         for (int i = 0; i < classValuesPerRow.length; i++) {
             String[] row = new String[fields.size()];
@@ -128,7 +128,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         // We don't go too low here to avoid flakiness
         double trainingPercent = randomDoubleBetween(50.0, 100.0, true);
 
-        CrossValidationSplitter splitter = createSplitter(trainingPercent);
+        TrainTestSplitter splitter = createSplitter(trainingPercent);
 
         Map<String, Integer> totalRowsPerClass = new HashMap<>();
         Map<String, Integer> trainingRowsPerClass = new HashMap<>();
@@ -189,7 +189,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         for (int run = 0; run < runCount; run++) {
 
             randomizeSeed = randomLong();
-            CrossValidationSplitter crossValidationSplitter = createSplitter(trainingPercent);
+            TrainTestSplitter trainTestSplitter = createSplitter(trainingPercent);
 
             for (int i = 0; i < classValuesPerRow.length; i++) {
                 String[] row = new String[fields.size()];
@@ -199,7 +199,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
                 }
 
                 String[] processedRow = Arrays.copyOf(row, row.length);
-                boolean isTraining = crossValidationSplitter.isTraining(processedRow);
+                boolean isTraining = trainTestSplitter.isTraining(processedRow);
                 assertThat(Arrays.equals(processedRow, row), is(true));
 
                 if (isTraining) {
@@ -223,7 +223,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         classCounts = new HashMap<>();
         classCounts.put("class_a", 1L);
         classCounts.put("class_b", 1L);
-        CrossValidationSplitter splitter = createSplitter(80.0);
+        TrainTestSplitter splitter = createSplitter(80.0);
 
         {
             String[] row = new String[]{"class_a", "42.0"};
@@ -245,7 +245,7 @@ public class StratifiedCrossValidationSplitterTests extends ESTestCase {
         }
     }
 
-    private CrossValidationSplitter createSplitter(double trainingPercent) {
-        return new StratifiedCrossValidationSplitter(fields, dependentVariable, classCounts, trainingPercent, randomizeSeed);
+    private TrainTestSplitter createSplitter(double trainingPercent) {
+        return new StratifiedTrainTestSplitter(fields, dependentVariable, classCounts, trainingPercent, randomizeSeed);
     }
 }

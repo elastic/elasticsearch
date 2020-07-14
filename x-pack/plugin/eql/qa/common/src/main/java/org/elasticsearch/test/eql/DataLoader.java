@@ -39,7 +39,7 @@ public class DataLoader {
     private static final String TEST_DATA = "/test_data.json";
     private static final String MAPPING = "/mapping-default.json";
     static final String indexPrefix = "endgame";
-    static final String testIndexName = indexPrefix + "-1.4.0";
+    public static final String testIndexName = indexPrefix + "-1.4.0";
 
     public static void main(String[] args) throws IOException {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
@@ -52,15 +52,23 @@ public class DataLoader {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    protected static void loadDatasetIntoEs(RestHighLevelClient client,
+    public static void loadDatasetIntoEs(RestHighLevelClient client,
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
 
+        createTestIndex(client);
+        loadData(client, p);
+    }
+
+    private static void createTestIndex(RestHighLevelClient client) throws IOException {
         CreateIndexRequest request = new CreateIndexRequest(testIndexName)
             .mapping(Streams.readFully(DataLoader.class.getResourceAsStream(MAPPING)), XContentType.JSON);
 
         client.indices().create(request, RequestOptions.DEFAULT);
+    }
 
+    @SuppressWarnings("unchecked")
+    private static void loadData(RestHighLevelClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
+        throws IOException {
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 

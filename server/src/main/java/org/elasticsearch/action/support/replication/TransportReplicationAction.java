@@ -102,7 +102,7 @@ public abstract class TransportReplicationAction<
      * The timeout for retrying replication requests.
      */
     public static final Setting<TimeValue> REPLICATION_RETRY_TIMEOUT =
-        Setting.timeSetting("indices.replication.retry_timeout", TimeValue.timeValueSeconds(0), Setting.Property.Dynamic,
+        Setting.timeSetting("indices.replication.retry_timeout", TimeValue.timeValueSeconds(60), Setting.Property.Dynamic,
             Setting.Property.NodeScope);
 
     /**

@@ -27,7 +27,7 @@ val developmentBranches = listOf("master", "7.x", "7.8", "6.8")
 fun Project.includeDevelopmentBranchProjects() {
     subProjectsOrder = developmentBranches.map { branch ->
         subProject {
-            id(branch.replace('.', '_'))
+            id("${this@includeDevelopmentBranchProjects.id}_${branch.replace('.', '_')}")
             name = branch
 
             val kotlinDslRoot = createVcsRoot(name, "${branch}_teamcity")

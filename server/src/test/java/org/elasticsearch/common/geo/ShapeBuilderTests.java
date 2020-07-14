@@ -701,7 +701,7 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(buildGeometry(builder.close()), false);
      }
 
-    public void testInvalidShapeWithConsecutiveDuplicatePoints() {
+    public void testShapeWithConsecutiveDuplicatePoints() {
         PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(180, 0)
                 .coordinate(176, 4)
@@ -710,10 +710,56 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 );
 
-        Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
-        assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
-        e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
-        assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
+        // duplicated points are removed
+        PolygonBuilder expected = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, 0)
+            .coordinate(176, 4)
+            .coordinate(-176, 4)
+            .coordinate(180, 0)
+        );
+
+        assertEquals(buildGeometry(expected.close()), buildGeometry(builder.close()));
+        assertEquals(expected.close().buildS4J(), builder.close().buildS4J());
+    }
+
+    public void testShapeWithCoplanarVerticalPoints() throws Exception {
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -36)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+            .coordinate(-180, 79)
+            .coordinate(16, 58)
+            .coordinate(8, 13)
+            .coordinate(-180, 74)
+            .coordinate(-180, -85)
+            .coordinate(-180, -90)
+            .coordinate(180,  -90)
+            .coordinate(180, -85)
+            .coordinate(26, 6)
+            .coordinate(33, 62)
+            .coordinate(180, -36)
+        );
+
+        //coplanar points on vertical edge are removed.
+        PolygonBuilder expected = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -36)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+            .coordinate(-180, 79)
+            .coordinate(16, 58)
+            .coordinate(8, 13)
+            .coordinate(-180, 74)
+            .coordinate(-180, -90)
+            .coordinate(180,  -90)
+            .coordinate(180, -85)
+            .coordinate(26, 6)
+            .coordinate(33, 62)
+            .coordinate(180, -36)
+        );
+
+        assertEquals(buildGeometry(expected.close()), buildGeometry(builder.close()));
+        assertEquals(expected.close().buildS4J(), builder.close().buildS4J());
+
     }
 
     public void testPolygon3D() {

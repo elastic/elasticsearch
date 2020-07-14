@@ -65,18 +65,21 @@ public class GeoPolygonDecomposer {
         if (polygon.isEmpty()) {
             return;
         }
-        int numEdges = polygon.getPolygon().length() - 1; // Last point is repeated
+        LinearRing shell = filterRing(polygon.getPolygon());
+        LinearRing[] holes = new LinearRing[polygon.getNumberOfHoles()];
+        int numEdges = shell.length() - 1; // Last point is repeated
         for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-            numEdges += polygon.getHole(i).length() - 1;
-            validateHole(polygon.getPolygon(), polygon.getHole(i));
+            holes[i] = filterRing(polygon.getHole(i));
+            numEdges += holes[i].length() - 1;
+            validateHole(shell, holes[i]);
         }
 
         Edge[] edges = new Edge[numEdges];
-        Edge[] holeComponents = new Edge[polygon.getNumberOfHoles()];
+        Edge[] holeComponents = new Edge[holes.length];
         final AtomicBoolean translated = new AtomicBoolean(false);
-        int offset = createEdges(0, orientation, polygon.getPolygon(), null, edges, 0, translated);
+        int offset = createEdges(0, orientation, shell, null, edges, 0, translated);
         for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-            int length = createEdges(i + 1, orientation, polygon.getPolygon(), polygon.getHole(i), edges, offset, translated);
+            int length = createEdges(i + 1, orientation, shell, holes[i], edges, offset, translated);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -87,6 +90,48 @@ public class GeoPolygonDecomposer {
         numHoles = merge(edges, 0, intersections(-DATELINE, edges), holeComponents, numHoles);
 
         compose(edges, holeComponents, numHoles, collector);
+    }
+
+    /**
+     * This method removes duplicated points and coplanar points on vertical lines (vertical lines
+     * do not cross the dateline).
+     */
+    private static LinearRing filterRing(LinearRing linearRing) {
+        // first we check if there is anything to filter
+        int numPoints = linearRing.length();
+        int count = 2;
+        for (int i = 1; i < numPoints - 1; i++) {
+            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
+                if (linearRing.getLat(i - 1) == linearRing.getLat(i) ||
+                    linearRing.getLon(i - 1) == linearRing.getLon(i + 1)) {
+                    // filter
+                    continue;
+                }
+            }
+            count++;
+        }
+        if (numPoints == count) {
+            return linearRing;
+        }
+        // Second filter the points
+        double[] lons = new double[count];
+        double[] lats = new double[count];
+        lats[0] = lats[count - 1] = linearRing.getLat(0);
+        lons[0] = lons[count - 1] = linearRing.getLon(0);
+        count = 0;
+        for (int i = 1; i < numPoints - 1; i++) {
+            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
+                if (linearRing.getLat(i - 1) == linearRing.getLat(i) ||
+                    linearRing.getLon(i - 1) == linearRing.getLon(i + 1)) {
+                    // filter
+                    continue;
+                }
+            }
+            count++;
+            lats[count] = linearRing.getLat(i);
+            lons[count] = linearRing.getLon(i);
+        }
+        return new LinearRing(lons, lats);
     }
 
     private static void validateHole(LinearRing shell, LinearRing hole) {

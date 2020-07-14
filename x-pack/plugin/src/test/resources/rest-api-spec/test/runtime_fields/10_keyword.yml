@@ -41,6 +41,33 @@ setup:
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
 ---
+"docvalue_fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [day_of_week]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.day_of_week: [Thursday] }
+
+---
+"terms agg":
+  - do:
+      search:
+        index: sensor
+        body:
+          aggs:
+            dow:
+              terms:
+                field: day_of_week
+  - match: {hits.total.value: 6}
+  - match: {aggregations.dow.buckets.0.key: Friday}
+  - match: {aggregations.dow.buckets.0.doc_count: 1}
+  - match: {aggregations.dow.buckets.1.key: Monday}
+  - match: {aggregations.dow.buckets.1.doc_count: 1}
+
+---
 "term query":
   - do:
       search:

@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -53,7 +52,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
     }
 
     @Override
-    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+    public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
         return new ScriptBinaryFieldData.Builder(scriptFactory);
     }

@@ -1,6 +1,7 @@
 import jetbrains.buildServer.configs.kotlin.v2019_2.BuildType
 import jetbrains.buildServer.configs.kotlin.v2019_2.FailureAction
 import jetbrains.buildServer.configs.kotlin.v2019_2.ReuseBuilds
+import jetbrains.buildServer.configs.kotlin.v2019_2.SnapshotDependency
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -21,13 +22,18 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.ReuseBuilds
  * under the License.
  */
 
-fun BuildType.dependsOn(buildType: BuildType) {
+fun BuildType.dependsOn(buildType: BuildType, init: SnapshotDependency.() -> Unit) {
     dependencies {
         snapshot(buildType) {
             reuseBuilds = ReuseBuilds.SUCCESSFUL
             onDependencyCancel = FailureAction.CANCEL
             onDependencyFailure = FailureAction.CANCEL
             synchronizeRevisions = true
+            init()
         }
     }
+}
+
+fun BuildType.dependsOn(buildType: BuildType) {
+    dependsOn(buildType) {}
 }

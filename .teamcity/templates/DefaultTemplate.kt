@@ -60,7 +60,9 @@ object DefaultTemplate : Template({
                 # drop page cache and kernel slab objects on linux
                 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
                 rm -Rfv ~/.gradle/init.d
-                mkdir -p ~/.gradle/init.d && cp -v .ci/init.gradle ~/.gradle/init.d
+                # mkdir -p ~/.gradle/init.d && cp -v .ci/init.gradle ~/.gradle/init.d
+                mkdir -p ~/.gradle/init.d
+                echo "projectsLoaded { rootProject { project.pluginManager.withPlugin('com.gradle.build-scan') { buildScan.server = 'https://gradle-enterprise.elastic.co' } } }" > ~/.gradle/init.d/init.gradle
                 if [ -f /proc/cpuinfo ] ; then
                    MAX_WORKERS=`grep '^cpu\scores' /proc/cpuinfo  | uniq | sed 's/\s\+//g' |  cut -d':' -f 2`
                 else

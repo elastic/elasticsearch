@@ -34,7 +34,10 @@ project {
         name = "Passed Intake"
         type = BuildTypeSettings.Type.COMPOSITE
 
-        dependsOn(SanityCheck)
+        dependsOn(SanityCheck) {
+            onDependencyFailure = FailureAction.ADD_PROBLEM
+            onDependencyCancel = FailureAction.ADD_PROBLEM
+        }
     }
 
    subProject {

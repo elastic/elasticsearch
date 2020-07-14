@@ -9,14 +9,9 @@ setup:
         body:
           index_patterns: [simple-data-stream1]
           template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
             settings:
               index.number_of_replicas: 0
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
@@ -25,12 +20,9 @@ setup:
         body:
           index_patterns: [simple-data-stream2]
           template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+            settings:
+              index.number_of_replicas: 0
+          data_stream: {}
 
 ---
 "No data streams":

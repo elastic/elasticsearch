@@ -23,7 +23,7 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
 object DefaultRoot : GitVcsRoot({
     id(DslContext.projectName)
 
-    name = "$DslContext.parentProjectId.toString() $DslContext.projectName"
+    name = "${DslContext.parentProjectId} (${DslContext.projectName})"
     url = "https://github.com/elastic/${DslContext.parentProjectId.toString().toLowerCase()}.git"
     branch = "refs/heads/${DslContext.projectName}"
 })

@@ -61,7 +61,7 @@ public class RollupField {
         NUMERIC_FIELD_MAPPER_TYPES = types;
     }
 
-    public static final List<String> DATE_FIELD_MAPPER_TYPES = List.of(DateFieldMapper.CONTENT_TYPE,
+    public static final List<String> DATE_FIELD_MAPPER_TYPES = Arrays.asList(DateFieldMapper.CONTENT_TYPE,
         DateFieldMapper.DATE_NANOS_CONTENT_TYPE);
 
     /**

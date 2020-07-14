@@ -6,20 +6,25 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.eql.execution.assembler.KeyAndOrdinal;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
+import org.elasticsearch.xpack.eql.session.Payload;
 
 import java.util.LinkedList;
 import java.util.List;
 
 /**
- * State machine that holds and manages all in-flight sequences.
+ * Matcher of sequences. Keeps track of on-going sequences and advancing them through each stage.
  */
-public class SequenceStateMachine {
+public class SequenceMatcher {
+
+    private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
     static class Stats {
         long seen = 0;
@@ -53,20 +58,21 @@ public class SequenceStateMachine {
     /** Current keys on each stage */
     private final StageToKeys stageToKeys;
 
+    private final int numberOfStages;
     private final int completionStage;
 
     /** list of completed sequences - separate to avoid polluting the other stages */
     private final List<Sequence> completed;
     private final long maxSpanInMillis;
 
-    private int offset = 0;
-    private int limit = -1;
+    private Limit limit;
     private boolean limitReached = false;
 
     private final Stats stats = new Stats();
 
     @SuppressWarnings("rawtypes")
-    public SequenceStateMachine(int stages, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(int stages, TimeValue maxSpan, Limit limit) {
+        this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
         this.stageToKeys = new StageToKeys(completionStage);
@@ -75,15 +81,8 @@ public class SequenceStateMachine {
 
         this.maxSpanInMillis = maxSpan.millis();
 
-        // limit && offset
-        if (limit != null) {
-            this.offset = limit.offset;
-            this.limit = limit.absLimit();
-        }
-    }
-
-    public List<Sequence> completeSequences() {
-        return completed;
+        // limit
+        this.limit = limit;
     }
 
     public void trackSequence(Sequence sequence) {
@@ -96,10 +95,37 @@ public class SequenceStateMachine {
     }
 
     /**
+     * Match hits for the given stage.
+     * Returns false if the process needs to be stopped.
+     */
+    public boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, SearchHit>> hits) {
+        for (Tuple<KeyAndOrdinal, SearchHit> tuple : hits) {
+            KeyAndOrdinal ko = tuple.v1();
+            SearchHit hit = tuple.v2();
+
+            if (stage == 0) {
+                Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
+                trackSequence(seq);
+            } else {
+                match(stage, ko.key, ko.ordinal, hit);
+
+                // early skip in case of reaching the limit
+                // check the last stage to avoid calling the state machine in other stages
+                if (reachedLimit()) {
+                    log.trace("Limit reached {}", stats);
+                    return false;
+                }
+            }
+        }
+        log.trace("{}", stats);
+        return true;
+    }
+
+    /**
      * Match the given hit (based on key and timestamp and potential tiebreaker) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
-    public void match(int stage, SequenceKey key, Ordinal ordinal, SearchHit hit) {
+    private void match(int stage, SequenceKey key, Ordinal ordinal, SearchHit hit) {
         stats.seen++;
         
         int previousStage = stage - 1;
@@ -150,15 +176,10 @@ public class SequenceStateMachine {
 
         // bump the stages
         if (stage == completionStage) {
-            // add the sequence only if needed
-            if (offset > 0) {
-                offset--;
-            } else {
-                if (limit < 0 || (limit > 0 && completed.size() < limit)) {
-                    completed.add(sequence);
-                    // update the bool lazily
-                    limitReached = limit > 0 && completed.size() == limit;
-                }
+            if (limitReached == false) {
+                completed.add(sequence);
+                // update the bool lazily
+                limitReached = limit != null && completed.size() == limit.totalLimit();
             }
         } else {
             stageToKeys.add(stage, key);
@@ -184,6 +205,14 @@ public class SequenceStateMachine {
             }
         }
         return false;
+    }
+
+    public Payload payload(long startTime) {
+        TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
+        List<Sequence> view = limit != null ? limit.view(completed) : completed;
+        Payload p = new SequencePayload(view, false, tookTime);
+        clear();
+        return p;
     }
 
     public void dropUntil() {

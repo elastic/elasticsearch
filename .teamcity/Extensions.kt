@@ -1,3 +1,7 @@
+import jetbrains.buildServer.configs.kotlin.v2019_2.BuildType
+import jetbrains.buildServer.configs.kotlin.v2019_2.FailureAction
+import jetbrains.buildServer.configs.kotlin.v2019_2.ReuseBuilds
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -17,34 +21,13 @@
  * under the License.
  */
 
-import builds.SanityCheck
-import jetbrains.buildServer.configs.kotlin.v2019_2.*
-import templates.DefaultTemplate
-
-version = "2020.1"
-
-project {
-    vcsRoot(DefaultRoot)
-    template(DefaultTemplate)
-
-    defaultTemplate = DefaultTemplate
-
-    val stagesProject = subProject {
-        name = "Stages"
-
-        buildType {
-            name = "Passed Intake"
-            type = BuildTypeSettings.Type.COMPOSITE
-
-            dependsOn(SanityCheck)
+fun BuildType.dependsOn(buildType: BuildType) {
+    dependencies {
+        snapshot(buildType) {
+            reuseBuilds = ReuseBuilds.SUCCESSFUL
+            onDependencyCancel = FailureAction.CANCEL
+            onDependencyFailure = FailureAction.CANCEL
+            synchronizeRevisions = true
         }
     }
-
-    val checksProject = subProject {
-        name = "Checks"
-
-        buildType(SanityCheck)
-    }
-
-    subProjectsOrder = listOf(stagesProject, checksProject)
 }

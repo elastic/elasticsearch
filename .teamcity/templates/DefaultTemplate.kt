@@ -23,7 +23,7 @@ import DefaultRoot
 import jetbrains.buildServer.configs.kotlin.v2019_2.Template
 
 object DefaultTemplate : Template({
-    name = "Default"
+    name = "Default Template"
 
     vcs {
         root(DefaultRoot)

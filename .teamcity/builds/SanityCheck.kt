@@ -17,34 +17,11 @@
  * under the License.
  */
 
-import builds.SanityCheck
-import jetbrains.buildServer.configs.kotlin.v2019_2.*
-import templates.DefaultTemplate
+package builds
 
-version = "2020.1"
+import jetbrains.buildServer.configs.kotlin.v2019_2.BuildType
 
-project {
-    vcsRoot(DefaultRoot)
-    template(DefaultTemplate)
-
-    defaultTemplate = DefaultTemplate
-
-    val stagesProject = subProject {
-        name = "Stages"
-
-        buildType {
-            name = "Passed Intake"
-            type = BuildTypeSettings.Type.COMPOSITE
-
-            dependsOn(SanityCheck)
-        }
-    }
-
-    val checksProject = subProject {
-        name = "Checks"
-
-        buildType(SanityCheck)
-    }
-
-    subProjectsOrder = listOf(stagesProject, checksProject)
-}
+object SanityCheck : BuildType({
+    name = "Sanity Check"
+    description = "Compiles all modules and runs code quality checks checks"
+})

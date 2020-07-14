@@ -172,18 +172,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
             this(name, true, true, Collections.emptyMap());
         }
 
-        GeoPointFieldType(GeoPointFieldType ref) {
-            super(ref);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new GeoPointFieldType(this);
         }
 
         @Override

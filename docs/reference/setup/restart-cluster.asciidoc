@@ -36,8 +36,7 @@ POST /_flush
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +
 --
-{ml-cap} features require a platinum license or higher. For more information about Elastic
-license levels, see https://www.elastic.co/subscriptions[the subscription page].
+{ml-cap} features require specific {subscriptions}[subscriptions].
 
 You have two options to handle {ml} jobs and {dfeeds} when you shut down a
 cluster:

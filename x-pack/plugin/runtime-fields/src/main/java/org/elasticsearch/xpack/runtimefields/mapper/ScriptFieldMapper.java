@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -13,9 +14,9 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
@@ -23,7 +24,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
@@ -31,7 +31,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     private final String runtimeType;
     private final Script script;
-    private final Supplier<QueryShardContext> queryShardContextSupplier;
+    private final ScriptService scriptService;
 
     private static ScriptFieldMapper toType(FieldMapper in) {
         return (ScriptFieldMapper) in;
@@ -44,17 +44,17 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         String runtimeType,
         Script script,
-        Supplier<QueryShardContext> queryShardContextSupplier
+        ScriptService scriptService
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.runtimeType = runtimeType;
         this.script = script;
-        this.queryShardContextSupplier = queryShardContextSupplier;
+        this.scriptService = scriptService;
     }
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new ScriptFieldMapper.Builder(simpleName(), queryShardContextSupplier).init(this);
+        return new ScriptFieldMapper.Builder(simpleName(), scriptService).init(this);
     }
 
     @Override
@@ -100,11 +100,12 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("script must be specified for script field [" + name + "]");
             }
         });
-        private final Supplier<QueryShardContext> queryShardContextSupplier;
 
-        protected Builder(String name, Supplier<QueryShardContext> queryShardContextSupplier) {
+        private final ScriptService scriptService;
+
+        protected Builder(String name, ScriptService scriptService) {
             super(name);
-            this.queryShardContextSupplier = queryShardContextSupplier;
+            this.scriptService = scriptService;
         }
 
         @Override
@@ -114,10 +115,9 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScriptFieldMapper build(BuilderContext context) {
-            QueryShardContext queryShardContext = queryShardContextSupplier.get();
             MappedFieldType mappedFieldType;
             if (runtimeType.getValue().equals("keyword")) {
-                StringScriptFieldScript.Factory factory = queryShardContext.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
+                StringScriptFieldScript.Factory factory = scriptService.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
                 mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script.getValue(), factory, meta.getValue());
             } else {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
@@ -130,7 +130,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
                 copyTo.build(),
                 runtimeType.getValue(),
                 script.getValue(),
-                queryShardContextSupplier
+                scriptService
             );
         }
 
@@ -185,10 +185,17 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
 
+        private final SetOnce<ScriptService> scriptService = new SetOnce<>();
+
+        public void setScriptService(ScriptService scriptService) {
+            this.scriptService.set(scriptService);
+        }
+
         @Override
         public ScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
-            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, parserContext.queryShardContextSupplier());
+
+            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, scriptService.get());
             builder.parse(name, parserContext, node);
             return builder;
         }

@@ -32,9 +32,11 @@ import java.util.function.Supplier;
 
 public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin {
 
+    private final ScriptFieldMapper.TypeParser typeParser = new ScriptFieldMapper.TypeParser();
+
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(ScriptFieldMapper.CONTENT_TYPE, new ScriptFieldMapper.TypeParser());
+        return Collections.singletonMap(ScriptFieldMapper.CONTENT_TYPE, typeParser);
     }
 
     @Override
@@ -56,6 +58,8 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
+        // TODO getMappers gets called before createComponents. We should wire the script service differently
+        typeParser.setScriptService(scriptService);
         return Collections.emptyList();
     }
 }

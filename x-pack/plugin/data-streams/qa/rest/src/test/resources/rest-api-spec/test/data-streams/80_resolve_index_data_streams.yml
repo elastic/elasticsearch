@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: "7.8.99 - "
-      reason: "resolve index api only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -12,13 +12,9 @@ setup:
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream:
             timestamp_field: '@timestamp'
+
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
@@ -29,10 +25,10 @@ setup:
           template:
             mappings:
               properties:
-                '@timestamp2':
+                '@timestamp':
                   type: date
           data_stream:
-            timestamp_field: '@timestamp2'
+            timestamp_field: '@timestamp'
 
   - do:
       indices.create_data_stream:
@@ -76,8 +72,8 @@ setup:
 ---
 "Resolve index with indices, aliases, and data streams":
   - skip:
-      version: " - 7.8.99"
-      reason: "resolve index api only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.resolve_index:
@@ -120,7 +116,7 @@ setup:
 ---
 "Resolve index with hidden and closed indices":
   - skip:
-      version: " - 7.8.99"
+      version: " - 7.9.99"
       reason: change after backporting
 
   - do:

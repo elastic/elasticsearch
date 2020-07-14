@@ -114,9 +114,9 @@ public class BasicQueryClient implements QueryClient {
                 // need to create these objects to set the index
                 hit.shard(new SearchShardTarget(null, new ShardId(result.getIndex(), "", -1), null, null));
 
-                //hit.setSeqNo(result.getSeqNo());
-                //hit.setPrimaryTerm(result.getPrimaryTerm());
-                //hit.version(result.getVersion());
+                hit.setSeqNo(result.getSeqNo());
+                hit.setPrimaryTerm(result.getPrimaryTerm());
+                hit.version(result.getVersion());
 
 
                 sequence.add(hit);

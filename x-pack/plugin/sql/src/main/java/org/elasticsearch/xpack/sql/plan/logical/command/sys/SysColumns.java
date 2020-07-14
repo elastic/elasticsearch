@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
@@ -134,7 +134,7 @@ public class SysColumns extends Command {
                     fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
                 }
 
-                listener.onResponse(new Cursor.Page(Rows.of(output, rows), Cursor.EMPTY));
+                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
         }
         // otherwise use a merged mapping
@@ -147,7 +147,7 @@ public class SysColumns extends Command {
                     fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
                 }
 
-                listener.onResponse(new Cursor.Page(Rows.of(output, rows), Cursor.EMPTY));
+                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
         }
     }

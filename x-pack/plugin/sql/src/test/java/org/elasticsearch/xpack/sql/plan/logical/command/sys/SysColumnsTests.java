@@ -506,16 +506,6 @@ public class SysColumnsTests extends ESTestCase {
         }, mapping);
     }
 
-    private static void checkOdbcShortTypes(SchemaRowSet r) {
-        assertEquals(15, r.size());
-        // https://github.com/elastic/elasticsearch/issues/35376
-        // cols that need to be of short type: DATA_TYPE, DECIMAL_DIGITS, NUM_PREC_RADIX, NULLABLE, SQL_DATA_TYPE, SQL_DATETIME_SUB
-        List<Integer> cols = Arrays.asList(4, 8, 9, 10, 13, 14);
-        for (Integer i: cols) {
-            assertEquals("short", r.schema().get(i).type().name().toLowerCase(Locale.ROOT));
-        }
-    }
-
     public void testSysColumnsTypesInOdbcMode() throws Exception {
         executeCommand("SYS COLUMNS", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
         executeCommand("SYS COLUMNS TABLE LIKE 'test'", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
@@ -562,5 +552,15 @@ public class SysColumnsTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {
         return sql(sql, params, SqlTestUtils.TEST_CFG, mapping);
+    }
+
+    private static void checkOdbcShortTypes(SchemaRowSet r) {
+        assertEquals(15, r.size());
+        // https://github.com/elastic/elasticsearch/issues/35376
+        // cols that need to be of short type: DATA_TYPE, DECIMAL_DIGITS, NUM_PREC_RADIX, NULLABLE, SQL_DATA_TYPE, SQL_DATETIME_SUB
+        List<Integer> cols = Arrays.asList(4, 8, 9, 10, 13, 14);
+        for (Integer i: cols) {
+            assertEquals("short", r.schema().get(i).type().name().toLowerCase(Locale.ROOT));
+        }
     }
 }

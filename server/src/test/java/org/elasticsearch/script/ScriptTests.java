@@ -159,6 +159,13 @@ public class ScriptTests extends ESTestCase {
 
     public void testParseFromObjectWrongFormat() {
         {
+            NullPointerException exc = expectThrows(
+                NullPointerException.class,
+                () -> Script.parse((Object)null)
+            );
+            assertEquals("Script must not be null", exc.getMessage());
+        }
+        {
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
                 () -> Script.parse(3)

@@ -12,8 +12,7 @@
         name: my-template
         body:
           index_patterns: [logs-*]
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -61,8 +60,7 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -101,7 +99,7 @@
 "Prohibit shrink on data stream's write index":
   - skip:
       version: " - 7.9.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -111,8 +109,7 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -149,8 +146,7 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -171,7 +167,7 @@
 "Prohibit split on data stream's write index":
   - skip:
       version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -181,8 +177,7 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:

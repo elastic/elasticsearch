@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.dataframe.process.crossvalidation;
+package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,21 +26,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class CrossValidationSplitterFactory {
+public class TrainTestSplitterFactory {
 
-    private static final Logger LOGGER = LogManager.getLogger(CrossValidationSplitterFactory.class);
+    private static final Logger LOGGER = LogManager.getLogger(TrainTestSplitterFactory.class);
 
     private final Client client;
     private final DataFrameAnalyticsConfig config;
     private final List<String> fieldNames;
 
-    public CrossValidationSplitterFactory(Client client, DataFrameAnalyticsConfig config, List<String> fieldNames) {
+    public TrainTestSplitterFactory(Client client, DataFrameAnalyticsConfig config, List<String> fieldNames) {
         this.client = Objects.requireNonNull(client);
         this.config = Objects.requireNonNull(config);
         this.fieldNames = Objects.requireNonNull(fieldNames);
     }
 
-    public CrossValidationSplitter create() {
+    public TrainTestSplitter create() {
         if (config.getAnalysis() instanceof Regression) {
             return createSingleClassSplitter((Regression) config.getAnalysis());
         }
@@ -50,7 +50,7 @@ public class CrossValidationSplitterFactory {
         return row -> true;
     }
 
-    private CrossValidationSplitter createSingleClassSplitter(Regression regression) {
+    private TrainTestSplitter createSingleClassSplitter(Regression regression) {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(config.getDest().getIndex())
             .setSize(0)
             .setAllowPartialSearchResults(false)
@@ -60,7 +60,7 @@ public class CrossValidationSplitterFactory {
         try {
             SearchResponse searchResponse = ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
                 searchRequestBuilder::get);
-            return new SingleClassReservoirCrossValidationSplitter(fieldNames, regression.getDependentVariable(),
+            return new SingleClassReservoirTrainTestSplitter(fieldNames, regression.getDependentVariable(),
                 regression.getTrainingPercent(), regression.getRandomizeSeed(), searchResponse.getHits().getTotalHits().value);
         } catch (Exception e) {
             ParameterizedMessage msg = new ParameterizedMessage("[{}] Error searching total number of training docs", config.getId());
@@ -69,7 +69,7 @@ public class CrossValidationSplitterFactory {
         }
     }
 
-    private CrossValidationSplitter createStratifiedSplitter(Classification classification) {
+    private TrainTestSplitter createStratifiedSplitter(Classification classification) {
         String aggName = "dependent_variable_terms";
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(config.getDest().getIndex())
             .setSize(0)
@@ -88,7 +88,7 @@ public class CrossValidationSplitterFactory {
                 classCounts.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
             }
 
-            return new StratifiedCrossValidationSplitter(fieldNames, classification.getDependentVariable(), classCounts,
+            return new StratifiedTrainTestSplitter(fieldNames, classification.getDependentVariable(), classCounts,
                 classification.getTrainingPercent(), classification.getRandomizeSeed());
         } catch (Exception e) {
             ParameterizedMessage msg = new ParameterizedMessage("[{}] Dependent variable terms search failed", config.getId());

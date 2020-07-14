@@ -30,7 +30,7 @@ object DefaultTemplate : Template({
     vcs {
         root(DefaultRoot)
 
-        checkoutDir = "%teamcity.build.id%/dev/shm"
+        checkoutDir = "/dev/shm/%system.teamcity.buildType.id%/%system.build.number%"
     }
 
     params {

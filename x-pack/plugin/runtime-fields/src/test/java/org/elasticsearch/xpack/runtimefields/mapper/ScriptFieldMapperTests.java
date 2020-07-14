@@ -13,13 +13,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
+import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -29,7 +34,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, RuntimeFields.class, PainlessPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, RuntimeFields.class, TestScriptPlugin.class);
     }
 
     public void testRuntimeTypeIsRequired() throws Exception {
@@ -82,12 +87,12 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
-        assertEquals("Failed to parse mapping: stored scripts specified but not supported when defining script field [my_field]",
-            exception.getMessage());
+        assertEquals(
+            "Failed to parse mapping: stored scripts specified but not supported when defining script field [my_field]",
+            exception.getMessage()
+        );
     }
 
-
-    @AwaitsFix(bugUrl = "Nik: help! :)")
     public void testDefaultMapping() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -96,8 +101,10 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("field")
             .field("type", "script")
             .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
-            // TODO what do we need to do to make the value function work in this test?
-            .field("script", "value('test')")
+            .startObject("script")
+            .field("source", "value('test')")
+            .field("lang", "test")
+            .endObject()
             .endObject()
             .endObject()
             .endObject()
@@ -109,4 +116,45 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(Strings.toString(mapping), Strings.toString(mapperService.documentMapper()));
     }
 
+    public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
+        @Override
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+            return new ScriptEngine() {
+                @Override
+                public String getType() {
+                    return "test";
+                }
+
+                @Override
+                public <FactoryType> FactoryType compile(
+                    String name,
+                    String code,
+                    ScriptContext<FactoryType> context,
+                    Map<String, String> paramsMap
+                ) {
+                    if ("value('test')".equals(code)) {
+                        StringScriptFieldScript.Factory factory = (params, lookup) -> ctx -> new StringScriptFieldScript(
+                            params,
+                            lookup,
+                            ctx
+                        ) {
+                            @Override
+                            public void execute() {
+                                this.results.add("test");
+                            }
+                        };
+                        @SuppressWarnings("unchecked")
+                        FactoryType castFactory = (FactoryType) factory;
+                        return castFactory;
+                    }
+                    throw new IllegalArgumentException("No test script for [" + code + "]");
+                }
+
+                @Override
+                public Set<ScriptContext<?>> getSupportedContexts() {
+                    return Set.of(StringScriptFieldScript.CONTEXT);
+                }
+            };
+        }
+    }
 }

@@ -31,10 +31,6 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     private final Script script;
     private final ScriptService scriptService;
 
-    private static ScriptFieldMapper toType(FieldMapper in) {
-        return (ScriptFieldMapper) in;
-    }
-
     protected ScriptFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -73,6 +69,10 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     }
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        private static ScriptFieldMapper toType(FieldMapper in) {
+            return (ScriptFieldMapper) in;
+        }
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<String> runtimeType = Parameter.stringParam(

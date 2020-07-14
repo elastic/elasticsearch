@@ -20,12 +20,10 @@
 import jetbrains.buildServer.configs.kotlin.v2019_2.DslContext
 import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
 
-val normalizedBranchName = (DslContext.settingsRoot as GitVcsRoot).branch!!.removePrefix("refs/heads/").removeSuffix("_teamcity")
-
 object DefaultRoot : GitVcsRoot({
-    id("${DslContext.projectName}_${normalizedBranchName.replace('.', '_')}")
+    id(DslContext.projectName)
 
-    name = "$DslContext.projectName ($normalizedBranchName)"
-    url = "https://github.com/elastic/${DslContext.projectName.toLowerCase()}.git"
-    branch = "refs/heads/$normalizedBranchName"
+    name = "$DslContext.parentProjectId.toString() $DslContext.projectName"
+    url = "https://github.com/elastic/${DslContext.parentProjectId.toString().toLowerCase()}.git"
+    branch = "refs/heads/${DslContext.projectName}"
 })

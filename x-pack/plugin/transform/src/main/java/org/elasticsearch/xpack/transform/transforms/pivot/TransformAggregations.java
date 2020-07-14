@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public final class Aggregations {
+public final class TransformAggregations {
 
     // the field mapping should not explicitly be set and allow ES to dynamically determine mapping via the data.
     private static final String DYNAMIC = "_dynamic";
@@ -82,7 +82,7 @@ public final class Aggregations {
         "variable_width_histogram" // https://github.com/elastic/elasticsearch/issues/58140
     );
 
-    private Aggregations() {}
+    private TransformAggregations() {}
 
     /**
      * Supported aggregation by transform and corresponding meta information.

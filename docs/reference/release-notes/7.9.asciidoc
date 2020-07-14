@@ -26,6 +26,6 @@ Snapshot restore throttling::
 Thread pool write queue size::
 * The WRITE thread pool default queue size (`thread_pool.write.size`) has been
   increased from 200 to 4000. Additional memory-oriented back pressure has been
-  introduced with the `indexing_limits.memory.limit` setting. This setting
+  introduced with the `indexing_pressure.memory.limit` setting. This setting
   configures a limit to the number of bytes allowed to be consumed by outstanding
   indexing requests. {es-issue}59263[#59263]

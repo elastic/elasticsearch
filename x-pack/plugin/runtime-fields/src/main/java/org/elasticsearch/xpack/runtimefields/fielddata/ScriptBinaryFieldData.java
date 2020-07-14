@@ -51,7 +51,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         }
 
         @Override
-        public IndexFieldData<?> build(
+        public ScriptBinaryFieldData build(
             IndexSettings indexSettings,
             MappedFieldType fieldType,
             IndexFieldDataCache cache,
@@ -130,7 +130,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
     }
 
-    static class ScriptBinaryLeafFieldData implements LeafFieldData {
+    public static class ScriptBinaryLeafFieldData implements LeafFieldData {
         private final ScriptBinaryDocValues scriptBinaryDocValues;
 
         ScriptBinaryLeafFieldData(ScriptBinaryDocValues scriptBinaryDocValues) {

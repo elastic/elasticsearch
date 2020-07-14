@@ -184,8 +184,7 @@ PUT /_index_template/logs_data_stream
 ----
 // TEST[continued]
 
-The following template maps the `@timestamp` field as a `date_nanos` field data
-type.
+The following template maps `@timestamp` as a `date_nanos` field.
 
 [source,console]
 ----
@@ -207,8 +206,8 @@ PUT /_index_template/logs_data_stream
 ----
 // TEST[continued]
 
-<1> Maps the `@timestamp` field as a `date_nanos` field data type. You can
-include other supported mapping parameters in this field mapping.
+<1> Maps `@timestamp` as a `date_nanos` field. You can include other supported
+mapping parameters in this field mapping.
 ====
 
 NOTE: You cannot delete an index template that's in use by a data stream.

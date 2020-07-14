@@ -78,6 +78,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private Index concreteIndex;
 
+    private boolean writeIndexOnly;
+
     public PutMappingRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
@@ -92,6 +94,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             origin = in.readOptionalString();
         } else {
             origin = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            writeIndexOnly = in.readBoolean();
         }
     }
 
@@ -323,6 +328,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
+    public PutMappingRequest writeIndexOnly(boolean writeIndexOnly) {
+        this.writeIndexOnly = writeIndexOnly;
+        return this;
+    }
+
+    public boolean writeIndexOnly() {
+        return writeIndexOnly;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -336,6 +350,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeOptionalWriteable(concreteIndex);
         if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             out.writeOptionalString(origin);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeBoolean(writeIndexOnly);
         }
     }
 

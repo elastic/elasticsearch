@@ -63,8 +63,8 @@ public abstract class SourceGenerator {
             // add size and from
             source.size(container.limit().absLimit());
             // this should be added only for event queries
-            if (container.limit().offset > 0) {
-                source.from(container.limit().offset);
+            if (container.limit().offset() > 0) {
+                source.from(container.limit().offset());
             }
         }
 

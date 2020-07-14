@@ -29,7 +29,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
-import org.elasticsearch.xpack.ml.dataframe.process.crossvalidation.CrossValidationSplitter;
+import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitter;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 
@@ -66,14 +66,14 @@ public class DataFrameDataExtractor {
     private boolean isCancelled;
     private boolean hasNext;
     private boolean searchHasShardFailure;
-    private final CachedSupplier<CrossValidationSplitter> crossValidationSplitter;
+    private final CachedSupplier<TrainTestSplitter> trainTestSplitter;
 
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
         hasNext = true;
         searchHasShardFailure = false;
-        this.crossValidationSplitter = new CachedSupplier<>(context.crossValidationSplitterFactory::create);
+        this.trainTestSplitter = new CachedSupplier<>(context.trainTestSplitterFactory::create);
     }
 
     public Map<String, String> getHeaders() {
@@ -207,7 +207,7 @@ public class DataFrameDataExtractor {
                 }
             }
         }
-        boolean isTraining = extractedValues == null ? false : crossValidationSplitter.get().isTraining(extractedValues);
+        boolean isTraining = extractedValues == null ? false : trainTestSplitter.get().isTraining(extractedValues);
         return new Row(extractedValues, hit, isTraining);
     }
 

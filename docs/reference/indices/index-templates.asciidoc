@@ -17,10 +17,9 @@ template may still match and be applied.
 [[getting]]
 An index template is a way to tell {es} how to configure an index when it is created.
 For data streams, the index template configures the stream's backing indices as they
-are created.
-Templates are
-configured prior to index creation and then when an index is created either manually or through
-indexing a document, the template settings are used as a basis for creating the index.
+are created. Templates are configured prior to index creation and then when an
+index is created either manually or through indexing a document, the template
+settings are used as a basis for creating the index.
 
 There are two types of templates, index templates and <<indices-component-template,component
 templates>>. Component templates are reusable building blocks that configure mappings, settings, and

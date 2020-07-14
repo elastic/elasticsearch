@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.datastreams.action.DeleteDataStreamTransportActionTests.getClusterStateWithDataStreams;
+import static org.elasticsearch.cluster.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 

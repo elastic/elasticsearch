@@ -42,6 +42,7 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.DataStreamsStatsRequest;
 import org.elasticsearch.client.indices.GetDataStreamRequest;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
@@ -94,6 +95,21 @@ final class IndicesRequestConverters {
             .addPathPart(dataStreamRequest.getName())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request dataStreamsStats(DataStreamsStatsRequest dataStreamsStatsRequest) {
+        String[] expressions = dataStreamsStatsRequest.indices() == null ? Strings.EMPTY_ARRAY : dataStreamsStatsRequest.indices();
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_stream")
+            .addCommaSeparatedPathParts(expressions)
+            .addPathPartAsIs("_stats")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withIndicesOptions(dataStreamsStatsRequest.indicesOptions());
+        request.addParameters(parameters.asMap());
+        return request;
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {

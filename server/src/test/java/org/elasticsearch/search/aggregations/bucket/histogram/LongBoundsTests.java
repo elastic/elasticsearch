@@ -44,12 +44,12 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExtendedBoundsTests extends ESTestCase {
+public class LongBoundsTests extends ESTestCase {
     /**
-     * Construct a random {@link ExtendedBounds}.
+     * Construct a random {@link LongBounds}.
      */
-    public static ExtendedBounds randomExtendedBounds() {
-        ExtendedBounds bounds = randomParsedExtendedBounds();
+    public static LongBounds randomExtendedBounds() {
+        LongBounds bounds = randomParsedExtendedBounds();
         if (randomBoolean()) {
             bounds = unparsed(bounds);
         }
@@ -57,17 +57,17 @@ public class ExtendedBoundsTests extends ESTestCase {
     }
 
     /**
-     * Construct a random {@link ExtendedBounds} in pre-parsed form.
+     * Construct a random {@link LongBounds} in pre-parsed form.
      */
-    public static ExtendedBounds randomParsedExtendedBounds() {
+    public static LongBounds randomParsedExtendedBounds() {
         long maxDateValue = 253402300799999L; // end of year 9999
         long minDateValue = -377705116800000L; // beginning of year -9999
         if (randomBoolean()) {
             // Construct with one missing bound
             if (randomBoolean()) {
-                return new ExtendedBounds(null, maxDateValue);
+                return new LongBounds(null, maxDateValue);
             }
-            return new ExtendedBounds(minDateValue, null);
+            return new LongBounds(minDateValue, null);
         }
         long a = randomLongBetween(minDateValue, maxDateValue);
         long b;
@@ -76,18 +76,18 @@ public class ExtendedBoundsTests extends ESTestCase {
         } while (a == b);
         long min = min(a, b);
         long max = max(a, b);
-        return new ExtendedBounds(min, max);
+        return new LongBounds(min, max);
     }
 
     /**
      * Convert an extended bounds in parsed for into one in unparsed form.
      */
-    public static ExtendedBounds unparsed(ExtendedBounds template) {
+    public static LongBounds unparsed(LongBounds template) {
         // It'd probably be better to randomize the formatter
         DateFormatter formatter = DateFormatter.forPattern("strict_date_time").withZone(ZoneOffset.UTC);
         String minAsStr = template.getMin() == null ? null : formatter.formatMillis(template.getMin());
         String maxAsStr = template.getMax() == null ? null : formatter.formatMillis(template.getMax());
-        return new ExtendedBounds(minAsStr, maxAsStr);
+        return new LongBounds(minAsStr, maxAsStr);
     }
 
     public void testParseAndValidate() {
@@ -101,33 +101,33 @@ public class ExtendedBoundsTests extends ESTestCase {
         DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
 
-        ExtendedBounds expected = randomParsedExtendedBounds();
-        ExtendedBounds parsed = unparsed(expected).parseAndValidate("test", qsc, format);
+        LongBounds expected = randomParsedExtendedBounds();
+        LongBounds parsed = unparsed(expected).parseAndValidate("test", "extended_bounds", qsc, format);
         // parsed won't *equal* expected because equal includes the String parts
         assertEquals(expected.getMin(), parsed.getMin());
         assertEquals(expected.getMax(), parsed.getMax());
 
-        parsed = new ExtendedBounds("now", null).parseAndValidate("test", qsc, format);
+        parsed = new LongBounds("now", null).parseAndValidate("test", "extended_bounds", qsc, format);
         assertEquals(now, (long) parsed.getMin());
         assertNull(parsed.getMax());
 
-        parsed = new ExtendedBounds(null, "now").parseAndValidate("test", qsc, format);
+        parsed = new LongBounds(null, "now").parseAndValidate("test", "extended_bounds", qsc, format);
         assertNull(parsed.getMin());
         assertEquals(now, (long) parsed.getMax());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new ExtendedBounds(100L, 90L).parseAndValidate("test", qsc, format));
+                () -> new LongBounds(100L, 90L).parseAndValidate("test", "extended_bounds", qsc, format));
         assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
                 e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class,
-                () -> unparsed(new ExtendedBounds(100L, 90L)).parseAndValidate("test", qsc, format));
+                () -> unparsed(new LongBounds(100L, 90L)).parseAndValidate("test", "extended_bounds", qsc, format));
         assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
                 e.getMessage());
     }
 
     public void testTransportRoundTrip() throws IOException {
-        ExtendedBounds orig = randomExtendedBounds();
+        LongBounds orig = randomExtendedBounds();
 
         BytesReference origBytes;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -135,9 +135,9 @@ public class ExtendedBoundsTests extends ESTestCase {
             origBytes = out.bytes();
         }
 
-        ExtendedBounds read;
+        LongBounds read;
         try (StreamInput in = origBytes.streamInput()) {
-            read = new ExtendedBounds(in);
+            read = new LongBounds(in);
             assertEquals("read fully", 0, in.available());
         }
         assertEquals(orig, read);
@@ -152,7 +152,7 @@ public class ExtendedBoundsTests extends ESTestCase {
     }
 
     public void testXContentRoundTrip() throws Exception {
-        ExtendedBounds orig = randomExtendedBounds();
+        LongBounds orig = randomExtendedBounds();
 
         try (XContentBuilder out = JsonXContent.contentBuilder()) {
             out.startObject();
@@ -166,11 +166,7 @@ public class ExtendedBoundsTests extends ESTestCase {
                 token = in.nextToken();
                 assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
 
-                token = in.nextToken();
-                assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-                assertThat(in.currentName(), equalTo(ExtendedBounds.EXTENDED_BOUNDS_FIELD.getPreferredName()));
-
-                ExtendedBounds read = ExtendedBounds.PARSER.apply(in, null);
+                LongBounds read = LongBounds.PARSER.apply(in, null);
                 assertEquals(orig, read);
             } catch (Exception e) {
                 throw new Exception("Error parsing [" + BytesReference.bytes(out).utf8ToString() + "]", e);

@@ -39,13 +39,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class ExtendedBounds implements ToXContentFragment, Writeable {
-    static final ParseField EXTENDED_BOUNDS_FIELD = Histogram.EXTENDED_BOUNDS_FIELD;
+/**
+ * Represent hard_bounds and extended_bounds in date-histogram aggregations.
+ *
+ * This class is similar to {@link DoubleBounds} used in histograms, but is using longs to store data. LongBounds and DoubleBounds are
+ *  * not used interchangeably and therefore don't share any common interfaces except for serialization.
+ */
+public class LongBounds implements ToXContentFragment, Writeable {
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
 
-    public static final ConstructingObjectParser<ExtendedBounds, Void> PARSER = new ConstructingObjectParser<>(
-            "extended_bounds", a -> {
+    public static final ConstructingObjectParser<LongBounds, Void> PARSER = new ConstructingObjectParser<>(
+            "bounds", a -> {
         assert a.length == 2;
         Long min = null;
         Long max = null;
@@ -69,7 +74,7 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
         } else {
             throw new IllegalArgumentException("Unknown field type [" + a[1].getClass() + "]");
         }
-        return new ExtendedBounds(min, max, minAsStr, maxAsStr);
+        return new LongBounds(min, max, minAsStr, maxAsStr);
     });
     static {
         CheckedFunction<XContentParser, Object, IOException> longOrString = p -> {
@@ -105,21 +110,21 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
     /**
      * Construct with parsed bounds.
      */
-    public ExtendedBounds(Long min, Long max) {
+    public LongBounds(Long min, Long max) {
         this(min, max, null, null);
     }
 
     /**
      * Construct with unparsed bounds.
      */
-    public ExtendedBounds(String minAsStr, String maxAsStr) {
+    public LongBounds(String minAsStr, String maxAsStr) {
         this(null, null, minAsStr, maxAsStr);
     }
 
     /**
      * Construct with all possible information.
      */
-    private ExtendedBounds(Long min, Long max, String minAsStr, String maxAsStr) {
+    private LongBounds(Long min, Long max, String minAsStr, String maxAsStr) {
         this.min = min;
         this.max = max;
         this.minAsStr = minAsStr;
@@ -129,7 +134,7 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
     /**
      * Read from a stream.
      */
-    public ExtendedBounds(StreamInput in) throws IOException {
+    public LongBounds(StreamInput in) throws IOException {
         min = in.readOptionalLong();
         max = in.readOptionalLong();
         minAsStr = in.readOptionalString();
@@ -147,7 +152,7 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
     /**
      * Parse the bounds and perform any delayed validation. Returns the result of the parsing.
      */
-    ExtendedBounds parseAndValidate(String aggName, QueryShardContext queryShardContext, DocValueFormat format) {
+    LongBounds parseAndValidate(String aggName, String boundsName, QueryShardContext queryShardContext, DocValueFormat format) {
         Long min = this.min;
         Long max = this.max;
         assert format != null;
@@ -159,23 +164,22 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
             max = format.parseLong(maxAsStr, false, queryShardContext::nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
-            throw new IllegalArgumentException("[extended_bounds.min][" + min + "] cannot be greater than " +
-                    "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]");
+            throw new IllegalArgumentException("[" + boundsName + ".min][" + min + "] cannot be greater than " +
+                    "[" + boundsName + ".max][" + max + "] for histogram aggregation [" + aggName + "]");
         }
-        return new ExtendedBounds(min, max, minAsStr, maxAsStr);
+        return new LongBounds(min, max, minAsStr, maxAsStr);
     }
 
-    ExtendedBounds round(Rounding rounding) {
+    LongBounds round(Rounding rounding) {
         // Extended bounds shouldn't be effected by the offset
         Rounding effectiveRounding = rounding.withoutOffset();
-        return new ExtendedBounds(
+        return new LongBounds(
                 min != null ? effectiveRounding.round(min) : null,
                 max != null ? effectiveRounding.round(max) : null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(EXTENDED_BOUNDS_FIELD.getPreferredName());
         if (min != null) {
             builder.field(MIN_FIELD.getPreferredName(), min);
         } else {
@@ -186,7 +190,6 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
         } else {
             builder.field(MAX_FIELD.getPreferredName(), maxAsStr);
         }
-        builder.endObject();
         return builder;
     }
 
@@ -203,7 +206,7 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        ExtendedBounds other = (ExtendedBounds) obj;
+        LongBounds other = (LongBounds) obj;
         return Objects.equals(min, other.min)
                 && Objects.equals(max, other.max)
                 && Objects.equals(minAsStr, other.minAsStr)
@@ -216,6 +219,16 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
 
     public Long getMax() {
         return max;
+    }
+
+    public boolean contain(long value) {
+        if (max != null && value >= max) {
+            return false;
+        }
+        if (min != null && value < min) {
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -233,7 +246,7 @@ public class ExtendedBounds implements ToXContentFragment, Writeable {
         }
         b.append("--");
         if (max != null) {
-            b.append(min);
+            b.append(max);
             if (maxAsStr != null) {
                 b.append('(').append(maxAsStr).append(')');
             }

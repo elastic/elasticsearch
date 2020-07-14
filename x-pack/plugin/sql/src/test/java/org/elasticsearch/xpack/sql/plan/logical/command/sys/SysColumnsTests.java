@@ -21,14 +21,19 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -501,10 +506,29 @@ public class SysColumnsTests extends ESTestCase {
         }, mapping);
     }
 
+    private static void checkOdbcShortTypes(SchemaRowSet r) {
+        assertEquals(15, r.size());
+        // https://github.com/elastic/elasticsearch/issues/35376
+        // cols that need to be of short type: DATA_TYPE, DECIMAL_DIGITS, NUM_PREC_RADIX, NULLABLE, SQL_DATA_TYPE, SQL_DATETIME_SUB
+        List<Integer> cols = Arrays.asList(4, 8, 9, 10, 13, 14);
+        for (Integer i: cols) {
+            assertEquals("short", r.schema().get(i).type().name().toLowerCase(Locale.ROOT));
+        }
+    }
+
+    public void testSysColumnsTypesInOdbcMode() throws Exception {
+        executeCommand("SYS COLUMNS", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
+        executeCommand("SYS COLUMNS TABLE LIKE 'test'", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
+    }
+
     @SuppressWarnings({ "unchecked" })
-    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, Map<String, EsField> mapping)
-            throws Exception {
-        Tuple<Command, SqlSession> tuple = sql(sql, params, mapping);
+    private void executeCommand(String sql, List<SqlTypedParamValue> params, Mode mode, Consumer<SchemaRowSet> consumer,
+                                Map<String, EsField> mapping)
+        throws Exception {
+        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, mode,
+            null, null, null, false, false);
+        Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 
         IndexResolver resolver = tuple.v2().indexResolver();
 
@@ -518,16 +542,25 @@ public class SysColumnsTests extends ESTestCase {
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }
 
-    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {
+    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, Map<String, EsField> mapping)
+            throws Exception {
+        executeCommand(sql, params, Mode.PLAIN, consumer, mapping);
+    }
+
+    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration config,
+                                           Map<String, EsField> mapping) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
-                new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(config, new FunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
 
-        SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, resolver, null, null, null, null, null);
+        SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);
+    }
+
+    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {
+        return sql(sql, params, SqlTestUtils.TEST_CFG, mapping);
     }
 }

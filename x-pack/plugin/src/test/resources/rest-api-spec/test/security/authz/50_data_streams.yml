@@ -109,6 +109,7 @@ teardown:
   - skip:
       version: " - 7.99.99"
       reason: "change to 7.8.99 after backport"
+      features: ["headers"]
 
   - do: # superuser
       indices.create_data_stream:
@@ -170,6 +171,7 @@ teardown:
   - skip:
       version: " - 7.99.99"
       reason: "change to 7.8.99 after backport"
+      features: ["headers"]
 
   - do: # superuser
       indices.create_data_stream:
@@ -408,4 +410,65 @@ teardown:
   - do: # superuser
       indices.delete_data_stream:
         name: s-outside-of-authed-namespace
+  - is_true: acknowledged
+
+---
+"auto_configure privilege permits auto-create of data streams":
+  - skip:
+      version: " - 7.99.99"
+      reason: "change to 7.8.99 after backport"
+      features: ["headers", "allowed_warnings"]
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+          data_stream:
+            timestamp_field: '@timestamp'
+
+  - do:
+      security.put_role:
+        name: "data_stream_role"
+        body:  >
+          {
+            "indices": [
+              { "names": ["simple-allows-auto-configure"], "privileges": ["create_doc", "auto_configure"] },
+              { "names": ["simple-data-stream1"], "privileges": ["create_doc"] }
+            ]
+          }
+
+  - do:
+      security.clear_cached_roles:
+        name: "data_stream_role"
+
+  # should succeed because test_user is authorized for auto_configure on simple-allows-auto-configure
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  simple-allows-auto-configure
+        id:       1
+        op_type:  create
+        body:   { foo: bar, "@timestamp": "2020-12-12" }
+
+  # should fail because test_user is not authorized for auto_configure on simple-data-stream1
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        index:  simple-data-stream1
+        id:       1
+        op_type:  create
+        body:   { foo: bar, "@timestamp": "2020-12-12" }
+
+  - do: # superuser
+      indices.delete_data_stream:
+        name: simple-allows-auto-configure
   - is_true: acknowledged

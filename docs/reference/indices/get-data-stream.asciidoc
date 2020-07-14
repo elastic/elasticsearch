@@ -35,10 +35,9 @@ PUT /_ilm/policy/my-lifecycle-policy
 PUT /_index_template/my-index-template
 {
   "index_patterns": [ "my-data-stream*" ],
-  "data_stream": { },
-    "settings": {
-      "index.lifecycle.name": "my-lifecycle-policy"
-    }
+  "data_stream": {},
+  "settings": {
+    "index.lifecycle.name": "my-lifecycle-policy"
   }
 }
 

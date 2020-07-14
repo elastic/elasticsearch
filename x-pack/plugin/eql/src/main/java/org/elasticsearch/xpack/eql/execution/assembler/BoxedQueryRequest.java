@@ -75,6 +75,10 @@ public class BoxedQueryRequest implements QueryRequest {
         return this;
     }
 
+    public Ordinal after() {
+        return after;
+    }
+
     public Ordinal from() {
         return from;
     }

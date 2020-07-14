@@ -35,13 +35,12 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouType
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 
 import java.util.Collections;
-import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
+public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
     private static final String NAME = "a_field";
     private static final FieldType UNSEARCHABLE = new FieldType();
@@ -50,10 +49,9 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedField
         UNSEARCHABLE.freeze();
     }
 
-    @Override
-    protected SearchAsYouTypeFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        final SearchAsYouTypeFieldType fieldType
-            = new SearchAsYouTypeFieldType(name, Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, meta);
+    protected SearchAsYouTypeFieldType createFieldType() {
+        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, Defaults.FIELD_TYPE, null,
+            Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
         fieldType.setShingleFields(new ShingleFieldType[] {
             new ShingleFieldType(fieldType.name(), 2, TextSearchInfo.SIMPLE_MATCH_ONLY)
@@ -62,7 +60,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedField
     }
 
     public void testTermQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType(NAME, Collections.emptyMap());
+        final MappedFieldType fieldType = createFieldType();
 
         assertThat(fieldType.termQuery("foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
 
@@ -73,7 +71,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedField
     }
 
     public void testTermsQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType(NAME, Collections.emptyMap());
+        final MappedFieldType fieldType = createFieldType();
 
         assertThat(fieldType.termsQuery(asList("foo", "bar"), null),
             equalTo(new TermInSetQuery(NAME, asList(new BytesRef("foo"), new BytesRef("bar")))));
@@ -86,7 +84,7 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase<MappedField
     }
 
     public void testPrefixQuery() {
-        final SearchAsYouTypeFieldType fieldType = createDefaultFieldType(NAME, Collections.emptyMap());
+        final SearchAsYouTypeFieldType fieldType = createFieldType();
 
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";

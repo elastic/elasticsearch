@@ -480,8 +480,9 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 
 [[glossary-snapshot]] snapshot ::
 // tag::snapshot-def[]
-A backup taken from a running {es} cluster. 
-You can take snapshots of individual indices or of the entire cluster. 
+A backup taken from a running {es} cluster.
+A snapshot can include backups of an entire cluster or only data streams and
+indices you specify.
 // end::snapshot-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::

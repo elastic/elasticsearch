@@ -12,7 +12,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -24,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
@@ -36,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordField;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -45,6 +42,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xpack.versionfield.VersionEncoder;
+import org.elasticsearch.xpack.versionfield.VersionScriptDocValues;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -170,20 +168,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
     public static final class VersionStringFieldType extends TermBasedFieldType {
 
-        public VersionStringFieldType(
-            String name,
-            boolean isSearchable,
-            Map<String, String> meta,
-            float boost,
-            FieldType fieldType
-        ) {
-            super(
-                name,
-                isSearchable,
-                true,
-                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                meta
-            );
+        public VersionStringFieldType(String name, boolean isSearchable, Map<String, String> meta, float boost, FieldType fieldType) {
+            super(name, isSearchable, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setBoost(boost);
         }
@@ -267,57 +253,9 @@ public class VersionStringFieldMapper extends FieldMapper {
             return new TermInSetQuery(name(), bytesRefs);
         }
 
-        public static final class VersionScriptDocValues extends ScriptDocValues<String> {
-
-            private final SortedSetDocValues in;
-            private long[] ords = new long[0];
-            private int count;
-
-            public VersionScriptDocValues(SortedSetDocValues in) {
-                this.in = in;
-            }
-
-            @Override
-            public void setNextDocId(int docId) throws IOException {
-                count = 0;
-                if (in.advanceExact(docId)) {
-                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
-                        ords = ArrayUtil.grow(ords, count + 1);
-                        ords[count++] = ord;
-                    }
-                }
-            }
-
-            public String getValue() {
-                System.out.println("get value: ");
-                if (count == 0) {
-                    System.out.println("count 0");
-                    return null;
-                } else {
-                    return get(0);
-                }
-            }
-
-            @Override
-            public String get(int index) {
-                try {
-                    System.out.println("get value: " + index);
-                    return VersionEncoder.decodeVersion(in.lookupOrd(ords[index]));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public int size() {
-                return count;
-            }
-        }
-
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            // TODO adrien "we'll need to extend it to return proper version strings in scripts".
             return new SortedSetOrdinalsIndexFieldData.Builder(VersionScriptDocValues::new, CoreValuesSourceType.BYTES);
         }
 
@@ -352,13 +290,10 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
             failIfNotIndexed();
-            // TODO adrien: run the range on points and doc values
-            BytesRef lower = lowerTerm ==  null ? null : indexedValueForSearch(lowerTerm);
-            BytesRef upper = upperTerm == null ? null :indexedValueForSearch(upperTerm);
+            BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
+            BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
             byte[] lowerBytes = lower == null ? MIN_VALUE : Arrays.copyOfRange(lower.bytes, lower.offset, 16);
             byte[] upperBytes = upper == null ? MAX_VALUE : Arrays.copyOfRange(upper.bytes, upper.offset, 16);
-            System.out.println(Arrays.toString(lowerBytes));
-            System.out.println(Arrays.toString(upperBytes));
 
             // point query on the 16byte prefix
             Query pointPrefixQuery = BinaryPoint.newRangeQuery(name(), lowerBytes, upperBytes);
@@ -457,12 +392,10 @@ public class VersionStringFieldMapper extends FieldMapper {
             }
         }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            // TODO adrien: encode the first 16 bytes as points for efficient range query
             Field field = new Field(fieldType().name(), encodedVersion, fieldType);
             context.doc().add(field);
+            // encode the first 16 bytes as points for efficient range query
             byte[] first16bytes = Arrays.copyOfRange(encodedVersion.bytes, encodedVersion.offset, 16);
-            System.out.println("indexing :" + versionString);
-            System.out.println("point :" + Arrays.toString(first16bytes));
             context.doc().add(new BinaryPoint(fieldType().name(), first16bytes));
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {

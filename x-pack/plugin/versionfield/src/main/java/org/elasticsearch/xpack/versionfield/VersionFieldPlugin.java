@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.versionfield;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
-import org.elasticsearch.index.mapper.BasicRangeType;
 import org.elasticsearch.index.mapper.VersionRangeType;
 import org.elasticsearch.index.mapper.VersionStringFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -26,8 +25,6 @@ public class VersionFieldPlugin extends Plugin implements MapperPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-        for (BasicRangeType type : BasicRangeType.values()) {
-        }
         mappers.put(VersionRangeType.VERSION_RANGE_NAME, new RangeFieldMapper.TypeParser(VersionRangeType.INSTANCE));
         mappers.put(VersionStringFieldMapper.CONTENT_TYPE, new VersionStringFieldMapper.TypeParser());
         return Collections.unmodifiableMap(mappers);

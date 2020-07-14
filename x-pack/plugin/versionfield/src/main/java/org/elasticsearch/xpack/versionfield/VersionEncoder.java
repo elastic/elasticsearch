@@ -97,7 +97,7 @@ public class VersionEncoder {
     }
 
     public static BytesRef encodeVersion(String versionString, boolean validate) {
-        System.out.println("encoding: " + versionString);
+        // System.out.println("encoding: " + versionString);
         // extract "build" suffix starting with "+"
         VersionParts versionParts = VersionParts.ofVersion(versionString);
 
@@ -135,7 +135,7 @@ public class VersionEncoder {
         if (versionParts.buildSuffix != null) {
             encodedVersion.append(new BytesRef(versionParts.buildSuffix));
         }
-        System.out.println("encoded: " + encodedVersion.get());
+        // System.out.println("encoded: " + encodedVersion.get());
         return encodedVersion.get();
     }
 
@@ -174,7 +174,7 @@ public class VersionEncoder {
     }
 
     public static String decodeVersion(BytesRef version) {
-        System.out.println("decoding: " + version);
+        // System.out.println("decoding: " + version);
         int inputPos = version.offset;
         int resultPos = 0;
         char[] result = new char[version.length];
@@ -195,7 +195,7 @@ public class VersionEncoder {
             }
             inputPos++;
         }
-        System.out.println("decoded to: " + new String(result, 0, resultPos));
+        // System.out.println("decoded to: " + new String(result, 0, resultPos));
         return new String(result, 0, resultPos);
     }
 

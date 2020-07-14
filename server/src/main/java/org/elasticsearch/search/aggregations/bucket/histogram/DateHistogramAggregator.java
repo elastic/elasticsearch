@@ -63,7 +63,8 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     private final long minDocCount;
-    private final ExtendedBounds extendedBounds;
+    private final LongBounds extendedBounds;
+    private final LongBounds hardBounds;
 
     private final LongKeyedBucketOrds bucketOrds;
 
@@ -75,7 +76,8 @@ class DateHistogramAggregator extends BucketsAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        @Nullable ExtendedBounds extendedBounds,
+        @Nullable LongBounds extendedBounds,
+        @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext aggregationContext,
         Aggregator parent,
@@ -91,6 +93,7 @@ class DateHistogramAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
         this.formatter = valuesSourceConfig.format();
@@ -126,12 +129,14 @@ class DateHistogramAggregator extends BucketsAggregator {
                         if (rounded == previousRounded) {
                             continue;
                         }
-                        long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
+                        if (hardBounds == null || hardBounds.contain(rounded)) {
+                            long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
+                            if (bucketOrd < 0) { // already seen
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                collectBucket(sub, doc, bucketOrd);
+                            }
                         }
                         previousRounded = rounded;
                     }

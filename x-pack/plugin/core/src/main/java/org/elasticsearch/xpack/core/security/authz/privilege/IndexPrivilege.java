@@ -75,6 +75,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
     private static final Automaton MAINTENANCE_AUTOMATON = patterns("indices:admin/refresh*", "indices:admin/flush*",
         "indices:admin/synced_flush", "indices:admin/forcemerge*");
+    private static final Automaton AUTO_CONFIGURE_AUTOMATON = patterns(AutoPutMappingAction.NAME, AutoCreateAction.NAME);
 
     public static final IndexPrivilege NONE =                new IndexPrivilege("none",                Automatons.EMPTY);
     public static final IndexPrivilege ALL =                 new IndexPrivilege("all",                 ALL_AUTOMATON);
@@ -92,8 +93,9 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege VIEW_METADATA =       new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
     public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", MANAGE_FOLLOW_INDEX_AUTOMATON);
     public static final IndexPrivilege MANAGE_LEADER_INDEX = new IndexPrivilege("manage_leader_index", MANAGE_LEADER_INDEX_AUTOMATON);
-    public static final IndexPrivilege MANAGE_ILM = new IndexPrivilege("manage_ilm", MANAGE_ILM_AUTOMATON);
-    public static final IndexPrivilege MAINTENANCE = new IndexPrivilege("maintenance", MAINTENANCE_AUTOMATON);
+    public static final IndexPrivilege MANAGE_ILM =          new IndexPrivilege("manage_ilm",          MANAGE_ILM_AUTOMATON);
+    public static final IndexPrivilege MAINTENANCE =         new IndexPrivilege("maintenance",         MAINTENANCE_AUTOMATON);
+    public static final IndexPrivilege AUTO_CONFIGURE =      new IndexPrivilege("auto_configure",      AUTO_CONFIGURE_AUTOMATON);
 
     private static final Map<String, IndexPrivilege> VALUES = Map.ofEntries(
             entry("none", NONE),
@@ -113,7 +115,8 @@ public final class IndexPrivilege extends Privilege {
             entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
             entry("manage_leader_index", MANAGE_LEADER_INDEX),
             entry("manage_ilm", MANAGE_ILM),
-            entry("maintenance", MAINTENANCE));
+            entry("maintenance", MAINTENANCE),
+            entry("auto_configure", AUTO_CONFIGURE));
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();

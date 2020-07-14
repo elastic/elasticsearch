@@ -48,8 +48,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -539,7 +539,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     public void testRolloverClusterStateForDataStream() throws Exception {
         final DataStream dataStream = DataStreamTests.randomInstance();
         ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStream.getName() + "*"), null, null, null, null, null,
-            new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            new ComposableIndexTemplate.DataStreamTemplate());
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         for (Index index : dataStream.getIndices()) {
@@ -634,7 +634,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
             defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStream.getName() + "*"), null, null, null, null,
-                null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+                null, new ComposableIndexTemplate.DataStreamTemplate());
             builder.put("template", template);
             for (Index index : dataStream.getIndices()) {
                 builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));

@@ -72,17 +72,6 @@ expressions (`*`) are supported.
 To target all data streams in a cluster, omit this parameter or use `*`.
 
 
-[[data-stream-stats-api-query-params]]
-==== {api-query-parms-title}
-
-`forbid_closed_indices`::
-(Optional, boolean)
-If `true`, the request returns an error if any of the selected data streams
-contains a closed backing index. Defaults to `true`.
-+
-If `false`, the response includes statistics from closed backing indices.
-
-
 [role="child_attributes"]
 [[data-stream-stats-api-response-body]]
 ==== {api-response-body-title}

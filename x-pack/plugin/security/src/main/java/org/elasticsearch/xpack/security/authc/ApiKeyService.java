@@ -1040,11 +1040,11 @@ public class ApiKeyService {
             builder.declareLong(constructorArg(), new ParseField("creation_time"));
             builder.declareLongOrNull(constructorArg(), -1, new ParseField("expiration_time"));
             builder.declareBoolean(constructorArg(), new ParseField("api_key_invalidated"));
-            builder.declareString(optionalConstructorArg(), new ParseField("api_key_hash"));
-            builder.declareString(constructorArg(), new ParseField("name"));
+            builder.declareString(constructorArg(), new ParseField("api_key_hash"));
+            builder.declareStringOrNull(optionalConstructorArg(), new ParseField("name"));
             builder.declareInt(constructorArg(), new ParseField("version"));
             ObjectParserHelper<ApiKeyDoc, Void> parserHelper = new ObjectParserHelper<>();
-            parserHelper.declareRawObject(builder, optionalConstructorArg(), new ParseField("role_descriptors"));
+            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("role_descriptors"));
             parserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
             builder.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("creator"));
             PARSER = builder.build();
@@ -1054,11 +1054,10 @@ public class ApiKeyService {
         final long creationTime;
         final long expirationTime;
         final Boolean invalidated;
-        @Nullable
         final String hash;
+        @Nullable
         final String name;
         final int version;
-        @Nullable
         final BytesReference roleDescriptorsBytes;
         final BytesReference limitedByRoleDescriptorsBytes;
         final Map<String, Object> creator;
@@ -1068,10 +1067,10 @@ public class ApiKeyService {
             long creationTime,
             long expirationTime,
             Boolean invalidated,
-            @Nullable String hash,
-            String name,
+            String hash,
+            @Nullable String name,
             int version,
-            @Nullable BytesReference roleDescriptorsBytes,
+            BytesReference roleDescriptorsBytes,
             BytesReference limitedByRoleDescriptorsBytes,
             Map<String, Object> creator) {
 

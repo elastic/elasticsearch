@@ -22,6 +22,8 @@ package templates
 import jetbrains.buildServer.configs.kotlin.v2019_2.Template
 
 object DefaultTemplate : Template({
+    name = "Default"
+
     params {
         param("JAVA_HOME", "/var/lib/jenkins/.java/openjdk14")
         param("RUNTIME_JAVA_HOME", "/var/lib/jenkins/.java/openjdk11")

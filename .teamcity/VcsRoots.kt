@@ -17,14 +17,15 @@
  * under the License.
  */
 
-import jetbrains.buildServer.configs.kotlin.v2019_2.*
-import templates.DefaultTemplate
+import jetbrains.buildServer.configs.kotlin.v2019_2.DslContext
+import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
 
-version = "2020.1"
+val normalizedBranchName = (DslContext.settingsRoot as GitVcsRoot).branch!!.removePrefix("refs/heads/").removeSuffix("_teamcity")
 
-project {
-    vcsRoot(DefaultRoot)
-    template(DefaultTemplate)
+object DefaultRoot : GitVcsRoot({
+    id("${DslContext.projectName}_${normalizedBranchName.replace('.', '_')}")
 
-    defaultTemplate = DefaultTemplate
-}
+    name = "$DslContext.projectName ($normalizedBranchName)"
+    url = "https://github.com/elastic/${DslContext.projectName.toLowerCase()}.git"
+    branch = "refs/heads/$normalizedBranchName"
+})

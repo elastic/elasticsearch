@@ -238,9 +238,14 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
         coordinates.add(linearRing.coordinates.get(0));
         for (int i = 1; i < numPoints - 1; i++) {
             if (linearRing.coordinates.get(i - 1).x == linearRing.coordinates.get(i).x) {
-                if (linearRing.coordinates.get(i - 1).y == linearRing.coordinates.get(i).y ||
-                    linearRing.coordinates.get(i - 1).x == linearRing.coordinates.get(i + 1).x) {
-                    // filter
+                if (linearRing.coordinates.get(i - 1).y == linearRing.coordinates.get(i).y) {
+                    // same point
+                    continue;
+                }
+                if (linearRing.coordinates.get(i - 1).x == linearRing.coordinates.get(i + 1).x &&
+                    linearRing.coordinates.get(i - 1).y > linearRing.coordinates.get(i).y !=
+                        linearRing.coordinates.get(i + 1).y > linearRing.coordinates.get(i).y) {
+                    // coplanar
                     continue;
                 }
             }

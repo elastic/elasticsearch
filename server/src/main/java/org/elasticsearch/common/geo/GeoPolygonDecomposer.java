@@ -102,9 +102,13 @@ public class GeoPolygonDecomposer {
         int count = 2;
         for (int i = 1; i < numPoints - 1; i++) {
             if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i) ||
-                    linearRing.getLon(i - 1) == linearRing.getLon(i + 1)) {
-                    // filter
+                if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
+                    // same point
+                    continue;
+                }
+                if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1) &&
+                    linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
+                    // coplanar
                     continue;
                 }
             }

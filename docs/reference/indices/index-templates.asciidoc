@@ -335,7 +335,7 @@ This is the template to be applied, may optionally include a `mappings`,
 `composed_of`::
 (Optional, array of strings)
 An ordered list of component template names. Component templates are merged in the order
-specified, meaning that the last component template specified has the highest precedence. See 
+specified, meaning that the last component template specified has the highest precedence. See
 <<multiple-component-templates,Composing multiple component templates>> for an example.
 
 `priority`::
@@ -510,13 +510,15 @@ PUT /_index_template/template_1
 --------------------------------------------------
 
 [[multiple-component-templates]]
-===== Composing multiple component templates
+===== Composing aliases, mappings, and settings
 
 When multiple component templates are specified in the `composed_of` field for an index template,
 they are merged in the order specified, meaning that later component templates override earlier
-component templates.
+component templates. Any mappings, settings, or aliases from the parent index template are merged
+in next. Finally, any configuration on the index request itself is merged.
 
-For two component templates, the order they are specified changes the number of shards for an index:
+In this example, the order of the two component templates changes the number of shards for an
+index:
 
 [source,console]
 --------------------------------------------------
@@ -547,6 +549,16 @@ PUT /_index_template/template_1
 
 In this case, an index matching `t*` will have three primary shards. If the order of composed
 templates were reversed, the index would have two primary shards.
+
+Mapping definitions are merged recursively, which means that later mapping components can
+introduce new field mappings and update the mapping configuration. If a field mapping is
+already contained in an earlier component, its definition will be completely overwritten
+by the later one.
+
+This recursive merging strategy applies not only to field mappings, but also root options like
+`dynamic_templates` and `meta`. If an earlier component contains a `dynamic_templates` block,
+then by default new `dynamic_templates` entries are appended onto the end. If an entry already
+exists with the same key, then it is overwritten by the new definition.
 
 [[indices-get-template]]
 === Get index template API [[getting-templates]]

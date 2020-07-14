@@ -216,7 +216,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         context.registerAsyncAction((client, listener) -> {
             if (licenseState.isSecurityEnabled()) {
                 // check the user has ml privileges
-                SecurityContext securityContext =new SecurityContext(Settings.EMPTY, client.threadPool().getThreadContext());
+                SecurityContext securityContext = new SecurityContext(Settings.EMPTY, client.threadPool().getThreadContext());
                 useSecondaryAuthIfAvailable(securityContext, () -> {
                     final String username = securityContext.getUser().principal();
                     final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
@@ -230,9 +230,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                             if (r.isCompleteMatch()) {
                                 modelLoadAction.accept(client, listener);
                             } else {
-                                listener.onFailure(Exceptions.authorizationError(
-                                    "user [" + username + "] does not have the privilege to get trained models " +
-                                        "so cannot use ml inference"));
+                                listener.onFailure(Exceptions.authorizationError("user [" + username
+                                    + "] does not have the privilege to get trained models so cannot use ml inference"));
                             }
                         },
                         listener::onFailure);

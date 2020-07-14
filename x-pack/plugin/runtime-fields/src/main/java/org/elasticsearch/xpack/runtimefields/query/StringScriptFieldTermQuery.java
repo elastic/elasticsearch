@@ -55,7 +55,7 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
             return false;
         }
         StringScriptFieldTermQuery other = (StringScriptFieldTermQuery) obj;
-        return other.term.equals(other.term);
+        return term.equals(other.term);
     }
 
     String term() {

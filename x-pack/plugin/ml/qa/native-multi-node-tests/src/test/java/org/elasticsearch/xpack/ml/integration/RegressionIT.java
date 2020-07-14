@@ -483,7 +483,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "    }";
         if (dataStream) {
             try {
-                createDataStreamAndTemplate(sourceIndex, "@timestamp", mapping);
+                createDataStreamAndTemplate(sourceIndex, mapping);
             } catch (IOException ex) {
                 throw new ElasticsearchException(ex);
             }

@@ -725,7 +725,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "    }";
         if (isDatastream) {
             try {
-                createDataStreamAndTemplate(index, "@timestamp", mapping);
+                createDataStreamAndTemplate(index, mapping);
             } catch (IOException ex) {
                 throw new ElasticsearchException(ex);
             }

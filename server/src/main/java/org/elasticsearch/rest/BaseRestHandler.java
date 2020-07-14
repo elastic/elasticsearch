@@ -148,6 +148,14 @@ public abstract class BaseRestHandler implements RestHandler {
         return message.toString();
     }
 
+    @Override
+    public String toString() {
+        return this.getClass()+"{" +
+            "name=" + this.getName() + ", " +
+            "compatibleWithVersion=" + this.compatibleWithVersion() +
+            '}';
+    }
+
     /**
      * REST requests are handled by preparing a channel consumer that represents the execution of
      * the request against a channel.

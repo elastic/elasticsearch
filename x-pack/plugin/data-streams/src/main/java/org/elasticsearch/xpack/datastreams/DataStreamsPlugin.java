@@ -38,17 +38,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.ActionModule.DATASTREAMS_FEATURE_ENABLED;
-
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        if (DATASTREAMS_FEATURE_ENABLED) {
-            return Map.of(DataStreamTimestampFieldMapper.NAME, new DataStreamTimestampFieldMapper.TypeParser());
-        } else {
-            return Map.of();
-        }
+        return Map.of(DataStreamTimestampFieldMapper.NAME, new DataStreamTimestampFieldMapper.TypeParser());
     }
 
     @Override

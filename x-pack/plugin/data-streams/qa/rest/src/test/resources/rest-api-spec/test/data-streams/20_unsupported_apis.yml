@@ -1,8 +1,8 @@
 ---
 "Test apis that do not supported data streams":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -49,8 +49,8 @@
 ---
 "Prohibit clone on data stream's write index":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -98,8 +98,8 @@
 ---
 "Prohibit shrink on data stream's write index":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -135,8 +135,8 @@
 ---
 "Close write index for data stream fails":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -166,7 +166,7 @@
 ---
 "Prohibit split on data stream's write index":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.8.99"
       reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 

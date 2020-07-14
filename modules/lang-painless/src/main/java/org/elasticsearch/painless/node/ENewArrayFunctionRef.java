@@ -21,16 +21,12 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
-import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.NewArrayNode;
-import org.elasticsearch.painless.ir.ReturnNode;
-import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
-import org.elasticsearch.painless.ir.VariableNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
+import org.elasticsearch.painless.symbol.Decorations.MethodNameDecoration;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ReferenceDecoration;
+import org.elasticsearch.painless.symbol.Decorations.ReturnType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
@@ -59,7 +55,7 @@ public class ENewArrayFunctionRef extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
@@ -73,9 +69,9 @@ public class ENewArrayFunctionRef extends AExpression {
         ScriptScope scriptScope = semanticScope.getScriptScope();
         TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
 
-        Output output = new Output();
         Class<?> valueType;
         Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        semanticScope.putDecoration(this, new ReturnType(clazz));
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
@@ -83,64 +79,19 @@ public class ENewArrayFunctionRef extends AExpression {
 
         String name = scriptScope.getNextSyntheticName("newarray");
         scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
+        semanticScope.putDecoration(this, new MethodNameDecoration(name));
 
         if (targetType == null) {
-            valueType = String.class;
             String defReferenceEncoding = "Sthis." + name + ",0";
-
-            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
-            defInterfaceReferenceNode.setLocation(getLocation());
-            defInterfaceReferenceNode.setExpressionType(valueType);
-            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
-            output.expressionNode = defInterfaceReferenceNode;
+            valueType = String.class;
+            scriptScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                     getLocation(), targetType.getTargetType(), "this", name, 0);
             valueType = targetType.getTargetType();
-
-            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
-            typedInterfaceReferenceNode.setLocation(getLocation());
-            typedInterfaceReferenceNode.setExpressionType(valueType);
-            typedInterfaceReferenceNode.setReference(ref);
-            output.expressionNode = typedInterfaceReferenceNode;
+            semanticScope.putDecoration(this, new ReferenceDecoration(ref));
         }
 
         semanticScope.putDecoration(this, new ValueType(valueType));
-
-        VariableNode variableNode = new VariableNode();
-        variableNode.setLocation(getLocation());
-        variableNode.setExpressionType(int.class);
-        variableNode.setName("size");
-
-        NewArrayNode newArrayNode = new NewArrayNode();
-        newArrayNode.setLocation(getLocation());
-        newArrayNode.setExpressionType(clazz);
-        newArrayNode.setInitialize(false);
-
-        newArrayNode.addArgumentNode(variableNode);
-
-        ReturnNode returnNode = new ReturnNode();
-        returnNode.setLocation(getLocation());
-        returnNode.setExpressionNode(newArrayNode);
-
-        BlockNode blockNode = new BlockNode();
-        blockNode.setAllEscape(true);
-        blockNode.setStatementCount(1);
-        blockNode.addStatementNode(returnNode);
-
-        FunctionNode functionNode = new FunctionNode();
-        functionNode.setMaxLoopCounter(0);
-        functionNode.setName(name);
-        functionNode.setReturnType(clazz);
-        functionNode.addTypeParameter(int.class);
-        functionNode.addParameterName("size");
-        functionNode.setStatic(true);
-        functionNode.setVarArgs(false);
-        functionNode.setSynthetic(true);
-        functionNode.setBlockNode(blockNode);
-
-        classNode.addFunctionNode(functionNode);
-
-        return output;
     }
 }

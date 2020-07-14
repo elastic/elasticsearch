@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ml.dataframe.process.crossvalidation;
+package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -17,14 +17,14 @@ import java.util.Random;
  * is based on the reservoir idea. It randomly picks training docs while
  * respecting the exact training percent.
  */
-abstract class AbstractReservoirCrossValidationSplitter implements CrossValidationSplitter {
+abstract class AbstractReservoirTrainTestSplitter implements TrainTestSplitter {
 
     protected final int dependentVariableIndex;
     private final double samplingRatio;
     private final Random random;
 
-    AbstractReservoirCrossValidationSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent,
-                                             long randomizeSeed) {
+    AbstractReservoirTrainTestSplitter(List<String> fieldNames, String dependentVariable, double trainingPercent,
+                                       long randomizeSeed) {
         assert trainingPercent >= 1.0 && trainingPercent <= 100.0;
         this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
         this.samplingRatio = trainingPercent / 100.0;

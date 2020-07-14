@@ -21,8 +21,8 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
-import org.elasticsearch.painless.node.EBool;
-import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.EBooleanComp;
+import org.elasticsearch.painless.node.EBooleanConstant;
 import org.elasticsearch.painless.node.EBrace;
 import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
@@ -173,7 +173,7 @@ public class UserTreeBaseVisitor<Input, Output> implements UserTreeVisitor<Input
     }
 
     @Override
-    public Output visitBool(EBool userBoolNode, Input input) {
+    public Output visitBool(EBooleanComp userBoolNode, Input input) {
         throw new UnsupportedOperationException();
     }
 
@@ -228,7 +228,7 @@ public class UserTreeBaseVisitor<Input, Output> implements UserTreeVisitor<Input
     }
 
     @Override
-    public Output visitBoolean(EBoolean userBooleanNode, Input input) {
+    public Output visitBoolean(EBooleanConstant userBooleanNode, Input input) {
         throw new UnsupportedOperationException();
     }
 

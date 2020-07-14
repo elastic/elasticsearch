@@ -79,7 +79,6 @@ public class DoubleBoundsTests extends ESTestCase {
         assertEquals(origBytes, readBytes);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/59475")
     public void testXContentRoundTrip() throws Exception {
         DoubleBounds orig = randomBounds();
 

@@ -165,7 +165,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(timestampFieldName)
+            new ComposableIndexTemplate.DataStreamTemplate()
         );
         assertTrue(
             client().execute(

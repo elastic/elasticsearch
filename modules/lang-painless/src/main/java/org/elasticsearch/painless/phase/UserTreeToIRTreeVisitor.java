@@ -93,8 +93,8 @@ import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
-import org.elasticsearch.painless.node.EBool;
-import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.EBooleanComp;
+import org.elasticsearch.painless.node.EBooleanConstant;
 import org.elasticsearch.painless.node.EBrace;
 import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
@@ -595,7 +595,7 @@ public class UserTreeToIRTreeVisitor implements UserTreeVisitor<ScriptScope, IRN
     }
 
     @Override
-    public IRNode visitBool(EBool userBoolNode, ScriptScope scriptScope) {
+    public IRNode visitBool(EBooleanComp userBoolNode, ScriptScope scriptScope) {
         BooleanNode irBooleanNode = new BooleanNode();
         irBooleanNode.setLocation(userBoolNode.getLocation());
         irBooleanNode.setExpressionType(scriptScope.getDecoration(userBoolNode, ValueType.class).getValueType());
@@ -785,7 +785,7 @@ public class UserTreeToIRTreeVisitor implements UserTreeVisitor<ScriptScope, IRN
     }
 
     @Override
-    public IRNode visitBoolean(EBoolean userBooleanNode, ScriptScope scriptScope) {
+    public IRNode visitBoolean(EBooleanConstant userBooleanNode, ScriptScope scriptScope) {
         ConstantNode irConstantNode = new ConstantNode();
         irConstantNode.setLocation(userBooleanNode.getLocation());
         irConstantNode.setExpressionType(scriptScope.getDecoration(userBooleanNode, ValueType.class).getValueType());
@@ -793,7 +793,7 @@ public class UserTreeToIRTreeVisitor implements UserTreeVisitor<ScriptScope, IRN
 
         return irConstantNode;
     }
-    
+
     @Override
     public IRNode visitNumeric(ENumeric userNumericNode, ScriptScope scriptScope) {
         ConstantNode irConstantNode = new ConstantNode();
@@ -803,7 +803,7 @@ public class UserTreeToIRTreeVisitor implements UserTreeVisitor<ScriptScope, IRN
 
         return irConstantNode;
     }
-    
+
     @Override
     public IRNode visitDecimal(EDecimal userDecimalNode, ScriptScope scriptScope) {
         ConstantNode irConstantNode = new ConstantNode();
@@ -813,7 +813,7 @@ public class UserTreeToIRTreeVisitor implements UserTreeVisitor<ScriptScope, IRN
 
         return irConstantNode;
     }
-    
+
     @Override
     public IRNode visitString(EString userStringNode, ScriptScope scriptScope) {
         ConstantNode irConstantNode = new ConstantNode();

@@ -87,8 +87,8 @@ public class SDo extends AStatement {
 
         boolean continuous;
 
-        if (conditionNode instanceof EBoolean) {
-            continuous = ((EBoolean)conditionNode).getBool();
+        if (conditionNode instanceof EBooleanConstant) {
+            continuous = ((EBooleanConstant)conditionNode).getBool();
 
             if (continuous == false) {
                 throw createError(new IllegalArgumentException("Extraneous do while loop."));

@@ -30,11 +30,11 @@ import org.elasticsearch.painless.symbol.SemanticScope;
 /**
  * Represents a boolean constant.
  */
-public class EBoolean extends AExpression {
+public class EBooleanConstant extends AExpression {
 
     private final boolean bool;
 
-    public EBoolean(int identifier, Location location, boolean bool) {
+    public EBooleanConstant(int identifier, Location location, boolean bool) {
         super(identifier, location);
 
         this.bool = bool;

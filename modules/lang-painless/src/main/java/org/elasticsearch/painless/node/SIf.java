@@ -67,7 +67,7 @@ public class SIf extends AStatement {
         AExpression.analyze(conditionNode, semanticScope);
         conditionNode.cast(semanticScope);
 
-        if (conditionNode instanceof EBoolean) {
+        if (conditionNode instanceof EBooleanConstant) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 

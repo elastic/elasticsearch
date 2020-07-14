@@ -33,13 +33,13 @@ import java.util.Objects;
 /**
  * Represents a boolean expression.
  */
-public class EBool extends AExpression {
+public class EBooleanComp extends AExpression {
 
     private final AExpression leftNode;
     private final AExpression rightNode;
     private final Operation operation;
 
-    public EBool(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
+    public EBooleanComp(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
         super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);

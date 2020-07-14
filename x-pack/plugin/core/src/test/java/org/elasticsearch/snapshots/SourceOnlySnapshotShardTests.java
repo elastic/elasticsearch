@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -77,6 +76,7 @@ import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
@@ -219,12 +219,18 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef.getIndexCommit(),
                     null, indexShardSnapshotStatus, Version.CURRENT, Collections.emptyMap(), future);
                 future.actionGet();
-                final PlainActionFuture<Tuple<RepositoryData, SnapshotInfo>> finFuture = PlainActionFuture.newFuture();
-                repository.finalizeSnapshot(snapshotId,
-                    ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build(),
-                    indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
-                    ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(), true,
-                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(), Collections.emptyMap(),
+                final PlainActionFuture<RepositoryData> finFuture = PlainActionFuture.newFuture();
+                final ShardGenerations shardGenerations =
+                    ShardGenerations.builder().put(indexId, 0, indexShardSnapshotStatus.generation()).build();
+                repository.finalizeSnapshot(
+                    shardGenerations,
+                    ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
+                    Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
+                    new SnapshotInfo(snapshotId,
+                        shardGenerations.indices().stream()
+                        .map(IndexId::getName).collect(Collectors.toList()), Collections.emptyList(), 0L, null, 1L,
+                        shardGenerations.totalShards(),
+                        Collections.emptyList(), true, Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), finFuture);
                 finFuture.actionGet();
             });

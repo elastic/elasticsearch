@@ -1064,23 +1064,24 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
+            final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
+                shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                entry.dataStreams(),
+                entry.startTime(), failure, threadPool.absoluteTimeInMillis(),
+                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
+                entry.includeGlobalState(), entry.userMetadata());
             repositoriesService.repository(snapshot.getRepository()).finalizeSnapshot(
-                    snapshot.getSnapshotId(),
                     shardGenerations,
-                    entry.startTime(),
-                    failure,
-                    entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
-                    unmodifiableList(shardFailures),
                     entry.repositoryStateId(),
-                    entry.includeGlobalState(),
                     metadataForSnapshot(entry, metadata),
-                    entry.userMetadata(),
+                    snapshotInfo,
                     entry.version(),
                     state -> stateWithoutSnapshot(state, snapshot),
-                    ActionListener.wrap(result -> {
+                    ActionListener.wrap(newRepoData -> {
                         final List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> completionListeners =
                                 snapshotCompletionListeners.remove(snapshot);
                         if (completionListeners != null) {
+                            final Tuple<RepositoryData, SnapshotInfo> result = Tuple.tuple(newRepoData, snapshotInfo);
                             try {
                                 ActionListener.onResponse(completionListeners, result);
                             } catch (Exception e) {
@@ -1088,7 +1089,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                         endingSnapshots.remove(snapshot);
-                        logger.info("snapshot [{}] completed with state [{}]", snapshot, result.v2().state());
+                        logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                     }, e -> handleFinalizationFailure(e, entry)));
         } catch (Exception e) {
             handleFinalizationFailure(e, entry);

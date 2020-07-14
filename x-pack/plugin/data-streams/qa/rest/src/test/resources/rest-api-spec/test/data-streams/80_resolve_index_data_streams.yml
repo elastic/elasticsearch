@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      version: "7.9.99 - "
+      version: " - 7.9.99"
       reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
@@ -12,11 +12,6 @@ setup:
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
   - do:
@@ -26,11 +21,6 @@ setup:
         name: my-template2
         body:
           index_patterns: [simple-data-stream2]
-          template:
-            mappings:
-              properties:
-                '@timestamp2':
-                  type: date
           data_stream: {}
 
   - do:
@@ -119,7 +109,7 @@ setup:
 ---
 "Resolve index with hidden and closed indices":
   - skip:
-      version: " - 7.8.99"
+      version: " - 7.9.99"
       reason: change after backporting
 
   - do:

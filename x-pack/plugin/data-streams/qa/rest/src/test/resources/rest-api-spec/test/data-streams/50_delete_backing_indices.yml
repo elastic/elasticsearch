@@ -10,18 +10,13 @@ setup:
         name: my-template
         body:
           index_patterns: [simple-*]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
 ---
 "Delete backing index on data stream":
   - skip:
       version: " - 7.9.99"
-      reason: "data streams only supported in 7.9+"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.create_data_stream:

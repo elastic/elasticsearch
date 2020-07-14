@@ -12,11 +12,6 @@
         name: my-template
         body:
           index_patterns: [logs-*]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
   - do:
@@ -65,11 +60,6 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
   - do:
@@ -119,11 +109,6 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
   - do:
@@ -150,7 +135,7 @@
 ---
 "Close write index for data stream fails":
   - skip:
-      version: " - 7.8.99"
+      version: " - 7.9.99"
       reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
@@ -161,11 +146,6 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
   - do:
@@ -197,11 +177,6 @@
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
   - do:

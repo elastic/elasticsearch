@@ -11,10 +11,6 @@ setup:
         body:
           index_patterns: [simple-data-stream1]
           template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
             settings:
               index.number_of_replicas: 0
           data_stream: {}
@@ -30,7 +26,7 @@ setup:
             mappings:
               properties:
                 '@timestamp':
-                  type: date
+                  type: date_nanos
           data_stream: {}
 
 ---
@@ -67,6 +63,18 @@ setup:
   - match: { data_streams.1.template: 'my-template2' }
 
   - do:
+      indices.get_mapping:
+        index: .ds-simple-data-stream1-000001
+        expand_wildcards: hidden
+  - match: { \.ds-simple-data-stream1-000001.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_mapping:
+        index: .ds-simple-data-stream2-000001
+        expand_wildcards: hidden
+  - match: { \.ds-simple-data-stream2-000001.mappings.properties.@timestamp.type: 'date_nanos' }
+
+  - do:
       index:
         index:  simple-data-stream1
         body:
@@ -98,8 +106,8 @@ setup:
 ---
 "Create data stream with invalid name":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       catch: bad_request
@@ -178,8 +186,8 @@ setup:
 ---
 "Delete data stream with backing indices":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
 
   - do:
       indices.create_data_stream:
@@ -233,11 +241,6 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
 
@@ -283,7 +286,7 @@ setup:
 ---
 "Indexing a document into a data stream without a timestamp field":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
@@ -294,11 +297,6 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
           data_stream: {}
 
   - do:

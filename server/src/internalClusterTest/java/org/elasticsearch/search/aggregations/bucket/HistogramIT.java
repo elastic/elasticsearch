@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Avg;
@@ -1193,6 +1194,58 @@ public class HistogramIT extends ESIntegTestCase {
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
         long[] expectedKeys = new long[]  { 1, 2, 3, 4, 5, 6, 7 };
         assertMultiSortResponse(expectedKeys, BucketOrder.aggregation("avg_l", true));
+    }
+
+    public void testInvalidBounds() {
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("empty_bucket_idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).hardBounds(new DoubleBounds(0.0, 10.0))
+                    .extendedBounds(3, 20)).get());
+            assertThat(e.toString(), containsString("Extended bounds have to be inside hard bounds, hard bounds"));
+
+        e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("empty_bucket_idx")
+            .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).hardBounds(new DoubleBounds(3.0, null))
+                    .extendedBounds(0, 20)).get());
+        assertThat(e.toString(), containsString("Extended bounds have to be inside hard bounds, hard bounds"));
+    }
+
+    public void testHardBounds() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("d", "type=double").get());
+        indexRandom(true,
+            client().prepareIndex("test").setId("1").setSource("d", -0.6),
+            client().prepareIndex("test").setId("2").setSource("d", 0.5),
+            client().prepareIndex("test").setId("3").setSource("d", 0.1));
+
+        SearchResponse r = client().prepareSearch("test")
+            .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(0.0, null)))
+            .get();
+        assertSearchResponse(r);
+
+        Histogram histogram = r.getAggregations().get("histo");
+        List<? extends Bucket> buckets = histogram.getBuckets();
+        assertEquals(5, buckets.size());
+        assertEquals(0.1, (double) buckets.get(0).getKey(), 0.01d);
+        assertEquals(0.5, (double) buckets.get(4).getKey(), 0.01d);
+
+        r = client().prepareSearch("test")
+            .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(null, 0.0)))
+            .get();
+        assertSearchResponse(r);
+
+        histogram = r.getAggregations().get("histo");
+        buckets = histogram.getBuckets();
+        assertEquals(1, buckets.size());
+        assertEquals(-0.6, (double) buckets.get(0).getKey(), 0.01d);
+
+        r = client().prepareSearch("test")
+            .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(0.0, 3.0)))
+            .get();
+        assertSearchResponse(r);
+
+        histogram = r.getAggregations().get("histo");
+        buckets = histogram.getBuckets();
+        assertEquals(1, buckets.size());
+        assertEquals(0.1, (double) buckets.get(0).getKey(), 0.01d);
+
     }
 
     private void assertMultiSortResponse(long[] expectedKeys, BucketOrder... order) {

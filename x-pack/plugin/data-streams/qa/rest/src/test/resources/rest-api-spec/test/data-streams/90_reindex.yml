@@ -1,10 +1,11 @@
 ---
 setup:
   - skip:
-      features: allowed_warnings
       version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
-  - do:
+      reason: "enable in 7.9+ when backported"
+      features: allowed_warnings
+
+  - do :
       allowed_warnings:
         - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
       indices.put_index_template:
@@ -12,11 +13,6 @@ setup:
         body:
           index_patterns: logs-*
           data_stream: {}
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
 
 ---
 teardown:

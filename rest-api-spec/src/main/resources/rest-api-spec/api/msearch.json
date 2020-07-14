@@ -44,7 +44,7 @@
         "description":"Search operation type"
       },
       "max_concurrent_searches":{
-        "type":"number",
+        "type":"int",
         "description":"Controls the maximum number of concurrent searches the multi search api will execute"
       },
       "typed_keys":{
@@ -52,11 +52,11 @@
         "description":"Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       },
       "pre_filter_shard_size":{
-        "type":"number",
+        "type":"int",
         "description":"A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on its rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint."
       },
       "max_concurrent_shard_requests":{
-        "type":"number",
+        "type":"int",
         "description":"The number of concurrent shard requests each sub search executes concurrently per node. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
         "default":5
       },

@@ -81,7 +81,7 @@
         "description":"Return settings in flat format (default: false)"
       },
       "wait_for_metadata_version":{
-        "type":"number",
+        "type":"long",
         "description":"Wait for the metadata version to be equal or greater than the specified metadata version"
       },
       "wait_for_timeout":{

@@ -54,7 +54,7 @@
         "description":"Explicit operation timeout"
       },
       "version":{
-        "type":"number",
+        "type":"long",
         "description":"Explicit version number for concurrency control"
       },
       "version_type":{

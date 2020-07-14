@@ -49,7 +49,7 @@
         "description":"The field to use as default where no field prefix is given in the query string"
       },
       "from":{
-        "type":"number",
+        "type":"int",
         "description":"Starting offset (default: 0)"
       },
       "ignore_unavailable":{
@@ -118,7 +118,7 @@
         "description":"Explicit timeout for each search request. Defaults to no timeout."
       },
       "max_docs":{
-        "type":"number",
+        "type":"long",
         "description":"Maximum number of documents to process (default: all documents)"
       },
       "sort":{
@@ -126,7 +126,7 @@
         "description":"A comma-separated list of <field>:<direction> pairs"
       },
       "terminate_after":{
-        "type":"number",
+        "type":"int",
         "description":"The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
       },
       "stats":{
@@ -159,7 +159,7 @@
         "description":"Sets the number of shard copies that must be active before proceeding with the update by query operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
       },
       "scroll_size":{
-        "type":"number",
+        "type":"int",
         "default":100,
         "description":"Size on the scroll request powering the update by query"
       },
@@ -169,12 +169,12 @@
         "description":"Should the request should block until the update by query operation is complete."
       },
       "requests_per_second":{
-        "type":"number",
+        "type":"float",
         "default":0,
         "description":"The throttle to set on this request in sub-requests per second. -1 means no throttle."
       },
       "slices":{
-        "type":"number|string",
+        "type":"int|string",
         "default":1,
         "description":"The number of slices this task should be divided into. Defaults to 1, meaning the task isn't sliced into subtasks. Can be set to `auto`."
       }

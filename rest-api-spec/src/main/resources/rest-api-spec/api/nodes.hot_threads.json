@@ -37,11 +37,11 @@
         "description":"The interval for the second sampling of threads"
       },
       "snapshots":{
-        "type":"number",
+        "type":"int",
         "description":"Number of samples of thread stacktrace (default: 10)"
       },
       "threads":{
-        "type":"number",
+        "type":"int",
         "description":"Specify the number of threads to provide information for (default: 3)"
       },
       "ignore_idle_threads":{

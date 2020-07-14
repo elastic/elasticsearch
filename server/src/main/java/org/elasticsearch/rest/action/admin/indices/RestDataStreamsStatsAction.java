@@ -47,12 +47,6 @@ public class RestDataStreamsStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         DataStreamsStatsAction.Request dataStreamsStatsRequest = new DataStreamsStatsAction.Request();
-        boolean forbidClosedIndices = request.paramAsBoolean("forbid_closed_indices", true);
-        IndicesOptions defaultIndicesOption = forbidClosedIndices ? dataStreamsStatsRequest.indicesOptions()
-            : IndicesOptions.strictExpandOpen();
-        assert dataStreamsStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() : "DataStreamStats default " +
-            "indices options changed";
-        dataStreamsStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         dataStreamsStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
         return channel -> client.execute(DataStreamsStatsAction.INSTANCE, dataStreamsStatsRequest, new RestToXContentListener<>(channel));
     }

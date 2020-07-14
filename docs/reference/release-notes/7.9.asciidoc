@@ -33,11 +33,7 @@ Thread pool write queue size::
   {es-issue}59263[#59263]
 
 Dangling indices::
-* A new <<dangling-indices-api,Dangling indices API>> is now available, which you
-  can use to list, import, or delete
-  <<dangling-indices,dangling indices>>. Because importing dangling indices
-  into the cluster using `gateway.auto_import_dangling_indices` is unsafe, use the dedicated API instead.
-  
-  Automatically importing dangling indices is now deprecated, disabled by default, and will be removed in (es) 8.0. If you need to re-enable auto-imports, set
-  `gateway.auto_import_dangling_indices` to `true`
-   {es-pull}58176[#58176] {es-pull}58898[#58898] (issue: {es-issue}48366[#48366])
+* Automatically importing dangling indices is now deprecated, disabled by
+  default, and will be removed in (es) 8.0. See the
+  <<deprecate_auto_import_dangling_indices,migration notes>>.
+  {es-pull}58176[#58176] {es-pull}58898[#58898] (issue: {es-issue}48366[#48366])

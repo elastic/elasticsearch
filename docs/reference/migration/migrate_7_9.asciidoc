@@ -10,6 +10,7 @@ your application to {es} 7.9.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_79_script_cache_changes>>
+* <<breaking_78_settings_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -66,6 +67,29 @@ To avoid deprecation warnings, discontinue use of the `script.max_compilations_r
 setting. You may use `script.context.$CONTEXT.max_compilations_rate` for the particular
 context.  For example, for the `processor_conditional` context, use
 `script.context.processor_conditional.max_compilations_rate`.
+
+====
+
+[discrete]
+[[breaking_79_settings_changes]]
+=== Settings changes
+
+[[deprecate_auto_import_dangling_indices]]
+.Automatically importing dangling indices is deprecated.
+
+[%collapsible]
+====
+*Details* +
+<<dangling-indices,Dangling indices>> will no longer be imported
+automatically by default. A new
+<<dangling-indices-api,Dangling indices API>> is now available, which you
+can use to list, import, or delete. Because importing dangling indices
+automatically into the cluster is unsafe, use the dedicated API instead.
+
+*Impact* +
+Automatically importing dangling indices is now deprecated, disabled by
+default, and will be removed in (es) 8.0. If you need to re-enable
+auto-imports, set `gateway.auto_import_dangling_indices` to `true`.
 
 ====
 //end::notable-breaking-changes[]

@@ -467,7 +467,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         QueryShardContext context = new QueryShardContext(0, indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null, null);
+            null, null, () -> 0L, null, null, () -> true, null);
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {

@@ -423,7 +423,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         QueryShardContext baseContext = createShardContext();
         QueryShardContext context = new QueryShardContext(baseContext.getShardId(), baseContext.getIndexSettings(),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, baseContext.getMapperService(),
-            null, scriptService, null, null, null, null, null, null, null, () -> true, null, null);
+            null, scriptService, null, null, null, null, null, null, null, () -> true, null);
 
         String json = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " +
             "\"match\" : { " +

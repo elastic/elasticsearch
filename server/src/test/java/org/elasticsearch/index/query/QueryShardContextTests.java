@@ -149,7 +149,7 @@ public class QueryShardContextTests extends ESTestCase {
         QueryShardContext context = new QueryShardContext(
             0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null,
             null, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> 0L, null, null, () -> true, null, null);
+            null, null, () -> 0L, null, null, () -> true, null);
 
         assertTrue(context.indexSortedOnField("sort_field"));
         assertFalse(context.indexSortedOnField("second_sort_field"));
@@ -175,6 +175,6 @@ public class QueryShardContextTests extends ESTestCase {
                 (mappedFieldType, idxName) ->
                     mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null, null);
+            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
     }
 }

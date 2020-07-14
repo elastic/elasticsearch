@@ -56,8 +56,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -421,15 +421,16 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testNewFieldTypeLookupEmpty() throws IOException {
-        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
-        Function<String, MappedFieldType> lookup = mapperService.newFieldTypeLookup(randomBoolean() ? null : new HashMap<>());
-        assertThat(lookup.apply("f1"), notNullValue());
-        assertThat(lookup.apply("f2"), nullValue());
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService()
+            .forSearch(randomBoolean() ? null : new HashMap<>());
+        assertThat(mapperService.fieldType("f1"), notNullValue());
+        assertThat(mapperService.fieldType("f2"), nullValue());
+        assertThat(mapperService.simpleMatchToFullName("f*"), equalTo(Set.of("f1")));
     }
 
     public void testNewFieldTypeLookupInvalidRuntimeMappings() throws IOException {
         MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.forSearch(
             new TreeMap<>(Map.of("st1", new TreeMap<>(Map.of("type", "long"))))
         ));
         assertThat(e.getMessage(), equalTo("[long] are not supported in runtime mappings"));
@@ -437,7 +438,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
     public void testNewFieldTypeLookupNoType() throws IOException {
         MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.forSearch(
             new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("stuff", "foo"))))
         ));
         assertThat(e.getMessage(), equalTo("[type] is required for runtime mapping [r1]"));
@@ -445,7 +446,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
     public void testNewFieldTypeLookupUnknownType() throws IOException {
         MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.forSearch(
             new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("type", "asdf"))))
         ));
         assertThat(e.getMessage(), equalTo("[asdf] is unknown type for runtime mapping [r1]"));
@@ -453,7 +454,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
     public void testNewFieldTypeLookupAliases() throws IOException {
         MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.forSearch(
             new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("type", "alias", "path", "f1"))))
         ));
         assertThat(e.getMessage(), equalTo("aliases are not supported in runtime mappings"));
@@ -461,21 +462,22 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
     public void testNewFieldTypeLookupShadowingRuntimeMappings() throws IOException {
         MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "field", "type=long").mapperService();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.newFieldTypeLookup(
+        Exception e = expectThrows(IllegalArgumentException.class, () -> mapperService.forSearch(
             new TreeMap<>(Map.of("field", new TreeMap<>(Map.of("type", "test_runtime"))))
         ));
         assertThat(e.getMessage(), equalTo("[field] can't be defined in the search's runtime mappings and the index's mappings"));
     }
 
     public void testNewFieldTypeLookupValidRuntimeMappings() throws IOException {
-        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService();
-        Function<String, MappedFieldType> lookup = mapperService.newFieldTypeLookup(
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService().forSearch(
             new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("type", "test_runtime"))))
         );
-        assertThat(lookup.apply("f1"), notNullValue());
-        assertThat(lookup.apply("f2"), nullValue());
-        assertThat(lookup.apply("r1"), notNullValue());
-        assertThat(lookup.apply("r2"), nullValue());
+        assertThat(mapperService.fieldType("f1"), notNullValue());
+        assertThat(mapperService.fieldType("f2"), nullValue());
+        assertThat(mapperService.fieldType("r1"), notNullValue());
+        assertThat(mapperService.fieldType("r2"), nullValue());
+        assertThat(mapperService.simpleMatchToFullName("*1"), equalTo(Set.of("f1", "r1")));
+
     }
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {

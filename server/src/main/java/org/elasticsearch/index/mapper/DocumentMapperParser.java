@@ -80,15 +80,11 @@ public class DocumentMapperParser {
         if (mapping == null) {
             mapping = new HashMap<>();
         }
-        return parse(type, mapping).build(mapperService);
-    }
-
-    public Mapping parseMapping(String type, Map<String, Object> mapping) {
-        return parse(type, mapping).buildMapping(Version.CURRENT);
+        return parse(type, mapping);
     }
 
     @SuppressWarnings({"unchecked"})
-    private DocumentMapper.Builder parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+    private DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
@@ -138,7 +134,7 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder;
+        return docBuilder.build(mapperService);
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {

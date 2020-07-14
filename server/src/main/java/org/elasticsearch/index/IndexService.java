@@ -587,6 +587,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return newQueryShardContext(shardId, searcher, nowInMillis, clusterAlias, null);
     }
 
+    /**
+     * Creates a new QueryShardContext.
+     *
+     * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
+     * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
+     */
     public QueryShardContext newQueryShardContext(
         int shardId,
         IndexSearcher searcher,
@@ -601,7 +607,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
             indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, runtimeMappings);
     }
-
 
     /**
      * The {@link ThreadPool} to use for this index.

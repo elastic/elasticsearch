@@ -131,8 +131,7 @@ this pattern.
 ----
 ====
 
-* A `data_stream` object with an empty body (`{ }`). 
-the data stream.
+* A `data_stream` object with an empty body (`{ }`).
 
 The template can also contain:
 

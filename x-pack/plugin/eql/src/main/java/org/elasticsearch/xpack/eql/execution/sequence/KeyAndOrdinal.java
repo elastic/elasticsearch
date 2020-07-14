@@ -4,10 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.eql.execution.assembler;
+package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
-import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 
 import java.util.Objects;
 
@@ -15,7 +14,7 @@ public class KeyAndOrdinal {
     final SequenceKey key;
     final Ordinal ordinal;
 
-    KeyAndOrdinal(SequenceKey key, Ordinal ordinal) {
+    public KeyAndOrdinal(SequenceKey key, Ordinal ordinal) {
         this.key = key;
         this.ordinal = ordinal;
     }

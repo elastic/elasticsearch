@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.index.LeafReaderContext;
+
 import java.io.IOException;
 
 /**
@@ -34,4 +36,6 @@ public interface DocCountProvider {
 
     /** Return the number of doc_count for a specific document */
     int getDocCount(int doc) throws IOException;
+
+    default void setLeafReaderContext(LeafReaderContext ctx) {}
 }

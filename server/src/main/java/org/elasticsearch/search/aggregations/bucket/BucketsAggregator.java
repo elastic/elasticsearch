@@ -67,6 +67,19 @@ public abstract class BucketsAggregator extends AggregatorBase {
             multiBucketConsumer = (count) -> {};
         }
         docCounts = bigArrays.newIntArray(1, true);
+
+        // Check index mappings to find a field of type doc_count. If one is found
+        // use that one to retrieve the doc count for the bucket
+        // In agg tests fieldTypes is null. TODO: Fix test fixtures so that fieldTypes is not null
+        if (context.getQueryShardContext().getMapperService().fieldTypes() != null) {
+            for (MappedFieldType fieldType : context.getQueryShardContext().getMapperService().fieldTypes()) {
+                if (DocCountFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
+                    // If a field of type doc_count has been found, use it to provide the bucket doc_count values
+                    fieldDocCountProvider = new FieldBasedDocCountProvider(fieldType.name());
+                    break;
+                }
+            }
+        }
     }
 
     /**
@@ -400,18 +413,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     @Override
     protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
         super.preGetSubLeafCollectors(ctx);
-        // Check index mappings to find a field of type doc_count. If one is found
-        // use that one to retrieve the doc count for the bucket
-
-        // In agg tests fieldTypes is null. TODO: Fix test fixtures so that fieldTypes is not null
-        if (context.getQueryShardContext().getMapperService().fieldTypes() != null) {
-            for (MappedFieldType fieldType : context.getQueryShardContext().getMapperService().fieldTypes()) {
-                if (DocCountFieldMapper.CONTENT_TYPE.equals(fieldType.typeName())) {
-                    // If a field of type doc_count has been found, use it to provide the bucket doc_count values
-                    fieldDocCountProvider = new FieldDocCountProvider(ctx, fieldType.name());
-                    break;
-                }
-            }
-        }
+        // Set LeafReaderContext to the field based doc_count provider
+        fieldDocCountProvider.setLeafReaderContext(ctx);
     }
 }

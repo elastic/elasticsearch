@@ -27,18 +27,16 @@ import java.io.IOException;
 
 /**
  * An implementation of a doc_count provider that reads the doc_count value
- * in a doc value field in the document
+ * in a doc value field in the document. If a document has no doc_count field
+ * the implementation will return 1 as the default value.
  */
-public class FieldDocCountProvider implements DocCountProvider {
+public class FieldBasedDocCountProvider implements DocCountProvider {
 
+    private final String docCountFieldName;
     private NumericDocValues docCountValues;
 
-    public FieldDocCountProvider(LeafReaderContext ctx, String docCountFieldName) {
-        try {
-            docCountValues = DocValues.getNumeric(ctx.reader(), docCountFieldName);
-        } catch (IOException e) {
-            docCountValues = null;
-        }
+    public FieldBasedDocCountProvider(String docCountFieldName) {
+        this.docCountFieldName = docCountFieldName;
     }
 
     @Override
@@ -49,4 +47,14 @@ public class FieldDocCountProvider implements DocCountProvider {
             return 1;
         }
     }
+
+    @Override
+    public void setLeafReaderContext(LeafReaderContext ctx) {
+        try {
+            docCountValues = DocValues.getNumeric(ctx.reader(), docCountFieldName);
+        } catch (IOException e) {
+            docCountValues = null;
+        }
+    }
+
 }

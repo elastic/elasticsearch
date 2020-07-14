@@ -620,7 +620,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
      * Builds a {@linkplain Function} to lookup mappers for a request, adding
-     * any {@code extraMapping} provided.
+     * any {@code runtimeMappings} provided.
      * @param runtimeMappings extra mappings parse and to add to the request
      *        lookup or {@code null} if there aren't any extra mappings  
      */

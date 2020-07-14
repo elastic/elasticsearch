@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -43,7 +44,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testAllowedIndicesMatcherForMappingUpdates() throws Exception {
-        for (String mappingUpdateActionName : List.of(PutMappingAction.NAME, AutoPutMappingAction.NAME)) {
+        for (String mappingUpdateActionName : Arrays.asList(PutMappingAction.NAME, AutoPutMappingAction.NAME)) {
             IndexAbstraction mockIndexAbstraction = mock(IndexAbstraction.class);
             Predicate<IndexAbstraction> indexPredicate = permission.indices().allowedIndicesMatcher(mappingUpdateActionName);
             // mapping updates are still permitted on indices and aliases

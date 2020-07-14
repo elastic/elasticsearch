@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;
 
 import static java.util.Collections.unmodifiableMap;
@@ -51,7 +50,7 @@ public final class IndicesPermission {
 
     public static final IndicesPermission NONE = new IndicesPermission();
 
-    private static final Set<String> privilegeNameSetBwcAllowMappingUpdate = Set.of("create", "create_doc", "index", "write");
+    private static final Set<String> PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE = Set.of("create", "create_doc", "index", "write");
 
     private final Map<String, Predicate<IndexAbstraction>> allowedIndicesMatchersForAction = new ConcurrentHashMap<>();
 
@@ -143,8 +142,7 @@ public final class IndicesPermission {
     public boolean check(String action) {
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (Group group : groups) {
-            if (group.checkAction(action) || (isMappingUpdateAction &&
-                    group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains))) {
+            if (group.checkAction(action) || (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group))) {
                 return true;
             }
         }
@@ -264,7 +262,7 @@ public final class IndicesPermission {
                     // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
                     // outside of the privilege definition
                     boolean bwcMappingActionCheck = isMappingUpdateAction && false == isDataStream && false == isBackingIndex &&
-                            group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains);
+                            containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
                     bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
                     if (actionCheck || bwcMappingActionCheck) {
                         // propagate DLS and FLS permissions over the concrete indices
@@ -284,16 +282,16 @@ public final class IndicesPermission {
                                 permissions.setAllowAll(true);
                             }
                         }
-                    }
-                    if (false == actionCheck && bwcMappingActionCheck) {
-                        for (String privilegeName : group.privilege.name()) {
-                            if (privilegeNameSetBwcAllowMappingUpdate.contains(privilegeName)) {
-                                bwcDeprecationLogActions.add(() -> {
-                                    deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" +
-                                            privilegeName + "]", "the mapping update action [" + action + "] on the [" +
-                                            indexOrAlias + "] index, is granted by the [" + privilegeName + "] privilege," +
-                                            " but the privilege has been tightened to not allow it in the next major release");
-                                });
+                        if (false == actionCheck) {
+                            for (String privilegeName : group.privilege.name()) {
+                                if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
+                                    bwcDeprecationLogActions.add(() -> {
+                                        deprecationLogger.deprecate("[" + indexOrAlias + "] mapping update for ingest privilege [" +
+                                                privilegeName + "]", "the mapping update action [" + action + "] on the [" +
+                                                indexOrAlias + "] index, is granted by the [" + privilegeName + "] privilege," +
+                                                " but the privilege has been tightened to not allow it in the next major release");
+                                    });
+                                }
                             }
                         }
                     }
@@ -350,6 +348,10 @@ public final class IndicesPermission {
 
     private static boolean isMappingUpdateAction(String action) {
         return action.equals(PutMappingAction.NAME) || action.equals(AutoPutMappingAction.NAME);
+    }
+
+    private static boolean containsPrivilegeThatGrantsMappingUpdatesForBwc(Group group) {
+        return group.privilege().name().stream().anyMatch(PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE::contains);
     }
 
     public static class Group {
@@ -432,8 +434,7 @@ public final class IndicesPermission {
                     } else {
                         ordinaryIndices.addAll(Arrays.asList(group.indices()));
                     }
-                } else if (isMappingUpdateAction &&
-                        group.privilege().name().stream().anyMatch(privilegeNameSetBwcAllowMappingUpdate::contains)) {
+                } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
                     // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
                     // the privilege definition does not currently allow it
                     if (group.allowRestrictedIndices) {

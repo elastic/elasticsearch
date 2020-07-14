@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
+import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
@@ -86,7 +87,7 @@ public class ExecutionManager {
         }
         
         int completionStage = criteria.size() - 1;
-        Matcher matcher = new Matcher(completionStage, maxSpan, limit);
+        SequenceMatcher matcher = new SequenceMatcher(completionStage, maxSpan, limit);
 
         TumblingWindow w = new TumblingWindow(new BasicQueryClient(session),
                 criteria.subList(0, completionStage),

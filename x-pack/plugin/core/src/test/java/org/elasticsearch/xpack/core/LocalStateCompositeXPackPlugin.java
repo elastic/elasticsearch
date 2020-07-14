@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -475,6 +476,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .stream()
                 .flatMap(p -> p.indicesAliasesRequestValidators().stream())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return filterPlugins(ClusterPlugin.class)
+            .stream()
+            .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
+            .collect(Collectors.toList());
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

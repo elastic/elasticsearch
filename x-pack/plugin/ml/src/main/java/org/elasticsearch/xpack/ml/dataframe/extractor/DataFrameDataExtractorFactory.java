@@ -60,7 +60,7 @@ public class DataFrameDataExtractorFactory {
                 headers,
                 includeSource,
                 supportsRowsWithMissingValues,
-            trainTestSplitterFactory
+                trainTestSplitterFactory
             );
         return new DataFrameDataExtractor(client, context);
     }

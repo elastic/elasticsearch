@@ -113,7 +113,6 @@ import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDangli
 import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
-import org.elasticsearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
@@ -306,7 +305,6 @@ import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
-import org.elasticsearch.rest.action.admin.indices.RestDataStreamsStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;

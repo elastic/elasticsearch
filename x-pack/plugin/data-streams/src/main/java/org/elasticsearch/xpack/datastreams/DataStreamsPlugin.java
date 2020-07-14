@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.datastreams;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
+import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -22,7 +23,9 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.datastreams.action.DataStreamsStatsTransportAction;
 import org.elasticsearch.xpack.datastreams.rest.RestCreateDataStreamAction;
+import org.elasticsearch.xpack.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestDeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -47,16 +50,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (DATASTREAMS_FEATURE_ENABLED == false) {
-            return List.of();
-        }
-
         var createDsAction = new ActionHandler<>(CreateDataStreamAction.INSTANCE, CreateDataStreamTransportAction.class);
         var deleteDsInfoAction = new ActionHandler<>(DeleteDataStreamAction.INSTANCE, DeleteDataStreamTransportAction.class);
         var getDsAction = new ActionHandler<>(GetDataStreamAction.INSTANCE, GetDataStreamsTransportAction.class);
+        var dsStatsAction = new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class);
         var dsUsageAction = new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class);
         var dsInfoAction = new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class);
-        return List.of(createDsAction, deleteDsInfoAction, getDsAction, dsUsageAction, dsInfoAction);
+        return List.of(createDsAction, deleteDsInfoAction, getDsAction, dsStatsAction, dsUsageAction, dsInfoAction);
     }
 
     @Override
@@ -69,13 +69,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (DATASTREAMS_FEATURE_ENABLED == false) {
-            return List.of();
-        }
-
         var createDsAction = new RestCreateDataStreamAction();
         var deleteDsAction = new RestDeleteDataStreamAction();
         var getDsAction = new RestGetDataStreamsAction();
-        return List.of(createDsAction, deleteDsAction, getDsAction);
+        var dsStatsAction = new RestDataStreamsStatsAction();
+        return List.of(createDsAction, deleteDsAction, getDsAction, dsStatsAction);
     }
 }

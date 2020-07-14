@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
@@ -157,7 +157,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator
+            AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
+            AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator
         );
     }
 

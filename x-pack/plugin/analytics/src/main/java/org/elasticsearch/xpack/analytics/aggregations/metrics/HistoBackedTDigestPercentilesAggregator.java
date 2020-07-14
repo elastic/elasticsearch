@@ -17,9 +17,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 
-class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
+public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
 
-    HistoBackedTDigestPercentilesAggregator(String name,
+    public HistoBackedTDigestPercentilesAggregator(String name,
                                  ValuesSource valuesSource,
                                  SearchContext context,
                                  Aggregator parent,

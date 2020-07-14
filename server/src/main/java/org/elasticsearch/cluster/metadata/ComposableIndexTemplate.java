@@ -29,11 +29,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -250,50 +250,37 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
-        private static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ObjectParser<DataStreamTemplate, Void> PARSER = new ObjectParser<>(
             "data_stream_template",
-            args -> new DataStreamTemplate((String) args[0])
+            DataStreamTemplate::new
         );
 
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), DataStream.TIMESTAMP_FIELD_FIELD);
-        }
-
-        private final String timestampField;
-
-        public DataStreamTemplate(String timestampField) {
-            if (FIXED_TIMESTAMP_FIELD.equals(timestampField) == false) {
-                throw new IllegalArgumentException("unexpected timestamp field [" + timestampField + "]");
-            }
-
-            this.timestampField = timestampField;
+        public DataStreamTemplate() {
         }
 
         public String getTimestampField() {
-            return timestampField;
+            return FIXED_TIMESTAMP_FIELD;
         }
 
-        DataStreamTemplate(StreamInput in) throws IOException {
-            this(in.readString());
+        DataStreamTemplate(StreamInput in) {
+            this();
         }
 
         /**
-         * @return a mapping snippet for a backing index with `_timestamp` meta field mapper properly configured.
+         * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
         public Map<String, Object> getDataSteamMappingSnippet() {
-            return singletonMap(MapperService.SINGLE_MAPPING_NAME, singletonMap(TimestampFieldMapper.NAME,
-                singletonMap("path", timestampField)));
+            return singletonMap(MapperService.SINGLE_MAPPING_NAME, singletonMap("_data_stream_timestamp",
+                singletonMap("path", FIXED_TIMESTAMP_FIELD)));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(timestampField);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), timestampField);
             builder.endObject();
             return builder;
         }
@@ -301,14 +288,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DataStreamTemplate that = (DataStreamTemplate) o;
-            return timestampField.equals(that.timestampField);
+            return o != null && getClass() == o.getClass();
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(timestampField);
+            return DataStreamTemplate.class.hashCode();
         }
     }
 }

@@ -23,9 +23,7 @@ PUT /_index_template/template
       }
     }
   },
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  }
+  "data_stream": {}
 }
 
 PUT /_data_stream/my-data-stream
@@ -57,5 +55,5 @@ DELETE /_index_template/template
 
 `<data-stream>`::
 (Required, string)
-Name of the data stream to delete.
+Comma-separated list of data streams to delete.
 Wildcard (`*`) expressions are supported.

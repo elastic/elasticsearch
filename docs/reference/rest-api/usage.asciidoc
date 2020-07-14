@@ -280,6 +280,12 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true,
     ...
+  },
+  "data_streams" : {
+    "available" : true,
+    "enabled" : true,
+    "data_streams" : 0,
+    "indices_count" : 0
   }
 }
 ------------------------------------------------------------

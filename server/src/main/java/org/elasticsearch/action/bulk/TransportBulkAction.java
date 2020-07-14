@@ -68,6 +68,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -113,23 +114,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
-    private final WriteMemoryLimits writeMemoryLimits;
+    private final IndexingPressure indexingPressure;
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, WriteMemoryLimits writeMemoryLimits) {
+                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure) {
         this(threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
-            indexNameExpressionResolver, autoCreateIndex, writeMemoryLimits, System::nanoTime);
+            indexNameExpressionResolver, autoCreateIndex, indexingPressure, System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               AutoCreateIndex autoCreateIndex, WriteMemoryLimits writeMemoryLimits, LongSupplier relativeTimeProvider) {
+                               AutoCreateIndex autoCreateIndex, IndexingPressure indexingPressure, LongSupplier relativeTimeProvider) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
@@ -141,7 +142,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.writeMemoryLimits = writeMemoryLimits;
+        this.indexingPressure = indexingPressure;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -166,7 +167,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     @Override
     protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
         long indexingBytes = bulkRequest.ramBytesUsed();
-        final Releasable releasable = writeMemoryLimits.markWriteOperationStarted(indexingBytes);
+        final Releasable releasable = indexingPressure.markIndexingOperationStarted(indexingBytes);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             doInternalExecute(task, bulkRequest, releasingListener);

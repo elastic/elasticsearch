@@ -102,6 +102,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }
         return indexMapping.get(field);
     }
+    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -109,9 +111,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         for (Map.Entry<String, Map<String, FieldMappingMetadata>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
-
+            boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+                DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             if (indexEntry.getValue() != null) {
+                if (builder.getCompatibleMajorVersion() == Version.V_7_0_0.major && includeTypeName) {
+                    builder.startObject(MapperService.SINGLE_MAPPING_NAME);
+                }
                 addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
+                if (builder.getCompatibleMajorVersion() == Version.V_7_0_0.major && includeTypeName) {
+                    builder.endObject();
+                }
             }
 
             builder.endObject();

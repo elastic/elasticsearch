@@ -34,6 +34,9 @@ import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.INCLUDE_TYPE_NAME_PARAMETER;
+
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
@@ -100,7 +103,14 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
-            if (indexEntry.value != null) {
+            boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+                DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            if (builder.getCompatibleMajorVersion() == Version.V_7_0_0.major
+                && includeTypeName) {
+                builder.startObject(MAPPINGS.getPreferredName());
+                builder.field(MapperService.SINGLE_MAPPING_NAME, indexEntry.value.sourceAsMap());
+                builder.endObject();
+            } else if (indexEntry.value != null) {
                 builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
             } else {
                 builder.startObject(MAPPINGS.getPreferredName()).endObject();

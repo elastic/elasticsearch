@@ -1,8 +1,3 @@
-package Elasticsearch
-
-import VersionedProject
-import includeDevelopmentBranchProjects
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,6 +16,12 @@ import includeDevelopmentBranchProjects
  * specific language governing permissions and limitations
  * under the License.
  */
+
+package Elasticsearch
+
+import VersionedProject
+import includeDevelopmentBranchProjects
+
 
 object Elasticsearch : VersionedProject({
     uuid = "7ec11a10-4663-40da-8b01-bb9bcc3c82c7"

@@ -1,8 +1,3 @@
-import jetbrains.buildServer.configs.kotlin.v2019_2.Project
-import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.VersionedSettings
-import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.versionedSettings
-import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,6 +16,12 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
  * specific language governing permissions and limitations
  * under the License.
  */
+
+import jetbrains.buildServer.configs.kotlin.v2019_2.Project
+import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.VersionedSettings
+import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.versionedSettings
+import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
+
 
 val developmentBranches = listOf("master", "7.x", "7.8", "6.8")
 
@@ -65,7 +66,7 @@ fun createVcsRoot(projectName: String, branchName: String): GitVcsRoot {
     return GitVcsRoot {
         id("${projectName}_${branchName.replace('.', '_')}")
 
-        name = "${projectName} ($branchName)"
+        name = "$projectName ($branchName)"
         url = "https://github.com/elastic/${projectName.toLowerCase()}.git"
         branch = "refs/heads/$branchName"
     }

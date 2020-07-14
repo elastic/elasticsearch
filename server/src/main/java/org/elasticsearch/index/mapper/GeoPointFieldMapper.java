@@ -22,12 +22,12 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
@@ -50,6 +50,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
     public static final FieldType FIELD_TYPE = new FieldType();
     static {
         FIELD_TYPE.setStored(false);
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
         FIELD_TYPE.freeze();
     }
 
@@ -61,15 +62,15 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
             builder = this;
         }
 
+        @Override
         public GeoPointFieldMapper build(BuilderContext context, String simpleName, FieldType fieldType,
-                                         Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                         MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                          Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
             GeoPointFieldType ft = new GeoPointFieldType(buildFullName(context), indexed, hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new GeoPointIndexer(ft));
             ft.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
-            return new GeoPointFieldMapper(name, fieldType, ft, indexSettings, multiFields,
-                ignoreMalformed, ignoreZValue, nullValue, copyTo);
+            return new GeoPointFieldMapper(name, fieldType, ft, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
         }
     }
 
@@ -106,9 +107,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<?
     }
 
     public GeoPointFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
-                               Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                               MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
     }
 
     @Override

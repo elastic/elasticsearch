@@ -742,8 +742,14 @@ public class Strings {
      * which is usually used as everything
      */
     public static boolean isAllOrWildcard(String[] data) {
-        return CollectionUtils.isEmpty(data) ||
-               data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
+        return CollectionUtils.isEmpty(data) || data.length == 1 && isAllOrWildcard(data[0]);
+    }
+
+    /**
+     * Returns `true` if the string is `_all` or `*`.
+     */
+    public static boolean isAllOrWildcard(String data) {
+        return "_all".equals(data) || "*".equals(data);
     }
 
     /**

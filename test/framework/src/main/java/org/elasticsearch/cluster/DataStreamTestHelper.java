@@ -51,4 +51,8 @@ public final class DataStreamTestHelper {
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);
     }
+
+    public static DataStream.TimestampField createTimestampField(String fieldName) {
+        return new DataStream.TimestampField(fieldName);
+    }
 }

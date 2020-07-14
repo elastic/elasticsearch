@@ -24,21 +24,28 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction.Request;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -54,21 +61,21 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(8));
+        return new Request(randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
     }
 
     public void testValidateRequest() {
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request("my-data-stream");
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{"my-data-stream"});
         ActionRequestValidationException e = req.validate();
         assertNull(e);
     }
 
     public void testValidateRequestWithoutName() {
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request("");
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[0]);
         ActionRequestValidationException e = req.validate();
         assertNotNull(e);
         assertThat(e.validationErrors().size(), equalTo(1));
-        assertThat(e.validationErrors().get(0), containsString("name is missing"));
+        assertThat(e.validationErrors().get(0), containsString("no data stream(s) specified"));
     }
 
     public void testDeleteDataStream() {
@@ -76,7 +83,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
 
         ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
         assertThat(newState.metadata().indices().size(), equalTo(otherIndices.size()));
@@ -85,10 +92,56 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         }
     }
 
+    public void testDeleteMultipleDataStreams() {
+        String[] dataStreamNames = {"foo", "bar", "baz", "eggplant"};
+        ClusterState cs = getClusterStateWithDataStreams(List.of(
+            new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
+            new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
+            new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
+            new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
+        ), List.of());
+
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{"ba*", "eggplant"});
+        ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        DataStream remainingDataStream = newState.metadata().dataStreams().get(dataStreamNames[0]);
+        assertNotNull(remainingDataStream);
+        assertThat(newState.metadata().indices().size(), equalTo(remainingDataStream.getIndices().size()));
+        for (Index i : remainingDataStream.getIndices()) {
+            assertThat(newState.metadata().indices().get(i.getName()).getIndex(), equalTo(i));
+        }
+    }
+
+    public void testDeleteSnapshottingDataStream() {
+        final String dataStreamName = "my-data-stream1";
+        final String dataStreamName2 = "my-data-stream2";
+        final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
+
+        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
+            otherIndices);
+        SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.of(List.of(
+            createEntry(dataStreamName, "repo1", false),
+            createEntry(dataStreamName2, "repo2", true)));
+        ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
+
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
+        SnapshotInProgressException e = expectThrows(SnapshotInProgressException.class,
+            () -> DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), snapshotCs, req));
+
+        assertThat(e.getMessage(), equalTo("Cannot delete data streams that are being snapshotted: [my-data-stream1]. Try again after " +
+            "snapshot finishes or cancel the currently running snapshot."));
+    }
+
+    private SnapshotsInProgress.Entry createEntry(String dataStreamName, String repo, boolean partial) {
+        return new SnapshotsInProgress.Entry(new Snapshot(repo, new SnapshotId("", "")), false, partial,
+            SnapshotsInProgress.State.STARTED, Collections.emptyList(), List.of(dataStreamName), 0, 1,
+            ImmutableOpenMap.of(), null, null, null);
+    }
+
     public void testDeleteNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(dataStreamName);
+        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[]{dataStreamName});
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
             () -> DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req));
         assertThat(e.getMessage(), containsString("data_streams matching [" + dataStreamName + "] not found"));
@@ -130,7 +183,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(dsTuple.v1(), "@timestamp",
+            DataStream ds = new DataStream(dsTuple.v1(), createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()), dsTuple.v2());
             builder.put(ds);
         }

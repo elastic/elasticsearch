@@ -28,6 +28,7 @@ import java.nio.file.Paths
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -45,32 +46,32 @@ configurations {
 }
 
 dependencies {
-  compile "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
-  compile "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
-  compile 'org.apache.htrace:htrace-core4:4.0.1-incubating'
+  api "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-common:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
+  api "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
+  api 'org.apache.htrace:htrace-core4:4.0.1-incubating'
   runtimeOnly 'com.google.guava:guava:11.0.2'
-  compile 'com.google.protobuf:protobuf-java:2.5.0'
-  compile 'commons-logging:commons-logging:1.1.3'
-  compile "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  compile 'commons-cli:commons-cli:1.2'
-  compile "commons-codec:commons-codec:${versions.commonscodec}"
-  compile 'commons-collections:commons-collections:3.2.2'
-  compile 'commons-configuration:commons-configuration:1.6'
-  compile 'commons-io:commons-io:2.4'
-  compile 'commons-lang:commons-lang:2.6'
-  compile 'javax.servlet:servlet-api:2.5'
-  compile "org.slf4j:slf4j-api:${versions.slf4j}"
-  compile "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+  api 'com.google.protobuf:protobuf-java:2.5.0'
+  api 'commons-logging:commons-logging:1.1.3'
+  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  api 'commons-cli:commons-cli:1.2'
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api 'commons-collections:commons-collections:3.2.2'
+  api 'commons-configuration:commons-configuration:1.6'
+  api 'commons-io:commons-io:2.4'
+  api 'commons-lang:commons-lang:2.6'
+  api 'javax.servlet:servlet-api:2.5'
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   hdfsFixture project(':test:fixtures:hdfs-fixture')
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
-    testRuntime files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
   }
 }
 
@@ -89,7 +90,7 @@ normalization {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 

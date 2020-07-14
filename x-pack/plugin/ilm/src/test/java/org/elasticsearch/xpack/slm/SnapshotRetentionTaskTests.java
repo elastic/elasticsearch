@@ -124,33 +124,33 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         // Test when user metadata is null
         SnapshotInfo info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
-            0L, null, 1L, 1, Collections.emptyList(), true, null);
+            Collections.emptyList(),0L, null, 1L, 1, Collections.emptyList(), true, null);
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
 
         // Test when no retention is configured
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
+        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
             0L, null, 1L, 1, Collections.emptyList(), true, null);
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyWithNoRetentionMap), equalTo(false));
 
         // Test when user metadata is a map that doesn't contain "policy"
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
+        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
             0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("foo", "bar"));
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
 
         // Test with an ancient snapshot that should be expunged
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
+        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
             0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", "policy"));
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(true));
 
         // Test with a snapshot that's start date is old enough to be expunged (but the finish date is not)
         long time = System.currentTimeMillis() - TimeValue.timeValueDays(30).millis() - 1;
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
+        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
             time, null, time + TimeValue.timeValueDays(4).millis(), 1, Collections.emptyList(),
             true, Collections.singletonMap("policy", "policy"));
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(true));
 
         // Test with a fresh snapshot that should not be expunged
-        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
+        info = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"), Collections.emptyList(),
             System.currentTimeMillis(), null, System.currentTimeMillis() + 1,
             1, Collections.emptyList(), true, Collections.singletonMap("policy", "policy"));
         assertThat(SnapshotRetentionTask.snapshotEligibleForDeletion(info, mkInfos.apply(info), policyMap), equalTo(false));
@@ -178,9 +178,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             ClusterServiceUtils.setState(clusterService, state);
 
             final SnapshotInfo eligibleSnapshot = new SnapshotInfo(new SnapshotId("name", "uuid"), Collections.singletonList("index"),
-                0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
+                Collections.emptyList(), 0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
             final SnapshotInfo ineligibleSnapshot = new SnapshotInfo(new SnapshotId("name2", "uuid2"), Collections.singletonList("index"),
-                System.currentTimeMillis(), null, System.currentTimeMillis() + 1, 1,
+                Collections.emptyList(), System.currentTimeMillis(), null, System.currentTimeMillis() + 1, 1,
                 Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
 
             Set<SnapshotId> deleted = ConcurrentHashMap.newKeySet();
@@ -266,15 +266,15 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             ClusterServiceUtils.setState(clusterService, state);
 
             final SnapshotInfo snap1 = new SnapshotInfo(new SnapshotId("name1", "uuid1"), Collections.singletonList("index"),
-                0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
+                Collections.emptyList(), 0L, null, 1L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
             final SnapshotInfo snap2 = new SnapshotInfo(new SnapshotId("name2", "uuid2"), Collections.singletonList("index"),
-                1L, null, 2L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
+                Collections.emptyList(), 1L, null, 2L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
             final SnapshotInfo snap3 = new SnapshotInfo(new SnapshotId("name3", "uuid3"), Collections.singletonList("index"),
-                2L, null, 3L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
+                Collections.emptyList(), 2L, null, 3L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
             final SnapshotInfo snap4 = new SnapshotInfo(new SnapshotId("name4", "uuid4"), Collections.singletonList("index"),
-                3L, null, 4L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
+                Collections.emptyList(), 3L, null, 4L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
             final SnapshotInfo snap5 = new SnapshotInfo(new SnapshotId("name5", "uuid5"), Collections.singletonList("index"),
-                4L, null, 5L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
+                Collections.emptyList(), 4L, null, 5L, 1, Collections.emptyList(), true, Collections.singletonMap("policy", policyId));
 
             final Set<SnapshotId> deleted = ConcurrentHashMap.newKeySet();
             // We're expected two deletions before they hit the "taken too long" test, so have a latch of 2
@@ -341,19 +341,19 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
     public void testOkToDeleteSnapshots() {
         final Snapshot snapshot = new Snapshot("repo", new SnapshotId("name", "uuid"));
 
-        SnapshotsInProgress inProgress = new SnapshotsInProgress(
-            new SnapshotsInProgress.Entry(
+        SnapshotsInProgress inProgress = SnapshotsInProgress.of(
+            List.of(new SnapshotsInProgress.Entry(
                 snapshot, true, false, SnapshotsInProgress.State.INIT,
                 Collections.singletonList(new IndexId("name", "id")), 0, 0,
                 ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap(),
-                VersionUtils.randomVersion(random())));
+                VersionUtils.randomVersion(random()))));
         ClusterState state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(SnapshotsInProgress.TYPE, inProgress)
             .build();
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
 
-        SnapshotDeletionsInProgress delInProgress = new SnapshotDeletionsInProgress(
+        SnapshotDeletionsInProgress delInProgress = SnapshotDeletionsInProgress.of(
                 Collections.singletonList(new SnapshotDeletionsInProgress.Entry(
                         Collections.singletonList(snapshot.getSnapshotId()), snapshot.getRepository(), 0, 0)));
         state = ClusterState.builder(new ClusterName("cluster"))
@@ -362,7 +362,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
 
         assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
 
-        RepositoryCleanupInProgress cleanupInProgress = new RepositoryCleanupInProgress(new RepositoryCleanupInProgress.Entry("repo", 0));
+        RepositoryCleanupInProgress cleanupInProgress =
+            new RepositoryCleanupInProgress(List.of(new RepositoryCleanupInProgress.Entry("repo", 0)));
         state = ClusterState.builder(new ClusterName("cluster"))
             .putCustom(RepositoryCleanupInProgress.TYPE, cleanupInProgress)
             .build();

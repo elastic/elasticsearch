@@ -35,8 +35,11 @@ queries that contain:
 ** `descendant of`
 ** `event of`
 
-* {eql-ref}/pipes.html[Pipes]
+* The following {eql-ref}/pipes.html[pipes]:
+** {eql-ref}/pipes.html#count[`count`]
+** {eql-ref}/pipes.html#filter[`filter`]
+** {eql-ref}/pipes.html#sort[`sort`]
+** {eql-ref}/pipes.html#unique[`unique`]
+** {eql-ref}/pipes.html#unique-count[`unique_count`]
 
-* {eql-ref}/sequences.html[State and timespan-related sequence keywords]:
-** `with maxspan`
-** `until`
+* The `until` {eql-ref}/sequences.html[sequence keyword]

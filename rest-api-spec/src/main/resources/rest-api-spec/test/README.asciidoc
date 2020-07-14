@@ -481,7 +481,7 @@ Compares two numeric values, eg:
 
 === `length`
 
-This depends on the datatype of the value being examined, eg:
+This depends on the data type of the value being examined, eg:
 
 ....
     - length: { _id: 22    }   # the `_id` string is 22 chars long

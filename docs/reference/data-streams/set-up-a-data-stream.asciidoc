@@ -26,11 +26,10 @@ TIP: Data streams work well with most common log formats. While no schema is
 required to use data streams, we recommend the {ecs-ref}[Elastic Common Schema
 (ECS)].
 
-* Data streams are designed to be <<data-streams-append-only,append-only>>.
-While you can index new documents directly to a data stream, you cannot use a
-data stream to directly update or delete individual documents. To update or
-delete specific documents in a data stream, submit a <<docs-delete,delete>> or
-<<docs-update,update>> API request to the backing index containing the document.
+* Data streams are best suited for time-based,
+<<data-streams-append-only,append-only>> use cases. If you frequently need to
+update or delete existing documents, we recommend using an index alias and an
+index template instead.
 
 
 [discrete]
@@ -93,22 +92,58 @@ PUT /_ilm/policy/logs_policy
 
 [discrete]
 [[create-a-data-stream-template]]
-=== Create a composable template for a data stream
+=== Create an index template for a data stream
 
-Each data stream requires a <<indices-templates,composable template>>. The data
+Each data stream requires an <<indices-templates,index template>>. The data
 stream uses this template to create its backing indices.
 
-Composable templates for data streams must contain:
+Index templates for data streams must contain:
 
 * A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
-  property.
+property.
++
+You can use the resolve index API to check if the name or pattern
+matches any existing indices, index aliases, or data streams. If so, you should
+consider using another name or pattern.
++
+.*Example*
+[%collapsible]
+====
+The following resolve index API request checks for any existing indices, index
+aliases, or data streams that start with `logs`. If not, the `logs*`
+wildcard pattern can be used to create a new data stream.
+
+[source,console]
+----
+GET /_resolve/index/logs*
+----
+// TEST[continued]
+
+The API returns the following response, indicating no existing targets match
+this pattern.
+
+[source,console-result]
+----
+{
+  "indices" : [ ],
+  "aliases" : [ ],
+  "data_streams" : [ ]
+}
+----
+====
 
 * A `data_stream` definition containing the `timestamp_field` property.
   This timestamp field must be included in every document indexed to the data
   stream.
 
 * A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the
-  timestamp field specified in the `timestamp_field` property.
+timestamp field specified in the `timestamp_field` property.
++
+IMPORTANT: Carefully consider the timestamp field's mapping, including
+<<mapping-params,mapping parameters>> such as <<mapping-date-format,`format`>>.
+Once the stream is created, you can only update the timestamp field's mapping by
+reindexing the data stream. See
+<<data-streams-use-reindex-to-change-mappings-settings>>.
 
 * If you intend to use {ilm-init}, you must specify the
   <<configure-a-data-stream-ilm-policy,lifecycle policy>> in the
@@ -117,10 +152,15 @@ Composable templates for data streams must contain:
 You can also specify other mappings and settings you'd like to apply to the
 stream's backing indices.
 
+TIP: We recommend you carefully consider which mappings and settings to include
+in this template before creating a data stream. Later changes to the mappings or
+settings of a stream's backing indices may require reindexing. See
+<<data-streams-change-mappings-and-settings>>.
+
 .*Example*
 [%collapsible]
 ====
-The following <<indices-templates,put composable template API>> request
+The following <<indices-templates,put index template API>> request
 configures the `logs_data_stream` template.
 
 [source,console]
@@ -148,11 +188,14 @@ PUT /_index_template/logs_data_stream
 // TEST[continued]
 ====
 
+NOTE: You cannot delete an index template that's in use by a data stream.
+This would prevent the data stream from creating new backing indices.
+
 [discrete]
 [[create-a-data-stream]]
 === Create a data stream
 
-With a composable template, you can create a data stream using one of two
+With an index template, you can create a data stream using one of two
 methods:
 
 * Submit an <<add-documents-to-a-data-stream,indexing request>> to a target
@@ -166,6 +209,7 @@ uses the target name as the name for the stream.
 NOTE: Data streams support only specific types of indexing requests. See
 <<add-documents-to-a-data-stream>>.
 
+[[index-documents-to-create-a-data-stream]]
 .*Example: Index documents to create a data stream*
 [%collapsible]
 ====
@@ -232,20 +276,6 @@ PUT /_data_stream/logs_alt
 ====
 --
 
-////
-[source,console]
-----
-DELETE /_data_stream/logs
-
-DELETE /_data_stream/logs_alt
-
-DELETE /_index_template/logs_data_stream
-
-DELETE /_ilm/policy/logs_policy
-----
-// TEST[continued]
-////
-
 [discrete]
 [[get-info-about-a-data-stream]]
 === Get information about a data stream
@@ -253,51 +283,77 @@ DELETE /_ilm/policy/logs_policy
 You can use the <<indices-get-data-stream,get data stream API>> to get
 information about one or more data streams, including:
 
-* The timestamp field
+* The timestamp field and its mapping
 * The current backing indices, which is returned as an array. The last item in
   the array contains information about the stream's current write index.
 * The current generation
+* The data stream's health status
+* The index template used to create the stream's backing indices
+* The current {ilm-init} lifecycle policy in the stream's matching index
+template
 
 This is also handy way to verify that a recently created data stream exists.
 
 .*Example*
 [%collapsible]
 ====
-The following get data stream API request retrieves information about any data
-streams starting with `logs`.
+The following get data stream API request retrieves information about the
+`logs` data stream.
+
+////
+[source,console]
+----
+POST /logs/_rollover/
+----
+// TEST[continued]
+////
 
 [source,console]
 ----
-GET /_data_stream/logs*
+GET /_data_stream/logs
 ----
-// TEST[skip: shard failures]
+// TEST[continued]
 
-The API returns the following response, which includes information about the
-`logs` data stream. Note the `indices` property contains an array of the
-stream's current backing indices. The last item in this array contains
-information for the `logs` stream's write index, `.ds-logs-000002`.
+The API returns the following response. Note the `indices` property contains an
+array of the stream's current backing indices. The last item in this array
+contains information about the stream's write index, `.ds-logs-000002`.
 
 [source,console-result]
 ----
-[
-  {
-    "name": "logs",
-    "timestamp_field": "@timestamp",
-    "indices": [
-      {
-        "index_name": ".ds-logs-000001",
-        "index_uuid": "DXAE-xcCQTKF93bMm9iawA"
+{
+  "data_streams": [
+    {
+      "name": "logs",
+      "timestamp_field": {
+        "name": "@timestamp",
+        "mapping": {
+          "type": "date"
+        }
       },
-      {
-        "index_name": ".ds-logs-000002",
-        "index_uuid": "Wzxq0VhsQKyPxHhaK3WYAg"
-      }
-    ],
-    "generation": 2
-  }
-]
+      "indices": [
+        {
+          "index_name": ".ds-logs-000001",
+          "index_uuid": "krR78LfvTOe6gr5dj2_1xQ"
+        },
+        {
+          "index_name": ".ds-logs-000002",        <1>
+          "index_uuid": "C6LWyNJHQWmA08aQGvqRkA"
+        }
+      ],
+      "generation": 2,
+      "status": "GREEN",
+      "template": "logs_data_stream",
+      "ilm_policy": "logs_policy"
+    }
+  ]
+}
 ----
-// TESTRESPONSE[skip:unable to assert responses with top level array]
+// TESTRESPONSE[s/"index_uuid": "krR78LfvTOe6gr5dj2_1xQ"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_uuid": "C6LWyNJHQWmA08aQGvqRkA"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+
+<1> Last item in the `indices` array for the `logs` data stream. This item
+contains information about the stream's current write index, `.ds-logs-000002`.
 ====
 
 [discrete]
@@ -313,30 +369,6 @@ a data stream and its backing indices.
 The following delete data stream API request deletes the `logs` data stream. This
 request also deletes the stream's backing indices and any data they contain.
 
-////
-[source,console]
-----
-PUT /_index_template/logs_data_stream
-{
-  "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
-}
-
-PUT /_data_stream/logs
-----
-////
-
 [source,console]
 ----
 DELETE /_data_stream/logs
@@ -347,7 +379,9 @@ DELETE /_data_stream/logs
 ////
 [source,console]
 ----
-DELETE /_index_template/logs_data_stream
+DELETE /_data_stream/*
+DELETE /_index_template/*
+DELETE /_ilm/policy/logs_policy
 ----
 // TEST[continued]
 ////

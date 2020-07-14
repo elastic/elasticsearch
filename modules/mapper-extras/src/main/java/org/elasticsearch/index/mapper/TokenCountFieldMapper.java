@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
@@ -84,7 +83,7 @@ public class TokenCountFieldMapper extends FieldMapper {
         public TokenCountFieldMapper build(BuilderContext context) {
             return new TokenCountFieldMapper(name, fieldType,
                 new NumberFieldMapper.NumberFieldType(buildFullName(context), NumberFieldMapper.NumberType.INTEGER),
-                context.indexSettings(), analyzer, enablePositionIncrements, nullValue,
+                analyzer, enablePositionIncrements, nullValue,
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -125,9 +124,9 @@ public class TokenCountFieldMapper extends FieldMapper {
     private Integer nullValue;
 
     protected TokenCountFieldMapper(String simpleName, FieldType fieldType, MappedFieldType defaultFieldType,
-            Settings indexSettings, NamedAnalyzer analyzer, boolean enablePositionIncrements, Integer nullValue,
+                                    NamedAnalyzer analyzer, boolean enablePositionIncrements, Integer nullValue,
                                     MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, multiFields, copyTo);
         this.analyzer = analyzer;
         this.enablePositionIncrements = enablePositionIncrements;
         this.nullValue = nullValue;

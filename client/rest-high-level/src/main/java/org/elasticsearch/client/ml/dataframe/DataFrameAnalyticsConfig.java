@@ -47,16 +47,16 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         return new Builder();
     }
 
-    private static final ParseField ID = new ParseField("id");
-    private static final ParseField DESCRIPTION = new ParseField("description");
-    private static final ParseField SOURCE = new ParseField("source");
-    private static final ParseField DEST = new ParseField("dest");
-    private static final ParseField ANALYSIS = new ParseField("analysis");
-    private static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
-    private static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
-    private static final ParseField CREATE_TIME = new ParseField("create_time");
-    private static final ParseField VERSION = new ParseField("version");
-    private static final ParseField ALLOW_LAZY_START = new ParseField("allow_lazy_start");
+    static final ParseField ID = new ParseField("id");
+    static final ParseField DESCRIPTION = new ParseField("description");
+    static final ParseField SOURCE = new ParseField("source");
+    static final ParseField DEST = new ParseField("dest");
+    static final ParseField ANALYSIS = new ParseField("analysis");
+    static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
+    static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
+    static final ParseField CREATE_TIME = new ParseField("create_time");
+    static final ParseField VERSION = new ParseField("version");
+    static final ParseField ALLOW_LAZY_START = new ParseField("allow_lazy_start");
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_config", true, Builder::new);
 
@@ -78,15 +78,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
             CREATE_TIME,
             ValueType.VALUE);
-        PARSER.declareField(Builder::setVersion,
-            p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return Version.fromString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            },
-            VERSION,
-            ValueType.STRING);
+        PARSER.declareString(Builder::setVersion, Version::fromString, VERSION);
         PARSER.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
     }
 

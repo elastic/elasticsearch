@@ -126,9 +126,17 @@ which outputs a prediction of values.
   (Optional, object) Specifies the metrics that are used for the evaluation.
   Available metrics:
 
-  `mean_squared_error`:::
+  `mse`:::
     (Optional, object) Average squared difference between the predicted values and the actual (`ground truth`) value.
     For more information, read https://en.wikipedia.org/wiki/Mean_squared_error[this wiki article].
+
+  `msle`:::
+    (Optional, object) Average squared difference between the logarithm of the predicted values and the logarithm of the actual
+    (`ground truth`) value.
+
+  `huber`:::
+    (Optional, object) Pseudo Huber loss function.
+    For more information, read https://en.wikipedia.org/wiki/Huber_loss#Pseudo-Huber_loss_function[this wiki article].
 
   `r_squared`:::
     (Optional, object) Proportion of the variance in the dependent variable that is predictable from the independent variables.
@@ -273,7 +281,7 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.price_prediction", <4>
       "metrics": {  
         "r_squared": {},
-        "mean_squared_error": {}                             
+        "mse": {}
       }
     }
   }
@@ -310,7 +318,7 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.G3_prediction", <3>
       "metrics": {  
         "r_squared": {},
-        "mean_squared_error": {}                             
+        "mse": {}
       }
     }
   }
@@ -349,7 +357,7 @@ POST _ml/data_frame/_evaluate
       "predicted_field": "ml.G3_prediction", <3>
       "metrics": {  
         "r_squared": {},
-        "mean_squared_error": {}                             
+        "mse": {}
       }
     }
   }

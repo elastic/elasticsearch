@@ -86,26 +86,6 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             this(name, true, true, collator, Collections.emptyMap());
         }
 
-        protected CollationFieldType(CollationFieldType ref) {
-            super(ref);
-            this.collator = ref.collator;
-        }
-
-        @Override
-        public CollationFieldType clone() {
-            return new CollationFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return super.equals(o) && Objects.equals(collator, ((CollationFieldType) o).collator);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Objects.hashCode(collator);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

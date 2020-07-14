@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.action.bulk;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -38,7 +38,7 @@ import java.util.List;
 public class TransportBulkShardOperationsAction
         extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
-    private final WriteMemoryLimits writeMemoryLimits;
+    private final IndexingPressure indexingPressure;
 
     @Inject
     public TransportBulkShardOperationsAction(
@@ -49,7 +49,7 @@ public class TransportBulkShardOperationsAction
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
-            final WriteMemoryLimits writeMemoryLimits) {
+            final IndexingPressure indexingPressure) {
         super(
                 settings,
                 BulkShardOperationsAction.NAME,
@@ -61,14 +61,14 @@ public class TransportBulkShardOperationsAction
                 actionFilters,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE, false, writeMemoryLimits);
-        this.writeMemoryLimits = writeMemoryLimits;
+                ThreadPool.Names.WRITE, false, indexingPressure);
+        this.indexingPressure = indexingPressure;
     }
 
     @Override
     protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
         // This is executed on the follower coordinator node and we need to mark the bytes.
-        Releasable releasable = writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request));
+        Releasable releasable = indexingPressure.markIndexingOperationStarted(primaryOperationSize(request));
         ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             super.doExecute(task, request, releasingListener);

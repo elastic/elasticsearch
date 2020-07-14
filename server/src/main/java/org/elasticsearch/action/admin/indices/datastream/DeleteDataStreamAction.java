@@ -20,11 +20,12 @@ package org.elasticsearch.action.admin.indices.datastream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -71,9 +72,9 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> implements IndicesRequest.Replaceable {
 
-        private final String[] names;
+        private String[] names;
 
         public Request(String[] names) {
             this.names = Objects.requireNonNull(names);
@@ -110,6 +111,29 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Arrays.hashCode(names);
+        }
+
+        @Override
+        public String[] indices() {
+            return names;
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            // this doesn't really matter since data stream name resolution isn't affected by IndicesOptions and
+            // a data stream's backing indices are retrieved from its metadata
+            return IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
+        }
+
+        @Override
+        public IndicesRequest indices(String... indices) {
+            this.names = indices;
+            return this;
         }
     }
 
@@ -174,16 +198,6 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
                 }
 
                 snapshottingDataStreams.addAll(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
-            }
-
-            if (dataStreams.isEmpty()) {
-                // if only a match-all pattern was specified and no data streams were found because none exist, do not
-                // fail with data stream missing exception
-                if (request.names.length == 1 && Regex.isMatchAllPattern(request.names[0])) {
-                    return currentState;
-                }
-                throw new ResourceNotFoundException("data_streams matching [" + Strings.arrayToCommaDelimitedString(request.names) +
-                    "] not found");
             }
 
             if (snapshottingDataStreams.isEmpty() == false) {

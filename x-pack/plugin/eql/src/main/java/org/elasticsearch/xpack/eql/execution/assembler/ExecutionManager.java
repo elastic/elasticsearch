@@ -69,10 +69,9 @@ public class ExecutionManager {
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec) {
-                QueryRequest original = ((EsQueryExec) query).queryRequest(session);
+                EsQueryExec exec = (EsQueryExec) query;
+                QueryRequest original = exec.queryRequest(session);
                 
-                // increase the request size based on the fetch size (since size is applied already through limit)
-
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, tiebreakerName);
                 Criterion<BoxedQueryRequest> criterion =
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i > 0 && descending);

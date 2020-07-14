@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 
@@ -36,6 +37,10 @@ public class BoxedQueryRequest implements QueryRequest {
 
     public BoxedQueryRequest(QueryRequest original, String timestamp, String tiebreaker) {
         searchSource = original.searchSource();
+
+        // FIXME: is there a way to do this separately without having to mess with source generation here?
+        // disable source for sequences & co
+        searchSource.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
 
         // setup range queries and preserve their reference to simplify the update
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");

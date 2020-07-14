@@ -60,7 +60,8 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         if (Version.CURRENT.major == 8) {
-            return validateCompatibleHandlers(7,
+            return validateCompatibleHandlers(
+                7,
                 new RestDeleteByQueryActionV7(),
                 new RestUpdateByQueryActionV7(),
                 new RestCreateIndexActionV7(),
@@ -83,9 +84,12 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
     List<RestHandler> validateCompatibleHandlers(int expectedVersion, RestHandler... handlers) {
         for (RestHandler handler : handlers) {
             if (handler.compatibleWithVersion().major != expectedVersion) {
-                String msg = String.format(Locale.ROOT,"Handler %s is of incorrect version %s.",
+                String msg = String.format(
+                    Locale.ROOT,
+                    "Handler %s is of incorrect version %s.",
                     handler.getClass().getSimpleName(),
-                    handler.compatibleWithVersion());
+                    handler.compatibleWithVersion()
+                );
                 throw new IllegalStateException(msg);
             }
         }

@@ -858,7 +858,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<Map<String, Object>> parsedMappings = mappings.stream()
                 .map(m -> {
                     try {
-                        return MapperService.parseMapping(new NamedXContentRegistry(org.elasticsearch.common.collect.List.of()), m.string());
+                        return MapperService.parseMapping(
+                            new NamedXContentRegistry(org.elasticsearch.common.collect.List.of()), m.string());
                     } catch (Exception e) {
                         logger.error(e);
                         fail("failed to parse mappings: " + m.string());

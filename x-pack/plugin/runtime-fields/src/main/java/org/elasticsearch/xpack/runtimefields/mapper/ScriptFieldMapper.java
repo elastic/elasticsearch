@@ -6,42 +6,54 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public final class ScriptFieldMapper extends FieldMapper {
+public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static final String CONTENT_TYPE = "script";
 
-    private static final FieldType FIELD_TYPE = new FieldType();
+    private final String runtimeType;
+    private final Script script;
+    private final ScriptService scriptService;
 
-    ScriptFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, FIELD_TYPE, mappedFieldType, multiFields, copyTo);
+    protected ScriptFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        String runtimeType,
+        Script script,
+        ScriptService scriptService
+    ) {
+        super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.runtimeType = runtimeType;
+        this.script = script;
+        this.scriptService = scriptService;
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new ScriptFieldMapper.Builder(simpleName(), scriptService).init(this);
     }
 
     @Override
     protected void parseCreateField(ParseContext context) {
-        // there is no field!
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        // TODO implement this
+        // there is no lucene field
     }
 
     @Override
@@ -56,44 +68,76 @@ public final class ScriptFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder> {
+    public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        private static ScriptFieldMapper toType(FieldMapper in) {
+            return (ScriptFieldMapper) in;
+        }
+
+        private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<String> runtimeType = Parameter.stringParam(
+            "runtime_type",
+            true,
+            mapper -> toType(mapper).runtimeType,
+            null
+        ).setValidator(runtimeType -> {
+            if (runtimeType == null) {
+                throw new IllegalArgumentException("runtime_type must be specified for script field [" + name + "]");
+            }
+        });
+        // TODO script and runtime_type can be updated: what happens to the currently running queries when they get updated?
+        // do all the shards get a consistent view?
+        private final Parameter<Script> script = new Parameter<>(
+            "script",
+            true,
+            null,
+            Builder::parseScript,
+            mapper -> toType(mapper).script
+        ).setValidator(script -> {
+            if (script == null) {
+                throw new IllegalArgumentException("script must be specified for script field [" + name + "]");
+            }
+        });
 
         private final ScriptService scriptService;
 
-        private String runtimeType;
-        private Script script;
-
         protected Builder(String name, ScriptService scriptService) {
-            super(name, FIELD_TYPE);
+            super(name);
             this.scriptService = scriptService;
         }
 
-        public void runtimeType(String runtimeType) {
-            this.runtimeType = runtimeType;
-        }
-
-        public void script(Script script) {
-            this.script = script;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(meta, runtimeType, script);
         }
 
         @Override
         public ScriptFieldMapper build(BuilderContext context) {
-            if (runtimeType == null) {
-                throw new IllegalArgumentException("runtime_type must be specified");
-            }
-            if (script == null) {
-                throw new IllegalArgumentException("script must be specified");
-            }
-
             MappedFieldType mappedFieldType;
-            if (runtimeType.equals("keyword")) {
-                StringScriptFieldScript.Factory factory = scriptService.compile(script, StringScriptFieldScript.CONTEXT);
-                mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script, factory, meta);
+            if (runtimeType.getValue().equals("keyword")) {
+                StringScriptFieldScript.Factory factory = scriptService.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
+                mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script.getValue(), factory, meta.getValue());
             } else {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
             }
-            // TODO copy to and multi_fields... not sure what needs to be done.
-            return new ScriptFieldMapper(name, mappedFieldType, multiFieldsBuilder.build(this, context), copyTo);
+            // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
+            return new ScriptFieldMapper(
+                name,
+                mappedFieldType,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                runtimeType.getValue(),
+                script.getValue(),
+                scriptService
+            );
+        }
+
+        static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
+            Script script = Script.parse(scriptObject);
+            if (script.getType() == ScriptType.STORED) {
+                throw new IllegalArgumentException("stored scripts specified but not supported when defining script field [" + name + "]");
+            }
+            return script;
         }
     }
 
@@ -108,29 +152,9 @@ public final class ScriptFieldMapper extends FieldMapper {
         @Override
         public ScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
-            Builder builder = new Builder(name, scriptService.get());
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String propName = entry.getKey();
-                Object propNode = entry.getValue();
-                if (propName.equals("runtime_type")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [runtime_type] cannot be null.");
-                    }
-                    builder.runtimeType(XContentMapValues.nodeStringValue(propNode, name + ".runtime_type"));
-                    iterator.remove();
-                } else if (propName.equals("script")) {
-                    if (propNode == null) {
-                        throw new MapperParsingException("Property [script] cannot be null.");
-                    }
-                    // TODO this should become an object and support the usual script syntax, including lang and params
-                    builder.script(new Script(XContentMapValues.nodeStringValue(propNode, name + ".script")));
-                    iterator.remove();
-                }
-            }
-            // TODO these get passed in sometimes and we don't need them
-            node.remove("doc_values");
-            node.remove("index");
+
+            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, scriptService.get());
+            builder.parse(name, parserContext, node);
             return builder;
         }
     }

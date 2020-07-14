@@ -211,14 +211,6 @@ public class SequenceMatcher {
         return limit != null ? limit.view(completed) : completed;
     }
 
-    //    public Payload payload(long startTime) {
-    //        TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
-    //
-    //        Payload p = new SequencePayload(view, false, tookTime);
-    //        clear();
-    //        return p;
-    //    }
-
     public void dropUntil() {
         keyToSequences.dropUntil();
     }

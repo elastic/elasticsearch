@@ -290,11 +290,13 @@ public class TumblingWindow implements Executable {
 
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
+            matcher.clear();
             return;
         }
 
         client.get(hits(completed), wrap(searchHits -> {
             listener.onResponse(new SequencePayload(completed, searchHits, false, timeTook()));
+            matcher.clear();
         }, listener::onFailure));
     }
 

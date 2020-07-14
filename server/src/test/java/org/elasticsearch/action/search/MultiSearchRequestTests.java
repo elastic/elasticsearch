@@ -229,7 +229,7 @@ public class MultiSearchRequestTests extends ESTestCase {
             (searchRequest, parser) -> {
                 searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
                 request.add(searchRequest);
-            });
+            }, k->false);
         return request;
     }
 
@@ -256,7 +256,8 @@ public class MultiSearchRequestTests extends ESTestCase {
                 parsedRequest.add(r);
             };
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
-                    consumer, null, null, null, null, null, xContentRegistry(), true);
+                    consumer, null, null, null, null, null, xContentRegistry(), true,
+                key -> false);
             assertEquals(originalRequest, parsedRequest);
         }
     }

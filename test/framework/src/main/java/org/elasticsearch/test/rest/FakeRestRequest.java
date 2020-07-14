@@ -196,6 +196,11 @@ public class FakeRestRequest extends RestRequest {
             this.xContentRegistry = xContentRegistry;
         }
 
+        public Builder addHeaders(Map<String, List<String>> headers) {
+            this.headers.putAll(headers);
+            return this;
+        }
+
         public Builder withHeaders(Map<String, List<String>> headers) {
             this.headers.putAll(headers);
             return this;

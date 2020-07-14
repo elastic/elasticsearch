@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 public class MultiTermVectorsRequest extends ActionRequest
         implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
@@ -98,8 +99,11 @@ public class MultiTermVectorsRequest extends ActionRequest
     public List<TermVectorsRequest> getRequests() {
         return requests;
     }
-
     public void add(TermVectorsRequest template, @Nullable XContentParser parser) throws IOException {
+        add(template, parser, k->false);
+    }
+    public void add(TermVectorsRequest template, @Nullable XContentParser parser, Function<String,Boolean> typeConsumer)
+        throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         if (parser != null) {
@@ -113,7 +117,7 @@ public class MultiTermVectorsRequest extends ActionRequest
                                 throw new IllegalArgumentException("docs array element should include an object");
                             }
                             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                            TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+                            TermVectorsRequest.parseRequest(termVectorsRequest, parser, typeConsumer);
                             add(termVectorsRequest);
                         }
                     } else if ("ids".equals(currentFieldName)) {

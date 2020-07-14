@@ -17,20 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7;
+package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.compat.FakeCompatRestRequestBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 public class RestGetActionV7Tests extends RestActionTestCase {
-    final String mimeType = "application/vnd.elasticsearch+json;compatible-with=7";
-    final List<String> contentTypeHeader = Collections.singletonList(mimeType);
 
     @Before
     public void setUpAction() {
@@ -38,18 +33,18 @@ public class RestGetActionV7Tests extends RestActionTestCase {
     }
 
     public void testTypeInPathWithGet() {
-        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withPath("/some_index/some_type/some_id");
-        dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.GET).build());
+        FakeRestRequest deprecatedRequest = new FakeCompatRestRequestBuilder(xContentRegistry()).withPath("/some_index/some_type/some_id")
+            .withMethod(RestRequest.Method.GET)
+            .build();
+        dispatchRequest(deprecatedRequest);
         assertWarnings(RestGetActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInPathWithHead() {
-        FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
-            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
-        ).withPath("/some_index/some_type/some_id");
-        dispatchRequest(deprecatedRequest.withMethod(RestRequest.Method.HEAD).build());
+        FakeRestRequest deprecatedRequest = new FakeCompatRestRequestBuilder(xContentRegistry()).withPath("/some_index/some_type/some_id")
+            .withMethod(RestRequest.Method.HEAD)
+            .build();
+        dispatchRequest(deprecatedRequest);
         assertWarnings(RestGetActionV7.TYPES_DEPRECATION_MESSAGE);
     }
 

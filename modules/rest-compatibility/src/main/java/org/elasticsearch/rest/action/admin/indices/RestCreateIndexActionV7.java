@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.compat.version7;
+package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,7 +45,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
     @Override
     public String getName() {
-        return "create_index_action_v7";
+        return super.getName() + "_v7";
     }
 
     @Override
@@ -56,19 +55,19 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CreateIndexRequest createIndexRequest = prepareRequest(request);
+        CreateIndexRequest createIndexRequest = prepareV7Request(request);
         return channel -> client.admin().indices().create(createIndexRequest, new RestToXContentListener<>(channel));
     }
 
     // default scope for testing
-    CreateIndexRequest prepareRequest(RestRequest request) {
+    CreateIndexRequest prepareV7Request(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
 
             request.param(INCLUDE_TYPE_NAME_PARAMETER);// just consume, it is always replaced with _doc
-            sourceAsMap = prepareMappings(sourceAsMap, request);
+            sourceAsMap = prepareMappingsV7(sourceAsMap, request);
 
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
@@ -79,7 +78,7 @@ public class RestCreateIndexActionV7 extends RestCreateIndexAction {
         return createIndexRequest;
     }
 
-    static Map<String, Object> prepareMappings(Map<String, Object> source, RestRequest request) {
+    static Map<String, Object> prepareMappingsV7(Map<String, Object> source, RestRequest request) {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, false);
 
         @SuppressWarnings("unchecked")

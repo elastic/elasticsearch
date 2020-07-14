@@ -1,0 +1,102 @@
+---
+"Different numeric types":
+  - skip:
+      version: " - 7.99.99"
+      reason: "unsigned_long was added in 8.0"
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          mappings:
+            properties:
+              my_counter:
+                type: double
+
+  - do:
+      indices.create:
+        index:  test2
+        body:
+          mappings:
+            properties:
+              my_counter:
+                type: long
+
+  - do:
+      indices.create:
+        index:  test3
+        body:
+          mappings:
+            properties:
+              my_counter:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "my_counter": 0 }
+          { "index": {"_id" : "2"} }
+          { "my_counter": 1000000 }
+          { "index": {"_id" : "3"} }
+          { "my_counter": 9223372036854775807 }
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "my_counter": 0 }
+          { "index": {"_id" : "2"} }
+          { "my_counter": 1000000 }
+          { "index": {"_id" : "3"} }
+          { "my_counter": 9223372036854775807 }
+
+  - do:
+      bulk:
+        index: test3
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "my_counter": 0 }
+          { "index": {"_id" : "2"} }
+          { "my_counter": 1000000 }
+          { "index": {"_id" : "3"} }
+          { "my_counter": 18446744073709551615 }
+
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          query:
+            range:
+              my_counter:
+                gte: 0
+  - match: { "hits.total.value": 9 }
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          query:
+            range:
+              my_counter:
+                gt: 0
+                lt: 9223372036854775807
+  - match: { "hits.total.value": 3 }
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          query:
+            range:
+              my_counter:
+                gte: 9223372036854775807
+  - match: { "hits.total.value": 3 }

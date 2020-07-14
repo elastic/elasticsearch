@@ -9,7 +9,7 @@ document:
 === Core data types
 
 string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard`>>
-<<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
+<<number>>::     `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`, <<unsigned-long,`unsigned_long`>>
 <<date>>::       `date`
 <<date_nanos>>:: `date_nanos`
 <<boolean>>::    `boolean`
@@ -136,3 +136,5 @@ include::types/shape.asciidoc[]
 include::types/constant-keyword.asciidoc[]
 
 include::types/wildcard.asciidoc[]
+
+include::types/unsigned_long.asciidoc[]

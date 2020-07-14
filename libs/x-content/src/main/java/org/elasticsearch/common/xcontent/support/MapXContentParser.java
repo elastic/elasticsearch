@@ -74,6 +74,26 @@ public class MapXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    protected long doUnsignedLongValue() throws IOException {
+        Number value = numberValue();
+        if ((value instanceof Integer) || (value instanceof Long) || (value instanceof Short) || (value instanceof Byte)) {
+            long longValue = value.longValue();
+            if (longValue < 0) {
+                throw new IllegalArgumentException("Value [" + longValue + "] is out of range for unsigned long.");
+            }
+            return longValue;
+        } else if (value instanceof BigInteger) {
+            BigInteger bigIntegerValue = (BigInteger) value;
+            if (bigIntegerValue.compareTo(BIGINTEGER_MAX_UNSIGNED_LONG_VALUE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
+                throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long.");
+            }
+            return bigIntegerValue.longValue();
+        } else {
+            throw new IllegalArgumentException("For input string: [" + value.toString() + "].");
+        }
+    }
+
+    @Override
     protected float doFloatValue() throws IOException {
         return numberValue().floatValue();
     }

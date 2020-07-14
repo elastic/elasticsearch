@@ -1,0 +1,147 @@
+[role="xpack"]
+[testenv="basic"]
+
+[[unsigned-long]]
+=== Unsigned long data type
+++++
+<titleabbrev>Unsigned long</titleabbrev>
+++++
+
+Unsigned long is a numeric field type that represents an unsigned 64-bit
+integer with a minimum value of 0 and a maximum value of +2^64^-1+
+(from 0 to 18446744073709551615).
+
+At index-time, an indexed value is converted to the singed long range:
+[- 9223372036854775808, 9223372036854775807] by subtracting +2^63^+ from it
+and stored as a singed long taking 8 bytes.
+At query-time, the same conversion is done on query terms.
+
+[source,console]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_counter": {
+        "type": "unsigned_long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Unsigned long can be indexed in a numeric or string form,
+representing integer values in the range [0, 18446744073709551615].
+They can't have a decimal part.
+
+[source,console]
+--------------------------------
+POST /my_index/_bulk?refresh
+{"index":{"_id":1}}
+{"my_counter": 0}
+{"index":{"_id":2}}
+{"my_counter": 9223372036854775808}
+{"index":{"_id":3}}
+{"my_counter": 18446744073709551614}
+{"index":{"_id":4}}
+{"my_counter": 18446744073709551615}
+--------------------------------
+//TEST[continued]
+
+Term queries accept any numbers in a numeric or string form.
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "term" : {
+            "my_counter" : 18446744073709551615
+        }
+    }
+}
+--------------------------------
+//TEST[continued]
+
+Range queries can contain ranges with decimal parts.
+It is recommended to pass ranges as strings to ensure they are parsed
+without any loss of precision.
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "range" : {
+            "my_counter" : {
+                "gte" : "9223372036854775808.5",
+                "lte" : "18446744073709551615"
+            }
+        }
+    }
+}
+--------------------------------
+//TEST[continued]
+
+WARNING: Unlike term and range queries, sorting and aggregations on
+unsigned_long data may return imprecise results. For sorting and aggregations
+double representation of unsigned longs is used, which means that long values
+are first converted to double values. During this conversion,
+for long values greater than +2^53^+ there could be some loss of
+precision for the least significant digits. Long values less than +2^53^+
+are converted accurately.
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "match_all" : {}
+    },
+    "sort" : {"my_counter" : "desc"}  <1>
+}
+--------------------------------
+//TEST[continued]
+<1> As both document values: "18446744073709551614" and "18446744073709551615"
+are converted to the same double value: "1.8446744073709552E19", this
+descending sort may return imprecise results, as the document with a lower
+value of "18446744073709551614" may come before the document
+with a higher value of "18446744073709551615".
+
+[[unsigned-long-params]]
+==== Parameters for unsigned long fields
+
+The following parameters are accepted:
+
+[horizontal]
+
+<<doc-values,`doc_values`>>::
+
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
+
+<<ignore-malformed,`ignore_malformed`>>::
+
+    If `true`, malformed numbers are ignored. If `false` (default), malformed
+    numbers throw an exception and reject the whole document.
+
+<<mapping-index,`index`>>::
+
+    Should the field be searchable? Accepts `true` (default) and `false`.
+
+<<null-value,`null_value`>>::
+
+    Accepts a numeric value of the same `type` as the field which is
+    substituted for any explicit `null` values.  Defaults to `null`, which
+    means the field is treated as missing.
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

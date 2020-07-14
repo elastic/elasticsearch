@@ -225,6 +225,11 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
+    public long unsignedLongValue() throws IOException {
+        return parser.unsignedLongValue();
+    }
+
+    @Override
     public float floatValue() throws IOException {
         return parser.floatValue();
     }

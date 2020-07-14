@@ -543,7 +543,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         });
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
-                        indexRequest.isPipelineResolved(true);
                         if(IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false){
                             newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                             newHasFinalPipeline = true;

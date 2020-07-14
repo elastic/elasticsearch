@@ -631,7 +631,6 @@ GET /my_index/_eql/search
   """
 }
 ----
-// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event. Matching events in

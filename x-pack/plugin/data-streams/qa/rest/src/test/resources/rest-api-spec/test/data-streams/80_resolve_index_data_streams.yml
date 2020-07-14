@@ -12,8 +12,7 @@ setup:
         name: my-template1
         body:
           index_patterns: [simple-data-stream1]
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       allowed_warnings:
@@ -22,13 +21,7 @@ setup:
         name: my-template2
         body:
           index_patterns: [simple-data-stream2]
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:

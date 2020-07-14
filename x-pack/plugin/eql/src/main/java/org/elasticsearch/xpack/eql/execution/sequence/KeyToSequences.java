@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.xpack.eql.execution.assembler.KeyAndOrdinal;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.LinkedHashMap;

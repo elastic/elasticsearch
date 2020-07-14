@@ -17,8 +17,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
@@ -26,7 +24,6 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -300,7 +297,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return timeZone;
     }
 
-    Rounding.Prepared getRounding() {
+    public Rounding.Prepared getRounding() {
         return rounding;
     }
 
@@ -345,19 +342,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     @Override
     public int hashCode() {
         return Objects.hash(field, interval, timeZone);
-    }
-
-    @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    ) {
-        if (synchronizationField != null && synchronizationField.equals(field) && synchronizationTimestamp > 0) {
-            return new RangeQueryBuilder(field).gte(rounding.round(synchronizationTimestamp)).format("epoch_millis");
-        } else {
-            return null;
-        }
     }
 
     @Override

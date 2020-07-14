@@ -23,6 +23,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -220,18 +221,18 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                     final String username = securityContext.getUser().principal();
                     final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
                     privRequest.username(username);
-                    privRequest.clusterPrivileges("manage_ml", "monitor_ml");
+                    privRequest.clusterPrivileges(GetTrainedModelsAction.NAME);
                     privRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[]{});
                     privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[]{});
 
                     ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                         r -> {
-                            if (hasMlPrivilege(r)) {
+                            if (r.isCompleteMatch()) {
                                 modelLoadAction.accept(client, listener);
                             } else {
                                 listener.onFailure(Exceptions.authorizationError(
-                                    "user [" + username + "] is not an ml user and does not have sufficient privilege " +
-                                        "to use ml inference"));
+                                    "user [" + username + "] does not have the privilege to get trained models " +
+                                        "so cannot use ml inference"));
                             }
                         },
                         listener::onFailure);
@@ -243,12 +244,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             }
         });
         return new InferencePipelineAggregationBuilder(name, bucketPathMap, loadedModel::get, modelId, inferenceConfig, licenseState);
-    }
-
-    static boolean hasMlPrivilege(HasPrivilegesResponse privilegesResponse) {
-        Map<String, Boolean> clusterPrivileges = privilegesResponse.getClusterPrivileges();
-        return Boolean.TRUE.equals(clusterPrivileges.get("manage_ml")) ||
-            Boolean.TRUE.equals(clusterPrivileges.get("monitor_ml"));
     }
 
     @Override

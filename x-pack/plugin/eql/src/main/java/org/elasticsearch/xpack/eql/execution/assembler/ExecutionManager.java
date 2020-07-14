@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -69,9 +70,8 @@ public class ExecutionManager {
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) query;
-                QueryRequest original = exec.queryRequest(session);
-                
+                SearchSourceBuilder source = ((EsQueryExec) query).source(session);
+                QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, tiebreakerName);
                 Criterion<BoxedQueryRequest> criterion =
                         new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i > 0 && descending);

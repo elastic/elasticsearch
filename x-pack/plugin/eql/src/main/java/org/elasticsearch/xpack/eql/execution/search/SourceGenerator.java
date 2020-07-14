@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
@@ -57,7 +56,7 @@ public abstract class SourceGenerator {
         sourceBuilder.build(source);
 
         sorting(container, source);
-        source.fetchSource(FetchSourceContext.FETCH_SOURCE);
+        source.fetchSource(true);
 
         if (container.limit() != null) {
             // add size and from

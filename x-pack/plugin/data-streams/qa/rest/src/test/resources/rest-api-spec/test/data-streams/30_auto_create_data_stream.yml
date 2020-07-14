@@ -1,8 +1,8 @@
 ---
 "Put index template":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -18,10 +18,6 @@
             settings:
               number_of_shards:   1
               number_of_replicas: 0
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
 
   - do:
       index:

@@ -1,0 +1,82 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.esplugin'
+apply from : "$rootDir/gradle/bwc-test.gradle"
+
+esplugin {
+  name 'task-cancellation'
+  description 'A test plugin that controls cross cluster requests so that we can verify the cancellation of them'
+  classname 'org.elasticsearch.plugin.tasks.TaskCancellationPlugin'
+}
+
+dependencies {
+  testImplementation project(':client:rest-high-level')
+}
+
+for (Version bwcVersion : BuildParams.bwcVersions.unreleasedWireCompatible) {
+  def currentVersion = VersionProperties.getElasticsearchVersion()
+  // TODO: Adjust the version after backporting
+  if (bwcVersion.before(Version.fromString("8.0.0"))) {
+    println "skip ${bwcVersion} as it does not have a test plugin"
+    continue
+  }
+  def bundlePluginTask = tasks.bundlePlugin
+  def bundleOldPluginsTask = bundlePluginTask
+  def pluginFile = bundlePluginTask.archiveFile
+  def oldPluginFile = pluginFile
+  if (bwcVersion != currentVersion) {
+    def bwcProject = project("${BuildParams.bwcVersions.unreleasedInfo(bwcVersion).gradleProjectPath}")
+    bundleOldPluginsTask = bwcProject.createBwcGradleTask("bundleTestPlugin", ":qa:task-cancellation:assemble")
+    def checkoutDir = bwcProject.getCheckoutDir().toPath()
+    oldPluginFile = checkoutDir.resolve("qa/task-cancellation/build/distributions/task-cancellation-${bwcVersion}-SNAPSHOT.zip").toFile()
+  }
+
+  String baseName = "v${bwcVersion}"
+  testClusters {
+    "old-${baseName}" {
+      numberOfNodes = 2
+      version = bwcVersion.toString()
+      plugin oldPluginFile
+    }
+    "new-${baseName}" {
+      numberOfNodes = 2
+      plugin pluginFile
+      // disable remote_cluster_client role so we can verify that cross clusters tasks are forwarded to the right nodes.
+      nodes.first().setting 'node.roles', '[data,master]'
+      // one connection per cluster so we can verify proxy connections
+      setting 'cluster.remote.connections_per_cluster', "1"
+    }
+  }
+
+  tasks.register(bwcTaskName(bwcVersion), RestTestRunnerTask) {
+    useCluster testClusters."old-${baseName}"
+    useCluster testClusters."new-${baseName}"
+    nonInputProperties.systemProperty('tests.old_cluster', "${-> testClusters."old-${baseName}".allTransportPortURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.old_cluster', "${-> testClusters."old-${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."new-${baseName}".allHttpSocketURI.join(",")}")
+    dependsOn bundlePluginTask, bundleOldPluginsTask
+  }
+}

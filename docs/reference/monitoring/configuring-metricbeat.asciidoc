@@ -209,3 +209,5 @@ to change them.
 --
 
 . {kibana-ref}/monitoring-data.html[View the monitoring data in {kib}]. 
+
+IMPORTANT: Ensure the current master elected is being monitored. Monitoring page in Kibana won't show the production cluster metrics unless metricbeat in the master node is sending data. 

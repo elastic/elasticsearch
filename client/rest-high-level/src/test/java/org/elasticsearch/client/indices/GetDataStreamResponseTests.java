@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response.DataStreamInfo;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;

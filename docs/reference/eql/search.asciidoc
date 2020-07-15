@@ -8,7 +8,8 @@ experimental::[]
 To start using EQL in {es}, first ensure your event data meets
 <<eql-requirements,EQL requirements>>. You can then use the <<eql-search-api,EQL
 search API>> to search event data stored in one or more {es} data streams or
-indices.
+indices. The API requires a query written in {es}'s supported <<eql-syntax,EQL
+syntax>>.
 
 .*Example*
 [%collapsible]

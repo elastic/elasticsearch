@@ -936,7 +936,7 @@ setup:
   - do:
       ml.get_data_frame_analytics_stats:
         id: "foo-1"
-        verbose: false
+        verbose: true
   - match: { count: 1 }
   - length: { data_frame_analytics: 1 }
   - match: { data_frame_analytics.0.id: "foo-1" }

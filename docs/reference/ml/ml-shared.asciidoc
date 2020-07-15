@@ -1391,5 +1391,5 @@ for the by or partition fields. The default value is `false`.
 end::use-null[]
 
 tag::verbose[]
-Defines whether the stats response should be verbose. The default value is `true`.
+Defines whether the stats response should be verbose. The default value is `false`.
 end::verbose[]

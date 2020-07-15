@@ -324,7 +324,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                         analysisStats,
                         new MapParams(
                             Collections.singletonMap(
-                                ToXContentParams.FOR_INTERNAL_STORAGE, Boolean.toString(params.paramAsBoolean(VERBOSE, true)))));
+                                ToXContentParams.FOR_INTERNAL_STORAGE, Boolean.toString(params.paramAsBoolean(VERBOSE, false)))));
                     builder.endObject();
                 }
                 if (node != null) {

@@ -47,8 +47,8 @@
       "verbose":{
         "type":"boolean",
         "required":false,
-        "description":"Whether to output fields that are only relevant to the UI.",
-        "default":true
+        "description":"whether the stats response should be verbose",
+        "default":false
       }
     }
   }

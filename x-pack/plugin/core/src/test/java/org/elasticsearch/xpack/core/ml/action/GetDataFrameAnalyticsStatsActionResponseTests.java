@@ -107,17 +107,17 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
         Response response =
             randomResponse(1, () -> randomFrom(ClassificationStatsTests.createRandom(), RegressionStatsTests.createRandom()));
 
-        // VERBOSE param defaults to "true", fold values outputted
+        // VERBOSE param defaults to "false", fold values *not* outputted
         assertThat(Strings.toString(response), containsString(foldValuesFieldName));
-
-        // VERBOSE param explicitly set to "true", fold values outputted
-        assertThat(
-            Strings.toString(response, new ToXContent.MapParams(Collections.singletonMap(Response.VERBOSE, "true"))),
-            containsString(foldValuesFieldName));
 
         // VERBOSE param explicitly set to "false", fold values *not* outputted
         assertThat(
             Strings.toString(response, new ToXContent.MapParams(Collections.singletonMap(Response.VERBOSE, "false"))),
             not(containsString(foldValuesFieldName)));
+
+        // VERBOSE param explicitly set to "true", fold values outputted
+        assertThat(
+            Strings.toString(response, new ToXContent.MapParams(Collections.singletonMap(Response.VERBOSE, "true"))),
+            containsString(foldValuesFieldName));
     }
 }

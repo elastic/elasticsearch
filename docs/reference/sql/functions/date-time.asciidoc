@@ -425,7 +425,7 @@ DATE_PARSE(
 *Description*: Returns a date by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or an empty string `null` is returned.
+If any of the two arguments is `null` or an empty string, then `null` is returned.
 
 [NOTE]
 If the parsing pattern does not contain all valid date units (e.g. 'HH:mm:ss', 'dd-MM HH:mm:ss', etc.) an error is returned

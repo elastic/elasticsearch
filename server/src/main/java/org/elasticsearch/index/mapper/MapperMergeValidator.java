@@ -108,13 +108,18 @@ class MapperMergeValidator {
      * @param fieldAliasMappers The newly added field alias mappers.
      * @param fullPathObjectMappers All object mappers, indexed by their full path.
      * @param fieldTypes All field and field alias mappers, collected into a lookup structure.
+     * @param metadataMappers the new metadata field mappers
+     * @param newMapper The newly created {@link DocumentMapper}
      */
     public static void validateFieldReferences(List<FieldMapper> fieldMappers,
                                                List<FieldAliasMapper> fieldAliasMappers,
                                                Map<String, ObjectMapper> fullPathObjectMappers,
-                                               FieldTypeLookup fieldTypes) {
+                                               FieldTypeLookup fieldTypes,
+                                               MetadataFieldMapper[] metadataMappers,
+                                               DocumentMapper newMapper) {
         validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
         validateFieldAliasTargets(fieldAliasMappers, fullPathObjectMappers);
+        validateMetadataFieldMappers(metadataMappers, newMapper);
     }
 
     private static void validateCopyTo(List<FieldMapper> fieldMappers,
@@ -166,6 +171,12 @@ class MapperMergeValidator {
                     : "the target's nested scope is [" + pathScope + "].");
                 throw new IllegalArgumentException(message.toString());
             }
+        }
+    }
+
+    private static void validateMetadataFieldMappers(MetadataFieldMapper[] metadataMappers, DocumentMapper newMapper) {
+        for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
+            metadataFieldMapper.validate(newMapper.mappers());
         }
     }
 

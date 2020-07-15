@@ -23,11 +23,11 @@ description = 'Fixture for Google Cloud Storage service'
 test.enabled = false
 
 dependencies {
-  compile project(':server')
+  api project(':server')
 }
 
 preProcessFixture {
-  dependsOn jar
+  dependsOn jar, configurations.runtimeClasspath
   doLast {
     file("${testFixturesDir}/shared").mkdirs()
     project.copy {

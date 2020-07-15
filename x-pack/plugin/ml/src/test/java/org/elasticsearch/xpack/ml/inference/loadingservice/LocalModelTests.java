@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
@@ -40,6 +42,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModelTests.serializeFromTrainedModel;
 import static org.hamcrest.CoreMatchers.is;
@@ -49,9 +52,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class LocalModelTests extends ESTestCase {
@@ -62,7 +67,7 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(false))
             .build();
 
@@ -72,7 +77,9 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
-            modelStatsService);
+            randomFrom(License.OperationMode.values()),
+            modelStatsService,
+            mock(CircuitBreaker.class));
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
             put("field", Collections.singletonMap("bar", 0.5));
@@ -92,7 +99,7 @@ public class LocalModelTests extends ESTestCase {
 
         // Test with labels
         definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(true))
             .build();
         model = new LocalModel(modelId,
@@ -101,7 +108,9 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
-            modelStatsService);
+            License.OperationMode.PLATINUM,
+            modelStatsService,
+            mock(CircuitBreaker.class));
         result = getSingleValue(model, fields, ClassificationConfigUpdate.EMPTY_PARAMS);
         assertThat(result.value(), equalTo(0.0));
         assertThat(result.valueAsString(), equalTo("not_to_be"));
@@ -133,17 +142,19 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo.keyword", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(true))
             .build();
 
-        Model model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
             Collections.singletonMap("field.foo", "field.foo.keyword"),
             ClassificationConfig.EMPTY_PARAMS,
-            modelStatsService);
+            License.OperationMode.PLATINUM,
+            modelStatsService,
+            mock(CircuitBreaker.class));
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
             put("field.bar", 0.5);
@@ -189,7 +200,7 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegressionInference())
             .build();
         LocalModel model = new LocalModel("regression_model",
@@ -198,7 +209,9 @@ public class LocalModelTests extends ESTestCase {
             new TrainedModelInput(inputFields),
             Collections.singletonMap("bar", "bar.keyword"),
             RegressionConfig.EMPTY_PARAMS,
-            modelStatsService);
+            License.OperationMode.PLATINUM,
+            modelStatsService,
+            mock(CircuitBreaker.class));
 
         Map<String, Object> fields = new HashMap<>() {{
             put("foo", 1.0);
@@ -215,17 +228,19 @@ public class LocalModelTests extends ESTestCase {
         doAnswer((args) -> null).when(modelStatsService).queueStats(any(InferenceStats.class), anyBoolean());
         List<String> inputFields = Arrays.asList("foo", "bar", "categorical");
         InferenceDefinition trainedModelDefinition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildRegressionInference())
             .build();
-        Model model = new LocalModel(
+        LocalModel model = new LocalModel(
             "regression_model",
             "test-node",
             trainedModelDefinition,
             new TrainedModelInput(inputFields),
             null,
             RegressionConfig.EMPTY_PARAMS,
-            modelStatsService);
+            License.OperationMode.PLATINUM,
+            modelStatsService,
+            mock(CircuitBreaker.class));
 
         Map<String, Object> fields = new HashMap<>() {{
             put("something", 1.0);
@@ -245,17 +260,19 @@ public class LocalModelTests extends ESTestCase {
         String modelId = "classification_model";
         List<String> inputFields = Arrays.asList("field.foo", "field.bar", "categorical");
         InferenceDefinition definition = InferenceDefinition.builder()
-            .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotMap())))
+            .setPreProcessors(Collections.singletonList(new OneHotEncoding("categorical", oneHotMap())))
             .setTrainedModel(buildClassificationInference(false))
             .build();
 
-        Model model = new LocalModel(modelId,
+        LocalModel model = new LocalModel(modelId,
             "test-node",
             definition,
             new TrainedModelInput(inputFields),
             null,
             ClassificationConfig.EMPTY_PARAMS,
-            modelStatsService
+            License.OperationMode.PLATINUM,
+            modelStatsService,
+            mock(CircuitBreaker.class)
         );
         Map<String, Object> fields = new HashMap<>() {{
             put("field.foo", 1.0);
@@ -279,14 +296,93 @@ public class LocalModelTests extends ESTestCase {
         }), anyBoolean());
     }
 
-    private static SingleValueInferenceResults getSingleValue(Model model,
+    public void testMapFieldsIfNecessary() {
+        Map<String, String> fieldMap = new TreeMap<>();
+        fieldMap.put("a1", "a2");
+        fieldMap.put("b1", "b2");
+        fieldMap.put("missing1", "missing2");
+
+        Map<String, Object> fields = new TreeMap<>();
+        fields.put("a1", "a_value");
+        fields.put("b1", "b_value");
+
+
+        LocalModel.mapFieldsIfNecessary(fields, fieldMap);
+
+        Map<String, Object> expectedMap = new TreeMap<>();
+        expectedMap.put("a1", "a_value");
+        expectedMap.put("b1", "b_value");
+        expectedMap.put("a2", "a_value");
+        expectedMap.put("b2", "b_value");
+
+        assertThat(fields, equalTo(expectedMap));
+    }
+
+    public void testReferenceCounting() throws IOException {
+        TrainedModelStatsService modelStatsService = mock(TrainedModelStatsService.class);
+        String modelId = "ref-count-model";
+        List<String> inputFields = Arrays.asList("field.foo", "field.bar");
+        InferenceDefinition definition = InferenceDefinition.builder()
+            .setTrainedModel(buildClassificationInference(false))
+            .build();
+
+        {
+            CircuitBreaker breaker = mock(CircuitBreaker.class);
+            LocalModel model = new LocalModel(modelId,
+                "test-node",
+                definition,
+                new TrainedModelInput(inputFields),
+                null,
+                ClassificationConfig.EMPTY_PARAMS,
+                License.OperationMode.PLATINUM,
+                modelStatsService,
+                breaker
+            );
+
+            model.release();
+            verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
+            verifyNoMoreInteractions(breaker);
+            assertEquals(0L, model.getReferenceCount());
+
+            // reacquire
+            model.acquire();
+            verify(breaker, times(1)).addEstimateBytesAndMaybeBreak(eq(definition.ramBytesUsed()), eq(modelId));
+            verifyNoMoreInteractions(breaker);
+            assertEquals(1L, model.getReferenceCount());
+        }
+
+        {
+            CircuitBreaker breaker = mock(CircuitBreaker.class);
+            LocalModel model = new LocalModel(modelId,
+                "test-node",
+                definition,
+                new TrainedModelInput(inputFields),
+                null,
+                ClassificationConfig.EMPTY_PARAMS,
+                License.OperationMode.PLATINUM,
+                modelStatsService,
+                breaker
+            );
+
+            model.acquire();
+            model.acquire();
+            model.release();
+            model.release();
+            model.release();
+            verify(breaker, times(1)).addWithoutBreaking(eq(-definition.ramBytesUsed()));
+            verifyNoMoreInteractions(breaker);
+            assertEquals(0L, model.getReferenceCount());
+        }
+    }
+
+    private static SingleValueInferenceResults getSingleValue(LocalModel model,
                                                               Map<String, Object> fields,
                                                               InferenceConfigUpdate config)
         throws Exception {
         return (SingleValueInferenceResults)getInferenceResult(model, fields, config);
     }
 
-    private static InferenceResults getInferenceResult(Model model,
+    private static InferenceResults getInferenceResult(LocalModel model,
                                                        Map<String, Object> fields,
                                                        InferenceConfigUpdate config) throws Exception {
         PlainActionFuture<InferenceResults> future = new PlainActionFuture<>();

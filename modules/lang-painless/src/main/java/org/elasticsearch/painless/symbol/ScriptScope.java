@@ -22,6 +22,7 @@ package org.elasticsearch.painless.symbol;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.node.ANode;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,7 +33,7 @@ import java.util.Set;
 /**
  * Stores information for use across the entirety of compilation.
  */
-public class ScriptScope {
+public class ScriptScope extends Decorator {
 
     protected final PainlessLookup painlessLookup;
     protected final CompilerSettings compilerSettings;
@@ -48,7 +49,10 @@ public class ScriptScope {
     protected Map<String, Object> staticConstants = new HashMap<>();
 
     public ScriptScope(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
-                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource) {
+                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource, int nodeCount) {
+
+        super(nodeCount);
+
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
@@ -114,5 +118,41 @@ public class ScriptScope {
 
     public Map<String, Object> getStaticConstants() {
         return Collections.unmodifiableMap(staticConstants);
+    }
+
+    public <T extends Decoration> T putDecoration(ANode node, T decoration) {
+        return put(node.getIdentifier(), decoration);
+    }
+
+    public <T extends Decoration> T removeDecoration(ANode node, Class<T> type) {
+        return remove(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> T getDecoration(ANode node, Class<T> type) {
+        return get(node.getIdentifier(), type);
+    }
+
+    public boolean hasDecoration(ANode node, Class<? extends Decoration> type) {
+        return has(node.getIdentifier(), type);
+    }
+
+    public <T extends Decoration> boolean copyDecoration(ANode originalNode, ANode targetNode, Class<T> type) {
+        return copy(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
+    }
+
+    public boolean setCondition(ANode node, Class<? extends Condition> type) {
+        return set(node.getIdentifier(), type);
+    }
+
+    public boolean deleteCondition(ANode node, Class<? extends Condition> type) {
+        return delete(node.getIdentifier(), type);
+    }
+
+    public boolean getCondition(ANode node, Class<? extends Condition> type) {
+        return exists(node.getIdentifier(), type);
+    }
+
+    public boolean replicateCondition(ANode originalNode, ANode targetNode, Class<? extends Condition> type) {
+        return replicate(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
     }
 }

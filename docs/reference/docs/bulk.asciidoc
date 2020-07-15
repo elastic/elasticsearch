@@ -114,7 +114,7 @@ JavaScript::
     See {jsclient-current}/client-helpers.html[client.helpers.*]
 
 .NET::
-    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#_multiple_documents_with_bulkallobservable_helper[`BulkAllObservable`]
+    See https://www.elastic.co/guide/en/elasticsearch/client/net-api/current/indexing-documents.html#bulkall-observable[`BulkAllObservable`]
 
 [float]
 [[bulk-curl]]
@@ -162,6 +162,9 @@ support the `version_type` (see <<index-versioning, versioning>>).
 Each bulk item can include the routing value using the
 `routing` field. It automatically follows the behavior of the
 index / delete operation based on the `_routing` mapping.
+
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
 
 [float]
 [[bulk-wait-for-active-shards]]

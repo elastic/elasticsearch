@@ -6,12 +6,15 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
@@ -25,6 +28,8 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -41,15 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
-
-    private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
-    public static final String TIMESTAMP_MAPPING = "{\n" +
-        "      \"properties\": {\n" +
-        "        \"@timestamp\": {\n" +
-        "          \"type\": \"date\"\n" +
-        "        }\n" +
-        "      }\n" +
-        "    }";
 
     public void testRolloverAction() throws Exception {
         String policyName = "logs-policy";
@@ -206,8 +202,28 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             TimeUnit.SECONDS);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGetDataStreamReturnsILMPolicy() throws Exception {
+        String policyName = "logs-policy";
+        createComposableTemplate(client(), "logs-template", "logs-foo*", getTemplate(policyName));
+        String dataStream = "logs-foo";
+        indexDocument(client(), dataStream, true);
+
+        Request explainRequest = new Request("GET",   "/_data_stream/logs-foo");
+        Response response = client().performRequest(explainRequest);
+        Map<String, Object> responseMap;
+        try (InputStream is = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        }
+
+        List<Object> dataStreams = (List<Object>) responseMap.get("data_streams");
+        assertThat(dataStreams.size(), is(1));
+        Map<String, Object> logsDataStream = (Map<String, Object>) dataStreams.get(0);
+        assertThat(logsDataStream.get("ilm_policy"), is(policyName));
+    }
+
     private static Template getTemplate(String policyName) throws IOException {
-        return new Template(getLifcycleSettings(policyName), new CompressedXContent(TIMESTAMP_MAPPING), null);
+        return new Template(getLifcycleSettings(policyName), null, null);
     }
 
     private static Settings getLifcycleSettings(String policyName) {

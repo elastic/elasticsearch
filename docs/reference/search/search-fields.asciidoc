@@ -175,7 +175,7 @@ GET /_search
     format for the field's returned doc values. <<date,Date fields>> support a
     <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
     https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
-    pattern]. Other field datatypes do not support the `format` parameter.
+    pattern]. Other field data types do not support the `format` parameter.
 ====
 
 TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for

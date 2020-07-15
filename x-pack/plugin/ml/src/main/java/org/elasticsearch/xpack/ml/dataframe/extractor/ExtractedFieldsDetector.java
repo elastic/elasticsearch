@@ -52,17 +52,16 @@ public class ExtractedFieldsDetector {
      * Fields to ignore. These are mostly internal meta fields.
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY);
+        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY,
+        "_data_stream_timestamp");
 
-    private final String[] index;
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, int docValueFieldsLimit,
-                            FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> cardinalitiesForFieldsWithConstraints) {
-        this.index = Objects.requireNonNull(index);
+    ExtractedFieldsDetector(DataFrameAnalyticsConfig config, int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse,
+                            Map<String, Long> cardinalitiesForFieldsWithConstraints) {
         this.config = Objects.requireNonNull(config);
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
@@ -242,7 +241,11 @@ public class ExtractedFieldsDetector {
                 }
             } else {
                 fieldsIterator.remove();
-                addExcludedField(field, "field not in includes list", fieldSelection);
+                if (hasCompatibleType(field)) {
+                    addExcludedField(field, "field not in includes list", fieldSelection);
+                } else {
+                    addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
+                }
             }
         }
     }

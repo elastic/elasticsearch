@@ -47,6 +47,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -168,10 +169,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
             final RepositoryMetadata repoMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE,
-                                                                        Settings.builder().put("chunk_size", "101mb").build());
+                                                                        Settings.builder().put("chunk_size", "6tb").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
-        assertEquals("failed to parse value [101mb] for setting [chunk_size], must be <= [100mb]", e.getMessage());
+        assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= [5tb]", e.getMessage());
     }
 
     public void testWriteReadLarge() throws IOException {
@@ -243,9 +244,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry registry,
-                                                               ClusterService clusterService) {
+                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
             return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-                metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, clusterService) {
+                metadata -> new GoogleCloudStorageRepository(metadata, registry, this.storageService, clusterService, recoverySettings) {
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
@@ -321,7 +322,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
-            if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
+            if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
+                trackRequest("GET");
+            } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
                 trackRequest("LIST");
             } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
                 trackRequest("GET");

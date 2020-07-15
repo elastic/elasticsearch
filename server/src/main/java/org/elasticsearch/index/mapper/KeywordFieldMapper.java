@@ -235,18 +235,16 @@ public final class KeywordFieldMapper extends FieldMapper {
                                 boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
                                 SimilarityProvider similarity, Map<String, String> meta, float boost) {
             super(name, fieldType.indexOptions() != IndexOptions.NONE,
-                hasDocValues, new TextSearchInfo(fieldType, similarity), meta);
+                hasDocValues, new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchAnalyzer), meta);
             this.hasNorms = fieldType.omitNorms() == false;
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
             setIndexAnalyzer(normalizer);
-            setSearchAnalyzer(searchAnalyzer);
             setBoost(boost);
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
             super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         public KeywordFieldType(String name) {
@@ -254,31 +252,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, Collections.emptyMap(), 1f);
         }
 
-        protected KeywordFieldType(KeywordFieldType ref) {
-            super(ref);
-            this.hasNorms = ref.hasNorms;
-            setEagerGlobalOrdinals(ref.eagerGlobalOrdinals());
-            setIndexAnalyzer(ref.indexAnalyzer());
-            setSearchAnalyzer(ref.searchAnalyzer());
-        }
-
-        @Override
-        public KeywordFieldType clone() {
-            return new KeywordFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            KeywordFieldType other = (KeywordFieldType) o;
-            return Objects.equals(searchAnalyzer(), other.searchAnalyzer());
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Objects.hash(searchAnalyzer());
+        public KeywordFieldType(String name, NamedAnalyzer analyzer) {
+            super(name, true, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
         }
 
         @Override
@@ -319,7 +294,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
-            if (searchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+            if (getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
                 // keyword analyzer with the default attribute source which encodes terms using UTF8
                 // in that case we skip normalization, which may be slow if there many terms need to
                 // parse (eg. large terms query) since Analyzer.normalize involves things like creating
@@ -334,7 +309,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (value instanceof BytesRef) {
                 value = ((BytesRef) value).utf8ToString();
             }
-            return searchAnalyzer().normalize(name(), value.toString());
+            return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
     }
 
@@ -439,7 +414,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         this.ignoreAbove = k.ignoreAbove;
         this.splitQueriesOnWhitespace = k.splitQueriesOnWhitespace;
-        this.fieldType().setSearchAnalyzer(k.fieldType().searchAnalyzer());
         this.fieldType().setBoost(k.fieldType().boost());
     }
 

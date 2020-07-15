@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -28,7 +29,7 @@ public abstract class SourceGenerator {
 
     private SourceGenerator() {}
 
-    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
+    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter) {
         QueryBuilder finalQuery = null;
         // add the source
         if (container.query() != null) {
@@ -57,14 +58,21 @@ public abstract class SourceGenerator {
         sourceBuilder.build(source);
 
         sorting(container, source);
-        source.fetchSource(FetchSourceContext.FETCH_SOURCE);
 
-        // set fetch size
-        if (size != null) {
-            int sz = size;
+        // disable the source if there are no includes
+        if (source.fetchSource() == null || CollectionUtils.isEmpty(source.fetchSource().includes())) {
+            source.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
+        } else {
+            // use true to fetch only the needed bits from the source
+            source.fetchSource(true);
+        }
 
-            if (source.size() == -1) {
-                source.size(sz);
+        if (container.limit() != null) {
+            // add size and from
+            source.size(container.limit().absLimit());
+            // this should be added only for event queries
+            if (container.limit().offset() > 0) {
+                source.from(container.limit().offset());
             }
         }
 

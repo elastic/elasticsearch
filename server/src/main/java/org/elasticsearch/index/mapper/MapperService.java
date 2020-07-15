@@ -87,6 +87,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
          */
         MAPPING_UPDATE,
         /**
+         * Merge mappings from a composable index template.
+         */
+        INDEX_TEMPLATE,
+        /**
          * Recovery of an existing mapping, for instance because of a restart,
          * if a shard was moved to a different node or for administrative
          * purposes.
@@ -137,9 +141,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, xContentRegistry, similarityService, mapperRegistry,
                 queryShardContextSupplier);
-        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), p -> p.indexAnalyzer());
-        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
+        this.indexAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultIndexAnalyzer(), MappedFieldType::indexAnalyzer);
+        this.searchAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchAnalyzer(),
+            p -> p.getTextSearchInfo().getSearchAnalyzer());
+        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
+            p -> p.getTextSearchInfo().getSearchQuoteAnalyzer());
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
     }
@@ -163,7 +169,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Parses the mappings (formatted as JSON) into a map
      */
-    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
+    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws IOException {
         try (XContentParser parser = XContentType.JSON.xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)) {
             return parser.map();
@@ -336,10 +342,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         DocumentMapper oldMapper = this.mapper;
         DocumentMapper newMapper;
         if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping());
+            newMapper = oldMapper.merge(mapper.mapping(), reason);
         } else {
             newMapper = mapper;
         }
+        newMapper.root().fixRedundantIncludes();
 
         // check basic sanity of the new mapping
         List<ObjectMapper> objectMappers = new ArrayList<>();
@@ -368,28 +375,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         MapperMergeValidator.validateFieldReferences(fieldMappers, fieldAliasMappers,
-            fullPathObjectMappers, newFieldTypes);
+            fullPathObjectMappers, newFieldTypes, metadataMappers, newMapper);
 
         ContextMapping.validateContextPaths(indexSettings.getIndexVersionCreated(), fieldMappers, newFieldTypes::get);
 
-        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            // this check will only be performed on the master node when there is
-            // a call to the update mapping API. For all other cases like
-            // the master node restoring mappings from disk or data nodes
-            // deserializing cluster state that was sent by the master node,
-            // this check will be skipped.
+        if (reason != MergeReason.MAPPING_RECOVERY) {
+            // These checks will only be performed on the master node when an index is created, or
+            // there is a call to the update mapping API. For all other cases like the master node
+            // restoring mappings from disk or data nodes deserializing cluster state that was sent
+            // by the master node, these checks will be skipped.
             // Also, don't take metadata mappers into account for the field limit check
             checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
                 + fieldAliasMappers.size() );
             checkFieldNameSoftLimit(objectMappers, fieldMappers, fieldAliasMappers);
-        }
-
-        if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            // this check will only be performed on the master node when there is
-            // a call to the update mapping API. For all other cases like
-            // the master node restoring mappings from disk or data nodes
-            // deserializing cluster state that was sent by the master node,
-            // this check will be skipped.
             checkNestedFieldsLimit(fullPathObjectMappers);
             checkDepthLimit(fullPathObjectMappers.keySet());
         }

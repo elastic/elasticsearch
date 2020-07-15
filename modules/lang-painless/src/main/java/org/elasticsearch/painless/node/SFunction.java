@@ -20,20 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.NullNode;
-import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.node.AStatement.Input;
-import org.elasticsearch.painless.node.AStatement.Output;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -115,6 +108,11 @@ public class SFunction extends ANode {
         return isAutoReturnEnabled;
     }
 
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitFunction(this, input);
+    }
+
     void buildClassScope(ScriptScope scriptScope) {
         if (canonicalTypeNameParameters.size() != parameterNames.size()) {
             throw createError(new IllegalStateException(
@@ -154,7 +152,7 @@ public class SFunction extends ANode {
         functionTable.addFunction(functionName, returnType, typeParameters, isInternal, isStatic);
     }
 
-    FunctionNode analyze(ClassNode classNode, ScriptScope scriptScope) {
+    void analyze(ScriptScope scriptScope) {
         FunctionTable.LocalFunction localFunction =
                 scriptScope.getFunctionTable().getFunction(functionName, canonicalTypeNameParameters.size());
         Class<?> returnType = localFunction.getReturnType();
@@ -167,20 +165,21 @@ public class SFunction extends ANode {
             functionScope.defineVariable(getLocation(), typeParameter, parameterName, false);
         }
 
-        int maxLoopCounter = scriptScope.getCompilerSettings().getMaxLoopCounter();
-
         if (blockNode.getStatementNodes().isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + functionName + "]."));
         }
 
-        Input blockInput = new Input();
-        blockInput.lastSource = true;
-        Output blockOutput = blockNode.analyze(classNode, functionScope.newLocalScope(), blockInput);
-        boolean methodEscape = blockOutput.methodEscape;
+        functionScope.setCondition(blockNode, LastSource.class);
+        blockNode.analyze(functionScope.newLocalScope());
+        boolean methodEscape = functionScope.getCondition(blockNode, MethodEscape.class);
 
         if (methodEscape == false && isAutoReturnEnabled == false && returnType != void.class) {
             throw createError(new IllegalArgumentException("not all paths provide a return value " +
                     "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
+        }
+
+        if (methodEscape) {
+            functionScope.setCondition(this, MethodEscape.class);
         }
 
         // TODO: do not specialize for execute
@@ -189,71 +188,5 @@ public class SFunction extends ANode {
             scriptScope.setUsedVariables(functionScope.getUsedVariables());
         }
         // TODO: end
-
-        BlockNode blockNode = (BlockNode)blockOutput.statementNode;
-
-        if (methodEscape == false) {
-            ExpressionNode expressionNode;
-
-            if (returnType == void.class) {
-                expressionNode = null;
-            } else if (isAutoReturnEnabled) {
-                if (returnType.isPrimitive()) {
-                    ConstantNode constantNode = new ConstantNode();
-                    constantNode.setLocation(getLocation());
-                    constantNode.setExpressionType(returnType);
-
-                    if (returnType == boolean.class) {
-                        constantNode.setConstant(false);
-                    } else if (returnType == byte.class
-                            || returnType == char.class
-                            || returnType == short.class
-                            || returnType == int.class) {
-                        constantNode.setConstant(0);
-                    } else if (returnType == long.class) {
-                        constantNode.setConstant(0L);
-                    } else if (returnType == float.class) {
-                        constantNode.setConstant(0f);
-                    } else if (returnType == double.class) {
-                        constantNode.setConstant(0d);
-                    } else {
-                        throw createError(new IllegalStateException("unexpected automatic return type " +
-                                "[" + PainlessLookupUtility.typeToCanonicalTypeName(returnType) + "] " +
-                                "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
-                    }
-
-                    expressionNode = constantNode;
-                } else {
-                    expressionNode = new NullNode();
-                    expressionNode.setLocation(getLocation());
-                    expressionNode.setExpressionType(returnType);
-                }
-            } else {
-                throw createError(new IllegalStateException("not all paths provide a return value " +
-                        "for function [" + functionName + "] with [" + typeParameters.size() + "] parameters"));
-            }
-
-            ReturnNode returnNode = new ReturnNode();
-            returnNode.setLocation(getLocation());
-            returnNode.setExpressionNode(expressionNode);
-
-            blockNode.addStatementNode(returnNode);
-        }
-
-        FunctionNode functionNode = new FunctionNode();
-
-        functionNode.setBlockNode(blockNode);
-
-        functionNode.setLocation(getLocation());
-        functionNode.setName(functionName);
-        functionNode.setReturnType(returnType);
-        functionNode.getTypeParameters().addAll(typeParameters);
-        functionNode.getParameterNames().addAll(parameterNames);
-        functionNode.setStatic(isStatic);
-        functionNode.setVarArgs(false);
-        functionNode.setSynthetic(isSynthetic);
-        functionNode.setMaxLoopCounter(maxLoopCounter);
-
-        return functionNode;
     }
 }

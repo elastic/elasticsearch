@@ -66,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -907,21 +908,10 @@ public class NumberFieldMapper extends FieldMapper {
             super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.type = Objects.requireNonNull(type);
             this.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);     // allows number fields in significant text aggs - do we need this?
-            this.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);    // allows match queries on number fields
         }
 
         public NumberFieldType(String name, NumberType type) {
             this(name, type, true, true, Collections.emptyMap());
-        }
-
-        private NumberFieldType(NumberFieldType other) {
-            super(other);
-            this.type = other.type;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new NumberFieldType(this);
         }
 
         @Override
@@ -973,6 +963,14 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Function<byte[], Number> pointReaderIfPossible() {
+            if (isSearchable()) {
+                return this::parsePoint;
+            }
+            return null;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(type.numericType());
@@ -1001,20 +999,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            NumberFieldType that = (NumberFieldType) o;
-            return type == that.type;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), type);
         }
     }
 

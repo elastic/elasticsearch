@@ -124,10 +124,10 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     // Follow elasticsearch's file naming convention
     String jdkString = jdk ? "" : "no-jdk-"
     String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
-    destinationDir = file("${prefix}/build/distributions")
+    destinationDirectory = file("${prefix}/build/distributions")
 
     // SystemPackagingTask overrides default archive task convention mappings, but doesn't provide a setter so we have to override the convention mapping itself
-    conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDir}/${packageName}-${project.version}-${jdkString}${archString}.${type}")) }
+    conventionMapping.archiveFile = { objects.fileProperty().fileValue(file("${destinationDirectory.get()}/${packageName}-${project.version}-${jdkString}${archString}.${type}")) }
 
     String packagingFiles = "build/packaging/${oss ? 'oss-' : ''}${jdk ? '' : 'no-jdk-'}${type}"
 
@@ -325,7 +325,7 @@ Closure commonDebConfig(boolean oss, boolean jdk, String architecture) {
       customFields['License'] = 'Elastic-License'
     }
 
-    version = project.version.replace('-', '~')
+    archiveVersion = project.version.replace('-', '~')
     packageGroup 'web'
 
     // versions found on oldest supported distro, centos-6
@@ -384,7 +384,7 @@ Closure commonRpmConfig(boolean oss, boolean jdk, String architecture) {
 
     prefix '/usr'
     packager 'Elasticsearch'
-    version = project.version.replace('-', '_')
+    archiveVersion = project.version.replace('-', '_')
     release = '1'
     os 'LINUX'
     distribution 'Elasticsearch'

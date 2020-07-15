@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
@@ -161,23 +160,6 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
             super(name, isSearchable, hasDocValues, meta);
         }
 
-        protected AbstractShapeGeometryFieldType(AbstractShapeGeometryFieldType ref) {
-            super(ref);
-            this.orientation = ref.orientation;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            AbstractShapeGeometryFieldType that = (AbstractShapeGeometryFieldType) o;
-            return orientation == that.orientation;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), orientation);
-        }
-
         public Orientation orientation() { return this.orientation; }
 
         public void setOrientation(Orientation orientation) {
@@ -195,6 +177,11 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
         super(simpleName, fieldType, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo);
         this.coerce = coerce;
         this.orientation = orientation;
+    }
+
+    @Override
+    public final boolean parsesArrayValue() {
+        return false;
     }
 
     @Override

@@ -79,32 +79,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public CollationFieldType(String name, boolean isSearchable, boolean hasDocValues, Collator collator, Map<String, String> meta) {
             super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.collator = collator;
         }
 
         public CollationFieldType(String name, Collator collator) {
             this(name, true, true, collator, Collections.emptyMap());
-        }
-
-        protected CollationFieldType(CollationFieldType ref) {
-            super(ref);
-            this.collator = ref.collator;
-        }
-
-        @Override
-        public CollationFieldType clone() {
-            return new CollationFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return super.equals(o) && Objects.equals(collator, ((CollationFieldType) o).collator);
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Objects.hashCode(collator);
         }
 
         @Override

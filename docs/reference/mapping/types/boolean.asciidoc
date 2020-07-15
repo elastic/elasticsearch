@@ -1,5 +1,5 @@
 [[boolean]]
-=== Boolean datatype
+=== Boolean data type
 ++++
 <titleabbrev>Boolean</titleabbrev>
 ++++

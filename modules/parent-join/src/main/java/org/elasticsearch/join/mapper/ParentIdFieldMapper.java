@@ -97,16 +97,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         ParentIdFieldType(String name, boolean eagerGlobalOrdinals, Map<String, String> meta) {
             super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             setEagerGlobalOrdinals(eagerGlobalOrdinals);
-        }
-
-        protected ParentIdFieldType(ParentIdFieldType ref) {
-            super(ref);
-        }
-
-        public ParentIdFieldType clone() {
-            return new ParentIdFieldType(this);
         }
 
         @Override

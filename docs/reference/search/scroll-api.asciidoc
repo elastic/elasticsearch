@@ -91,7 +91,7 @@ Period to retain the <<scroll-search-context,search context>> for scrolling. See
 This value overrides the duration set by the original search API request's
 `scroll` parameter.
 +
-By default, this value cannot must be less than `1d` (one day). You can change
+By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
 +
 IMPORTANT: You can also specify this value using the `scroll` request body
@@ -123,7 +123,7 @@ Period to retain the <<scroll-search-context,search context>> for scrolling. See
 This value overrides the duration set by the original search API request's
 `scroll` parameter.
 +
-By default, this value cannot must be less than `1d` (one day). You can change
+By default, this value cannot exceed `1d` (24 hours). You can change
 this limit using the `search.max_keep_alive` cluster-level setting.
 +
 IMPORTANT: You can also specify this value using the `scroll` query

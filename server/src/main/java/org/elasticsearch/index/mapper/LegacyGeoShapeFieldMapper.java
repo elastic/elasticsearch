@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
@@ -52,7 +50,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -178,8 +175,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    private static final Logger logger = LogManager.getLogger(LegacyGeoShapeFieldMapper.class);
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(LegacyGeoShapeFieldMapper.class);
 
     public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder,
         LegacyGeoShapeFieldMapper.GeoShapeFieldType> {
@@ -302,44 +298,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         public GeoShapeFieldType(String name) {
             this(name, true, true, Collections.emptyMap());
-        }
-
-        protected GeoShapeFieldType(GeoShapeFieldType ref) {
-            super(ref);
-            this.tree = ref.tree;
-            this.strategy = ref.strategy;
-            this.pointsOnly = ref.pointsOnly;
-            this.treeLevels = ref.treeLevels;
-            this.precisionInMeters = ref.precisionInMeters;
-            this.distanceErrorPct = ref.distanceErrorPct;
-            this.defaultDistanceErrorPct = ref.defaultDistanceErrorPct;
-            this.defaultPrefixTreeStrategy = ref.defaultPrefixTreeStrategy;
-            this.recursiveStrategy = ref.recursiveStrategy;
-            this.termStrategy = ref.termStrategy;
-        }
-
-        @Override
-        public GeoShapeFieldType clone() {
-            return new GeoShapeFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            GeoShapeFieldType that = (GeoShapeFieldType) o;
-            return treeLevels == that.treeLevels &&
-                precisionInMeters == that.precisionInMeters &&
-                defaultDistanceErrorPct == that.defaultDistanceErrorPct &&
-                Objects.equals(tree, that.tree) &&
-                Objects.equals(strategy, that.strategy) &&
-                pointsOnly == that.pointsOnly &&
-                Objects.equals(distanceErrorPct, that.distanceErrorPct);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), tree, strategy, pointsOnly, treeLevels, precisionInMeters, distanceErrorPct,
-                    defaultDistanceErrorPct);
         }
 
         @Override

@@ -10,9 +10,9 @@ Adds a JSON document to the specified data stream or index and makes
 it searchable. If the target is an index and the document already exists,
 the request updates the document and increments its version.
 
-NOTE: You cannot send update requests for existing documents to a data stream.
-To update a document in a data stream, you must target the backing index
-containing the document. See <<update-delete-docs-in-a-data-stream>>.
+NOTE: You cannot use the index API to send update requests for existing
+documents to a data stream. See <<update-delete-docs-in-a-data-stream>>
+and <<update-delete-docs-in-a-backing-index>>.
 
 [[docs-index-api-request]]
 ==== {api-request-title}
@@ -25,14 +25,19 @@ containing the document. See <<update-delete-docs-in-a-data-stream>>.
 
 `POST /<target>/_create/<_id>`
 
+IMPORTANT: You cannot add new documents to a data stream using the 
+`PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the 
+`PUT /<target>/_create/<_id>` format instead. See 
+<<add-documents-to-a-data-stream>>.
+
 [[docs-index-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
 (Required, string) Name of the data stream or index to target.
 +
-If the target doesn't exist and matches the name or wildcard (`*`) pattern of a
-<<create-a-data-stream-template,composable template with a `data_stream`
+If the target doesn't exist and matches the name or wildcard (`*`) pattern of an
+<<create-a-data-stream-template,index template with a `data_stream`
 definition>>, this request creates the data stream. See
 <<set-up-a-data-stream>>.
 +
@@ -42,9 +47,19 @@ this request creates the index.
 You can check for existing targets using the resolve index API.
 
 `<_id>`::
-(Optional, string) Unique identifier for the document. Required if you are
-using a PUT request. Omit to automatically generate an ID when using a
-POST request.
+(Optional, string) Unique identifier for the document.
++
+--
+This parameter is required for the following request formats:
+
+* `PUT /<target>/_doc/<_id>`
+* `PUT /<target>/_create/<_id>`
+* `POST /<target>/_create/<_id>`
+
+To automatically generate a document ID, use the `POST /<target>/_doc/` request
+format and omit this parameter.
+--
+
 
 
 [[docs-index-api-query-params]]
@@ -143,8 +158,8 @@ exist. To update an existing document, you must use the `_doc` resource.
 [[index-creation]]
 ===== Automatically create data streams and indices
 
-If request's target doesn't exist and matches a
-<<create-a-data-stream-template,composable template with a `data_stream`
+If request's target doesn't exist and matches an
+<<create-a-data-stream-template,index template with a `data_stream`
 definition>>, the index operation automatically creates the data stream. See
 <<set-up-a-data-stream>>.
 
@@ -165,7 +180,7 @@ automatic creation of indices that match specified patterns, or set it to
 comma-separated list of patterns you want to allow, or prefix each pattern with
 `+` or `-` to indicate whether it should be allowed or blocked.  When a list is
 specified, the default behaviour is to disallow.
-+
+
 IMPORTANT: The `action.auto_create_index` setting only affects the automatic
 creation of indices. It does not affect the creation of data streams.
 
@@ -214,9 +229,9 @@ already exists in the index.
 [float]
 ===== Create document IDs automatically
 
-If you don't specify a document ID when using POST, the `op_type` is
-automatically set to `create` and the index operation generates a unique ID
-for the document.
+When using the `POST /<target>/_doc/` request format, the `op_type` is
+automatically set to `create` and the index operation generates a unique ID for
+the document.
 
 [source,console]
 --------------------------------------------------
@@ -286,6 +301,9 @@ document itself. This does come at the (very minimal) cost of an
 additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
+
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
 
 [float]
 [[index-distributed]]

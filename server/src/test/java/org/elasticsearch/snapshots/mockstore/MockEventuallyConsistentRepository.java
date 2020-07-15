@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -76,9 +77,10 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
         final Context context,
         final Random random) {
-        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, BlobPath.cleanPath());
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;
@@ -186,6 +188,16 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             @Override
             public BlobPath path() {
                 return path;
+            }
+
+            @Override
+            public boolean blobExists(String blobName) {
+                try {
+                    readBlob(blobName);
+                    return true;
+                } catch (NoSuchFileException ignored) {
+                    return false;
+                }
             }
 
             @Override

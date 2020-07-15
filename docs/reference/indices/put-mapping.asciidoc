@@ -4,8 +4,10 @@
 <titleabbrev>Put mapping</titleabbrev>
 ++++
 
-Adds new fields to an existing index or changes the search settings of existing
-fields.
+Adds new fields to an existing data stream or index. You can also use the
+put mapping API to change the search settings of existing fields.
+
+For data streams, these changes are applied to all backing indices by default.
 
 [source,console]
 ----
@@ -23,7 +25,7 @@ PUT /twitter/_mapping
 [[put-mapping-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_mapping`
+`PUT /<target>/_mapping`
 
 `PUT /_mapping`
 
@@ -31,10 +33,13 @@ PUT /twitter/_mapping
 [[put-mapping-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
 +
-To update the mapping of all indices, omit this parameter or use a value of
-`_all`.
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[put-mapping-api-query-params]]
@@ -63,7 +68,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 fields, this mapping can include:
 
 * Field name
-* <<field-datatypes,Field datatype>>
+* <<field-datatypes,Field data type>>
 * <<mapping-params,Mapping parameters>>
 
 For existing fields, see <<updating-field-mappings>>.
@@ -74,9 +79,9 @@ For existing fields, see <<updating-field-mappings>>.
 ==== {api-examples-title}
 
 [[put-field-mapping-api-basic-ex]]
-===== Example with index setup
+===== Example with single target
 
-The put mapping API requires an existing index. The following
+The put mapping API requires an existing data stream or index. The following
 <<indices-create-index, create index>> API request creates the `publications`
 index with no mapping.
 
@@ -100,10 +105,10 @@ PUT /publications/_mapping
 // TEST[continued]
 
 [[put-mapping-api-multi-ex]]
-===== Multiple indices
+===== Multiple targets
 
-The PUT mapping API can be applied to multiple indices with a single request.
-For example, we can update the `twitter-1` and `twitter-2` mappings at the same time:
+The PUT mapping API can be applied to multiple data streams or indices with a single request.
+For example, you can update mappings for the `twitter-1` and `twitter-2` indices at the same time:
 
 [source,console]
 --------------------------------------------------
@@ -392,12 +397,15 @@ Except for supported <<mapping-params,mapping parameters>>,
 you can't change the mapping or field type of an existing field.
 Changing an existing field could invalidate data that's already indexed.
 
-If you need to change the mapping of a field,
+If you need to change the mapping of a field in a data stream's backing indices,
+see <<data-streams-change-mappings-and-settings>>. 
+
+If you need to change the mapping of a field in other indices,
 create a new index with the correct mapping
 and <<docs-reindex,reindex>> your data into that index.
 // end::change-field-mapping[]
 
-To see how this works,
+To see how you can change the mapping of an existing field in an index,
 try the following example.
 
 Use the <<indices-create-index,create index>> API

@@ -20,21 +20,13 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.CallNode;
-import org.elasticsearch.painless.ir.CallSubNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.FieldNode;
-import org.elasticsearch.painless.ir.MemberFieldLoadNode;
-import org.elasticsearch.painless.ir.MemberFieldStoreNode;
-import org.elasticsearch.painless.ir.StatementExpressionNode;
-import org.elasticsearch.painless.ir.StaticNode;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -63,18 +55,21 @@ public class ERegex extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        if (input.write) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitRegex(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to regex constant [" + pattern + "] with flags [" + flags + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: regex constant [" + pattern + "] with flags [" + flags + "] not used"));
         }
-
-        Output output = new Output();
 
         if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == false) {
             throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
@@ -95,88 +90,8 @@ public class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        String name = semanticScope.getScriptScope().getNextSyntheticName("regex");
-        output.actual = Pattern.class;
-
-        FieldNode fieldNode = new FieldNode();
-        fieldNode.setLocation(getLocation());
-        fieldNode.setModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE);
-        fieldNode.setFieldType(Pattern.class);
-        fieldNode.setName(name);
-
-        classNode.addFieldNode(fieldNode);
-
-        try {
-            StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
-            statementExpressionNode.setLocation(getLocation());
-
-            BlockNode blockNode = classNode.getClinitBlockNode();
-            blockNode.addStatementNode(statementExpressionNode);
-
-            MemberFieldStoreNode memberFieldStoreNode = new MemberFieldStoreNode();
-            memberFieldStoreNode.setLocation(getLocation());
-            memberFieldStoreNode.setExpressionType(void.class);
-            memberFieldStoreNode.setFieldType(Pattern.class);
-            memberFieldStoreNode.setName(name);
-            memberFieldStoreNode.setStatic(true);
-
-            statementExpressionNode.setExpressionNode(memberFieldStoreNode);
-
-            CallNode callNode = new CallNode();
-            callNode.setLocation(getLocation());
-            callNode.setExpressionType(Pattern.class);
-
-            memberFieldStoreNode.setChildNode(callNode);
-
-            StaticNode staticNode = new StaticNode();
-            staticNode.setLocation(getLocation());
-            staticNode.setExpressionType(Pattern.class);
-
-            callNode.setLeftNode(staticNode);
-
-            CallSubNode callSubNode = new CallSubNode();
-            callSubNode.setLocation(getLocation());
-            callSubNode.setExpressionType(Pattern.class);
-            callSubNode.setBox(Pattern.class);
-            callSubNode.setMethod(new PainlessMethod(
-                    Pattern.class.getMethod("compile", String.class, int.class),
-                    Pattern.class,
-                    Pattern.class,
-                    Arrays.asList(String.class, int.class),
-                    null,
-                    null,
-                    null
-                    )
-            );
-
-            callNode.setRightNode(callSubNode);
-
-            ConstantNode constantNode = new ConstantNode();
-            constantNode.setLocation(getLocation());
-            constantNode.setExpressionType(String.class);
-            constantNode.setConstant(pattern);
-
-            callSubNode.addArgumentNode(constantNode);
-
-            constantNode = new ConstantNode();
-            constantNode.setLocation(getLocation());
-            constantNode.setExpressionType(int.class);
-            constantNode.setConstant(flags);
-
-            callSubNode.addArgumentNode(constantNode);
-        } catch (Exception exception) {
-            throw createError(new IllegalStateException("could not generate regex constant [" + pattern + "/" + flags +"] in clinit"));
-        }
-
-        MemberFieldLoadNode memberFieldLoadNode = new MemberFieldLoadNode();
-        memberFieldLoadNode.setLocation(getLocation());
-        memberFieldLoadNode.setExpressionType(Pattern.class);
-        memberFieldLoadNode.setName(name);
-        memberFieldLoadNode.setStatic(true);
-
-        output.expressionNode = memberFieldLoadNode;
-
-        return output;
+        semanticScope.putDecoration(this, new ValueType(Pattern.class));
+        semanticScope.putDecoration(this, new StandardConstant(flags));
     }
 
     private int flagForChar(char c) {

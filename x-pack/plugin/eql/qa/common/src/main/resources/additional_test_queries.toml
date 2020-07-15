@@ -1,0 +1,255 @@
+# This file is populated with additional EQL queries that were not present in the original EQL python implementation
+# test_queries.toml file in order to keep the original unchanged and easier to sync with the EQL reference implementation tests.
+
+[[queries]]
+name = "betweenAdditional1"
+expected_event_ids = [95]
+query = '''
+file where between(file_path, "dev", ".json", false) == "\\TestLogs\\something"
+'''
+
+[[queries]]
+name = "betweenAdditional2"
+expected_event_ids = [95]
+query = '''
+file where between(file_path, "dev", ".json", true) == "\\TestLogs\\something"
+'''
+
+[[queries]]
+name = "stringCidrMatch1"
+expected_event_ids = [75304, 75305]
+query = '''
+network where cidrMatch(source_address, "10.6.48.157/8") == true
+'''
+
+[[queries]]
+name = "stringCidrMatch2"
+expected_event_ids = [75304, 75305]
+query = '''
+network where string(cidrMatch(source_address, "10.6.48.157/8")) == "true"
+'''
+
+[[queries]]
+name = "cidrMatchAdditional2"
+expected_event_ids = [75304, 75305]
+query = '''
+network where true == cidrMatch(source_address, "10.6.48.157/8")
+'''
+
+[[queries]]
+name = "cidrMatchAdditional3"
+expected_event_ids = []
+query = '''
+network where cidrMatch(source_address, "192.168.0.0/16") == true
+'''
+
+[[queries]]
+name = "cidrMatchAdditional4"
+expected_event_ids = [75304, 75305]
+query = '''
+network where cidrMatch(source_address, "192.168.0.0/16", "10.6.48.157/8") == true
+'''
+
+[[queries]]
+name = "cidrMatchAdditional5"
+expected_event_ids = [75304, 75305]
+query = '''
+network where cidrMatch(source_address, "0.0.0.0/0") == true
+'''
+
+
+[[queries]]
+name = "concatEquals1"
+description = "test string concatenation. update test to avoid case-sensitivity issues"
+query = '''
+process where concat(serial_event_id, '::', process_name, '::', opcode) == '5::wininit.exe::3'
+'''
+expected_event_ids  = [5]
+
+
+[[queries]]
+name = "concatEquals2"
+query = 'process where concat(serial_event_id) = "1"'
+expected_event_ids  = [1]
+
+[[queries]]
+name = "concatWithCondition1"
+query = 'process where serial_event_id < 5 and concat(process_name, parent_process_name) != null'
+expected_event_ids  = [2, 3]
+
+
+[[queries]]
+name = "concatWithCondition2"
+query = 'process where serial_event_id < 5 and concat(process_name, parent_process_name) == null'
+expected_event_ids  = [1, 4]
+
+
+[[queries]]
+name = "concatWithCondition3"
+query = 'process where serial_event_id < 5 and concat(process_name, null, null) == null'
+expected_event_ids  = [1, 2, 3, 4]
+
+
+[[queries]]
+name = "concatWithCondition4"
+query = 'process where serial_event_id < 5 and concat(parent_process_name, null) == null'
+expected_event_ids  = [1, 2, 3, 4]
+
+
+[[queries]]
+name = "numberStringConversion1"
+query = 'process where string(serial_event_id) = "1"'
+expected_event_ids  = [1]
+
+
+[[queries]]
+name = "numberStringConversion2"
+query = 'any where number(string(serial_event_id)) == 17'
+expected_event_ids = [17]
+
+
+[[queries]]
+name = "numberStringConversion3"
+query = 'any where number(string(serial_event_id), null) == 17'
+expected_event_ids = [17]
+
+
+[[queries]]
+name = "numberStringConversion4"
+query = 'any where number(string(serial_event_id), 10) == 17'
+expected_event_ids = [17]
+
+
+[[queries]]
+name = "numberStringEquality"
+query = 'any where number(string(serial_event_id), 13) == number("31", 13)'
+expected_event_ids = [31]
+
+
+[[queries]]
+name = "numberStringConversion5"
+query = 'any where number(string(serial_event_id), 16) == 17'
+expected_event_ids = [11]
+
+
+[[queries]]
+name = "matchWithCharacterClasses1"
+expected_event_ids  = [98]
+notes = "regexp doesn't support character classes"
+query = '''
+//
+//                                ?'.*?net1\s+localgroup.*?')
+process where match(command_line, ?'.*?net1[ ]+localgroup.*?')
+'''
+
+[[queries]]
+name = "matchLiteAdditional"
+expected_event_ids  = [98]
+query = '''
+process where matchLite(command_line, ?'.*?net1.*?')
+'''
+
+[[queries]]
+name = "matchWithCharacterClasses2"
+expected_event_ids  = [98]
+notes = "regexp doesn't support predefined character classes (like \\s)"
+query = '''
+//                                ?'.*?net1\s+\w{4,15}\s+.*?'
+process where match(command_line, ?'.*?net1[ ]+[a-z]{4,15}[ ]+.*?')
+'''
+
+
+
+[[queries]]
+name = "multiPatternMatch"
+expected_event_ids  = [50, 97, 98]
+query = '''
+process where match(command_line, '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
+'''
+
+[[queries]]
+name = "matchWithSubstring"
+expected_event_ids  = [50, 98]
+query = '''
+process where match(substring(command_line, 5), '.*?net[1]?  localgroup.*?', '.*? myappserver.py .*?')
+'''
+
+[[queries]]
+name = "moduloEqualsField"
+# Basic test for modulo function
+query = '''
+process where modulo(11, 10) == serial_event_id'''
+expected_event_ids  = [1]
+description = "test built-in modulo math functions"
+
+[[queries]]
+name = "additionalMathWithFields1"
+# This query give a different result with ES EQL implementation because it doesn't convert to float data types for division
+expected_event_ids = [82, 83]
+query = "file where serial_event_id / 2 == 41"
+
+# Additional EQL queries with arithmetic operations that were not part of the original EQL implementation
+[[queries]]
+name = "additionalMathWithFields2"
+expected_event_ids = [82]
+query = "file where 83 - serial_event_id == 1"
+
+[[queries]]
+name = "additionalMathWithFields3"
+expected_event_ids = [82]
+query = "file where 1 + serial_event_id == 83"
+
+[[queries]]
+name = "additionalMathWithFields4"
+expected_event_ids = [82]
+query = "file where -serial_event_id + 100 == 18"
+
+[[queries]]
+name = "additionalMathWithFields5"
+expected_event_ids = [82]
+query = "file where 2 * serial_event_id == 164"
+
+[[queries]]
+name = "additionalMathWithFields6"
+expected_event_ids = [66]
+query = "file where 66.0 / serial_event_id == 1"
+
+[[queries]]
+name = "additionalMathWithFields7"
+expected_event_ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 46]
+query = "process where serial_event_id + ((1 + 3) * 2 / (3 - 1)) * 2 == 54 or 70 + serial_event_id < 100"
+
+[[queries]]
+name = "twoSequencesAdditional1"
+query = '''
+sequence
+  [process where serial_event_id = 1]
+  [process where serial_event_id = 2]
+'''
+expected_event_ids  = [1, 2]
+
+[[queries]]
+name = "twoSequencesAdditional2"
+query = '''
+sequence
+  [process where serial_event_id=1] by unique_pid
+  [process where true] by unique_ppid'''
+expected_event_ids  = [1, 2]
+
+[[queries]]
+name = "twoSequencesAdditional3"
+query = '''
+sequence
+  [process where serial_event_id<3] by unique_pid
+  [process where true] by unique_ppid
+'''
+expected_event_ids  = [1, 2, 2, 3]
+
+[[queries]]
+name = "twoSequencesAdditional4"
+query = '''
+sequence
+  [process where false] by unique_pid
+  [process where true] by unique_ppid
+'''
+expected_event_ids  = []

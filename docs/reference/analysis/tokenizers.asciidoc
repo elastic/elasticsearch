@@ -140,8 +140,6 @@ include::tokenizers/ngram-tokenizer.asciidoc[]
 
 include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
 
-include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]
-
 include::tokenizers/pattern-tokenizer.asciidoc[]
 
 include::tokenizers/simplepattern-tokenizer.asciidoc[]

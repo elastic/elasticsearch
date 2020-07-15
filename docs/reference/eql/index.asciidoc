@@ -6,7 +6,7 @@
 <titleabbrev>EQL</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 {eql-ref}/index.html[Event Query Language (EQL)] is a query language used for
 logs and other event-based data.
@@ -50,10 +50,12 @@ Consider using EQL if you:
 * <<eql-search>>
 * <<eql-syntax>>
 * <<eql-function-ref>>
+* <<eql-pipe-ref>>
 * <<eql-limitations>>
 
 include::requirements.asciidoc[]
 include::search.asciidoc[]
 include::syntax.asciidoc[]
 include::functions.asciidoc[]
+include::pipes.asciidoc[]
 include::limitations.asciidoc[]

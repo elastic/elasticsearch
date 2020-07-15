@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -60,6 +59,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59413")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -297,7 +297,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55807")
     public void testTwoJobsWithSameRandomizeSeedUseSameTrainingSet() throws Exception {
         String sourceIndex = "regression_two_jobs_with_same_randomize_seed_source";
         indexData(sourceIndex, 100, 0);
@@ -397,7 +396,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     public void testWithDatastream() throws Exception {
-        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
         initialize("regression_with_datastream");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, true);
@@ -469,7 +467,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
         String mapping = "{\n" +
             "      \"properties\": {\n" +
-            "        \"time\": {\n" +
+            "        \"@timestamp\": {\n" +
             "          \"type\": \"date\"\n" +
             "        }," +
             "        \""+ NUMERICAL_FEATURE_FIELD + "\": {\n" +
@@ -485,7 +483,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "    }";
         if (dataStream) {
             try {
-                createDataStreamAndTemplate(sourceIndex, "time", mapping);
+                createDataStreamAndTemplate(sourceIndex, mapping);
             } catch (IOException ex) {
                 throw new ElasticsearchException(ex);
             }
@@ -502,7 +500,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 NUMERICAL_FEATURE_FIELD, NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
                 DISCRETE_NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
                 DEPENDENT_VARIABLE_FIELD, DEPENDENT_VARIABLE_VALUES.get(i % DEPENDENT_VARIABLE_VALUES.size()),
-                "time", Instant.now().toEpochMilli());
+                "@timestamp", Instant.now().toEpochMilli());
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
@@ -510,7 +508,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             List<Object> source = List.of(
                 NUMERICAL_FEATURE_FIELD, NUMERICAL_FEATURE_VALUES.get(i % NUMERICAL_FEATURE_VALUES.size()),
                 DISCRETE_NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_VALUES.get(i % DISCRETE_NUMERICAL_FEATURE_VALUES.size()),
-                "time", Instant.now().toEpochMilli());
+                "@timestamp", Instant.now().toEpochMilli());
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
@@ -538,5 +536,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     protected String stateDocId() {
         return jobId + "_regression_state#1";
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

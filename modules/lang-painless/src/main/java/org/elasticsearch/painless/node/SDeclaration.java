@@ -19,13 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -59,7 +60,12 @@ public class SDeclaration extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDeclaration(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
 
         if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
@@ -72,29 +78,14 @@ public class SDeclaration extends AStatement {
             throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
         }
 
-        AExpression.Output expressionOutput = null;
-        PainlessCast expressionCast = null;
-
         if (valueNode != null) {
-            AExpression.Input expressionInput = new AExpression.Input();
-            expressionInput.expected = type;
-            expressionOutput = AExpression.analyze(valueNode, classNode, semanticScope, expressionInput);
-            expressionCast = AnalyzerCaster.getLegalCast(valueNode.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
+            semanticScope.setCondition(valueNode, Read.class);
+            semanticScope.putDecoration(valueNode, new TargetType(type));
+            AExpression.analyze(valueNode, semanticScope);
+            valueNode.cast(semanticScope);
         }
 
-        semanticScope.defineVariable(getLocation(), type, symbol, false);
-
-        DeclarationNode declarationNode = new DeclarationNode();
-        declarationNode.setExpressionNode(valueNode == null ? null :
-                AExpression.cast(expressionOutput.expressionNode, expressionCast));
-        declarationNode.setLocation(getLocation());
-        declarationNode.setDeclarationType(type);
-        declarationNode.setName(symbol);
-
-        Output output = new Output();
-        output.statementNode = declarationNode;
-
-        return output;
+        Variable variable = semanticScope.defineVariable(getLocation(), type, symbol, false);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
     }
 }

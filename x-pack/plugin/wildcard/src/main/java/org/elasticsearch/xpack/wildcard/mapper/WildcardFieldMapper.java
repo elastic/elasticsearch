@@ -212,20 +212,10 @@ public class WildcardFieldMapper extends FieldMapper {
         static Analyzer lowercaseNormalizer = new LowercaseNormalizer();
 
         public WildcardFieldType(String name, FieldType fieldType, Map<String, String> meta) {
-            super(name, true, true, new TextSearchInfo(fieldType, null), meta);
+            super(name, true, true,
+                new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
             setIndexAnalyzer(WILDCARD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
-
-        protected WildcardFieldType(WildcardFieldType ref) {
-            super(ref);
-        }
-
-        public WildcardFieldType clone() {
-            WildcardFieldType result = new WildcardFieldType(this);
-            return result;
-        }
-
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
@@ -849,12 +839,12 @@ public class WildcardFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-        
+
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
         }
-        
+
 
         @Override
         public Query existsQuery(QueryShardContext context) {

@@ -20,9 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
 import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.ir.BreakNode;
-import org.elasticsearch.painless.ir.ClassNode;
 
 /**
  * Represents a break statement.
@@ -34,23 +37,18 @@ public class SBreak extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope, Input input) {
-        Output output = new Output();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitBreak(this, input);
+    }
 
-        if (input.inLoop == false) {
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, InLoop.class) == false) {
             throw createError(new IllegalArgumentException("Break statement outside of a loop."));
         }
 
-        output.loopEscape = true;
-        output.allEscape = true;
-        output.anyBreak = true;
-        output.statementCount = 1;
-
-        BreakNode breakNode = new BreakNode();
-        breakNode.setLocation(getLocation());
-
-        output.statementNode = breakNode;
-
-        return output;
+        semanticScope.setCondition(this, AllEscape.class);
+        semanticScope.setCondition(this, LoopEscape.class);
+        semanticScope.setCondition(this, AnyBreak.class);
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -59,6 +60,7 @@ public class NodeService implements Closeable {
     private final HttpServerTransport httpServerTransport;
     private final ResponseCollectorService responseCollectorService;
     private final SearchTransportService searchTransportService;
+    private final IndexingPressure indexingPressure;
 
     private final Discovery discovery;
 
@@ -67,7 +69,7 @@ public class NodeService implements Closeable {
                 CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
-                SearchTransportService searchTransportService) {
+                SearchTransportService searchTransportService, IndexingPressure indexingPressure) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -82,6 +84,7 @@ public class NodeService implements Closeable {
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
+        this.indexingPressure = indexingPressure;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -103,7 +106,8 @@ public class NodeService implements Closeable {
 
     public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
                            boolean fs, boolean transport, boolean http, boolean circuitBreaker,
-                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection, boolean scriptCache) {
+                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection, boolean scriptCache,
+                           boolean indexingPressure) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
@@ -120,8 +124,7 @@ public class NodeService implements Closeable {
                 discoveryStats ? discovery.stats() : null,
                 ingest ? ingestService.stats() : null,
                 adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
-                scriptCache ? scriptService.cacheStats() : null
-        );
+                indexingPressure ? this.indexingPressure.stats() : null);
     }
 
     public IngestService getIngestService() {

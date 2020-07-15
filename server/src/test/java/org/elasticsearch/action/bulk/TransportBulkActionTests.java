@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -59,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,7 +83,7 @@ public class TransportBulkActionTests extends ESTestCase {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()),
-                    new WriteMemoryLimits());
+                    new IndexingPressure(Settings.EMPTY));
         }
 
         @Override
@@ -344,4 +346,23 @@ public class TransportBulkActionTests extends ESTestCase {
         TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, metadata);
     }
 
+    public void testProhibitCustomRoutingOnDataStream() throws Exception {
+        String dataStreamName = "logs-foobar";
+        ClusterState clusterState = createDataStream(dataStreamName);
+        Metadata metadata = clusterState.metadata();
+
+        // custom routing requests against the data stream are prohibited
+        DocWriteRequest<?> writeRequestAgainstDataStream = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX)
+            .routing("custom");
+        IllegalArgumentException exception =
+            expectThrows(IllegalArgumentException.class, () -> prohibitCustomRoutingOnDataStream(writeRequestAgainstDataStream, metadata));
+        assertThat(exception.getMessage(), is("index request targeting data stream [logs-foobar] specifies a custom routing. target the " +
+            "backing indices directly or remove the custom routing."));
+
+        // test custom routing is allowed when the index request targets the backing index
+        DocWriteRequest<?> writeRequestAgainstIndex =
+            new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(DocWriteRequest.OpType.INDEX)
+            .routing("custom");
+        prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
+    }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -41,7 +42,8 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        boolean shouldIntercept = licenseState.isSecurityEnabled() && licenseState.isAllowed(Feature.SECURITY_DLS_FLS);
+        boolean shouldIntercept = licenseState.isSecurityEnabled();
+        var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
         if (requestInfo.getRequest() instanceof BulkShardRequest && shouldIntercept) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
 
@@ -54,7 +56,7 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                     boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                     boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                     if (fls || dls) {
-                        if (bulkItemRequest.request() instanceof UpdateRequest) {
+                        if (licenseChecker.get() && bulkItemRequest.request() instanceof UpdateRequest) {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkItemRequest.index());
                             bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +

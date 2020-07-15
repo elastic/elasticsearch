@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -79,11 +78,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             end = in.readOptionalString();
             advanceTime = in.readOptionalString();
             skipTime = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.waitForNormalization = in.readBoolean();
-            } else {
-                this.waitForNormalization = true;
-            }
+            waitForNormalization = in.readBoolean();
         }
 
         @Override
@@ -94,9 +89,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
             out.writeOptionalString(end);
             out.writeOptionalString(advanceTime);
             out.writeOptionalString(skipTime);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeBoolean(waitForNormalization);
-            }
+            out.writeBoolean(waitForNormalization);
         }
 
         public Request(String jobId) {

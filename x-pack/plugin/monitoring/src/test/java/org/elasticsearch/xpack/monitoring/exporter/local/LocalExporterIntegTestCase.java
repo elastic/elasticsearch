@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,7 +70,7 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
      */
     protected LocalExporter createLocalExporter() {
         final Settings settings = localExporterSettings();
-        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        final XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         final Exporter.Config config = new Exporter.Config(exporterName, "local", settings, clusterService(), licenseState);
         final CleanerService cleanerService =
                 new CleanerService(settings, clusterService().getClusterSettings(), THREADPOOL, licenseState);

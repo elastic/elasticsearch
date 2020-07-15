@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -65,7 +64,7 @@ import java.util.Map;
  * queries.
  */
 public class IdFieldMapper extends MetadataFieldMapper {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IdFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
             + "If you require sorting or aggregating on this field you should also include the id in the "
@@ -119,16 +118,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
         private IdFieldType() {
             super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected IdFieldType(IdFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IdFieldType(this);
         }
 
         @Override

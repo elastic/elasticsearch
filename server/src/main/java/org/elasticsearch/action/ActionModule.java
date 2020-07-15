@@ -21,7 +21,6 @@ package org.elasticsearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -117,6 +116,7 @@ import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDangli
 import org.elasticsearch.action.admin.indices.dangling.import_index.TransportImportDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
+import org.elasticsearch.action.admin.indices.datastream.DataStreamsStatsAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
@@ -131,11 +131,16 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappingsIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportVerifyShardIndexBlockAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -299,11 +304,13 @@ import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
+import org.elasticsearch.rest.action.admin.indices.RestAddIndexBlockAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
+import org.elasticsearch.rest.action.admin.indices.RestDataStreamsStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteDataStreamAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
@@ -406,21 +413,6 @@ import static java.util.Collections.unmodifiableMap;
 public class ActionModule extends AbstractModule {
 
     private static final Logger logger = LogManager.getLogger(ActionModule.class);
-
-    public static final boolean DATASTREAMS_FEATURE_ENABLED;
-
-    static {
-        final String property = System.getProperty("es.datastreams_feature_enabled");
-        if (Build.CURRENT.isSnapshot() || "true".equals(property)) {
-            DATASTREAMS_FEATURE_ENABLED = true;
-        } else if ("false".equals(property) || property == null) {
-            DATASTREAMS_FEATURE_ENABLED = false;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.datastreams_feature_enabled to be unset or [true|false] but was [" + property + "]"
-            );
-        }
-    }
 
     private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -539,10 +531,12 @@ public class ActionModule extends AbstractModule {
         actions.register(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
         actions.register(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
+        actions.register(AddIndexBlockAction.INSTANCE, TransportAddIndexBlockAction.class);
         actions.register(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         actions.register(GetFieldMappingsAction.INSTANCE, TransportGetFieldMappingsAction.class);
         actions.register(TransportGetFieldMappingsIndexAction.TYPE, TransportGetFieldMappingsIndexAction.class);
         actions.register(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
+        actions.register(AutoPutMappingAction.INSTANCE, TransportAutoPutMappingAction.class);
         actions.register(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
         actions.register(UpdateSettingsAction.INSTANCE, TransportUpdateSettingsAction.class);
         actions.register(AnalyzeAction.INSTANCE, TransportAnalyzeAction.class);
@@ -606,12 +600,11 @@ public class ActionModule extends AbstractModule {
         actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actions::register);
 
         // Data streams:
-        if (DATASTREAMS_FEATURE_ENABLED) {
-            actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
-            actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
-            actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
-            actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
-        }
+        actions.register(CreateDataStreamAction.INSTANCE, CreateDataStreamAction.TransportAction.class);
+        actions.register(DeleteDataStreamAction.INSTANCE, DeleteDataStreamAction.TransportAction.class);
+        actions.register(GetDataStreamAction.INSTANCE, GetDataStreamAction.TransportAction.class);
+        actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
+        actions.register(DataStreamsStatsAction.INSTANCE, DataStreamsStatsAction.TransportAction.class);
 
         // Persistent tasks:
         actions.register(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class);
@@ -635,6 +628,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportNodesSnapshotsStatus.TYPE, TransportNodesSnapshotsStatus.class);
         actions.register(TransportNodesListGatewayMetaState.TYPE, TransportNodesListGatewayMetaState.class);
         actions.register(TransportVerifyShardBeforeCloseAction.TYPE, TransportVerifyShardBeforeCloseAction.class);
+        actions.register(TransportVerifyShardIndexBlockAction.TYPE, TransportVerifyShardIndexBlockAction.class);
         actions.register(TransportNodesListGatewayStartedShards.TYPE, TransportNodesListGatewayStartedShards.class);
         actions.register(TransportNodesListShardStoreMetadata.TYPE, TransportNodesListShardStoreMetadata.class);
         actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
@@ -699,6 +693,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteIndexAction());
         registerHandler.accept(new RestCloseIndexAction());
         registerHandler.accept(new RestOpenIndexAction());
+        registerHandler.accept(new RestAddIndexBlockAction());
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
@@ -780,12 +775,11 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteDanglingIndexAction());
 
         // Data Stream API
-        if (DATASTREAMS_FEATURE_ENABLED) {
-            registerHandler.accept(new RestCreateDataStreamAction());
-            registerHandler.accept(new RestDeleteDataStreamAction());
-            registerHandler.accept(new RestGetDataStreamsAction());
-            registerHandler.accept(new RestResolveIndexAction());
-        }
+        registerHandler.accept(new RestCreateDataStreamAction());
+        registerHandler.accept(new RestDeleteDataStreamAction());
+        registerHandler.accept(new RestGetDataStreamsAction());
+        registerHandler.accept(new RestResolveIndexAction());
+        registerHandler.accept(new RestDataStreamsStatsAction());
 
         // CAT API
         registerHandler.accept(new RestAllocationAction());

@@ -169,10 +169,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public SearchAsYouTypeFieldMapper build(Mapper.BuilderContext context) {
 
-            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity, meta);
+            SearchAsYouTypeFieldType ft = new SearchAsYouTypeFieldType(buildFullName(context), fieldType, similarity,
+                searchAnalyzer, searchQuoteAnalyzer, meta);
             ft.setIndexAnalyzer(indexAnalyzer);
-            ft.setSearchAnalyzer(searchAnalyzer);
-            ft.setSearchQuoteAnalyzer(searchQuoteAnalyzer);
 
             // set up the prefix field
             FieldType prefixft = new FieldType(fieldType);
@@ -180,17 +179,19 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
             final String fullName = buildFullName(context);
-            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixft, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             // wrap the root field's index analyzer with shingles and edge ngrams
-            final SearchAsYouTypeAnalyzer prefixIndexWrapper =
+            final Analyzer prefixIndexWrapper =
                 SearchAsYouTypeAnalyzer.withShingleAndPrefix(indexAnalyzer.analyzer(), maxShingleSize);
             // wrap the root field's search analyzer with only shingles
-            final SearchAsYouTypeAnalyzer prefixSearchWrapper =
-                SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize);
+            final NamedAnalyzer prefixSearchWrapper = new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(),
+                SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize));
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
+            TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity, prefixSearchWrapper, searchQuoteAnalyzer);
+            final PrefixFieldType prefixFieldType
+                = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             prefixFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper));
-            prefixFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, prefixSearchWrapper));
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
+
 
             // set up the shingle fields
             final ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[maxShingleSize - 1];
@@ -200,18 +201,17 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 FieldType shingleft = new FieldType(fieldType);
                 shingleft.setStored(false);
                 String fieldName = getShingleFieldName(buildFullName(context), shingleSize);
-                final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, shingleft);
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper =
                     SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);
-                final SearchAsYouTypeAnalyzer shingleSearchWrapper =
-                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize);
-                final SearchAsYouTypeAnalyzer shingleSearchQuoteWrapper =
-                    SearchAsYouTypeAnalyzer.withShingle(searchQuoteAnalyzer.analyzer(), shingleSize);
+                final NamedAnalyzer shingleSearchWrapper = new NamedAnalyzer(searchAnalyzer.name(), searchAnalyzer.scope(),
+                    SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), shingleSize));
+                final NamedAnalyzer shingleSearchQuoteWrapper = new NamedAnalyzer(searchQuoteAnalyzer.name(), searchQuoteAnalyzer.scope(),
+                    SearchAsYouTypeAnalyzer.withShingle(searchQuoteAnalyzer.analyzer(), shingleSize));
+                TextSearchInfo textSearchInfo
+                    = new TextSearchInfo(shingleft, similarity, shingleSearchWrapper, shingleSearchQuoteWrapper);
+                final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
                 shingleFieldType.setIndexAnalyzer(new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper));
-                shingleFieldType.setSearchAnalyzer(new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchWrapper));
-                shingleFieldType.setSearchQuoteAnalyzer(
-                    new NamedAnalyzer(searchQuoteAnalyzer.name(), AnalyzerScope.INDEX, shingleSearchQuoteWrapper));
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
@@ -246,24 +246,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         PrefixFieldType prefixField;
         ShingleFieldType[] shingleFields = new ShingleFieldType[0];
 
-        SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity, Map<String, String> meta) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE, false, new TextSearchInfo(fieldType, similarity), meta);
-        }
-
-        SearchAsYouTypeFieldType(SearchAsYouTypeFieldType other) {
-            super(other);
-
-            if (other.prefixField != null) {
-                this.prefixField = other.prefixField.clone();
-            }
-            if (other.shingleFields != null) {
-                this.shingleFields = new ShingleFieldType[other.shingleFields.length];
-                for (int i = 0; i < this.shingleFields.length; i++) {
-                    if (other.shingleFields[i] != null) {
-                        this.shingleFields[i] = other.shingleFields[i].clone();
-                    }
-                }
-            }
+        SearchAsYouTypeFieldType(String name, FieldType fieldType, SimilarityProvider similarity,
+                                 NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer, Map<String, String> meta) {
+            super(name, fieldType.indexOptions() != IndexOptions.NONE, false,
+                new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchQuoteAnalyzer), meta);
         }
 
         public void setPrefixField(PrefixFieldType prefixField) {
@@ -272,11 +258,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         public void setShingleFields(ShingleFieldType[] shingleFields) {
             this.shingleFields = shingleFields;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new SearchAsYouTypeFieldType(this);
         }
 
         @Override
@@ -359,27 +340,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 return spanMulti;
             }
         }
-
-        @Override
-        public boolean equals(Object otherObject) {
-            if (this == otherObject) {
-                return true;
-            }
-            if (otherObject == null || getClass() != otherObject.getClass()) {
-                return false;
-            }
-            if (!super.equals(otherObject)) {
-                return false;
-            }
-            final SearchAsYouTypeFieldType other = (SearchAsYouTypeFieldType) otherObject;
-            return Objects.equals(prefixField, other.prefixField) &&
-                Arrays.equals(shingleFields, other.shingleFields);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), prefixField, Arrays.hashCode(shingleFields));
-        }
     }
 
     /**
@@ -392,18 +352,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final int maxChars;
         final String parentField;
 
-        PrefixFieldType(String parentField, FieldType fieldType, int minChars, int maxChars) {
-            super(parentField + PREFIX_FIELD_SUFFIX, true, false, new TextSearchInfo(fieldType, null), Collections.emptyMap());
+        PrefixFieldType(String parentField, TextSearchInfo textSearchInfo, int minChars, int maxChars) {
+            super(parentField + PREFIX_FIELD_SUFFIX, true, false, textSearchInfo, Collections.emptyMap());
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
-        }
-
-        PrefixFieldType(PrefixFieldType other) {
-            super(other);
-            this.minChars = other.minChars;
-            this.maxChars = other.maxChars;
-            this.parentField = other.parentField;
         }
 
         boolean termLengthWithinBounds(int length) {
@@ -430,11 +383,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public PrefixFieldType clone() {
-            return new PrefixFieldType(this);
-        }
-
-        @Override
         public String typeName() {
             return "prefix";
         }
@@ -447,27 +395,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         @Override
         public Query existsQuery(QueryShardContext context) {
             throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            if (!super.equals(o)) {
-                return false;
-            }
-            PrefixFieldType that = (PrefixFieldType) o;
-            return minChars == that.minChars &&
-                maxChars == that.maxChars;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), minChars, maxChars);
         }
     }
 
@@ -545,26 +472,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final int shingleSize;
         PrefixFieldType prefixFieldType;
 
-        ShingleFieldType(String name, int shingleSize, FieldType fieldType) {
-            super(name, true, false, new TextSearchInfo(fieldType, null), Collections.emptyMap());
+        ShingleFieldType(String name, int shingleSize, TextSearchInfo textSearchInfo) {
+            super(name, true, false, textSearchInfo, Collections.emptyMap());
             this.shingleSize = shingleSize;
-        }
-
-        ShingleFieldType(ShingleFieldType other) {
-            super(other);
-            this.shingleSize = other.shingleSize;
-            if (other.prefixFieldType != null) {
-                this.prefixFieldType = other.prefixFieldType.clone();
-            }
         }
 
         void setPrefixFieldType(PrefixFieldType prefixFieldType) {
             this.prefixFieldType = prefixFieldType;
-        }
-
-        @Override
-        public ShingleFieldType clone() {
-            return new ShingleFieldType(this);
         }
 
         @Override
@@ -626,27 +540,6 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 spanMulti.setRewriteMethod(method);
                 return spanMulti;
             }
-        }
-
-        @Override
-        public boolean equals(Object otherObject) {
-            if (this == otherObject) {
-                return true;
-            }
-            if (otherObject == null || getClass() != otherObject.getClass()) {
-                return false;
-            }
-            if (!super.equals(otherObject)) {
-                return false;
-            }
-            final ShingleFieldType other = (ShingleFieldType) otherObject;
-            return shingleSize == other.shingleSize
-                && Objects.equals(prefixFieldType, other.prefixFieldType);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), shingleSize, prefixFieldType);
         }
     }
 

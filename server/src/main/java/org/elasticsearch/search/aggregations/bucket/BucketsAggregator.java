@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -53,8 +54,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+            CardinalityUpperBound bucketCardinality, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, bucketCardinality, metadata);
         bigArrays = context.bigArrays();
         if (context.aggregations() != null) {
             multiBucketConsumer = context.aggregations().multiBucketConsumer();
@@ -178,7 +179,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 slice[i] = aggregations[i][ord];
             }
             final int thisOrd = ord;
-            result[ord] = new InternalAggregations(new AbstractList<InternalAggregation>() {
+            result[ord] = InternalAggregations.from(new AbstractList<InternalAggregation>() {
                 @Override
                 public InternalAggregation get(int index) {
                     return aggregations[index][thisOrd];
@@ -351,17 +352,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     @FunctionalInterface
     protected interface ResultBuilderForVariable<B> {
         InternalAggregation build(long owninigBucketOrd, List<B> buckets);
-    }
-
-    /**
-     * Utility method to build empty aggregations of the sub aggregators.
-     */
-    protected final InternalAggregations bucketEmptyAggregations() {
-        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
-        for (int i = 0; i < subAggregators.length; i++) {
-            aggregations[i] = subAggregators[i].buildEmptyAggregation();
-        }
-        return new InternalAggregations(Arrays.asList(aggregations));
     }
 
     @Override

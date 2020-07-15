@@ -29,7 +29,7 @@ object SanityCheck : BuildType({
     steps {
         gradle {
             useGradleWrapper = true
-            gradleParams = "--scan"
+            gradleParams = "%env.GRADLE_PARAMS%"
             tasks = "precommit"
         }
     }

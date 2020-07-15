@@ -17,11 +17,11 @@
  * under the License.
  */
 
-gradle.settingsEvaluated { settings ->
-  String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
-  boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
+final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
+final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
 
-  if (buildCacheUrl) {
+if (buildCacheUrl) {
+  gradle.settingsEvaluated { settings ->
     settings.buildCache {
       local {
         // Disable the local build cache in CI since we use ephemeral workers and it incurs an IO penalty

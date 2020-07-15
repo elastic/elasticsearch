@@ -45,7 +45,13 @@ object DefaultTemplate : Template({
         param("env.JAVA13_HOME", "/var/lib/jenkins/.java/openjdk13")
         param("env.JAVA14_HOME", "/var/lib/jenkins/.java/openjdk14")
         param("env.GRADLE_OPTS", "-XX:+HeapDumpOnOutOfMemoryError -Xmx128m -Xms128m")
-        param("env.GRADLEW", "./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/")
+        param("env.GRADLE_PARAMS", "--scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/")
+
+        // For now these are just to ensure compatibility with existing Jenkins-based configuration
+        param("env.JENKINS_URL", "%teamcity.serverUrl%")
+        param("env.BUILD_URL", "%teamcity.serverUrl%/build/%teamcity.build.id%")
+        param("env.JOB_NAME", "%system.teamcity.buildType.id%")
+        param("env.GIT_BRANCH", "%vcsroot.branch%")
     }
 
     steps {
@@ -61,9 +67,7 @@ object DefaultTemplate : Template({
                 # drop page cache and kernel slab objects on linux
                 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
                 rm -Rfv ~/.gradle/init.d
-                # mkdir -p ~/.gradle/init.d && cp -v .ci/init.gradle ~/.gradle/init.d
-                mkdir -p ~/.gradle/init.d
-                echo "projectsLoaded { rootProject { project.pluginManager.withPlugin('com.gradle.enterprise') { buildScan.server = 'https://gradle-enterprise.elastic.co' } } }" > ~/.gradle/init.d/init.gradle
+                mkdir -p ~/.gradle/init.d && cp -v .ci/teamcity.init.gradle ~/.gradle/init.d
                 if [ -f /proc/cpuinfo ] ; then
                    MAX_WORKERS=`grep '^cpu\scores' /proc/cpuinfo  | uniq | sed 's/\s\+//g' |  cut -d':' -f 2`
                 else

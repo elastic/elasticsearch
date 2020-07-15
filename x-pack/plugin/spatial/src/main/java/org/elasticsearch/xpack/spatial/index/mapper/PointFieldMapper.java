@@ -12,6 +12,7 @@ import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -46,6 +47,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
             PointFieldType ft = new PointFieldType(buildFullName(context), indexed, hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new PointIndexer(ft));
+            ft.setGeometryFormatter(new PointFormatter<>());
             ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
             return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
                 ignoreMalformed, ignoreZValue(context), nullValue, copyTo);
@@ -135,7 +137,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
             return CONTENT_TYPE;
         }
     }
-
+    
     // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint
     // See https://bugs.eclipse.org/bugs/show_bug.cgi?id=565255
     protected static class ParsedCartesianPoint extends CartesianPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {
@@ -162,6 +164,11 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         @Override
         public void resetCoords(double x, double y) {
             this.reset((float)x, (float)y);
+        }
+
+        @Override
+        public Point asGeometry() {
+            return new Point(getX(), getY());
         }
 
         @Override

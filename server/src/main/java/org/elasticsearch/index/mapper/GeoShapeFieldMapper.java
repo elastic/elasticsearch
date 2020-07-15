@@ -73,6 +73,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 ignoreZValue().value());
             ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
             ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), buildFullName(context)));
+            ft.setGeometryFormatter(new GeoShapeFormatter());
             ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
             ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
             return ft;

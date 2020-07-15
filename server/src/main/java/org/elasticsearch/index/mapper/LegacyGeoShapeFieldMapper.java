@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -43,10 +44,13 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -256,6 +260,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             setupPrefixTrees(ft);
             ft.setGeometryIndexer(new LegacyGeoShapeIndexer(ft));
             ft.setGeometryParser(ShapeParser::parse);
+            ft.setGeometryFormatter(new LegacyGeoShapeFormatter());
             ft.setGeometryQueryBuilder(new LegacyGeoShapeQueryProcessor(ft));
             ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
             return ft;
@@ -274,6 +279,23 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             return new LegacyGeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context),
                 coerce(context), orientation(), ignoreZValue(), context.indexSettings(),
                 multiFieldsBuilder.build(this, context), copyTo);
+        }
+    }
+
+    private static class LegacyGeoShapeFormatter implements Formatter<ShapeBuilder<?, ?, ?>> {
+        @Override
+        public Object formatGeoJson(ShapeBuilder<?, ?, ?> value) {
+            try {
+                Geometry geometry = value.buildGeometry();
+                return GeoJson.toXContentMap(geometry);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public String formatWKT(ShapeBuilder<?, ?, ?> value) {
+            return WellKnownText.INSTANCE.toWKT(value.buildGeometry());
         }
     }
 

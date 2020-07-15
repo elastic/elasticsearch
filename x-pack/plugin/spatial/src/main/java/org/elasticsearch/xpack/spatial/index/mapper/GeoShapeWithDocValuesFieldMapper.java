@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFormatter;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -92,6 +93,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
                 ignoreZValue().value());
             ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
             ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), ft.name()));
+            ft.setGeometryFormatter(new GeoShapeFormatter());
             ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
             ft.setOrientation(orientation().value());
             return new GeoShapeWithDocValuesFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),

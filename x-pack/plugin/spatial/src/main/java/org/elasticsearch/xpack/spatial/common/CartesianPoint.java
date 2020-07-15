@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 
@@ -141,13 +142,7 @@ public class CartesianPoint implements ToXContentFragment {
 
     @Override
     public int hashCode() {
-        int result;
-        int temp;
-        temp = x != +0.0f ? Float.floatToIntBits(x) : 0;
-        result = Integer.hashCode(temp);
-        temp = y != +0.0f ? Float.floatToIntBits(y) : 0;
-        result = 31 * result + Integer.hashCode(temp);
-        return result;
+        return Objects.hash(x, y);
     }
 
     @Override

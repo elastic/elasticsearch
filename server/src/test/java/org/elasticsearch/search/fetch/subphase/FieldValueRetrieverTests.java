@@ -120,35 +120,30 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
         MapperService mapperService = createMapperService();
 
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
-            .array("completion", "first", "second")
+            .array("geo_point", 27.1, 42.0)
         .endObject();
 
-        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "completion");
+        Map<String, DocumentField> fields = retrieveFields(mapperService, source, "geo_point");
         assertThat(fields.size(), equalTo(1));
 
-        DocumentField field = fields.get("completion");
-        assertNotNull(field);
-        assertThat(field.getValues().size(), equalTo(2));
-        assertThat(field.getValues(), hasItems("first", "second"));
-
-        // Test a field with multiple geo-points.
-        source = XContentFactory.jsonBuilder().startObject()
-            .startObject("completion")
-                .array("input", "first", "second")
-                .field("weight", "2.718")
-            .endObject()
-        .endObject();
-
-        fields = retrieveFields(mapperService, source, "completion");
-        assertThat(fields.size(), equalTo(1));
-
-        field = fields.get("completion");
+        DocumentField field = fields.get("geo_point");
         assertNotNull(field);
         assertThat(field.getValues().size(), equalTo(1));
 
-        Map<String, Object> expected = Map.of("input", List.of("first", "second"),
-            "weight", "2.718");
-        assertThat(field.getValues().get(0), equalTo(expected));
+        // Test a field with multiple geo-points.
+        source = XContentFactory.jsonBuilder().startObject()
+            .startArray("geo_point")
+                .startArray().value(27.1).value(42.0).endArray()
+                .startArray().value(31.4).value(42.0).endArray()
+            .endArray()
+        .endObject();
+
+        fields = retrieveFields(mapperService, source, "geo_point");
+        assertThat(fields.size(), equalTo(1));
+
+        field = fields.get("geo_point");
+        assertNotNull(field);
+        assertThat(field.getValues().size(), equalTo(2));
     }
 
     public void testFieldNamesWithWildcard() throws IOException {
@@ -355,7 +350,7 @@ public class FieldValueRetrieverTests extends ESSingleNodeTestCase {
                 .startObject("field").field("type", "keyword").endObject()
                 .startObject("integer_field").field("type", "integer").endObject()
                 .startObject("date_field").field("type", "date").endObject()
-                .startObject("completion").field("type", "completion").endObject()
+                .startObject("geo_point").field("type", "geo_point").endObject()
                 .startObject("float_range").field("type", "float_range").endObject()
                 .startObject("object")
                     .startObject("properties")

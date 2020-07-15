@@ -30,16 +30,21 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -80,6 +85,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
      */
     public interface Parser<Parsed> {
         Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+    }
+
+    public interface Formatter<Parsed> {
+        Object formatGeoJson(Parsed value);
+        Object formatWKT(Parsed value);
     }
 
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType>
@@ -143,7 +153,31 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     @Override
     protected Object parseSourceValue(Object value, String format) {
-        throw new UnsupportedOperationException();
+        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
+        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
+        Formatter<Parsed> geometryFormatter = mappedFieldType.geometryFormatter();
+
+        Parsed geometry;
+        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+            Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
+            parser.nextToken(); // start object
+            parser.nextToken(); // field name
+            parser.nextToken(); // field value
+            geometry = geometryParser.parse(parser, this);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+
+        if (format == null || format.equals("geojson")) {
+            return geometryFormatter.formatGeoJson(geometry);
+        } else if (format.equals("wkt")) {
+            return geometryFormatter.formatWKT(geometry);
+        } else {
+            throw new IllegalArgumentException("Encountered an unsupported format [" + format + "] when " +
+                "loading values for the [" + contentType() +"] field named [" + name() + "]");
+        }
     }
 
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
@@ -187,6 +221,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
         protected Indexer<Parsed, Processed> geometryIndexer;
         protected Parser<Parsed> geometryParser;
+        protected Formatter<Parsed> geometryFormatter;
         protected QueryProcessor geometryQueryBuilder;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
@@ -211,6 +246,14 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         protected Parser<Parsed> geometryParser() {
             return geometryParser;
+        }
+
+        public void setGeometryFormatter(Formatter<Parsed> geometryFormatter) {
+            this.geometryFormatter = geometryFormatter;
+        }
+
+        protected Formatter<Parsed> geometryFormatter() {
+            return geometryFormatter;
         }
 
         public QueryProcessor geometryQueryBuilder() {

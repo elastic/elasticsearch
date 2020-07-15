@@ -22,12 +22,17 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -158,6 +163,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         void validate(String fieldName);
         void normalize(String fieldName);
         void resetCoords(double x, double y);
+        Point asGeometry();
         default boolean isNormalizable(double coord) {
             return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
         }
@@ -237,6 +243,32 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                 points.add(point);
                 return points;
             }
+        }
+    }
+
+    public static class PointFormatter<P extends ParsedPoint> implements Formatter<List<P>> {
+        @Override
+        public Object formatGeoJson(List<P> points) {
+            List<Object> result = new ArrayList<>();
+            for (ParsedPoint point : points) {
+                try {
+                    Geometry geometry = point.asGeometry();
+                    result.add(GeoJson.toXContentMap(geometry));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public Object formatWKT(List<P> points) {
+            List<String> result = new ArrayList<>();
+            for (ParsedPoint point : points) {
+                Geometry geometry = point.asGeometry();
+                result.add(WellKnownText.INSTANCE.toWKT(geometry));
+            }
+            return result;
         }
     }
 }

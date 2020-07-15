@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -60,7 +61,11 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
     }
 
     public void testBackwardsSerialization72() throws IOException {
-        DateHistogramGroupSource groupSource = randomDateHistogramGroupSource(Version.V_7_2_0);
+        // version 7.7 introduced scripts, so test before that
+        DateHistogramGroupSource groupSource = randomDateHistogramGroupSource(
+            VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.V_7_7_0)
+        );
+
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_7_2_0);
             groupSource.writeTo(output);

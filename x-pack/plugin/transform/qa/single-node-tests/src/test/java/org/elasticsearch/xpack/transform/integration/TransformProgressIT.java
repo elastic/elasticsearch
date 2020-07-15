@@ -131,7 +131,7 @@ public class TransformProgressIT extends ESRestTestCase {
         DestConfig destConfig = new DestConfig("unnecessary", null);
         GroupConfig histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("count", null, 50.0))
+            Collections.singletonMap("every_50", new HistogramGroupSource("count", null, false, 50.0))
         );
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
@@ -158,7 +158,7 @@ public class TransformProgressIT extends ESRestTestCase {
 
         histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
-            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, 50.0))
+            Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, false, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         pivot = new Pivot(pivotConfig, transformId);
@@ -192,10 +192,7 @@ public class TransformProgressIT extends ESRestTestCase {
 
             function.getInitialProgressFromResponse(
                 response,
-                new LatchedActionListener<>(
-                    ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }),
-                    latch
-                )
+                new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }), latch)
             );
         }
 

@@ -306,6 +306,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
         MapperService mapperService = mapperServiceMock();
+        when(mapperService.fieldTypes()).thenReturn(List.of(fieldTypes));
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(searchContext.mapperService()).thenReturn(mapperService);

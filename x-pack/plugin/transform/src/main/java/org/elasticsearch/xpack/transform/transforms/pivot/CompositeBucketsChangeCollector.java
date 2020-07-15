@@ -128,7 +128,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                     changedTerms.add(term.toString());
                 } else {
                     // we should not find a null bucket if missing bucket is false
-                    assert missingBucket == true;
+                    assert missingBucket;
                     foundNullBucket = true;
                 }
             }
@@ -319,7 +319,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
                     changedBuckets.add(bucket.toString());
                 } else {
                     // we should not find a null bucket if missing bucket is false
-                    assert missingBucket == true;
+                    assert missingBucket;
                     foundNullBucket = true;
                 }
             }

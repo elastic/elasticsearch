@@ -175,3 +175,15 @@ after both successful and unsuccessful analysis which makes it easier to
 diagnose issues with file upload.
 
 // end::notable-highlights[]
+
+
+// tag::notable-highlights[]
+[float]
+[[release-highlights-7.8.1-ccr-out-of-memory-fix]]
+==== Fixed out-of-memory error when using {ccr} with large documents
+
+A bug caused {ccr} to use more memory than configured with large documents,
+which could cause memory pressure or even out-of-memory errors in some cases.
+
+// end::notable-highlights[]
+

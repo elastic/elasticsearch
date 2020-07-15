@@ -7,7 +7,7 @@
 See also <<release-notes-6.8.11,{es} 6.8.11 release notes>>.
 
 [float]
-==== Fixed out-of-memory error when using CCR with large documents
+==== Fixed out-of-memory error when using {ccr} with large documents
 
-A bug caused CCR to use more memory than configured with large documents, which
-could cause memory pressure or even out-of-memory errors in some cases.
+A bug caused {ccr} to use more memory than configured with large documents,
+which could cause memory pressure or even out-of-memory errors in some cases.

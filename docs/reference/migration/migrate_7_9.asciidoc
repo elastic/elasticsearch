@@ -75,21 +75,23 @@ context.  For example, for the `processor_conditional` context, use
 === Settings changes
 
 [[deprecate_auto_import_dangling_indices]]
-.Automatically importing dangling indices is deprecated.
+.Automatically importing dangling indices is disabled by default.
 
 [%collapsible]
 ====
 *Details* +
-<<dangling-indices,Dangling indices>> will no longer be imported
-automatically by default. A new
-<<dangling-indices-api,Dangling indices API>> is now available, which you
-can use to list, import, or delete. Because importing dangling indices
-automatically into the cluster is unsafe, use the dedicated API instead.
+Automatically importing <<dangling-indices,dangling indices>> into the cluster
+is unsafe and is now disabled by default. This feature will be removed entirely
+in {es} 8.0.0.
 
 *Impact* +
-Automatically importing dangling indices is now deprecated, disabled by
-default, and will be removed in (es) 8.0. If you need to re-enable
-auto-imports, set `gateway.auto_import_dangling_indices` to `true`.
+Use the <<dangling-indices-api,Dangling indices API>> to list, delete or import
+any dangling indices manually.
+
+Alternatively you can enable automatic imports of dangling indices, recovering
+the unsafe behaviour of earlier versions, by setting
+`gateway.auto_import_dangling_indices` to `true`. This setting is deprecated
+and will be removed in {es} 8.0.0. We do not recommend using this setting.
 
 ====
 //end::notable-breaking-changes[]

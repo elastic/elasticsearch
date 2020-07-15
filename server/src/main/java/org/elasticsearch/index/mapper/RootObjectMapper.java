@@ -255,6 +255,10 @@ public class RootObjectMapper extends ObjectMapper {
         return findTemplateBuilder(context, name, matchType, null);
     }
 
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, DateFormatter dateFormatter) {
+        return findTemplateBuilder(context, name, XContentFieldType.DATE, dateFormatter);
+    }
+
     /**
      * Find a template. Returns {@code null} if no template could be found.
      * @param name        the field name
@@ -263,14 +267,13 @@ public class RootObjectMapper extends ObjectMapper {
      * @return a mapper builder, or null if there is no template for such a field
      */
     @SuppressWarnings("rawtypes")
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
+    private Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType, DateFormatter dateFormat) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
         String dynamicType = matchType.defaultMappingType();
-        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext();
-        parserContext.setDateFormatter(dateFormat);
+        Mapper.TypeParser.ParserContext parserContext = context.docMapperParser().parserContext(dateFormat);
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {

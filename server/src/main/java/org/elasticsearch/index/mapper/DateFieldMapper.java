@@ -195,11 +195,6 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
             }
         }
 
-        // for testing
-        public Builder(String name) {
-            this(name, Resolution.MILLISECONDS, null, false);
-        }
-
         protected DateFieldType setupFieldType(BuilderContext context) {
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
             return new DateFieldType(buildFullName(context), index.getValue(), docValues.getValue(),

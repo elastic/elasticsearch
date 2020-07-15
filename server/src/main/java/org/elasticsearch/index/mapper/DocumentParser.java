@@ -680,7 +680,7 @@ final class DocumentParser {
                         continue;
                     }
                     Mapper.Builder builder
-                        = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE, dateTimeFormatter);
+                        = context.root().findTemplateBuilder(context, currentFieldName, dateTimeFormatter);
                     if (builder == null) {
                         boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
                         builder = new DateFieldMapper.Builder(currentFieldName, DateFieldMapper.Resolution.MILLISECONDS,

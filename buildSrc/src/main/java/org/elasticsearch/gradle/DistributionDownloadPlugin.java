@@ -44,9 +44,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
 
 import java.io.File;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
@@ -101,7 +99,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private void setupResolutionsContainer(Project project) {
         distributionsResolutionStrategiesContainer = project.container(DistributionResolution.class);
         // We want this ordered in the same resolution strategies are added
-        distributionsResolutionStrategiesContainer.whenObjectAdded(resolveDependencyNotation -> resolveDependencyNotation.setPriority(distributionsResolutionStrategiesContainer.size()));
+        distributionsResolutionStrategiesContainer.whenObjectAdded(
+            resolveDependencyNotation -> resolveDependencyNotation.setPriority(distributionsResolutionStrategiesContainer.size())
+        );
         project.getExtensions().add(RESOLUTION_CONTAINER_NAME, distributionsResolutionStrategiesContainer);
     }
 

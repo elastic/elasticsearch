@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -96,9 +95,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeAliases = in.readBoolean();
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            snapshotUuid = in.readOptionalString();
-        }
+        snapshotUuid = in.readOptionalString();
     }
 
     @Override
@@ -116,12 +113,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeAliases);
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalString(snapshotUuid);
-        } else if (snapshotUuid != null) {
-            throw new IllegalStateException(
-                    "restricting the snapshot UUID is forbidden in a cluster with version [" + out.getVersion() + "] nodes");
-        }
+        out.writeOptionalString(snapshotUuid);
     }
 
     @Override

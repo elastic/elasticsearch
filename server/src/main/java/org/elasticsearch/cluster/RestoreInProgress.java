@@ -27,13 +27,13 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -69,12 +69,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
-        RestoreInProgress that = (RestoreInProgress) o;
-
-        if (!entries.equals(that.entries)) return false;
-
-        return true;
+        return entries.equals(((RestoreInProgress) o).entries);
     }
 
     @Override
@@ -225,7 +220,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     /**
      * Represents status of a restored shard
      */
-    public static class ShardRestoreStatus {
+    public static class ShardRestoreStatus implements Writeable {
         private State state;
         private String nodeId;
         private String reason;
@@ -320,6 +315,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          *
          * @param out stream input
          */
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
@@ -368,7 +364,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
          */
         FAILURE((byte) 3);
 
-        private byte value;
+        private final byte value;
 
         /**
          * Constructs new state
@@ -448,19 +444,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             }
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
-            int indices = in.readVInt();
-            List<String> indexBuilder = new ArrayList<>();
-            for (int j = 0; j < indices; j++) {
-                indexBuilder.add(in.readString());
-            }
-            ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> builder = ImmutableOpenMap.builder();
-            int shards = in.readVInt();
-            for (int j = 0; j < shards; j++) {
-                ShardId shardId = new ShardId(in);
-                ShardRestoreStatus shardState = ShardRestoreStatus.readShardRestoreStatus(in);
-                builder.put(shardId, shardState);
-            }
-            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, Collections.unmodifiableList(indexBuilder), builder.build()));
+            List<String> indexBuilder = in.readStringList();
+            entriesBuilder.put(uuid, new Entry(uuid, snapshot, state, Collections.unmodifiableList(indexBuilder),
+                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)));
         }
         this.entries = entriesBuilder.build();
     }
@@ -475,15 +461,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             }
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
-            out.writeVInt(entry.indices().size());
-            for (String index : entry.indices()) {
-                out.writeString(index);
-            }
-            out.writeVInt(entry.shards().size());
-            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shardEntry : entry.shards()) {
-                shardEntry.key.writeTo(out);
-                shardEntry.value.writeTo(out);
-            }
+            out.writeStringCollection(entry.indices);
+            out.writeMap(entry.shards);
         }
     }
 

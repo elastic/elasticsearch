@@ -57,11 +57,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class SnapshotStatus implements ToXContentObject, Writeable {
 
-    private Snapshot snapshot;
+    private final Snapshot snapshot;
 
-    private State state;
+    private final State state;
 
-    private List<SnapshotIndexShardStatus> shards;
+    private final List<SnapshotIndexShardStatus> shards;
 
     private Map<String, SnapshotIndexStatus> indicesStatus;
 
@@ -75,12 +75,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     SnapshotStatus(StreamInput in) throws IOException {
         snapshot = new Snapshot(in);
         state = State.fromValue(in.readByte());
-        int size = in.readVInt();
-        List<SnapshotIndexShardStatus> builder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            builder.add(new SnapshotIndexShardStatus(in));
-        }
-        shards = Collections.unmodifiableList(builder);
+        shards = Collections.unmodifiableList(in.readList(SnapshotIndexShardStatus::new));
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             includeGlobalState = in.readOptionalBoolean();
         }
@@ -185,10 +180,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         snapshot.writeTo(out);
         out.writeByte(state.value());
-        out.writeVInt(shards.size());
-        for (SnapshotIndexShardStatus shard : shards) {
-            shard.writeTo(out);
-        }
+        out.writeList(shards);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeOptionalBoolean(includeGlobalState);
         }
@@ -299,14 +291,9 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
 
         SnapshotStatus that = (SnapshotStatus) o;
-
-        if (snapshot != null ? !snapshot.equals(that.snapshot) : that.snapshot != null) return false;
-        if (state != that.state) return false;
-        if (indicesStatus != null ? !indicesStatus.equals(that.indicesStatus) : that.indicesStatus != null)
-            return false;
-        if (shardsStats != null ? !shardsStats.equals(that.shardsStats) : that.shardsStats != null) return false;
-        if (stats != null ? !stats.equals(that.stats) : that.stats != null) return false;
-        return includeGlobalState != null ? includeGlobalState.equals(that.includeGlobalState) : that.includeGlobalState == null;
+        return Objects.equals(snapshot, that.snapshot) && state == that.state && Objects.equals(indicesStatus, that.indicesStatus)
+                && Objects.equals(shardsStats, that.shardsStats) && Objects.equals(stats, that.stats)
+                && Objects.equals(includeGlobalState, that.includeGlobalState);
     }
 
     @Override

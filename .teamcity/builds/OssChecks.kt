@@ -17,38 +17,23 @@
  * under the License.
  */
 
-import builds.OssChecks
-import builds.SanityCheck
-import builds.XpackChecks
-import jetbrains.buildServer.configs.kotlin.v2019_2.*
-import templates.DefaultTemplate
+package builds
 
-version = "2020.1"
+import dependsOn
+import jetbrains.buildServer.configs.kotlin.v2019_2.BuildType
+import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.gradle
 
-project {
-    vcsRoot(DefaultRoot)
-    template(DefaultTemplate)
+object OssChecks : BuildType({
+    name = "OSS Checks"
+    description = "Runs test suite for OSS distribution modules"
 
-    defaultTemplate = DefaultTemplate
+    dependsOn(SanityCheck)
 
-    buildType {
-        id("Passed_Intake")
-        name = "Passed Intake"
-        type = BuildTypeSettings.Type.COMPOSITE
-
-        dependsOn(OssChecks, XpackChecks) {
-            onDependencyFailure = FailureAction.ADD_PROBLEM
-            onDependencyCancel = FailureAction.ADD_PROBLEM
+    steps {
+        gradle {
+            useGradleWrapper = true
+            gradleParams = "--scan"
+            tasks = "checkPart1"
         }
     }
-
-    subProject {
-        id("Checks")
-        name = "Checks"
-
-        buildType(SanityCheck)
-        buildType(OssChecks)
-        buildType(XpackChecks)
-    }
-
-}
+})

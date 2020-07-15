@@ -34,6 +34,10 @@ fun BuildType.dependsOn(buildType: BuildType, init: SnapshotDependency.() -> Uni
     }
 }
 
+fun BuildType.dependsOn(vararg buildTypes: BuildType, init: SnapshotDependency.() -> Unit) {
+    buildTypes.forEach { dependsOn(it, init) }
+}
+
 fun BuildType.dependsOn(buildType: BuildType) {
     dependsOn(buildType) {}
 }

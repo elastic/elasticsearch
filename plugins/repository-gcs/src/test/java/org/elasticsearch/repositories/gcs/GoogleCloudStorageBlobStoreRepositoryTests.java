@@ -169,10 +169,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () -> {
             final RepositoryMetadata repoMetadata = new RepositoryMetadata("repo", GoogleCloudStorageRepository.TYPE,
-                                                                        Settings.builder().put("chunk_size", "101mb").build());
+                                                                        Settings.builder().put("chunk_size", "6tb").build());
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetadata);
         });
-        assertEquals("failed to parse value [101mb] for setting [chunk_size], must be <= [100mb]", e.getMessage());
+        assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= [5tb]", e.getMessage());
     }
 
     public void testWriteReadLarge() throws IOException {

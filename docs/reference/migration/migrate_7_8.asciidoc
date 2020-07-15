@@ -9,6 +9,7 @@ your application to {es} 7.8.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
+* <<breaking_781_license_changes>>
 * <<breaking_78_aggregation_changes>>
 * <<breaking_78_mappings_changes>>
 * <<breaking_78_settings_changes>>
@@ -17,6 +18,26 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //Installation and Upgrade Guide
 
 //tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking_781_license_changes]]
+=== License Information changes
+
+As of the `7.8.1` release
+
+.Displays enterprise license as platinum in /_xpack 
+[%collapsible]
+====
+*Details*
+The GET /_license endpoint displays "enterprise" licenses as
+"platinum" by default so that old clients (including beats, kibana and
+logstash) know to interpret this new license type as if it were a
+platinum license.
+
+However, this compatibility layer was not applied to the GET /_xpack/
+endpoint which also displays a license type & mode. {es-pull}58217[#58217]
+====
+
 
 [discrete]
 [[breaking_78_aggregation_changes]]

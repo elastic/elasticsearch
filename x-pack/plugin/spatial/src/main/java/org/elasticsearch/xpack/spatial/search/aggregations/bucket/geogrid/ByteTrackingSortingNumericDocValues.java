@@ -15,11 +15,11 @@ import java.util.function.LongConsumer;
  */
 abstract class ByteTrackingSortingNumericDocValues extends AbstractSortingNumericDocValues {
 
-    public ByteTrackingSortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
+    ByteTrackingSortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
         super(circuitBreakerConsumer);
     }
 
-    public long getValuesBytes() {
+    long getValuesBytes() {
         return values.length * Long.BYTES;
     }
 }

@@ -41,21 +41,6 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
 
     // TODO: check reuse of root task across projects MOVE TO UNIT TEST
     // TODO: future: check integ-test-zip to maven, snapshots to snapshot service for external project
-    public void testCurrent() throws Exception {
-        String projectName = ":distribution:archives:linux-tar";
-        assertExtractedDistro(
-            VersionProperties.getElasticsearch(),
-            "archive",
-            "linux",
-            null,
-            null,
-            "tests.local_distro.config",
-            "default",
-            "tests.local_distro.project",
-            projectName
-        );
-    }
-
     public void testCurrentExternal() throws Exception {
         checkService(
             VersionProperties.getElasticsearch(),

@@ -57,6 +57,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
+`verbose`::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=verbose]
+
 [role="child_attributes"]
 [[ml-get-dfanalytics-stats-response-body]]
 ==== {api-response-body-title}

@@ -69,7 +69,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private final Map<String, CircuitBreaker> breakers;
 
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
-        Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
+        Setting.boolSetting("indices.breaker.total.use_real_memory", settings -> {
+            // turn real memory circuit breaker off for ParallelGC
+            return String.valueOf(!JvmInfo.jvmInfo().useParallelGC().equals("true"));
+        }, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.total.limit", settings -> {

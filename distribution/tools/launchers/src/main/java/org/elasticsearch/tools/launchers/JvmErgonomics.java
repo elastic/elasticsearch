@@ -53,25 +53,53 @@ final class JvmErgonomics {
      */
     static List<String> choose(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
         final List<String> ergonomicChoices = new ArrayList<>();
-        final Map<String, Optional<String>> finalJvmOptions = finalJvmOptions(userDefinedJvmOptions);
+        final Map<String, JvmOption> finalJvmOptions = finalJvmOptions(userDefinedJvmOptions);
         final long heapSize = extractHeapSize(finalJvmOptions);
         final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
         if (maxDirectMemorySize == 0) {
             ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
         }
+        // Use ParallelGC for heaps <= 4GB unless the user has explicitly set the garbage collector
+        JvmOption g1 = finalJvmOptions.get("UseG1GC");
+        if (heapSize <= 4 * 1024 * 1024 * 1024 && g1.getMandatoryValue().equals("true") && g1.isCommandLineOrigin() == false) {
+            ergonomicChoices.add("-XX:+UseParallelGC");
+        }
+        System.out.println("HEre inn");
         return ergonomicChoices;
     }
 
     private static final Pattern OPTION = Pattern.compile(
-        "^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}\\s+\\{[^}]+}"
+        "^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}\\s+\\{(?<origin>[^}]+)}"
     );
 
-    static Map<String, Optional<String>> finalJvmOptions(final List<String> userDefinedJvmOptions) throws InterruptedException,
+    private static class JvmOption {
+        private final String value;
+        private final String origin;
+
+        public JvmOption(String value, String origin) {
+            this.value = value;
+            this.origin = origin;
+        }
+
+        public Optional<String> getValue() {
+            return Optional.ofNullable(value);
+        }
+
+        public String getMandatoryValue() {
+            return value;
+        }
+
+        public boolean isCommandLineOrigin() {
+            return "command line".equals(this.origin);
+        }
+    }
+
+    static Map<String, JvmOption> finalJvmOptions(final List<String> userDefinedJvmOptions) throws InterruptedException,
         IOException {
         return flagsFinal(userDefinedJvmOptions).stream()
             .map(OPTION::matcher)
             .filter(Matcher::matches)
-            .collect(Collectors.toUnmodifiableMap(m -> m.group("flag"), m -> Optional.ofNullable(m.group("value"))));
+            .collect(Collectors.toUnmodifiableMap(m -> m.group("flag"), m -> new JvmOption(m.group("value"), m.group("origin"))));
     }
 
     private static List<String> flagsFinal(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
@@ -116,12 +144,12 @@ final class JvmErgonomics {
     }
 
     // package private for testing
-    static Long extractHeapSize(final Map<String, Optional<String>> finalJvmOptions) {
-        return Long.parseLong(finalJvmOptions.get("MaxHeapSize").get());
+    static Long extractHeapSize(final Map<String, JvmOption> finalJvmOptions) {
+        return Long.parseLong(finalJvmOptions.get("MaxHeapSize").getMandatoryValue());
     }
 
-    static long extractMaxDirectMemorySize(final Map<String, Optional<String>> finalJvmOptions) {
-        return Long.parseLong(finalJvmOptions.get("MaxDirectMemorySize").get());
+    static long extractMaxDirectMemorySize(final Map<String, JvmOption> finalJvmOptions) {
+        return Long.parseLong(finalJvmOptions.get("MaxDirectMemorySize").getMandatoryValue());
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

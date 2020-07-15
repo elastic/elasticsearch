@@ -98,6 +98,7 @@ public class JvmInfo implements ReportingService.Info {
         String onOutOfMemoryError = null;
         String useCompressedOops = "unknown";
         String useG1GC = "unknown";
+        String useParallelGC = "unknown";
         long g1RegisionSize = -1;
         String useSerialGC = "unknown";
         long configuredInitialHeapSize = -1;
@@ -149,6 +150,12 @@ public class JvmInfo implements ReportingService.Info {
             }
 
             try {
+                Object useParallelGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseParallelGC");
+                useParallelGC = (String) valueMethod.invoke(useParallelGCVmOptionObject);
+            } catch (Exception ignored) {
+            }
+
+            try {
                 Object useSerialGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseSerialGC");
                 useSerialGC = (String) valueMethod.invoke(useSerialGCVmOptionObject);
             } catch (Exception ignored) {
@@ -183,6 +190,7 @@ public class JvmInfo implements ReportingService.Info {
                 onOutOfMemoryError,
                 useCompressedOops,
                 useG1GC,
+                useParallelGC,
                 useSerialGC,
                 g1RegisionSize);
     }
@@ -233,6 +241,7 @@ public class JvmInfo implements ReportingService.Info {
     private final String onOutOfMemoryError;
     private final String useCompressedOops;
     private final String useG1GC;
+    private final String useParallelGC;
     private final String useSerialGC;
     private final long g1RegionSize;
 
@@ -240,7 +249,7 @@ public class JvmInfo implements ReportingService.Info {
                     long startTime, long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments,
                     String bootClassPath, String classPath, Map<String, String> systemProperties, String[] gcCollectors,
                     String[] memoryPools, String onError, String onOutOfMemoryError, String useCompressedOops, String useG1GC,
-                    String useSerialGC, long g1RegionSize) {
+                    String useParallelGC, String useSerialGC, long g1RegionSize) {
         this.pid = pid;
         this.version = version;
         this.vmName = vmName;
@@ -262,6 +271,7 @@ public class JvmInfo implements ReportingService.Info {
         this.onOutOfMemoryError = onOutOfMemoryError;
         this.useCompressedOops = useCompressedOops;
         this.useG1GC = useG1GC;
+        this.useParallelGC = useParallelGC;
         this.useSerialGC = useSerialGC;
         this.g1RegionSize = g1RegionSize;
     }
@@ -297,6 +307,7 @@ public class JvmInfo implements ReportingService.Info {
         this.onError = null;
         this.onOutOfMemoryError = null;
         this.useG1GC = "unknown";
+        this.useParallelGC = "unknown";
         this.useSerialGC = "unknown";
         this.g1RegionSize = -1;
     }
@@ -488,6 +499,10 @@ public class JvmInfo implements ReportingService.Info {
 
     public String useG1GC() {
         return this.useG1GC;
+    }
+
+    public String useParallelGC() {
+        return this.useParallelGC;
     }
 
     public String useSerialGC() {

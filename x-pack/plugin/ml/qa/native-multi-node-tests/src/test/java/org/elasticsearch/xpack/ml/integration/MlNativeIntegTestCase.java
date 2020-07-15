@@ -123,7 +123,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             Netty4Plugin.class,
             ReindexPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class);
+            IndexLifecycle.class,
+            DataStreamsPlugin.class);
     }
 
     @Override

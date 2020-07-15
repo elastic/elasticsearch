@@ -19,11 +19,18 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.sort.SortOrder;
+
+import java.util.function.LongConsumer;
+import java.util.function.LongUnaryOperator;
 
 class CompositeValuesSourceConfig {
     private final String name;
@@ -106,5 +113,80 @@ class CompositeValuesSourceConfig {
     int reverseMul() {
         assert reverseMul == -1 || reverseMul == 1;
         return reverseMul;
+    }
+
+    SingleDimensionValuesSource<?> createValuesSource(BigArrays bigArrays, IndexReader reader,
+                                                      int size, LongConsumer addRequestCircuitBreakerBytes) {
+        final int reverseMul = reverseMul();
+        if (valuesSource() instanceof ValuesSource.Bytes.WithOrdinals && reader instanceof DirectoryReader) {
+            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) valuesSource();
+            return new GlobalOrdinalValuesSource(
+                bigArrays,
+                fieldType(),
+                vs::globalOrdinalsValues,
+                format(),
+                missingBucket(),
+                size,
+                reverseMul
+            );
+        } else if (valuesSource() instanceof ValuesSource.Bytes) {
+            ValuesSource.Bytes vs = (ValuesSource.Bytes) valuesSource();
+            return new BinaryValuesSource(
+                bigArrays,
+                addRequestCircuitBreakerBytes,
+                fieldType(),
+                vs::bytesValues,
+                format(),
+                missingBucket(),
+                size,
+                reverseMul
+            );
+
+        } else if (valuesSource() instanceof CellIdSource) {
+            final CellIdSource cis = (CellIdSource) valuesSource();
+            return new GeoTileValuesSource(
+                bigArrays,
+                fieldType(),
+                cis::longValues,
+                LongUnaryOperator.identity(),
+                format(),
+                missingBucket(),
+                size,
+                reverseMul);
+        } else if (valuesSource() instanceof ValuesSource.Numeric) {
+            final ValuesSource.Numeric vs = (ValuesSource.Numeric) valuesSource();
+            if (vs.isFloatingPoint()) {
+                return new DoubleValuesSource(
+                    bigArrays,
+                    fieldType(),
+                    vs::doubleValues,
+                    format(),
+                    missingBucket(),
+                    size,
+                    reverseMul
+                );
+
+            } else {
+                final LongUnaryOperator rounding;
+                if (vs instanceof RoundingValuesSource) {
+                    rounding = ((RoundingValuesSource) vs)::round;
+                } else {
+                    rounding = LongUnaryOperator.identity();
+                }
+                return new LongValuesSource(
+                    bigArrays,
+                    fieldType(),
+                    vs::longValues,
+                    rounding,
+                    format(),
+                    missingBucket(),
+                    size,
+                    reverseMul
+                );
+            }
+        } else {
+            throw new IllegalArgumentException("Unknown values source type: " + valuesSource().getClass().getName() +
+                " for source: " + name());
+        }
     }
 }

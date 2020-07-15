@@ -21,6 +21,8 @@ final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.u
 final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
 
 if (buildCacheUrl) {
+  throw new RuntimeException("barf!")
+
   gradle.settingsEvaluated { settings ->
     settings.buildCache {
       local {

@@ -22,14 +22,14 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.BinaryMathNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.BinaryType;
+import org.elasticsearch.painless.symbol.Decorations.Concatenate;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ShiftType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
@@ -73,7 +73,7 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -84,27 +84,23 @@ public class EBinary extends AExpression {
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        Class<?> promote;
-        Class<?> shiftDistance = null;
-
         semanticScope.setCondition(leftNode, Read.class);
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
+        analyze(leftNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
 
         semanticScope.setCondition(rightNode, Read.class);
-        Output rightOutput = analyze(rightNode, classNode, semanticScope);
+        analyze(rightNode, semanticScope);
         Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
-
-        Output output = new Output();
+        
         Class<?> valueType;
-        PainlessCast leftCast = null;
-        PainlessCast rightCast = null;
+        Class<?> promote;
+        Class<?> shiftDistance = null;
 
         if (operation == Operation.FIND || operation == Operation.MATCH) {
             semanticScope.putDecoration(leftNode, new TargetType(String.class));
             semanticScope.putDecoration(rightNode, new TargetType(Pattern.class));
-            leftCast = leftNode.cast(semanticScope);
-            rightCast = rightNode.cast(semanticScope);
+            leftNode.cast(semanticScope);
+            rightNode.cast(semanticScope);
             promote = boolean.class;
             valueType = boolean.class;
         } else {
@@ -139,20 +135,14 @@ public class EBinary extends AExpression {
             valueType = promote;
 
             if (operation == Operation.ADD && promote == String.class) {
-                if (leftOutput.expressionNode instanceof BinaryMathNode) {
-                    BinaryMathNode binaryMathNode = (BinaryMathNode)leftOutput.expressionNode;
-
-                    if (binaryMathNode.getOperation() == Operation.ADD && leftValueType == String.class) {
-                        ((BinaryMathNode)leftOutput.expressionNode).setCat(true);
-                    }
+                if (leftNode instanceof EBinary &&
+                        ((EBinary)leftNode).getOperation() == Operation.ADD && leftValueType == String.class) {
+                    semanticScope.setCondition(leftNode, Concatenate.class);
                 }
-
-                if (rightOutput.expressionNode instanceof BinaryMathNode) {
-                    BinaryMathNode binaryMathNode = (BinaryMathNode)rightOutput.expressionNode;
-
-                    if (binaryMathNode.getOperation() == Operation.ADD && rightValueType == String.class) {
-                        ((BinaryMathNode)rightOutput.expressionNode).setCat(true);
-                    }
+                
+                if (rightNode instanceof EBinary &&
+                        ((EBinary)rightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
+                    semanticScope.setCondition(rightNode, Concatenate.class);
                 }
             } else if (promote == def.class || shiftDistance == def.class) {
                 TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
@@ -174,25 +164,16 @@ public class EBinary extends AExpression {
                     semanticScope.putDecoration(rightNode, new TargetType(promote));
                 }
 
-                leftCast = leftNode.cast(semanticScope);
-                rightCast = rightNode.cast(semanticScope);
+                leftNode.cast(semanticScope);
+                rightNode.cast(semanticScope);
             }
         }
 
         semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(this, new BinaryType(promote));
 
-        BinaryMathNode binaryMathNode = new BinaryMathNode();
-        binaryMathNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
-        binaryMathNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-        binaryMathNode.setLocation(getLocation());
-        binaryMathNode.setExpressionType(valueType);
-        binaryMathNode.setBinaryType(promote);
-        binaryMathNode.setShiftType(shiftDistance);
-        binaryMathNode.setOperation(operation);
-        binaryMathNode.setCat(false);
-        binaryMathNode.setOriginallyExplicit(semanticScope.getCondition(this, Explicit.class));
-        output.expressionNode = binaryMathNode;
-
-        return output;
+        if (shiftDistance != null) {
+            semanticScope.putDecoration(this, new ShiftType(shiftDistance));
+        }
     }
 }

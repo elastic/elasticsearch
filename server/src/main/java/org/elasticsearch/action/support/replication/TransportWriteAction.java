@@ -80,17 +80,24 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markIndexingOperationStarted(primaryOperationSize(request), forceExecution);
+        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
     }
 
     @Override
-    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal) {
-        // If this primary request was submitted by a reroute performed on this local node, we have already
-        // accounted the bytes.
+    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
         if (rerouteWasLocal) {
-            return () -> {};
+            // If this primary request was received from a local reroute initiated by the node client, we
+            // must mark a new primary operation local to the coordinating node.
+            if (localRerouteInitiatedByNodeClient) {
+                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+            } else {
+                return () -> {};
+            }
         } else {
-            return indexingPressure.markIndexingOperationStarted(primaryOperationSize(request), forceExecution);
+            // If this primary request was received directly from the network, we must mark a new primary
+            // operation. This happens if the write action skips the reroute step (ex: rsync) or during
+            // primary delegation, after the primary relocation hand-off.
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
         }
     }
 

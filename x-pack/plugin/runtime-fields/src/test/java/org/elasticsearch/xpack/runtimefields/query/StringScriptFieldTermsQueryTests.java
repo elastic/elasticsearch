@@ -10,8 +10,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
@@ -23,22 +25,45 @@ public class StringScriptFieldTermsQueryTests extends AbstractStringScriptFieldQ
     @Override
     protected StringScriptFieldTermsQuery createTestInstance() {
         Set<String> terms = new TreeSet<>(Arrays.asList(generateRandomStringArray(4, 6, false, false)));
-        return new StringScriptFieldTermsQuery(leafFactory, randomAlphaOfLength(5), terms);
+        return new StringScriptFieldTermsQuery(randomScript(), leafFactory, randomAlphaOfLength(5), terms);
     }
 
     @Override
     protected StringScriptFieldTermsQuery copy(StringScriptFieldTermsQuery orig) {
-        return new StringScriptFieldTermsQuery(leafFactory, orig.fieldName(), orig.terms());
+        return new StringScriptFieldTermsQuery(orig.script(), leafFactory, orig.fieldName(), orig.terms());
     }
 
     @Override
     protected StringScriptFieldTermsQuery mutate(StringScriptFieldTermsQuery orig) {
-        if (randomBoolean()) {
-            return new StringScriptFieldTermsQuery(leafFactory, orig.fieldName() + "modified", orig.terms());
+        Script script = orig.script();
+        String fieldName = orig.fieldName();
+        Set<String> terms = orig.terms();
+        switch (randomInt(2)) {
+            case 0:
+                script = randomValueOtherThan(script, this::randomScript);
+                break;
+            case 1:
+                fieldName += "modified";
+                break;
+            case 2:
+                terms = new TreeSet<>(orig.terms());
+                terms.add(randomAlphaOfLength(7));
+                break;
+            default:
+                fail();
         }
-        Set<String> terms = new TreeSet<>(orig.terms());
-        terms.add(randomAlphaOfLength(7));
-        return new StringScriptFieldTermsQuery(leafFactory, orig.fieldName(), terms);
+        return new StringScriptFieldTermsQuery(script, leafFactory, fieldName, terms);
+    }
+
+    @Override
+    public void testMatches() {
+        StringScriptFieldTermsQuery query = new StringScriptFieldTermsQuery(randomScript(), leafFactory, "test", Set.of("foo", "bar"));
+        assertTrue(query.matches(List.of("foo")));
+        assertTrue(query.matches(List.of("bar")));
+        assertFalse(query.matches(List.of("baz")));
+        assertTrue(query.matches(List.of("foo", "baz")));
+        assertTrue(query.matches(List.of("bar", "baz")));
+        assertFalse(query.matches(List.of("baz", "bort")));
     }
 
     @Override

@@ -10,8 +10,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
@@ -21,20 +23,41 @@ import static org.hamcrest.Matchers.equalTo;
 public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldTermQuery> {
     @Override
     protected StringScriptFieldTermQuery createTestInstance() {
-        return new StringScriptFieldTermQuery(leafFactory, randomAlphaOfLength(5), randomAlphaOfLength(6));
+        return new StringScriptFieldTermQuery(randomScript(), leafFactory, randomAlphaOfLength(5), randomAlphaOfLength(6));
     }
 
     @Override
     protected StringScriptFieldTermQuery copy(StringScriptFieldTermQuery orig) {
-        return new StringScriptFieldTermQuery(leafFactory, orig.fieldName(), orig.term());
+        return new StringScriptFieldTermQuery(orig.script(), leafFactory, orig.fieldName(), orig.term());
     }
 
     @Override
     protected StringScriptFieldTermQuery mutate(StringScriptFieldTermQuery orig) {
-        if (randomBoolean()) {
-            return new StringScriptFieldTermQuery(leafFactory, orig.fieldName() + "modified", orig.term());
+        Script script = orig.script();
+        String fieldName = orig.fieldName();
+        String term = orig.term();
+        switch (randomInt(2)) {
+            case 0:
+                script = randomValueOtherThan(script, this::randomScript);
+                break;
+            case 1:
+                fieldName += "modified";
+                break;
+            case 2:
+                term += "modified";
+                break;
+            default:
+                fail();
         }
-        return new StringScriptFieldTermQuery(leafFactory, orig.fieldName(), orig.term() + "modified");
+        return new StringScriptFieldTermQuery(script, leafFactory, fieldName, term);
+    }
+
+    @Override
+    public void testMatches() {
+        StringScriptFieldTermQuery query = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo");
+        assertTrue(query.matches(List.of("foo")));
+        assertFalse(query.matches(List.of("bar")));
+        assertTrue(query.matches(List.of("foo", "bar")));
     }
 
     @Override

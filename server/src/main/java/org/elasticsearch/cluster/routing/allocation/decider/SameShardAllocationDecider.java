@@ -97,16 +97,15 @@ public class SameShardAllocationDecider extends AllocationDecider {
                             String hostType = checkNodeOnSameHostAddress ? "address" : "name";
                             String host = checkNodeOnSameHostAddress ? node.node().getHostAddress() : node.node().getHostName();
                             return allocation.decision(Decision.NO, NAME,
-                                "the shard cannot be allocated on host %s [%s], where it already exists on node [%s]; " +
-                                    "set cluster setting [%s] to false to allow multiple nodes on the same host to hold the same " +
-                                    "shard copies",
+                                "a copy of this shard is already allocated to host %s [%s], on node [%s], and [%s] is [true] which " +
+                                    "forbids more than one node on this host from holding a copy of this shard",
                                 hostType, host, node.nodeId(), CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey());
                         }
                     }
                 }
             }
         }
-        return allocation.decision(Decision.YES, NAME, "the shard does not exist on the same host");
+        return allocation.decision(Decision.YES, NAME, "none of the nodes on this host hold a copy of this shard");
     }
 
     @Override
@@ -122,15 +121,15 @@ public class SameShardAllocationDecider extends AllocationDecider {
             if (node.nodeId().equals(assignedShard.currentNodeId())) {
                 if (assignedShard.isSameAllocation(shardRouting)) {
                     return allocation.decision(Decision.NO, NAME,
-                        "the shard cannot be allocated to the node on which it already exists [%s]",
+                        "this shard is already allocated to this node [%s]",
                         shardRouting.toString());
                 } else {
                     return allocation.decision(Decision.NO, NAME,
-                        "the shard cannot be allocated to the same node on which a copy of the shard already exists [%s]",
+                        "a copy of this shard is already allocated to this node [%s]",
                         assignedShard.toString());
                 }
             }
         }
-        return allocation.decision(Decision.YES, NAME, "the shard does not exist on the same node");
+        return allocation.decision(Decision.YES, NAME, "this node does not hold a copy of this shard");
     }
 }

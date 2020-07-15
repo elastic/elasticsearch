@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.LatLonDocValuesField;
@@ -103,12 +104,14 @@ import java.util.List;
 import java.util.Map;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene84";
+    public static final String LATEST_CODEC = "Lucene86";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
     public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
+    public static final NamedAnalyzer WHITESPACE_ANALYZER
+        = new NamedAnalyzer("_whitespace", AnalyzerScope.GLOBAL, new WhitespaceAnalyzer());
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
@@ -300,9 +303,15 @@ public class Lucene {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
-            ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
-            for (int i = 0; i < scoreDocs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+                }
             }
             return new TopDocsAndMaxScore(new TopDocs(totalHits, scoreDocs), maxScore);
         } else if (type == 1) {

@@ -147,5 +147,4 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
             final String[] concreteIndices) {
         return null;
     }
-
 }

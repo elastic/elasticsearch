@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
+import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -48,19 +49,18 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
             final AuditTrail auditTrail = auditTrailService.get();
             if (frozenLicenseState.isSecurityEnabled()) {
-                if (frozenLicenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
-                    IndicesAccessControl indicesAccessControl =
-                        threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                    IndicesAccessControl.IndexAccessControl indexAccessControl =
-                        indicesAccessControl.getIndexPermissions(request.getSourceIndex());
-                    if (indexAccessControl != null) {
-                        final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if (fls || dls) {
-                            listener.onFailure(new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
-                                "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));
-                            return;
-                        }
+                var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+                IndicesAccessControl indicesAccessControl =
+                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl.IndexAccessControl indexAccessControl =
+                    indicesAccessControl.getIndexPermissions(request.getSourceIndex());
+                if (indexAccessControl != null) {
+                    final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                    final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                    if ((fls || dls) && licenseChecker.get()) {
+                        listener.onFailure(new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
+                            "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));
+                        return;
                     }
                 }
 

@@ -62,7 +62,7 @@ give users any privileges on `.data-frame-internal*` indices.
 
 `<transform_id>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[update-transform-query-parms]]
 ==== {api-query-parms-title}
@@ -82,7 +82,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
 //Begin dest
 `dest`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest]
 +
 .Properties of `dest`
 [%collapsible%open]
@@ -90,22 +90,39 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=dest]
 
 `index`:::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
 `pipeline`:::
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 ====
 //End dest
 
 `frequency`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=frequency]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+
+//Begin settings
+`settings`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings]
++
+.Properties of `settings`
+[%collapsible%open]
+====
+`docs_per_second`:::
+(Optional, float)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`max_page_search_size`:::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+====
+//End settings
 
 //Begin source
 `source`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 +
 .Properties of `source`
 [%collapsible%open]
@@ -113,18 +130,18 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=source-transforms]
 
 `index`:::
 (Required, string or array)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
     
 `query`:::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
 ====
 //End source
 
 //Begin sync
 `sync`::
 (Optional, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync]
 +
 .Properties of `sync`
 [%collapsible%open]
@@ -133,7 +150,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync]
 //Begin sync.time
 `time`:::
 (Required, object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 +
 .Properties of `time`
 [%collapsible%open]
@@ -141,11 +158,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time]
 
 `delay`::::
 (Optional, <<time-units, time units>>)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
 
 `field`::::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
 TIP: In general, it’s a good idea to use a field that contains the
@@ -236,6 +253,7 @@ When the {transform} is updated, you receive the updated configuration:
       "delay": "120s"
     }
   },
+  "settings": { },
   "version": "7.5.0",
   "create_time": 1518808660505
 }

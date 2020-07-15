@@ -22,6 +22,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -56,10 +56,10 @@ class ClientTransformIndexer extends TransformIndexer {
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
 
     ClientTransformIndexer(
-        Executor executor,
+        ThreadPool threadPool,
+        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
-        TransformProgressGatherer progressGatherer,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         Client client,
@@ -75,10 +75,10 @@ class ClientTransformIndexer extends TransformIndexer {
         boolean shouldStopAtCheckpoint
     ) {
         super(
-            ExceptionsHelper.requireNonNull(executor, "executor"),
+            ExceptionsHelper.requireNonNull(threadPool, "threadPool"),
+            executorName,
             transformsConfigManager,
             checkpointProvider,
-            progressGatherer,
             auditor,
             transformConfig,
             fieldMappings,
@@ -220,6 +220,18 @@ class ClientTransformIndexer extends TransformIndexer {
                     nextPhase.onResponse(bulkResponse);
                 }
             }, nextPhase::onFailure)
+        );
+    }
+
+    @Override
+    void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            request,
+            responseListener
         );
     }
 

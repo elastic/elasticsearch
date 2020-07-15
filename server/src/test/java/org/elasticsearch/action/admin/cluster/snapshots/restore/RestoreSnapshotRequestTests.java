@@ -89,6 +89,11 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         if (randomBoolean()) {
             instance.masterNodeTimeout(randomTimeValue());
         }
+
+        if (randomBoolean()) {
+            instance.snapshotUuid(randomBoolean() ? null : randomAlphaOfLength(10));
+        }
+
         return instance;
     }
 

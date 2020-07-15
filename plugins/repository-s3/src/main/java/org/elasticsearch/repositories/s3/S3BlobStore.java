@@ -58,7 +58,8 @@ class S3BlobStore implements BlobStore {
 
     final RequestMetricCollector getMetricCollector;
     final RequestMetricCollector listMetricCollector;
-
+    final RequestMetricCollector putMetricCollector;
+    final RequestMetricCollector multiPartUploadMetricCollector;
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
@@ -74,22 +75,39 @@ class S3BlobStore implements BlobStore {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
                 assert request.getHttpMethod().name().equals("GET");
-                final Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
-                    .getCounter(AWSRequestMetrics.Field.RequestCount.name());
-                assert requestCount != null;
-                stats.getCount.addAndGet(requestCount.longValue());
+                stats.getCount.addAndGet(getRequestCount(request));
             }
         };
         this.listMetricCollector = new RequestMetricCollector() {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
                 assert request.getHttpMethod().name().equals("GET");
-                final Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
-                    .getCounter(AWSRequestMetrics.Field.RequestCount.name());
-                assert requestCount != null;
-                stats.listCount.addAndGet(requestCount.longValue());
+                stats.listCount.addAndGet(getRequestCount(request));
             }
         };
+        this.putMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT");
+                stats.putCount.addAndGet(getRequestCount(request));
+            }
+        };
+        this.multiPartUploadMetricCollector = new RequestMetricCollector() {
+            @Override
+            public void collectMetrics(Request<?> request, Response<?> response) {
+                assert request.getHttpMethod().name().equals("PUT")
+                    || request.getHttpMethod().name().equals("POST");
+                stats.postCount.addAndGet(getRequestCount(request));
+            }
+        };
+    }
+
+    private long getRequestCount(Request<?> request) {
+        Number requestCount = request.getAWSRequestMetrics().getTimingInfo()
+            .getCounter(AWSRequestMetrics.Field.RequestCount.name());
+        assert requestCount != null;
+
+        return requestCount.longValue();
     }
 
     @Override
@@ -180,10 +198,16 @@ class S3BlobStore implements BlobStore {
 
         final AtomicLong getCount = new AtomicLong();
 
+        final AtomicLong putCount = new AtomicLong();
+
+        final AtomicLong postCount = new AtomicLong();
+
         Map<String, Long> toMap() {
             final Map<String, Long> results = new HashMap<>();
             results.put("GET", getCount.get());
             results.put("LIST", listCount.get());
+            results.put("PUT", putCount.get());
+            results.put("POST", postCount.get());
             return results;
         }
     }

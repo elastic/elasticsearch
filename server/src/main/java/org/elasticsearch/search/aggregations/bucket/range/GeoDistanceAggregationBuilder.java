@@ -39,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -215,6 +216,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         }
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoDistanceRangeAggregatorFactory.registerAggregators(builder);
+    }
+
     private GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
     private DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -267,9 +272,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: This should probably not be BYTES, but we're not failing tests with BYTES, so needs more tests?
-        // TODO: this should set defaultValuesSourceType to GEOPOINT
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.GEOPOINT;
     }
 
     @Override

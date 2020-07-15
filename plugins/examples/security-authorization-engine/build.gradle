@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   name 'security-authorization-engine'
@@ -12,7 +13,7 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
+  testImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
 }
 
 integTest {

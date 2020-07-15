@@ -97,8 +97,8 @@ public class SFor extends AStatement {
             AExpression.analyze(conditionNode, semanticScope);
             conditionNode.cast(semanticScope);
 
-            if (conditionNode instanceof EBoolean) {
-                continuous = ((EBoolean)conditionNode).getBool();
+            if (conditionNode instanceof EBooleanConstant) {
+                continuous = ((EBooleanConstant)conditionNode).getBool();
 
                 if (continuous == false) {
                     throw createError(new IllegalArgumentException("Extraneous for loop."));

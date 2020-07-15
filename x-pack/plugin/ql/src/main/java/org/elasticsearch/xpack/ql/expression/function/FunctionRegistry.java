@@ -368,7 +368,7 @@ public class FunctionRegistry {
         return new FunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
     }
 
-    protected interface FunctionBuilder {
+    public interface FunctionBuilder {
         Function build(Source source, List<Expression> children, boolean distinct, Configuration cfg);
     }
 
@@ -392,6 +392,28 @@ public class FunctionRegistry {
 
     protected interface ThreeParametersFunctionBuilder<T> {
         T build(Source source, Expression src, Expression exp1, Expression exp2);
+    }
+
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              ScalarTriFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
+                throw new QlIllegalArgumentException("expects two or three arguments");
+            } else if (!hasMinimumTwo && children.size() != 3) {
+                throw new QlIllegalArgumentException("expects exactly three arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null, cfg);
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface ScalarTriFunctionConfigurationAwareBuilder<T> {
+        T build(Source source, Expression exp1, Expression exp2, Expression exp3, Configuration configuration);
     }
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
@@ -482,5 +504,27 @@ public class FunctionRegistry {
 
     protected interface TwoParametersVariadicBuilder<T> {
         T build(Source source, Expression src, List<Expression> remaining);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a binary function that is case sensitive aware.
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+        ScalarBiFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            if (children.size() != 2) {
+                throw new QlIllegalArgumentException("expects exactly two arguments");
+            }
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), cfg);
+        };
+        return def(function, builder, true, names);
+    }
+
+    protected interface ScalarBiFunctionConfigurationAwareBuilder<T> {
+        T build(Source source, Expression e1, Expression e2, Configuration configuration);
     }
 }

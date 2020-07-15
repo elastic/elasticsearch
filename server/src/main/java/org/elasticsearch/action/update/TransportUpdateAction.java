@@ -120,7 +120,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             client.admin().indices().create(new CreateIndexRequest()
                 .index(request.index())
                 .cause("auto(update api)")
-                .preferV2Templates(request.preferV2Templates())
                 .masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {

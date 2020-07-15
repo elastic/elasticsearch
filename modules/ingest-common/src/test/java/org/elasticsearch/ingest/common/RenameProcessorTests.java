@@ -212,7 +212,7 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing) {
-        return new RenameProcessor(randomAlphaOfLength(10), new TestTemplateService.MockTemplateScript.Factory(field),
+        return new RenameProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(field),
             new TestTemplateService.MockTemplateScript.Factory(targetField), ignoreMissing);
     }
 }

@@ -14,7 +14,7 @@ public class NdJsonFileStructureFinderTests extends FileStructureTestCase {
     private FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodJson() throws Exception {
-        assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE, 0.0));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);

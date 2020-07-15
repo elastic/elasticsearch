@@ -42,10 +42,10 @@ public interface Cursor extends NamedWriteable {
     /**
      * Request the next page of data.
      */
-    void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener);
+    void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener);
 
     /**
      *  Cleans the resources associated with the cursor
      */
-    void clear(Configuration cfg, Client client, ActionListener<Boolean> listener);
+    void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener);
 }

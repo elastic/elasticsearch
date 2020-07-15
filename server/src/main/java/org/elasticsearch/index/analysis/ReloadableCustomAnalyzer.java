@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.Reader;
 import java.util.Map;
@@ -152,7 +153,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
         final AnalyzerComponents components = getStoredComponents();
-        if (components.getCharFilters() != null && components.getCharFilters().length > 0) {
+        if (CollectionUtils.isEmpty(components.getCharFilters()) == false) {
             for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);
             }

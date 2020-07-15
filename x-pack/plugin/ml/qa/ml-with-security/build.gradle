@@ -1,17 +1,18 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest'
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk'
     includeXpack 'ml', 'cat'
   }
   restTests {
@@ -83,6 +84,8 @@ integTest.runner {
     'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is greater than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is less than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is greater than hundred',
+    'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is zero',
+    'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is negative',
     'ml/data_frame_analytics_crud/Test put classification given dependent_variable is not defined',
     'ml/data_frame_analytics_crud/Test put classification given negative lambda',
     'ml/data_frame_analytics_crud/Test put classification given negative gamma',
@@ -157,6 +160,7 @@ integTest.runner {
     'ml/jobs_crud/Test put job after closing results index',
     'ml/jobs_crud/Test put job after closing state index',
     'ml/jobs_crud/Test put job with inconsistent body/param ids',
+    'ml/jobs_crud/Test put job with inconsistent model snapshot settings',
     'ml/jobs_crud/Test put job with time field in analysis_config',
     'ml/jobs_crud/Test put job with duplicate detector configurations',
     'ml/jobs_crud/Test job with categorization_analyzer and categorization_filters',
@@ -180,6 +184,7 @@ integTest.runner {
     'ml/job_groups/Test put job with id that matches an existing group',
     'ml/job_groups/Test put job with invalid group',
     'ml/ml_info/Test ml info',
+    'ml/pipeline_inference/Test setting results field is invalid',
     'ml/post_data/Test Flush data with invalid parameters',
     'ml/post_data/Test flushing and posting a closed job',
     'ml/post_data/Test open and close with non-existent job id',
@@ -187,7 +192,8 @@ integTest.runner {
     'ml/preview_datafeed/Test preview missing datafeed',
     'ml/revert_model_snapshot/Test revert model with invalid snapshotId',
     'ml/start_data_frame_analytics/Test start given missing source index',
-    'ml/start_data_frame_analytics/Test start given source index has no compatible fields',
+    'ml/start_data_frame_analytics/Test start outlier_detection given source index has no fields',
+    'ml/start_data_frame_analytics/Test start regression given source index only has dependent variable',
     'ml/start_data_frame_analytics/Test start with inconsistent body/param ids',
     'ml/start_data_frame_analytics/Test start given dest index is not empty',
     'ml/start_data_frame_analytics/Test start with compatible fields but no data',

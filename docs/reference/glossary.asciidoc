@@ -67,6 +67,19 @@ multiple clusters.
 See {ref}/modules-cross-cluster-search.html[Search across clusters].
 // end::ccs-def[]
 
+[[glossary-data-stream]] data stream ::
++
+--
+// tag::data-stream-def[]
+A named resource used to ingest, search, and manage time-series data in {es}. A
+data stream's data is stored across multiple hidden, auto-generated
+<<glossary-index,indices>>. You can automate management of these indices to more
+efficiently store large data volumes.
+
+See {ref}/data-streams.html[Data streams].
+// end::data-stream-def[]
+--
+
 [[glossary-delete-phase]] delete phase ::
 // tag::delete-phase-def[]
 The last possible phase in the <<glossary-index-lifecycle,index lifecycle>>. 
@@ -339,11 +352,20 @@ during the following processes:
 --
 
 [[glossary-reindex]] reindex ::
-
++
+--
 // tag::reindex-def[]
-To cycle through some or all documents in one or more indices, re-writing them into the same 
-or new index in a local or remote cluster. This is most commonly done to update mappings, or to upgrade {es} between two incompatible index versions.
+Copies documents from a _source_ to a _destination_. The source and
+destination can be any pre-existing index, index alias, or
+{ref}/data-streams.html[data stream].
+
+You can reindex all documents from a source or select a subset of documents to
+copy. You can also reindex to a destination in a remote cluster.
+
+A reindex is often performed to update mappings, change static index settings,
+or upgrade {es} between incompatible versions.
 // end::reindex-def[]
+--
 
 [[glossary-remote-cluster]] remote cluster ::
 
@@ -377,12 +399,11 @@ shard will never be started on the same node as its primary shard.
 --
 // tag::rollover-def[]
 // tag::rollover-def-short[]
-Redirect an index alias to begin writing to a new index when the existing index reaches 
-a certain size, number of docs, or age. 
+Creates a new index for a rollover target when the existing index reaches a certain size, number of docs, or age.
+A rollover target can be either an <<indices-aliases, index alias>> or a <<data-streams, data stream>>.
 // end::rollover-def-short[]
 
-The new index is automatically configured according to any matching <<glossary-index-template,index templates>>. 
-For example, if you're indexing log data, you might use rollover to create daily or weekly indices. 
+For example, if you're indexing log data, you might use rollover to create daily or weekly indices.
 See the {ref}/indices-rollover-index.html[rollover index API].
 // end::rollover-def[]
 --
@@ -459,8 +480,9 @@ See the {ref}/indices-shrink-index.html[shrink index API].
 
 [[glossary-snapshot]] snapshot ::
 // tag::snapshot-def[]
-A backup taken from a running {es} cluster. 
-You can take snapshots of individual indices or of the entire cluster. 
+A backup taken from a running {es} cluster.
+A snapshot can include backups of an entire cluster or only data streams and
+indices you specify.
 // end::snapshot-def[]
 
 [[glossary-snapshot-lifecycle-policy]] snapshot lifecycle policy ::

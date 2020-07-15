@@ -33,9 +33,11 @@ built-in roles and privileges:
   
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
-NOTE: It is possible that secondary authorization headers are supplied in the
-request. If this is the case, the secondary authorization headers are used
-instead of the primary headers.
+NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
+the time of creation. When you start the job, it performs the analysis using
+those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, 
+those credentials are used instead.
 
 [[ml-put-dfanalytics-desc]]
 ==== {api-description-title}
@@ -46,33 +48,17 @@ indices and stores the outcome in a destination index.
 If the destination index does not exist, it is created automatically when you
 start the job. See <<start-dfanalytics>>.
 
-[[ml-hyperparam-optimization]]
 If you supply only a subset of the {regression} or {classification} parameters,
-_hyperparameter optimization_ occurs. It determines a value for each of the
-undefined parameters.
+{ml-docs}/hyperparameters.html[hyperparameter optimization] occurs. It
+determines a value for each of the undefined parameters. 
 
-////
-A fixed number of rounds is used for optimization which
-depends on the number of parameters being optimized.
-The starting point is calculated for data dependent parameters by examining the loss
-on the training data. Subject to the size constraint, this operation provides an
-upper bound on the improvement in validation loss.
-
-The optimization starts with random search, then 
-Bayesian optimization is performed that is targeting maximum expected 
-improvement. If you override any parameters by explicitely setting it, the 
-optimization calculates the value of the remaining parameters accordingly and 
-uses the value you provided for the overridden parameter. The number of rounds 
-are reduced respectively. The validation error is estimated in each round by 
-using 4-fold cross validation.
-////
 
 [[ml-put-dfanalytics-path-params]]
 ==== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [role="child_attributes"]
 [[ml-put-dfanalytics-request-body]]
@@ -114,16 +100,12 @@ understand the function of these parameters.
 =====
 `class_assignment_objective`::::
 (Optional, string)
-Defines the objective to optimize when assigning class labels:
-`maximize_accuracy` or `maximize_minimum_recall`. When maximizing accuracy,
-class labels are chosen to maximize the number of correct predictions. When
-maximizing minimum recall, labels are chosen to maximize the minimum recall for
-any class. Defaults to `maximize_minimum_recall`.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=class-assignment-objective]
 
 `dependent_variable`::::
 (Required, string)
 +
-include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric (`integer`, `short`, `long`, `byte`), 
 categorical (`ip` or `keyword`), or boolean. There must be no more than 30
@@ -131,23 +113,23 @@ different values in this field.
 
 `eta`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `feature_bag_fraction`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
 
 `max_trees`::::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_classes`::::
 (Optional, integer)
@@ -158,21 +140,20 @@ categories, the API reports all category probabilities. Defaults to 2.
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-classification.html#dfa-classification-feature-importance[feature
-importance] values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 `training_percent`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 //End classification
 =====
 //Begin outlier_detection
@@ -186,42 +167,27 @@ The configuration information necessary to perform
 =====
 `compute_feature_influence`::::
 (Optional, boolean) 
-Specifies whether the feature influence calculation is enabled. Defaults to
-`true`.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=compute-feature-influence]
   
 `feature_influence_threshold`:::: 
 (Optional, double) 
-The minimum {olscore} that a document needs to have in order to calculate its 
-{fiscore}. Value range: 0-1 (`0.1` by default).
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-influence-threshold]
 
 `method`::::
 (Optional, string)
-Sets the method that {oldetection} uses. If the method is not set, {oldetection} 
-uses an ensemble of different methods and normalises and combines their 
-individual {olscores} to obtain the overall {olscore}. We recommend to use the 
-ensemble method. Available methods are `lof`, `ldof`, `distance_kth_nn`, 
-`distance_knn`.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=method]
   
 `n_neighbors`::::
 (Optional, integer)
-Defines the value for how many nearest neighbors each method of 
-{oldetection} will use to calculate its {olscore}. When the value is not set, 
-different values will be used for different ensemble members. This helps 
-improve diversity in the ensemble. Therefore, only override this if you are 
-confident that the value you choose is appropriate for the data set.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=n-neighbors]
   
 `outlier_fraction`::::
 (Optional, double) 
-Sets the proportion of the data set that is assumed to be outlying prior to 
-{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
-outliers and 95% are inliers.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=outlier-fraction]
   
 `standardization_enabled`::::
 (Optional, boolean) 
-If `true`, the following operation is performed on the columns before computing 
-outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For more 
-information about this concept, see 
-{wikipedia}/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=standardization-enabled]
 //End outlier_detection
 =====
 //Begin regression
@@ -241,48 +207,59 @@ understand the function of these parameters.
 `dependent_variable`::::
 (Required, string)
 +
-include::{docdir}/ml/ml-shared.asciidoc[tag=dependent-variable]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dependent-variable]
 +
 The data type of the field must be numeric.
 
 `eta`::::
 (Optional, double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=eta]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=eta]
 
 `feature_bag_fraction`::::
 (Optional, double)
-include::{docdir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 
 `gamma`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=gamma]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=gamma]
 
 `lambda`::::
 (Optional, double) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=lambda]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=lambda]
+
+`loss_function`::::
+(Optional, string)
+The loss function used during {regression}. Available options are `mse` (mean 
+squared error), `msle` (mean squared logarithmic error),  `huber` (Pseudo-Huber 
+loss). Defaults to `mse`. Refer to 
+{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[Loss functions for {regression} analyses] 
+to learn more.
+
+`loss_function_parameter`::::
+(Optional, double)
+A positive number that is used as a parameter to the `loss_function`.
 
 `max_trees`::::
 (Optional, integer) 
-include::{docdir}/ml/ml-shared.asciidoc[tag=max-trees]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-trees]
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
 Advanced configuration option. Specifies the maximum number of
-{ml-docs}/dfa-regression.html#dfa-regression-feature-importance[feature importance] 
-values per document to return. By default, it is zero and no feature importance
-calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document to return. 
+By default, it is zero and no {feat-imp} calculation occurs.
 
 `prediction_field_name`::::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=prediction-field-name]
 
 `randomize_seed`::::
 (Optional, long)
-include::{docdir}/ml/ml-shared.asciidoc[tag=randomize-seed]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=randomize-seed]
 
 `training_percent`::::
 (Optional, integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=training-percent]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=training-percent]
 =====
 //End regression
 ====
@@ -344,11 +321,19 @@ analysis.
 
 `description`::
 (Optional, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=description-dfa]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=description-dfa]
 
 `dest`::
 (Required, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=dest]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dest]
+
+`max_num_threads`::
+(Optional, integer)
+The maximum number of threads to be used by the analysis.
+The default value is `1`. Using more threads may decrease the time
+necessary to complete the analysis at the cost of using more CPU.
+Note that the process may use additional threads for operational
+functionality other than the analysis itself.
   
 `model_memory_limit`::
 (Optional, string)
@@ -454,13 +439,11 @@ PUT _ml/data_frame/analytics/model-flight-delays-pre
 --------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> The source index to analyze.
+<1> Source index to analyze.
 <2> This query filters out entire documents that will not be present in the 
 destination index.
 <3> The `_source` object defines fields in the dataset that will be included or 
-excluded in the destination index. In this case, `includes` does not specify any 
-fields, so the default behavior takes place: all the fields of the source index 
-will included except the ones that are explicitly specified in `excludes`.
+excluded in the destination index. 
 <4> Defines the destination index that contains the results of the analysis and 
 the fields of the source index specified in the `_source` object. Also defines 
 the name of the `results_field`.
@@ -532,7 +515,8 @@ The API returns the following result:
     "model_memory_limit": "1gb",
     "create_time" : 1562265491319,
     "version" : "8.0.0",
-    "allow_lazy_start" : false
+    "allow_lazy_start" : false,
+    "max_num_threads": 1
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
@@ -624,10 +608,8 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 --------------------------------------------------
 // TEST[skip:TBD]
 
-<1> The `training_percent` defines the percentage of the data set that will be 
-used for training the model.
-<2> The `randomize_seed` is the seed used to randomly pick which data is used 
-for training.
+<1> The percentage of the data set that is used for training the model.
+<2> The seed that is used to randomly pick which data is used for training.
 
 
 [[ml-put-dfanalytics-example-c]]

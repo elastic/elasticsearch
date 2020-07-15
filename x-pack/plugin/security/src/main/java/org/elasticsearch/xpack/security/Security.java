@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -65,6 +66,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -88,6 +90,7 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
@@ -103,6 +106,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAc
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlInvalidateSessionAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutAction;
+import org.elasticsearch.xpack.core.security.action.saml.SamlCompleteLogoutAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -151,6 +155,7 @@ import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.action.privilege.TransportClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
@@ -166,6 +171,7 @@ import org.elasticsearch.xpack.security.action.rolemapping.TransportPutRoleMappi
 import org.elasticsearch.xpack.security.action.saml.TransportSamlAuthenticateAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlLogoutAction;
+import org.elasticsearch.xpack.security.action.saml.TransportSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.action.saml.TransportSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.action.token.TransportCreateTokenAction;
 import org.elasticsearch.xpack.security.action.token.TransportInvalidateTokenAction;
@@ -217,6 +223,7 @@ import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAc
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectPrepareAuthenticationAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestClearPrivilegesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
@@ -232,6 +239,7 @@ import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappi
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
+import org.elasticsearch.xpack.security.rest.action.saml.RestSamlCompleteLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
@@ -282,6 +290,8 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
+    public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private final Settings settings;
@@ -299,7 +309,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
-    private final SetOnce<NioGroupFactory> groupFactory = new SetOnce<>();
+    private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
+    private final SetOnce<NioGroupFactory> nioGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
@@ -425,6 +436,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
+        securityIndex.get().addIndexStateListener(privilegeStore::onSecurityIndexStateChange);
 
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
@@ -640,6 +652,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         settingsList.add(ApiKeyService.CACHE_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.CACHE_MAX_KEYS_SETTING);
         settingsList.add(ApiKeyService.CACHE_TTL_SETTING);
+        settingsList.add(NativePrivilegeStore.CACHE_MAX_APPLICATIONS_SETTING);
+        settingsList.add(NativePrivilegeStore.CACHE_TTL_SETTING);
 
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
@@ -727,6 +741,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         return Arrays.asList(
                 new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
                 new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
+                new ActionHandler<>(ClearPrivilegesCacheAction.INSTANCE, TransportClearPrivilegesCacheAction.class),
                 new ActionHandler<>(GetUsersAction.INSTANCE, TransportGetUsersAction.class),
                 new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
                 new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
@@ -749,6 +764,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
                 new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
                 new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
+                new ActionHandler<>(SamlCompleteLogoutAction.INSTANCE, TransportSamlCompleteLogoutAction.class),
                 new ActionHandler<>(OpenIdConnectPrepareAuthenticationAction.INSTANCE,
                     TransportOpenIdConnectPrepareAuthenticationAction.class),
                 new ActionHandler<>(OpenIdConnectAuthenticateAction.INSTANCE, TransportOpenIdConnectAuthenticateAction.class),
@@ -786,6 +802,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestAuthenticateAction(settings, securityContext.get(), getLicenseState()),
                 new RestClearRealmCacheAction(settings, getLicenseState()),
                 new RestClearRolesCacheAction(settings, getLicenseState()),
+                new RestClearPrivilegesCacheAction(settings, getLicenseState()),
                 new RestGetUsersAction(settings, getLicenseState()),
                 new RestPutUserAction(settings, getLicenseState()),
                 new RestDeleteUserAction(settings, getLicenseState()),
@@ -806,6 +823,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestSamlAuthenticateAction(settings, getLicenseState()),
                 new RestSamlLogoutAction(settings, getLicenseState()),
                 new RestSamlInvalidateSessionAction(settings, getLicenseState()),
+                new RestSamlCompleteLogoutAction(settings, getLicenseState()),
                 new RestOpenIdConnectPrepareAuthenticationAction(settings, getLicenseState()),
                 new RestOpenIdConnectAuthenticateAction(settings, getLicenseState()),
                 new RestOpenIdConnectLogoutAction(settings, getLicenseState()),
@@ -936,7 +954,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                         namedWriteableRegistry,
                         circuitBreakerService,
                         ipFilter,
-                        getSslService()),
+                        getSslService(),
+                        getNettySharedGroupFactory(settings)),
                 // security based on NIO
                 SecurityField.NIO,
                 () -> new SecurityNioTransport(settings,
@@ -965,7 +984,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, clusterSettings));
+            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, clusterSettings,
+            getNettySharedGroupFactory(settings)));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
             pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings),
             clusterSettings));
@@ -988,9 +1008,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         if (enabled) {
-            return Collections.singletonList(
-                    new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool",
-                        false));
+            final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+            return List.of(
+                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000,
+                    "xpack.security.authc.token.thread_pool", false),
+                new FixedExecutorBuilder(settings, SECURITY_CRYPTO_THREAD_POOL_NAME,
+                    (allocatedProcessors + 1) / 2, 1000,
+                    "xpack.security.crypto.thread_pool", false)
+            );
         }
         return Collections.emptyList();
     }
@@ -1010,11 +1035,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
-                if (licenseState.isSecurityEnabled() == false || licenseState.isAllowed(Feature.SECURITY_DLS_FLS) == false) {
+                if (licenseState.isSecurityEnabled() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
                         AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                if (indicesAccessControl == null) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
@@ -1024,6 +1052,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
+                if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                    // check license last, once we know FLS is actually used
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 return fieldPermissions::grantsAccessTo;
@@ -1076,19 +1108,28 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public void reloadSPI(ClassLoader loader) {
-        securityExtensions.addAll(SecurityExtension.loadExtensions(loader));
+    public void loadExtensions(ExtensionLoader loader) {
+        securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-         if (groupFactory.get() != null) {
-             assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
-             return groupFactory.get();
+         if (nioGroupFactory.get() != null) {
+             assert nioGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+             return nioGroupFactory.get();
          } else {
-            groupFactory.set(new NioGroupFactory(settings, logger));
-            return groupFactory.get();
+            nioGroupFactory.set(new NioGroupFactory(settings, logger));
+            return nioGroupFactory.get();
          }
     }
+    private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {
+        if (sharedGroupFactory.get() != null) {
+            assert sharedGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+            return sharedGroupFactory.get();
+        } else {
+            sharedGroupFactory.set(new SharedGroupFactory(settings));
+            return sharedGroupFactory.get();
+        }
+     }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {

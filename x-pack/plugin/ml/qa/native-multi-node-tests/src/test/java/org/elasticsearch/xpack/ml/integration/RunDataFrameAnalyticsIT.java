@@ -101,7 +101,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -143,7 +143,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
         assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -186,7 +186,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -201,7 +201,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -260,7 +260,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -285,7 +285,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
         }
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -397,7 +397,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -412,7 +412,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -458,7 +458,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -473,7 +473,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -650,7 +650,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
@@ -691,7 +691,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -730,7 +730,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
         assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
@@ -744,5 +744,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started analyzing",
             "Started writing results",
             "Finished analysis");
+    }
+
+    @Override
+    boolean supportsInference() {
+        return false;
     }
 }

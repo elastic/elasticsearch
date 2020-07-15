@@ -47,7 +47,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldData.LatLonPointDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData.LatLonPointIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -496,7 +496,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         IndexGeoPointFieldData geoIndexFieldData = fieldData(context);
         Nested nested = nested(context);
 
-        if (geoIndexFieldData.getClass() == LatLonPointDVIndexFieldData.class // only works with 5.x geo_point
+        if (geoIndexFieldData.getClass() == LatLonPointIndexFieldData.class // only works with 5.x geo_point
                 && nested == null
                 && localSortMode == MultiValueMode.MIN // LatLonDocValuesField internally picks the closest point
                 && unit == DistanceUnit.METERS
@@ -519,7 +519,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         IndexGeoPointFieldData geoIndexFieldData = fieldData(context);
         Nested nested = nested(context);
 
-        // TODO implement the single point optimization above 
+        // TODO implement the single point optimization above
 
         return comparatorSource(localPoints, localSortMode, geoIndexFieldData, nested)
                 .newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
@@ -584,7 +584,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
         return resolveNested(context, nestedSort);
     }
-    
+
     private IndexFieldData.XFieldComparatorSource comparatorSource(GeoPoint[] localPoints, MultiValueMode localSortMode,
             IndexGeoPointFieldData geoIndexFieldData, Nested nested) {
         return new IndexFieldData.XFieldComparatorSource(null, localSortMode, nested) {

@@ -35,7 +35,7 @@ public abstract class WatcherTransportAction<Request extends ActionRequest, Resp
 
     @Override
     protected final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        if (licenseState.isWatcherAllowed()) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.WATCHER)) {
             doExecute(request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.WATCHER));

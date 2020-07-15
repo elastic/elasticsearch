@@ -101,19 +101,13 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
                 .endObject().endObject().endObject();
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
+        e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
 
         assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));
@@ -129,13 +123,9 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "double").endObject()
                 .endObject().endObject().endObject();
 
-        try {
-            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE);
-            fail();
-        } catch (IllegalArgumentException e) {
-            // expected
-            assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [long] to [double]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            mapperService.merge("type", new CompressedXContent(Strings.toString(update)), MapperService.MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
 
         assertThat(((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType().typeName(),
                 equalTo("long"));
@@ -184,13 +174,13 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         mapperService1.merge("type", new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> mapperService1.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), equalTo("Can't merge a non object mapping [foo] with an object mapping [foo]"));
+        assertThat(e.getMessage(), equalTo("can't merge a non object mapping [foo] with an object mapping"));
 
         MapperService mapperService2 = createIndex("test2").mapperService();
         mapperService2.merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
         e = expectThrows(IllegalArgumentException.class,
                 () -> mapperService2.merge("type", new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), equalTo("mapper [foo] of different type, current_type [long], merged_type [ObjectMapper]"));
+        assertThat(e.getMessage(), equalTo("can't merge a non object mapping [foo] with an object mapping"));
     }
 
     public void testMappingVersion() {

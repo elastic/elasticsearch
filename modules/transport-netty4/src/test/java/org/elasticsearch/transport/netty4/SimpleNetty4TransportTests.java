@@ -32,6 +32,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
 
@@ -49,7 +50,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
     protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         return new Netty4Transport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
-            PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,

@@ -48,11 +48,11 @@ public class StringStatsAggregator extends MetricsAggregator {
     /** Map that stores the number of occurrences for each character. */
     Map<Character, LongArray> charOccurrences;
 
-    StringStatsAggregator(String name, boolean showDistribution, ValuesSource.Bytes valuesSource, DocValueFormat format,
+    StringStatsAggregator(String name, ValuesSource valuesSource, boolean showDistribution, DocValueFormat format,
                           SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         this.showDistribution = showDistribution;
-        this.valuesSource = valuesSource;
+        this.valuesSource = (ValuesSource.Bytes) valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
             count = bigArrays.newLongArray(1, true);

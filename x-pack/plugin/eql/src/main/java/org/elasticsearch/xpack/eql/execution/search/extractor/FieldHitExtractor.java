@@ -48,11 +48,15 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
 
         if (dataType == DATETIME) {
             if (values instanceof String) {
-                return ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(values.toString())), zoneId());
+                return parseDateString(values);
             }
         }
 
         return null;
+    }
+
+    protected Object parseDateString(Object values) {
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(Long.parseLong(values.toString())), zoneId());
     }
 
     @Override

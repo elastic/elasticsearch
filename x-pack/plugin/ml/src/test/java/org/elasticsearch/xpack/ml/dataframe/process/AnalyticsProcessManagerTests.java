@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
+import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -58,11 +60,12 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "config-id";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null);
+    private static final AnalyticsResult PROCESS_RESULT = new AnalyticsResult(null, null, null, null, null, null, null, null);
 
     private Client client;
     private DataFrameAnalyticsAuditor auditor;
     private TrainedModelProvider trainedModelProvider;
+    private ModelLoadingService modelLoadingService;
     private ExecutorService executorServiceForJob;
     private ExecutorService executorServiceForProcess;
     private AnalyticsProcess<AnalyticsResult> process;
@@ -94,21 +97,23 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
 
         task = mock(DataFrameAnalyticsTask.class);
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
-        when(task.getStatsHolder()).thenReturn(new StatsHolder());
+        when(task.getStatsHolder()).thenReturn(new StatsHolder(
+            ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report()));
         when(task.getParentTaskId()).thenReturn(new TaskId(""));
         dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
             false,
             OutlierDetectionTests.createRandom()).build();
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(NUM_ROWS, NUM_COLS));
+        when(dataExtractor.getExtractedFields()).thenReturn(new ExtractedFields(Collections.emptyList(), Collections.emptyMap()));
         dataExtractorFactory = mock(DataFrameDataExtractorFactory.class);
         when(dataExtractorFactory.newExtractor(anyBoolean())).thenReturn(dataExtractor);
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
 
         resultsPersisterService = mock(ResultsPersisterService.class);
-
+        modelLoadingService = mock(ModelLoadingService.class);
         processManager = new AnalyticsProcessManager(client, executorServiceForJob, executorServiceForProcess, processFactory, auditor,
-            trainedModelProvider, resultsPersisterService);
+            trainedModelProvider, modelLoadingService, resultsPersisterService, 1);
     }
 
     public void testRunJob_TaskIsStopping() {
@@ -178,7 +183,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(process).isProcessAlive();
         inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
-        inOrder.verify(dataExtractor).getAllExtractedFields();
+        inOrder.verify(dataExtractor).getExtractedFields();
         inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
         verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
     }
@@ -237,7 +242,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(process).isProcessAlive();
         inOrder.verify(task).getParentTaskId();
         inOrder.verify(task).getStatsHolder();
-        inOrder.verify(dataExtractor).getAllExtractedFields();
+        inOrder.verify(dataExtractor).getExtractedFields();
         // stop
         inOrder.verify(dataExtractor).cancel();
         inOrder.verify(process).kill();

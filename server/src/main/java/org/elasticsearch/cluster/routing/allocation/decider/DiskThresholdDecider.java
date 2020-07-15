@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,11 +38,13 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
@@ -76,10 +79,16 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
+    public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE =
+        Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", false, Setting.Property.NodeScope);
+
     private final DiskThresholdSettings diskThresholdSettings;
+    private final boolean enableForSingleDataNode;
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
+        assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
+        this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
     }
 
     /**
@@ -90,9 +99,16 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public static long sizeOfRelocatingShards(RoutingNode node, boolean subtractShardsMovingAway, String dataPath, ClusterInfo clusterInfo,
                                               Metadata metadata, RoutingTable routingTable) {
-        long totalSize = 0L;
+        // Account for reserved space wherever it is available
+        final ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), dataPath);
+        long totalSize = reservedSpace.getTotal();
+        // NB this counts all shards on the node when the ClusterInfoService retrieved the node stats, which may include shards that are
+        // no longer initializing because their recovery failed or was cancelled.
 
-        for (ShardRouting routing : node.shardsWithState(ShardRoutingState.INITIALIZING)) {
+        // Where reserved space is unavailable (e.g. stats are out-of-sync) compute a conservative estimate for initialising shards
+        final List<ShardRouting> initializingShards = node.shardsWithState(ShardRoutingState.INITIALIZING);
+        initializingShards.removeIf(shardRouting -> reservedSpace.containsShardId(shardRouting.shardId()));
+        for (ShardRouting routing : initializingShards) {
             if (routing.relocatingNodeId() == null) {
                 // in practice the only initializing-but-not-relocating shards with a nonzero expected shard size will be ones created
                 // by a resize (shrink/split/clone) operation which we expect to happen using hard links, so they shouldn't be taking
@@ -415,7 +431,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Allow allocation regardless if only a single data node is available
-        if (allocation.nodes().getDataNodes().size() <= 1) {
+        if (enableForSingleDataNode == false && allocation.nodes().getDataNodes().size() <= 1) {
             if (logger.isTraceEnabled()) {
                 logger.trace("only a single data node is present, allowing allocation");
             }

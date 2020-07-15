@@ -14,6 +14,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.retention.MlDataRemover;
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +40,11 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
      */
     private static class DummyDataRemover implements MlDataRemover {
 
-        public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+        public void remove(
+            float requestsPerSec,
+            ActionListener<Boolean> listener,
+            Supplier<Boolean> isTimedOutSupplier
+        ) {
             listener.onResponse(isTimedOutSupplier.get() == false);
         }
     }
@@ -51,7 +56,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         transportDeleteExpiredDataAction = new TransportDeleteExpiredDataAction(threadPool, ThreadPool.Names.SAME, transportService,
-            new ActionFilters(Collections.emptySet()), client, clusterService, Clock.systemUTC());
+            new ActionFilters(Collections.emptySet()), client, clusterService, mock(JobConfigProvider.class), Clock.systemUTC());
     }
 
     @After
@@ -73,7 +78,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
         Supplier<Boolean> isTimedOutSupplier = () -> false;
 
-        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), finalListener, isTimedOutSupplier, true);
+        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
 
         assertTrue(succeeded.get());
     }
@@ -93,7 +98,7 @@ public class TransportDeleteExpiredDataActionTests extends ESTestCase {
 
         Supplier<Boolean> isTimedOutSupplier = () -> (removersRemaining.getAndDecrement() <= 0);
 
-        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), finalListener, isTimedOutSupplier, true);
+        transportDeleteExpiredDataAction.deleteExpiredData(removers.iterator(), 1.0f, finalListener, isTimedOutSupplier, true);
 
         assertFalse(succeeded.get());
     }

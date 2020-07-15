@@ -8,6 +8,7 @@ package org.elasticsearch.index.store.cache;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,7 +18,9 @@ import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.mockstore.BlobContainerWrapper;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.io.EOFException;
@@ -29,12 +32,14 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 
 import static org.elasticsearch.index.store.cache.TestUtils.createCacheService;
 import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -42,6 +47,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
 
     public void testRandomReads() throws IOException {
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
         try (CacheService cacheService = createCacheService(random())) {
             cacheService.start();
 
@@ -68,9 +74,10 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     0L
                 );
 
+                final boolean prewarmEnabled = randomBoolean();
                 final BlobContainer singleBlobContainer = singleSplitBlobContainer(blobName, input, partSize);
                 final BlobContainer blobContainer;
-                if (input.length == partSize && input.length <= cacheService.getCacheSize()) {
+                if (input.length == partSize && input.length <= cacheService.getCacheSize() && prewarmEnabled == false) {
                     blobContainer = new CountingBlobContainer(singleBlobContainer, cacheService.getRangeSize());
                 } else {
                     blobContainer = singleBlobContainer;
@@ -84,10 +91,14 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         snapshotId,
                         indexId,
                         shardId,
-                        Settings.builder().put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true).build(),
+                        Settings.builder()
+                            .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
+                            .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), prewarmEnabled)
+                            .build(),
                         () -> 0L,
                         cacheService,
-                        cacheDir
+                        cacheDir,
+                        threadPool
                     )
                 ) {
                     final boolean loaded = directory.loadSnapshot();
@@ -117,6 +128,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     );
                 }
             }
+        } finally {
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -144,7 +157,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             final Path cacheDir = createTempDir();
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
@@ -156,7 +169,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                     Settings.EMPTY,
                     () -> 0L,
                     cacheService,
-                    cacheDir
+                    cacheDir,
+                    threadPool
                 )
             ) {
                 final boolean loaded = searchableSnapshotDirectory.loadSnapshot();
@@ -171,6 +185,8 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
                         throw new AssertionError("inner EOFException not thrown", exception);
                     }
                 }
+            } finally {
+                terminate(threadPool);
             }
         }
     }
@@ -194,7 +210,7 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
      * BlobContainer that counts the number of {@link java.io.InputStream} it opens, as well as the
      * total number of bytes read from them.
      */
-    private static class CountingBlobContainer extends BlobContainerWrapper {
+    private static class CountingBlobContainer extends FilterBlobContainer {
 
         private final LongAdder totalBytes = new LongAdder();
         private final LongAdder totalOpens = new LongAdder();
@@ -209,6 +225,11 @@ public class CachedBlobContainerIndexInputTests extends ESIndexInputTestCase {
         @Override
         public InputStream readBlob(String blobName, long position, long length) throws IOException {
             return new CountingInputStream(this, super.readBlob(blobName, position, length), length, rangeSize);
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new CountingBlobContainer(child, this.rangeSize);
         }
 
         @Override

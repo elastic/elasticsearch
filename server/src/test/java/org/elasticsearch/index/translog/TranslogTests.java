@@ -100,9 +100,12 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -320,7 +323,7 @@ public class TranslogTests extends ESTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        addToTranslogAndList(translog, ops, new Translog.Delete("2", 1, primaryTerm.get(), newUid("2")));
+        addToTranslogAndList(translog, ops, new Translog.Delete("2", 1, primaryTerm.get()));
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
@@ -339,7 +342,7 @@ public class TranslogTests extends ESTestCase {
 
             Translog.Delete delete = (Translog.Delete) snapshot.next();
             assertNotNull(delete);
-            assertThat(delete.uid(), equalTo(newUid("2")));
+            assertThat(delete.id(), equalTo("2"));
 
             Translog.NoOp noOp = (Translog.NoOp) snapshot.next();
             assertNotNull(noOp);
@@ -420,23 +423,23 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("2", 1, primaryTerm.get(), newUid("2")));
+        translog.add(new Translog.Delete("2", 1, primaryTerm.get()));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(200L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(193L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(145L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(138L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
-        translog.add(new Translog.Delete("3", 2, primaryTerm.get(), newUid("3")));
+        translog.add(new Translog.Delete("3", 2, primaryTerm.get()));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(243L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(229L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(188L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(174L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -444,9 +447,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(285L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(271L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(230L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(216L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -454,9 +457,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(340L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(326L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(285L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(271L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
         }
 
@@ -466,14 +469,14 @@ public class TranslogTests extends ESTestCase {
             stats.writeTo(out);
             final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(copy.getTranslogSizeInBytes(), equalTo(340L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(326L));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(Strings.toString(builder), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + 340
-                    + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":" + 285
+                assertThat(Strings.toString(builder), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + 326
+                    + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":" + 271
                     + ",\"earliest_last_modified_age\":" + stats.getEarliestLastModifiedAge() + "}}"));
             }
         }
@@ -784,7 +787,7 @@ public class TranslogTests extends ESTestCase {
                     case DELETE:
                         Translog.Delete delOp = (Translog.Delete) op;
                         Translog.Delete expDelOp = (Translog.Delete) expectedOp;
-                        assertEquals(expDelOp.uid(), delOp.uid());
+                        assertEquals(expDelOp.id(), delOp.id());
                         assertEquals(expDelOp.version(), delOp.version());
                         break;
                     case NO_OP:
@@ -944,7 +947,7 @@ public class TranslogTests extends ESTestCase {
                                 op = new Translog.Index("" + id, id, primaryTerm.get(), new byte[]{(byte) id});
                                 break;
                             case DELETE:
-                                op = new Translog.Delete(Long.toString(id), id, primaryTerm.get(), newUid(Long.toString(id)));
+                                op = new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                                 break;
                             case NO_OP:
                                 op = new Translog.NoOp(id, 1, Long.toString(id));
@@ -1924,7 +1927,6 @@ public class TranslogTests extends ESTestCase {
                         case DELETE:
                             op = new Translog.Delete(
                                 threadId + "_" + opCount,
-                                new Term("_uid", threadId + "_" + opCount),
                                 seqNoGenerator.getAndIncrement(),
                                 primaryTerm.get(),
                                 1 + randomInt(100000));
@@ -3187,6 +3189,7 @@ public class TranslogTests extends ESTestCase {
 
         try (Translog brokenTranslog = create(filterFileSystemProvider.getPath(path.toUri()))) {
             failOnCopy.set(true);
+            primaryTerm.incrementAndGet(); // increment primary term to force rolling generation
             assertThat(expectThrows(IOException.class, brokenTranslog::rollGeneration).getMessage(), equalTo(expectedExceptionMessage));
             assertFalse(brokenTranslog.isOpen());
 
@@ -3262,5 +3265,63 @@ public class TranslogTests extends ESTestCase {
                 thread.join();
             }
         }
+    }
+
+    public void testEnsureNoCircularException() throws Exception {
+        final AtomicBoolean failedToSyncCheckpoint = new AtomicBoolean();
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            final FileChannel channel = FileChannel.open(file, openOption);
+            return new FilterFileChannel(channel) {
+                @Override
+                public void force(boolean metaData) throws IOException {
+                    if (failedToSyncCheckpoint.get()) {
+                        throw new IOException("simulated");
+                    }
+                    super.force(metaData);
+                }
+            };
+        };
+        final TranslogConfig config = getTranslogConfig(createTempDir());
+        final String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, channelFactory, primaryTerm.get());
+        final Translog translog = new Translog(config, translogUUID, new TranslogDeletionPolicy(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get,
+            seqNo -> {}) {
+            @Override
+            ChannelFactory getChannelFactory() {
+                return channelFactory;
+            }
+
+            @Override
+            void syncBeforeRollGeneration() {
+                // make it a noop like the old versions
+            }
+        };
+        try (translog) {
+            translog.add(new Translog.Index("1", 1, primaryTerm.get(), new byte[]{1}));
+            failedToSyncCheckpoint.set(true);
+            expectThrows(IOException.class, translog::rollGeneration);
+            final AlreadyClosedException alreadyClosedException = expectThrows(AlreadyClosedException.class, translog::rollGeneration);
+            if (hasCircularReference(alreadyClosedException)) {
+                throw new AssertionError("detect circular reference exception", alreadyClosedException);
+            }
+        }
+    }
+
+    static boolean hasCircularReference(Exception cause) {
+        final Queue<Throwable> queue = new LinkedList<>();
+        queue.add(cause);
+        final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        while (queue.isEmpty() == false) {
+            final Throwable current = queue.remove();
+            if (seen.add(current) == false) {
+                return true;
+            }
+            Collections.addAll(queue, current.getSuppressed());
+            if (current.getCause() != null) {
+                queue.add(current.getCause());
+            }
+        }
+        return false;
     }
 }

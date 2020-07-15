@@ -149,6 +149,30 @@ public class RetryableActionTests extends ESTestCase {
         expectThrows(EsRejectedExecutionException.class, future::actionGet);
     }
 
+    public void testTimeoutOfZeroMeansNoRetry() {
+        final AtomicInteger executedCount = new AtomicInteger();
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final RetryableAction<Boolean> retryableAction = new RetryableAction<>(logger, taskQueue.getThreadPool(),
+            TimeValue.timeValueMillis(10), TimeValue.timeValueSeconds(0), future) {
+
+            @Override
+            public void tryAction(ActionListener<Boolean> listener) {
+                executedCount.getAndIncrement();
+                throw new EsRejectedExecutionException();
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                return e instanceof EsRejectedExecutionException;
+            }
+        };
+        retryableAction.run();
+        taskQueue.runAllRunnableTasks();
+
+        assertEquals(1, executedCount.get());
+        expectThrows(EsRejectedExecutionException.class, future::actionGet);
+    }
+
     public void testFailedBecauseNotRetryable() {
         final AtomicInteger executedCount = new AtomicInteger();
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
@@ -201,7 +225,8 @@ public class RetryableActionTests extends ESTestCase {
         retryableAction.cancel(new ElasticsearchException("Cancelled"));
         taskQueue.runAllRunnableTasks();
 
-        assertEquals(2, executedCount.get());
+        // A second run will not occur because it is cancelled
+        assertEquals(1, executedCount.get());
         expectThrows(ElasticsearchException.class, future::actionGet);
     }
 }

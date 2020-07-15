@@ -58,35 +58,45 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CloseIndexResponse;
+import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.DataStream;
+import org.elasticsearch.client.indices.DataStreamsStatsRequest;
+import org.elasticsearch.client.indices.DataStreamsStatsResponse;
+import org.elasticsearch.client.indices.DataStreamsStatsResponse.DataStreamStats;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
-import org.elasticsearch.client.indices.DeleteIndexTemplateV2Request;
+import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.DeleteDataStreamRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
+import org.elasticsearch.client.indices.GetDataStreamRequest;
+import org.elasticsearch.client.indices.GetDataStreamResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetIndexTemplateV2Request;
-import org.elasticsearch.client.indices.GetIndexTemplatesV2Response;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
-import org.elasticsearch.client.indices.IndexTemplateV2ExistRequest;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateV2Request;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateV2;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -1243,12 +1253,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
                 + "reason=final index setting [index.number_of_shards], not updateable"));
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
-    }
-
     public void testIndexPutSettingNonExistent() throws IOException {
 
         String index = "index";
@@ -1569,6 +1573,80 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(index, alias2), equalTo(true));
     }
 
+    public void testDataStreams() throws Exception {
+        String dataStreamName = "data-stream";
+
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}");
+        Template template = new Template(null, mappings, null);
+        ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(Collections.singletonList(dataStreamName), template,
+            Collections.emptyList(), 1L, 1L, new HashMap<>(), new ComposableIndexTemplate.DataStreamTemplate());
+        PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
+            new PutComposableIndexTemplateRequest().name("ds-template").create(true).indexTemplate(indexTemplate);
+        AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
+            highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        CreateDataStreamRequest createDataStreamRequest = new CreateDataStreamRequest(dataStreamName);
+        IndicesClient indices = highLevelClient().indices();
+        response = execute(createDataStreamRequest, indices::createDataStream, indices::createDataStreamAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        GetDataStreamRequest getDataStreamRequest = new GetDataStreamRequest(dataStreamName);
+        GetDataStreamResponse getDataStreamResponse = execute(getDataStreamRequest, indices::getDataStream, indices::getDataStreamAsync);
+        List<DataStream> dataStreams = getDataStreamResponse.getDataStreams();
+        assertThat(dataStreams, hasSize(1));
+        DataStream dataStream = dataStreams.get(0);
+        assertThat(dataStream.getName(), equalTo(dataStreamName));
+        assertThat(dataStream.getGeneration(), equalTo(1L));
+        assertThat(dataStream.getTimeStampField(), equalTo("@timestamp"));
+        assertThat(dataStream.getIndices(), hasSize(1));
+
+        getDataStreamRequest = new GetDataStreamRequest(null);
+        getDataStreamResponse = execute(getDataStreamRequest, indices::getDataStream, indices::getDataStreamAsync);
+        dataStreams = getDataStreamResponse.getDataStreams();
+        assertThat(dataStreams, hasSize(1));
+        dataStream = dataStreams.get(0);
+        assertThat(dataStream.getName(), equalTo(dataStreamName));
+        assertThat(dataStream.getGeneration(), equalTo(1L));
+        assertThat(dataStream.getTimeStampField(), equalTo("@timestamp"));
+        assertThat(dataStream.getIndices(), hasSize(1));
+
+        DataStreamsStatsRequest dataStreamsStatsRequest = new DataStreamsStatsRequest();
+        DataStreamsStatsResponse dataStreamsStatsResponse = execute(dataStreamsStatsRequest, indices::dataStreamsStats,
+            indices::dataStreamsStatsAsync);
+        int dataStreamsCount = dataStreamsStatsResponse.getDataStreamCount();
+        assertThat(dataStreamsCount, equalTo(1));
+        int backingIndices = dataStreamsStatsResponse.getBackingIndices();
+        assertThat(backingIndices, equalTo(1));
+        ByteSizeValue byteSizeValue = dataStreamsStatsResponse.getTotalStoreSize();
+        assertThat(byteSizeValue, notNullValue());
+        assertThat(byteSizeValue.getBytes(), not(equalTo(0L)));
+        Map<String, DataStreamStats> dataStreamsStats = dataStreamsStatsResponse.getDataStreams();
+        assertThat(dataStreamsStats, notNullValue());
+        assertThat(dataStreamsStats.size(), equalTo(1));
+        DataStreamStats dataStreamStat = dataStreamsStats.get(dataStreamName);
+        assertThat(dataStreamStat, notNullValue());
+        assertThat(dataStreamStat.getDataStream(), equalTo(dataStreamName));
+        assertThat(dataStreamStat.getBackingIndices(), equalTo(1));
+        assertThat(dataStreamStat.getMaximumTimestamp(), equalTo(0L)); // No data in here
+        assertThat(dataStreamStat.getStoreSize().getBytes(), not(equalTo(0L))); // but still takes up some space on disk
+
+        DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(dataStreamName);
+        response = execute(deleteDataStreamRequest, indices::deleteDataStream, indices::deleteDataStreamAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        getDataStreamRequest = new GetDataStreamRequest(null);
+        getDataStreamResponse = execute(getDataStreamRequest, indices::getDataStream, indices::getDataStreamAsync);
+        dataStreams = getDataStreamResponse.getDataStreams();
+        assertThat(dataStreams, hasSize(0));
+
+        getDataStreamRequest = new GetDataStreamRequest(dataStreamName);
+        GetDataStreamRequest finalGetDataStreamRequest = getDataStreamRequest;
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(finalGetDataStreamRequest,
+            indices::getDataStream, indices::getDataStreamAsync));
+        assertThat(e.status(), equalTo(RestStatus.NOT_FOUND));
+    }
+
     public void testIndexTemplates() throws Exception {
         String templateName = "my-template";
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
@@ -1576,42 +1654,80 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
-        IndexTemplateV2 indexTemplate = new IndexTemplateV2(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>());
-        PutIndexTemplateV2Request putIndexTemplateV2Request =
-            new PutIndexTemplateV2Request().name(templateName).create(true).indexTemplate(indexTemplate);
+        ComposableIndexTemplate indexTemplate =
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+        PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
+            new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
 
-        AcknowledgedResponse response = execute(putIndexTemplateV2Request,
+        AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
             highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
-        IndexTemplateV2ExistRequest indexTemplateV2ExistRequest = new IndexTemplateV2ExistRequest(templateName);
-        boolean exist = execute(indexTemplateV2ExistRequest,
+        ComposableIndexTemplateExistRequest composableIndexTemplateExistRequest = new ComposableIndexTemplateExistRequest(templateName);
+        boolean exist = execute(composableIndexTemplateExistRequest,
             highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
 
         assertTrue(exist);
 
-        GetIndexTemplateV2Request getIndexTemplateV2Request = new GetIndexTemplateV2Request(templateName);
-        GetIndexTemplatesV2Response getResponse = execute(getIndexTemplateV2Request,
+        GetComposableIndexTemplateRequest getComposableIndexTemplateRequest = new GetComposableIndexTemplateRequest(templateName);
+        GetComposableIndexTemplatesResponse getResponse = execute(getComposableIndexTemplateRequest,
             highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync);
 
         assertThat(getResponse.getIndexTemplates().size(), equalTo(1));
         assertThat(getResponse.getIndexTemplates().containsKey(templateName), equalTo(true));
         assertThat(getResponse.getIndexTemplates().get(templateName), equalTo(indexTemplate));
 
-        DeleteIndexTemplateV2Request deleteIndexTemplateV2Request = new DeleteIndexTemplateV2Request(templateName);
-        response = execute(deleteIndexTemplateV2Request, highLevelClient().indices()::deleteIndexTemplate,
+        DeleteComposableIndexTemplateRequest deleteComposableIndexTemplateRequest = new DeleteComposableIndexTemplateRequest(templateName);
+        response = execute(deleteComposableIndexTemplateRequest, highLevelClient().indices()::deleteIndexTemplate,
             highLevelClient().indices()::deleteIndexTemplateAsync);
         assertThat(response.isAcknowledged(), equalTo(true));
 
         ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(getIndexTemplateV2Request,
+            () -> execute(getComposableIndexTemplateRequest,
                 highLevelClient().indices()::getIndexTemplate, highLevelClient().indices()::getIndexTemplateAsync));
 
         assertThat(statusException.status(), equalTo(RestStatus.NOT_FOUND));
 
-        exist = execute(indexTemplateV2ExistRequest,
+        exist = execute(composableIndexTemplateExistRequest,
             highLevelClient().indices()::existsIndexTemplate, highLevelClient().indices()::existsIndexTemplateAsync);
 
         assertFalse(exist);
+    }
+
+    public void testSimulateIndexTemplate() throws Exception {
+        String templateName = "my-template";
+        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
+        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
+        AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
+        Template template = new Template(settings, mappings, Map.of("alias", alias));
+        List<String> pattern = List.of("pattern");
+        ComposableIndexTemplate indexTemplate =
+            new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null);
+        PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
+            new PutComposableIndexTemplateRequest().name(templateName).create(true).indexTemplate(indexTemplate);
+
+        AcknowledgedResponse response = execute(putComposableIndexTemplateRequest,
+            highLevelClient().indices()::putIndexTemplate, highLevelClient().indices()::putIndexTemplateAsync);
+        assertThat(response.isAcknowledged(), equalTo(true));
+
+        SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
+        AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
+        ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(pattern, new Template(null, null,
+            Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L, new HashMap<>(), null);
+        PutComposableIndexTemplateRequest newIndexTemplateReq =
+            new PutComposableIndexTemplateRequest().name("used-for-simulation").create(true).indexTemplate(indexTemplate);
+        newIndexTemplateReq.indexTemplate(simulationTemplate);
+        simulateIndexTemplateRequest.indexTemplateV2Request(newIndexTemplateReq);
+
+        SimulateIndexTemplateResponse simulateResponse = execute(simulateIndexTemplateRequest,
+            highLevelClient().indices()::simulateIndexTemplate, highLevelClient().indices()::simulateIndexTemplateAsync);
+
+        Map<String, AliasMetadata> aliases = simulateResponse.resolvedTemplate().aliases();
+        assertThat(aliases, is(notNullValue()));
+        assertThat("the template we provided for the simulation has a higher priority than the one in the system",
+            aliases.get("simulation-alias"), is(notNullValue()));
+        assertThat(aliases.get("simulation-alias").getAlias(), is("simulation-alias"));
+        assertThat("existing template overlaps the higher priority template we provided for the simulation",
+            simulateResponse.overlappingTemplates().get("my-template").get(0), is("pattern"));
     }
 }

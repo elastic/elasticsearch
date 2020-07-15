@@ -54,16 +54,17 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -91,6 +92,11 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         public String getFieldName() {
             return "test";
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
         @Override
@@ -169,7 +175,7 @@ public class FunctionScoreTests extends ESTestCase {
     /**
      * Stub for IndexNumericFieldData needed by some score functions. Returns 1 as value always.
      */
-    private static class IndexNumericFieldDataStub implements IndexNumericFieldData {
+    private static class IndexNumericFieldDataStub extends IndexNumericFieldData {
 
         @Override
         public NumericType getNumericType() {
@@ -179,6 +185,11 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         public String getFieldName() {
             return "test";
+        }
+
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
         @Override
@@ -241,15 +252,8 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode,
-                                        XFieldComparatorSource.Nested nested, boolean reverse) {
-            throw new UnsupportedOperationException(UNSUPPORTED);
-        }
-
-        @Override
-        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
-            throw new UnsupportedOperationException(UNSUPPORTED);
+        protected boolean sortRequiresCustomComparator() {
+            return false;
         }
 
         @Override

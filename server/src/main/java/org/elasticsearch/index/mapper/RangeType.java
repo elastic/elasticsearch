@@ -214,7 +214,7 @@ public enum RangeType {
         }
 
         @Override
-        public Double doubleValue (Object endpointValue) {
+        public Double doubleValue(Object endpointValue) {
             return LONG.doubleValue(endpointValue);
         }
 
@@ -233,16 +233,15 @@ public enum RangeType {
             DateMathParser dateMathParser = (parser == null) ?
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser() : parser;
             boolean roundUp = includeLower == false; // using "gt" should round lower bound up
-            Long low = lowerTerm == null ? Long.MIN_VALUE :
+            Long low = lowerTerm == null ? minValue() :
                 dateMathParser.parse(lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
                     context::nowInMillis, roundUp, zone).toEpochMilli();
             roundUp = includeUpper; // using "lte" should round upper bound up
-            Long high = upperTerm == null ? Long.MAX_VALUE :
+            Long high = upperTerm == null ? maxValue() :
                 dateMathParser.parse(upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
                     context::nowInMillis, roundUp, zone).toEpochMilli();
 
-            return super.rangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation, zone,
-                dateMathParser, context);
+            return createRangeQuery(field, hasDocValues, low, high, includeLower, includeUpper, relation);
         }
         @Override
         public Query withinQuery(String field, Object from, Object to, boolean includeLower, boolean includeUpper) {
@@ -622,11 +621,17 @@ public enum RangeType {
     public Object parse(Object value, boolean coerce) {
         return numberType.parse(value, coerce);
     }
+
     public Query rangeQuery(String field, boolean hasDocValues, Object from, Object to, boolean includeFrom, boolean includeTo,
                             ShapeRelation relation, @Nullable ZoneId timeZone, @Nullable DateMathParser dateMathParser,
                             QueryShardContext context) {
         Object lower = from == null ? minValue() : parse(from, false);
         Object upper = to == null ? maxValue() : parse(to, false);
+        return createRangeQuery(field, hasDocValues, lower, upper, includeFrom, includeTo, relation);
+    }
+
+    protected final Query createRangeQuery(String field, boolean hasDocValues, Object lower, Object upper,
+                                           boolean includeFrom, boolean includeTo, ShapeRelation relation) {
         Query indexQuery;
         if (relation == ShapeRelation.WITHIN) {
             indexQuery = withinQuery(field, lower, upper, includeFrom, includeTo);

@@ -32,7 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.search.action.DeleteAsyncSearchAction;
+import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -85,6 +86,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
@@ -266,17 +268,9 @@ public class RBACEngine implements AuthorizationEngine {
                     // information such as the index and the incoming address of the request
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
-            } else if (isAsyncSearchRelatedAction(action)) {
-                if (SubmitAsyncSearchAction.NAME.equals(action)) {
-                    // we check if the user has any indices permission when submitting an async-search request in order to be
-                    // able to fail the request early. Fine grained index-level permissions are handled by the search action
-                    // that is triggered internally by the submit API.
-                    authorizeIndexActionName(action, authorizationInfo, null, listener);
-                } else {
-                    // async-search actions other than submit have a custom security layer that checks if the current user is
-                    // the same as the user that submitted the original request so we can skip security here.
-                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
-                }
+            } else if (isAsyncRelatedAction(action)) {
+                //index-level permissions are handled by the search action that is triggered internally by the submit API.
+                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
                 assert false : "only scroll and async-search related requests are known indices api that don't " +
                     "support retrieving the indices they relate to";
@@ -342,7 +336,7 @@ public class RBACEngine implements AuthorizationEngine {
                                       Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo.getAction(), indicesLookup));
+            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
@@ -499,18 +493,29 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
-    static List<String> resolveAuthorizedIndicesFromRole(Role role, String action, Map<String, IndexAbstraction> aliasAndIndexLookup) {
-        Predicate<String> predicate = role.allowedIndicesMatcher(action);
+    static List<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
+        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
-        List<String> indicesAndAliases = new ArrayList<>();
+        // do not include data streams for actions that do not operate on data streams
+        TransportRequest request = requestInfo.getRequest();
+        boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
+
+        Set<String> indicesAndAliases = new HashSet<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
-        for (Map.Entry<String, IndexAbstraction> entry : aliasAndIndexLookup.entrySet()) {
-            String aliasOrIndex = entry.getKey();
-            if (predicate.test(aliasOrIndex)) {
-                indicesAndAliases.add(aliasOrIndex);
+        for (Map.Entry<String, IndexAbstraction> entry : lookup.entrySet()) {
+            IndexAbstraction indexAbstraction = entry.getValue();
+            if (predicate.test(indexAbstraction)) {
+                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                    indicesAndAliases.add(indexAbstraction.getName());
+                } else if (includeDataStreams) {
+                    // add data stream and its backing indices for any authorized data streams
+                    indicesAndAliases.add(indexAbstraction.getName());
+                    indicesAndAliases.addAll(indexAbstraction.getIndices().stream()
+                        .map(i -> i.getIndex().getName()).collect(Collectors.toList()));
+                }
             }
         }
-        return Collections.unmodifiableList(indicesAndAliases);
+        return Collections.unmodifiableList(new ArrayList<>(indicesAndAliases));
     }
 
     private void buildIndicesAccessControl(Authentication authentication, String action,
@@ -587,9 +592,10 @@ public class RBACEngine implements AuthorizationEngine {
             action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
-    private static boolean isAsyncSearchRelatedAction(String action) {
+    private static boolean isAsyncRelatedAction(String action) {
         return action.equals(SubmitAsyncSearchAction.NAME) ||
             action.equals(GetAsyncSearchAction.NAME) ||
-            action.equals(DeleteAsyncSearchAction.NAME);
+            action.equals(DeleteAsyncResultAction.NAME) ||
+            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 }

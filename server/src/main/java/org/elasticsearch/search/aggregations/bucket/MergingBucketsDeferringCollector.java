@@ -37,7 +37,7 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
         super(context, isGlobal);
     }
 
-/**
+    /**
      * Merges/prunes the existing bucket ordinals and docDeltas according to the provided mergeMap.
      *
      * The mergeMap is an array where the index position represents the current bucket ordinal, and

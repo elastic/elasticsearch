@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.builder;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -78,9 +76,6 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(SearchSourceBuilder.class));
-
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
@@ -336,10 +331,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     /**
      * From index to start the search from. Defaults to {@code 0}.
+     * Must be a positive value or 0.
      */
     public SearchSourceBuilder from(int from) {
         if (from < 0) {
-            throw new IllegalArgumentException("[from] parameter cannot be negative");
+            throw new IllegalArgumentException("[from] parameter cannot be negative but was [" + from + "]");
         }
         this.from = from;
         return this;
@@ -1027,7 +1023,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    from = parser.intValue();
+                    from(parser.intValue());
                 } else if (SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     size = parser.intValue();
                 } else if (TIMEOUT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

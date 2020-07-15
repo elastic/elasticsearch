@@ -12,7 +12,7 @@ archivesBaseName = 'x-pack-wildcard'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 integTest.enabled = false

@@ -224,18 +224,18 @@ public class CentroidCalculator {
 
         @Override
         public Void visit(Rectangle rectangle) {
-            double sumX = rectangle.getMaxX() + rectangle.getMinX();
-            double sumY = rectangle.getMaxY() + rectangle.getMinY();
             double diffX = rectangle.getMaxX() - rectangle.getMinX();
             double diffY = rectangle.getMaxY() - rectangle.getMinY();
-            if (diffX != 0 && diffY != 0) {
-                calculator.addCoordinate(sumX / 2, sumY / 2, Math.abs(diffX * diffY), DimensionalShapeType.POLYGON);
-            } else if (diffX != 0) {
-                calculator.addCoordinate(sumX / 2, rectangle.getMinY(), diffX, DimensionalShapeType.LINE);
-            } else if (diffY != 0) {
-                calculator.addCoordinate(rectangle.getMinX(), sumY / 2, diffY, DimensionalShapeType.LINE);
+            double rectWeight = Math.abs(diffX * diffY);
+            if (rectWeight != 0) {
+                double sumX = rectangle.getMaxX() + rectangle.getMinX();
+                double sumY = rectangle.getMaxY() + rectangle.getMinY();
+                calculator.addCoordinate(sumX / 2, sumY / 2, rectWeight, DimensionalShapeType.POLYGON);
             } else {
-                visitPoint(rectangle.getMinX(), rectangle.getMinY());
+                // degenerated rectangle, transform to Line
+                Line line = new Line(new double[]{rectangle.getMinX(), rectangle.getMaxX()},
+                    new double[]{rectangle.getMinY(), rectangle.getMaxY()});
+                visit(line);
             }
             return null;
         }
@@ -246,22 +246,20 @@ public class CentroidCalculator {
         }
 
         private void visitLine(int length, CoordinateSupplier x, CoordinateSupplier y) {
-            // check line has length
-            double originDiffX = x.get(0) - x.get(1);
-            double originDiffY = y.get(0) - y.get(1);
-            if (originDiffX != 0 || originDiffY != 0) {
-                // a line's centroid is calculated by summing the center of each
-                // line segment weighted by the line segment's length in degrees
-                for (int i = 0; i < length - 1; i++) {
-                    double diffX = x.get(i) - x.get(i + 1);
-                    double diffY = y.get(i) - y.get(i + 1);
-                    double xAvg = (x.get(i) + x.get(i + 1)) / 2;
-                    double yAvg = (y.get(i) + y.get(i + 1)) / 2;
-                    double weight = Math.sqrt(diffX * diffX + diffY * diffY);
+            // a line's centroid is calculated by summing the center of each
+            // line segment weighted by the line segment's length in degrees
+            for (int i = 0; i < length - 1; i++) {
+                double diffX = x.get(i) - x.get(i + 1);
+                double diffY = y.get(i) - y.get(i + 1);
+                double xAvg = (x.get(i) + x.get(i + 1)) / 2;
+                double yAvg = (y.get(i) + y.get(i + 1)) / 2;
+                double weight = Math.sqrt(diffX * diffX + diffY * diffY);
+                if (weight == 0) {
+                    // degenerated line, it can be considered a point
+                    visitPoint(x.get(i), y.get(i));
+                } else {
                     calculator.addCoordinate(xAvg, yAvg, weight, DimensionalShapeType.LINE);
                 }
-            } else {
-                visitPoint(x.get(0), y.get(0));
             }
         }
 

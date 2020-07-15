@@ -9,13 +9,16 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 /**
  * Built in user for the kibana server
+ * @deprecated use KibanaSystemUser
  */
+@Deprecated
 public class KibanaUser extends User {
 
-    public static final String NAME = UsernamesField.KIBANA_NAME;
+    public static final String NAME = UsernamesField.DEPRECATED_KIBANA_NAME;
     public static final String ROLE_NAME = UsernamesField.KIBANA_ROLE;
 
     public KibanaUser(boolean enabled) {
-        super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, new String[]{ ROLE_NAME }, null, null,
+            MetadataUtils.getDeprecatedReservedMetadata("Please use the [kibana_system] user instead."), enabled);
     }
 }

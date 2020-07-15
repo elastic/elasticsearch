@@ -33,7 +33,6 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -62,6 +61,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyM
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
@@ -79,6 +80,7 @@ import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
+import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
@@ -118,12 +120,10 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -137,7 +137,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -324,59 +323,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             HttpEntity cborEntity = createBinaryEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
             assertEquals("value", restHighLevelClient.parseEntity(cborEntity, entityParser));
         }
-    }
-
-    public void testParseCompressedEntity() throws IOException {
-        CheckedFunction<XContentParser, String, IOException> entityParser = parser -> {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            assertTrue(parser.nextToken().isValue());
-            String value = parser.text();
-            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-            return value;
-        };
-
-        HttpEntity jsonEntity = createGzipEncodedEntity("{\"field\":\"value\"}", ContentType.APPLICATION_JSON);
-        assertEquals("value", restHighLevelClient.parseEntity(jsonEntity, entityParser));
-        HttpEntity yamlEntity = createGzipEncodedEntity("---\nfield: value\n", ContentType.create("application/yaml"));
-        assertEquals("value", restHighLevelClient.parseEntity(yamlEntity, entityParser));
-        HttpEntity smileEntity = createGzipEncodedEntity(SmileXContent.contentBuilder(), ContentType.create("application/smile"));
-        assertEquals("value", restHighLevelClient.parseEntity(smileEntity, entityParser));
-        HttpEntity cborEntity = createGzipEncodedEntity(CborXContent.contentBuilder(), ContentType.create("application/cbor"));
-        assertEquals("value", restHighLevelClient.parseEntity(cborEntity, entityParser));
-    }
-
-    private HttpEntity createGzipEncodedEntity(String content, ContentType contentType) throws IOException {
-        byte[] gzipEncodedContent = compressContentWithGzip(content.getBytes(StandardCharsets.UTF_8));
-        NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
-        httpEntity.setContentEncoding("gzip");
-
-        return httpEntity;
-    }
-
-    private HttpEntity createGzipEncodedEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
-        try (XContentBuilder builder = xContentBuilder) {
-            builder.startObject();
-            builder.field("field", "value");
-            builder.endObject();
-
-            BytesRef bytesRef = BytesReference.bytes(xContentBuilder).toBytesRef();
-            byte[] gzipEncodedContent = compressContentWithGzip(bytesRef.bytes);
-            NByteArrayEntity httpEntity = new NByteArrayEntity(gzipEncodedContent, contentType);
-            httpEntity.setContentEncoding("gzip");
-
-            return httpEntity;
-        }
-    }
-
-    private static byte[] compressContentWithGzip(byte[] content) throws IOException {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream(content.length);
-        GZIPOutputStream gzip = new GZIPOutputStream(bos);
-        gzip.write(content);
-        gzip.close();
-        bos.close();
-
-        return bos.toByteArray();
     }
 
     private static HttpEntity createBinaryEntity(XContentBuilder xContentBuilder, ContentType contentType) throws IOException {
@@ -742,6 +688,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
         assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
         assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("inference")));
 
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
@@ -758,7 +705,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(64, namedXContents.size());
+        assertEquals(69, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -805,7 +752,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(TimeSyncConfig.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.Evaluation.class));
         assertThat(names, hasItems(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME));
-        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
+        assertEquals(Integer.valueOf(12), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.class));
         assertThat(names,
             hasItems(
                 registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
@@ -819,8 +766,10 @@ public class RestHighLevelClientTests extends ESTestCase {
                     Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, HuberMetric.NAME),
                 registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
-        assertEquals(Integer.valueOf(10), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
+        assertEquals(Integer.valueOf(12), categories.get(org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric.Result.class));
         assertThat(names,
             hasItems(
                 registeredMetricName(BinarySoftClassification.NAME, AucRocMetric.NAME),
@@ -834,14 +783,16 @@ public class RestHighLevelClientTests extends ESTestCase {
                     Classification.NAME, org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetric.NAME),
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrixMetric.NAME),
                 registeredMetricName(Regression.NAME, MeanSquaredErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, MeanSquaredLogarithmicErrorMetric.NAME),
+                registeredMetricName(Regression.NAME, HuberMetric.NAME),
                 registeredMetricName(Regression.NAME, RSquaredMetric.NAME)));
         assertEquals(Integer.valueOf(4), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
         assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME, CustomWordEmbedding.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
         assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
-        assertEquals(Integer.valueOf(3),
+        assertEquals(Integer.valueOf(4),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));
-        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME));
+        assertThat(names, hasItems(WeightedMode.NAME, WeightedSum.NAME, LogisticRegression.NAME, Exponent.NAME));
         assertEquals(Integer.valueOf(2),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig.class));
         assertThat(names, hasItems(ClassificationConfig.NAME.getPreferredName(), RegressionConfig.NAME.getPreferredName()));
@@ -858,9 +809,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "render_search_template",
             "scripts_painless_execute",
-            "indices.create_data_stream",
-            "indices.get_data_streams",
-            "indices.delete_data_stream",
+            "indices.simulate_template",
+            "indices.resolve_index",
+            "indices.add_block"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -869,6 +820,11 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.reroute",
             "cluster.state",
             "cluster.stats",
+            "cluster.post_voting_config_exclusions",
+            "cluster.delete_voting_config_exclusions",
+            "dangling_indices.delete_dangling_index",
+            "dangling_indices.import_dangling_index",
+            "dangling_indices.list_dangling_indices",
             "indices.shard_stores",
             "indices.upgrade",
             "indices.recovery",

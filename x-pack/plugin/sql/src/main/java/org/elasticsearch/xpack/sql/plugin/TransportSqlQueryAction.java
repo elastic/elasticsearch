@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Cursors;
@@ -75,7 +75,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                                  String username, String clusterName) {
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
-        Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
+        SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
                 request.filter(), request.mode(), request.clientId(), username, clusterName, request.fieldMultiValueLeniency(),
                 request.indexIncludeFrozen());
 

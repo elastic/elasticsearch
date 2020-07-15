@@ -10,13 +10,14 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -52,10 +53,12 @@ class IndicesAndAliasesResolver {
     static final List<String> NO_INDICES_OR_ALIASES_LIST = Arrays.asList(NO_INDICES_OR_ALIASES_ARRAY);
 
     private final IndexNameExpressionResolver nameExpressionResolver;
+    private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
 
     IndicesAndAliasesResolver(Settings settings, ClusterService clusterService, IndexNameExpressionResolver resolver) {
         this.nameExpressionResolver = resolver;
+        this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 
@@ -129,7 +132,8 @@ class IndicesAndAliasesResolver {
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
-                        if (isIndexVisible("*", authorizedIndex, indicesOptions, metadata)) {
+                        if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata,
+                            indicesRequest.includeDataStreams())) {
                             resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }
                     }
@@ -143,8 +147,8 @@ class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                List<String> replaced = replaceWildcardsWithAuthorizedIndices(split.getLocal(), indicesOptions, metadata,
-                        authorizedIndices, replaceWildcards);
+                List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
+                        authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
                 if (indicesOptions.ignoreUnavailable()) {
                     //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
                     //remove all the ones that the current user is not authorized for and ignore them
@@ -270,7 +274,7 @@ class IndicesAndAliasesResolver {
 
     static boolean allowsRemoteIndices(IndicesRequest request) {
         return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
-                || request instanceof GraphExploreRequest;
+                || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request;
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, Metadata metadata) {
@@ -332,135 +336,6 @@ class IndicesAndAliasesResolver {
             }
         }
         return false;
-    }
-
-    //TODO Investigate reusing code from vanilla es to resolve index names and wildcards
-    private List<String> replaceWildcardsWithAuthorizedIndices(Iterable<String> indices, IndicesOptions indicesOptions, Metadata metadata,
-                                                               List<String> authorizedIndices, boolean replaceWildcards) {
-        //the order matters when it comes to exclusions
-        List<String> finalIndices = new ArrayList<>();
-        boolean wildcardSeen = false;
-        for (String index : indices) {
-            String aliasOrIndex;
-            boolean minus = false;
-            if (index.charAt(0) == '-' && wildcardSeen) {
-                aliasOrIndex = index.substring(1);
-                minus = true;
-            } else {
-                aliasOrIndex = index;
-            }
-
-            // we always need to check for date math expressions
-            final String dateMathName = nameExpressionResolver.resolveDateMathExpression(aliasOrIndex);
-            if (dateMathName != aliasOrIndex) {
-                assert dateMathName.equals(aliasOrIndex) == false;
-                if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
-                    // continue
-                    aliasOrIndex = dateMathName;
-                } else if (authorizedIndices.contains(dateMathName) &&
-                    isIndexVisible(aliasOrIndex, dateMathName, indicesOptions, metadata, true)) {
-                    if (minus) {
-                        finalIndices.remove(dateMathName);
-                    } else {
-                        finalIndices.add(dateMathName);
-                    }
-                } else {
-                    if (indicesOptions.ignoreUnavailable() == false) {
-                        throw new IndexNotFoundException(dateMathName);
-                    }
-                }
-            }
-
-            if (replaceWildcards && Regex.isSimpleMatchPattern(aliasOrIndex)) {
-                wildcardSeen = true;
-                Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : authorizedIndices) {
-                    if (Regex.simpleMatch(aliasOrIndex, authorizedIndex) &&
-                        isIndexVisible(aliasOrIndex, authorizedIndex, indicesOptions, metadata)) {
-                        resolvedIndices.add(authorizedIndex);
-                    }
-                }
-                if (resolvedIndices.isEmpty()) {
-                    //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                    if (indicesOptions.allowNoIndices() == false) {
-                        throw new IndexNotFoundException(aliasOrIndex);
-                    }
-                } else {
-                    if (minus) {
-                        finalIndices.removeAll(resolvedIndices);
-                    } else {
-                        finalIndices.addAll(resolvedIndices);
-                    }
-                }
-            } else if (dateMathName == aliasOrIndex) {
-                // we can use == here to compare strings since the name expression resolver returns the same instance, but add an assert
-                // to ensure we catch this if it changes
-
-                assert dateMathName.equals(aliasOrIndex);
-                //Metadata#convertFromWildcards checks if the index exists here and throws IndexNotFoundException if not (based on
-                // ignore_unavailable). We only add/remove the index: if the index is missing or the current user is not authorized
-                // to access it either an AuthorizationException will be thrown later in AuthorizationService, or the index will be
-                // removed from the list, based on the ignore_unavailable option.
-                if (minus) {
-                    finalIndices.remove(aliasOrIndex);
-                } else {
-                    finalIndices.add(aliasOrIndex);
-                }
-            }
-        }
-        return finalIndices;
-    }
-
-    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata) {
-        return isIndexVisible(expression, index, indicesOptions, metadata, false);
-    }
-
-    private static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,
-                                          boolean dateMathExpression) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
-        final boolean isHidden = indexAbstraction.isHidden();
-        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-            //it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            //complicated to support those options with aliases pointing to multiple indices...
-            //TODO investigate supporting expandWildcards option for aliases too, like es core does.
-            if (indicesOptions.ignoreAliases()) {
-                return false;
-            } else if (isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index)) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            // If indicesOptions.includeDataStreams() returns false then we fail later in IndexNameExpressionResolver.
-            if (isHidden == false || indicesOptions.expandWildcardsHidden()) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-        assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        IndexMetadata indexMetadata = indexAbstraction.getIndices().get(0);
-        if (isHidden && indicesOptions.expandWildcardsHidden() == false && isVisibleDueToImplicitHidden(expression, index) == false) {
-            return false;
-        }
-
-        // the index is not hidden and since it is a date math expression, we consider it visible regardless of open/closed
-        if (dateMathExpression) {
-            assert State.values().length == 2 : "a new IndexMetadata.State value may need to be handled!";
-            return true;
-        }
-        if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
-            return true;
-        }
-        if (indexMetadata.getState() == IndexMetadata.State.OPEN && indicesOptions.expandWildcardsOpen()) {
-            return true;
-        }
-        return false;
-    }
-
-    private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
-        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
     }
 
     private static List<String> indicesList(String[] list) {

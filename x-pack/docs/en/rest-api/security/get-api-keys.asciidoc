@@ -30,12 +30,12 @@ The following parameters can be specified in the query parameters of a GET reque
 pertain to retrieving api keys:
 
 `id`::
-(Optional, string) An API key id. This parameter cannot be used with any of 
+(Optional, string) An API key id. This parameter cannot be used with any of
 `name`, `realm_name` or `username` are used.
 
 `name`::
 (Optional, string) An API key name. This parameter cannot be used with any of
-`id`, `realm_name` or `username` are used.
+`id`, `realm_name` or `username` are used. It supports prefix search with wildcard.
 
 `realm_name`::
 (Optional, string) The name of an authentication realm. This parameter cannot be
@@ -47,7 +47,7 @@ either `id` or `name` or when `owner` flag is set to `true`.
 
 `owner`::
 (Optional, boolean) A boolean flag that can be used to query API keys owned
-by the currently authenticated user. Defaults to false. 
+by the currently authenticated user. Defaults to false.
 The 'realm_name' or 'username' parameters cannot be specified when this
 parameter is set to 'true' as they are assumed to be the currently authenticated ones.
 
@@ -98,6 +98,14 @@ You can use the following example to retrieve the API key by name:
 [source,console]
 --------------------------------------------------
 GET /_security/api_key?name=my-api-key
+--------------------------------------------------
+// TEST[continued]
+
+API key name supports prefix search by using wildcard:
+
+[source,console]
+--------------------------------------------------
+GET /_security/api_key?name=my-*
 --------------------------------------------------
 // TEST[continued]
 

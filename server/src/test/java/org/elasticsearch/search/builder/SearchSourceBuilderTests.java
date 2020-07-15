@@ -20,6 +20,7 @@
 package org.elasticsearch.search.builder;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -430,8 +431,9 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeFromErrors() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(-2));
-        assertEquals("[from] parameter cannot be negative", expected.getMessage());
+        int from = randomIntBetween(-10, -1);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().from(from));
+        assertEquals("[from] parameter cannot be negative but was [" + from + "]", expected.getMessage());
     }
 
     public void testNegativeSizeErrors() {

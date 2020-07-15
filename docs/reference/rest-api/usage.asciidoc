@@ -22,7 +22,7 @@ available under the current license and some usage statistics.
 [[usage-api-query-parms]]
 === {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [discrete]
 [[usage-api-example]]
@@ -252,6 +252,11 @@ GET /_xpack/usage
     "available" : true,
     "enabled" : true
   },
+  "searchable_snapshots" : {
+    "available" : true,
+    "enabled" : true,
+    "indices_count" : 0
+  },
   "frozen_indices" : {
     "available" : true,
     "enabled" : true,
@@ -267,10 +272,18 @@ GET /_xpack/usage
     "stats": {
       "boxplot_usage" : 0,
       "top_metrics_usage" : 0,
+      "normalize_usage" : 0,
       "cumulative_cardinality_usage" : 0,
       "t_test_usage" : 0,
-      "string_stats_usage" : 0
+      "string_stats_usage" : 0,
+      "moving_percentiles_usage" : 0
     }
+  },
+  "data_streams" : {
+    "available" : true,
+    "enabled" : true,
+    "data_streams" : 0,
+    "indices_count" : 0
   }
 }
 ------------------------------------------------------------

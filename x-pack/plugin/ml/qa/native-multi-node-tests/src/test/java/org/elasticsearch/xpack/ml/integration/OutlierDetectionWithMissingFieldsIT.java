@@ -74,7 +74,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         putAnalytics(config);
 
         assertIsStopped(id);
-        assertProgress(id, 0, 0, 0, 0);
+        assertProgressIsZero(id);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -108,7 +108,12 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
             }
         }
 
-        assertProgress(id, 100, 100, 100, 100);
+        assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+    }
+
+    @Override
+    boolean supportsInference() {
+        return false;
     }
 }

@@ -111,7 +111,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     private final int maxPendingConnectionListeners;
 
-    private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
@@ -313,8 +313,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(ActionListener.wrap(
-                ignore -> logger.trace("successfully connected after disconnect of {}", node),
-                e -> logger.trace(() -> new ParameterizedMessage("failed to connect after disconnect of {}", node), e)));
+                ignore -> logger.trace("[{}] successfully connected after disconnect of {}", clusterAlias, node),
+                e -> logger.debug(() -> new ParameterizedMessage("[{}] failed to connect after disconnect of {}", clusterAlias, node), e)));
         }
     }
 

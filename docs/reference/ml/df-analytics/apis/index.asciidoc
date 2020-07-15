@@ -6,6 +6,7 @@
 You can use the following APIs to perform {ml} {dfanalytics} activities.
 
 * <<put-dfanalytics,Create {dfanalytics-jobs}>>
+* <<update-dfanalytics,Update {dfanalytics-jobs}>>
 * <<delete-dfanalytics,Delete {dfanalytics-jobs}>>
 * <<get-dfanalytics,Get {dfanalytics-jobs} info>>
 * <<get-dfanalytics-stats,Get {dfanalytics-jobs} statistics>>
@@ -28,6 +29,8 @@ See also <<ml-apis>>.
 //CREATE
 include::put-dfanalytics.asciidoc[]
 include::put-inference.asciidoc[]
+//UPDATE
+include::update-dfanalytics.asciidoc[]
 //DELETE
 include::delete-dfanalytics.asciidoc[]
 include::delete-inference-trained-model.asciidoc[]

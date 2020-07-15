@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
@@ -43,14 +43,14 @@ class ClientTransformIndexerBuilder {
         this.initialStats = new TransformIndexerStats();
     }
 
-    ClientTransformIndexer build(Executor executor, TransformContext context) {
+    ClientTransformIndexer build(ThreadPool threadPool, String executorName, TransformContext context) {
         CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformConfig);
 
         return new ClientTransformIndexer(
-            executor,
+            threadPool,
+            executorName,
             transformsConfigManager,
             checkpointProvider,
-            new TransformProgressGatherer(parentTaskClient),
             new AtomicReference<>(this.indexerState),
             initialPosition,
             parentTaskClient,

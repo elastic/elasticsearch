@@ -23,11 +23,12 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.rest.RestResourcesPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.util.Util
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -53,7 +54,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
         project.pluginManager.apply(TestClustersPlugin)
-        project.pluginManager.apply(RestResourcesPlugin)
+        project.pluginManager.apply(CompileOnlyResolvePlugin.class);
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
@@ -149,10 +150,10 @@ class PluginBuildPlugin implements Plugin<Project> {
         project.dependencies {
             if (BuildParams.internal) {
                 compileOnly project.project(':server')
-                testCompile project.project(':test:framework')
+                testImplementation project.project(':test:framework')
             } else {
                 compileOnly "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
-                testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+                testImplementation "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
             }
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
@@ -209,7 +210,9 @@ class PluginBuildPlugin implements Plugin<Project> {
              * that shadow jar.
              */
             from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
-            from project.configurations.runtimeClasspath - project.configurations.compileOnly
+            from project.configurations.runtimeClasspath - project.configurations.getByName(
+                CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME
+            )
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {
@@ -224,24 +227,6 @@ class PluginBuildPlugin implements Plugin<Project> {
         // also make the zip available as a configuration (used when depending on this project)
         project.configurations.create('zip')
         project.artifacts.add('zip', bundle)
-    }
-
-    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
-
-    /** Find the reponame. */
-    static String urlFromOrigin(String origin) {
-        if (origin == null) {
-            return null // best effort, the url doesnt really matter, it is just required by maven central
-        }
-        if (origin.startsWith('https')) {
-            return origin
-        }
-        Matcher matcher = GIT_PATTERN.matcher(origin)
-        if (matcher.matches()) {
-            return "https://${matcher.group(1)}/${matcher.group(2)}"
-        } else {
-            return origin // best effort, the url doesnt really matter, it is just required by maven central
-        }
     }
 
     /** Configure the pom for the main jar of this plugin */
@@ -260,6 +245,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         if (noticeFile != null) {
             TaskProvider<NoticeTask> generateNotice = project.tasks.register('generateNotice', NoticeTask) {
                 inputFile = noticeFile
+                source(Util.getJavaMainSourceSet(project).get().allJava)
             }
             project.tasks.named('bundlePlugin').configure {
                 from(generateNotice)

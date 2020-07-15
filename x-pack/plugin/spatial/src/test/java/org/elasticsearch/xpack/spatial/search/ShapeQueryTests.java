@@ -27,7 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.spatial.SpatialPlugin;
+import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.locationtech.jts.geom.Coordinate;
 
@@ -45,7 +45,7 @@ public abstract class ShapeQueryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return pluginList(LocalStateSpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     protected abstract XContentBuilder createDefaultMapping() throws Exception;

@@ -40,7 +40,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
     protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         List<BytesReference> referenceList = newRefList(length);
-        BytesReference ref = new CompositeBytesReference(referenceList.toArray(new BytesReference[0]));
+        BytesReference ref = CompositeBytesReference.of(referenceList.toArray(new BytesReference[0]));
         assertEquals(length, ref.length());
         return ref;
     }
@@ -63,7 +63,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
 
     public void testCompositeBuffer() throws IOException {
         List<BytesReference> referenceList = newRefList(randomIntBetween(1, PAGE_SIZE * 2));
-        BytesReference ref = new CompositeBytesReference(referenceList.toArray(new BytesReference[0]));
+        BytesReference ref = CompositeBytesReference.of(referenceList.toArray(new BytesReference[0]));
         BytesRefIterator iterator = ref.iterator();
         BytesRefBuilder builder = new BytesRefBuilder();
 
@@ -116,7 +116,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
     }
 
     public void testSliceIsNotCompositeIfMatchesSingleSubSlice() {
-        CompositeBytesReference bytesRef = new CompositeBytesReference(
+        BytesReference bytesRef = CompositeBytesReference.of(
                 new BytesArray(new byte[12]),
                 new BytesArray(new byte[15]),
                 new BytesArray(new byte[13]));

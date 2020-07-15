@@ -137,7 +137,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictSingleIndexIncludeDataStreamNoExpandForbidClosed();
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     /**

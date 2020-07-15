@@ -26,11 +26,12 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 final int gceNumberOfNodes = 3
 
 dependencies {
-  testCompile project(path: ':plugins:discovery-gce', configuration: 'runtime')
+  testImplementation project(':plugins:discovery-gce')
 }
 
 restResources {

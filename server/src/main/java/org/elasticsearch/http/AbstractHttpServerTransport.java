@@ -305,18 +305,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        handleIncomingRequest(httpRequest, httpChannel, null);
-    }
-
-    /**
-     * This method handles an incoming http request that has encountered an error.
-     *
-     * @param httpRequest that is incoming
-     * @param httpChannel that received the http request
-     * @param exception   that was encountered
-     */
-    public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
-        handleIncomingRequest(httpRequest, httpChannel, exception);
+        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
     }
 
     // Visible for testing

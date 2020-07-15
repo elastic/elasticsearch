@@ -42,6 +42,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -78,12 +79,12 @@ public class DistroTestPlugin implements Plugin<Project> {
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String DISTRIBUTIONS_CONFIGURATION = "distributions";
     private static final String UPGRADE_CONFIGURATION = "upgradeDistributions";
-    private static final String PLUGINS_CONFIGURATION = "packagingPlugins";
+    private static final String EXAMPLE_PLUGIN_CONFIGURATION = "examplePlugin";
     private static final String COPY_DISTRIBUTIONS_TASK = "copyDistributions";
     private static final String COPY_UPGRADE_TASK = "copyUpgradePackages";
-    private static final String COPY_PLUGINS_TASK = "copyPlugins";
     private static final String IN_VM_SYSPROP = "tests.inVM";
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
+    private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
 
     @Override
     public void apply(Project project) {
@@ -102,29 +103,30 @@ public class DistroTestPlugin implements Plugin<Project> {
         Version upgradeVersion = getUpgradeVersion(project);
         Provider<Directory> distributionsDir = project.getLayout().getBuildDirectory().dir("packaging/distributions");
         Provider<Directory> upgradeDir = project.getLayout().getBuildDirectory().dir("packaging/upgrade");
-        Provider<Directory> pluginsDir = project.getLayout().getBuildDirectory().dir("packaging/plugins");
 
         List<ElasticsearchDistribution> distributions = configureDistributions(project, upgradeVersion);
         TaskProvider<Copy> copyDistributionsTask = configureCopyDistributionsTask(project, distributionsDir);
         TaskProvider<Copy> copyUpgradeTask = configureCopyUpgradeTask(project, upgradeVersion, upgradeDir);
-        TaskProvider<Copy> copyPluginsTask = configureCopyPluginsTask(project, pluginsDir);
 
         Map<ElasticsearchDistribution.Type, TaskProvider<?>> lifecyleTasks = lifecyleTasks(project, "destructiveDistroTest");
         TaskProvider<Task> destructiveDistroTest = project.getTasks().register("destructiveDistroTest");
 
+        Configuration examplePlugin = configureExamplePlugin(project);
+
         for (ElasticsearchDistribution distribution : distributions) {
-            TaskProvider<?> destructiveTask = configureDistroTest(project, distribution, dockerSupport);
+            TaskProvider<?> destructiveTask = configureDistroTest(project, distribution, dockerSupport, examplePlugin);
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             lifecyleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
         }
 
-        Map<String, TaskProvider<?>> batsTests = new HashMap<>();
-        configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask).configure(
-            t -> t.setPluginsDir(pluginsDir)
+        TaskProvider<BatsTestTask> batsUpgradeTest = configureBatsTest(
+            project,
+            "upgrade",
+            distributionsDir,
+            copyDistributionsTask,
+            copyUpgradeTask
         );
-        configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask).configure(
-            t -> t.setUpgradeDir(upgradeDir)
-        );
+        batsUpgradeTest.configure(t -> t.setUpgradeDir(upgradeDir));
 
         project.subprojects(vmProject -> {
             vmProject.getPluginManager().apply(VagrantBasePlugin.class);
@@ -145,7 +147,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         destructiveTaskName,
                         vmDependencies
                     );
-                    vmTask.configure(t -> t.dependsOn(distribution));
+                    vmTask.configure(t -> t.dependsOn(distribution, examplePlugin));
 
                     vmLifecyleTasks.get(distribution.getType()).configure(t -> t.dependsOn(vmTask));
                     distroTest.configure(t -> {
@@ -168,12 +170,10 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             }
 
-            batsTests.forEach((desc, task) -> {
-                configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
-                    t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                    t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
-                    t.dependsOn(copyDistributionsTask);
-                });
+            configureVMWrapperTask(vmProject, "bats upgrade", batsUpgradeTest.getName(), vmDependencies).configure(t -> {
+                t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                t.dependsOn(copyDistributionsTask, copyUpgradeTask);
             });
         });
     }
@@ -221,7 +221,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         String firstPartOfSeed = BuildParams.getTestSeed().split(":")[0];
         final long seed = Long.parseUnsignedLong(firstPartOfSeed, 16);
-        BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+        BwcVersions bwcVersions = BuildParams.getBwcVersions();
         final List<Version> indexCompatVersions = bwcVersions.getIndexCompatible();
         return indexCompatVersions.get(new Random(seed).nextInt(indexCompatVersions.size()));
     }
@@ -291,8 +291,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             Path upgradePath = upgradeDir.get().getAsFile().toPath();
 
             // write bwc version, and append -SNAPSHOT if it is an unreleased version
-            ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-            BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
+            BwcVersions bwcVersions = BuildParams.getBwcVersions();
             final String upgradeFromVersion;
             if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
                 upgradeFromVersion = upgradeVersion.toString() + "-SNAPSHOT";
@@ -315,14 +314,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         });
     }
 
-    private static TaskProvider<Copy> configureCopyPluginsTask(Project project, Provider<Directory> pluginsDir) {
-        Configuration pluginsConfiguration = project.getConfigurations().create(PLUGINS_CONFIGURATION);
-
-        // temporary, until we have tasks per distribution
-        return project.getTasks().register(COPY_PLUGINS_TASK, Copy.class, t -> {
-            t.into(pluginsDir);
-            t.from(pluginsConfiguration);
-        });
+    private static Configuration configureExamplePlugin(Project project) {
+        Configuration examplePlugin = project.getConfigurations().create(EXAMPLE_PLUGIN_CONFIGURATION);
+        DependencyHandler deps = project.getDependencies();
+        Map<String, String> examplePluginProject = Map.of("path", ":example-plugins:custom-settings", "configuration", "zip");
+        deps.add(EXAMPLE_PLUGIN_CONFIGURATION, deps.project(examplePluginProject));
+        return examplePlugin;
     }
 
     private static TaskProvider<GradleDistroTestTask> configureVMWrapperTask(
@@ -346,7 +343,8 @@ public class DistroTestPlugin implements Plugin<Project> {
     private static TaskProvider<?> configureDistroTest(
         Project project,
         ElasticsearchDistribution distribution,
-        Provider<DockerSupportService> dockerSupport
+        Provider<DockerSupportService> dockerSupport,
+        Configuration examplePlugin
     ) {
         return project.getTasks().register(destructiveDistroTestTaskName(distribution), Test.class, t -> {
             // Disable Docker distribution tests unless a Docker installation is available
@@ -357,8 +355,10 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.setMaxParallelForks(1);
             t.setWorkingDir(project.getProjectDir());
             t.systemProperty(DISTRIBUTION_SYSPROP, distribution.toString());
+            t.systemProperty(EXAMPLE_PLUGIN_SYSPROP, examplePlugin.getSingleFile().toString());
             if (System.getProperty(IN_VM_SYSPROP) == null) {
                 t.dependsOn(distribution);
+                t.dependsOn(examplePlugin);
             }
         });
     }

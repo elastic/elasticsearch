@@ -74,8 +74,8 @@ public class SWhile extends AStatement {
 
         boolean continuous = false;
 
-        if (conditionNode instanceof EBoolean) {
-            continuous = ((EBoolean)conditionNode).getBool();
+        if (conditionNode instanceof EBooleanConstant) {
+            continuous = ((EBooleanConstant)conditionNode).getBool();
 
             if (continuous == false) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));

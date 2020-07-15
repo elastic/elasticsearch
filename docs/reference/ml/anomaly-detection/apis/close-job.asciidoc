@@ -61,14 +61,14 @@ results the job might have recently produced or might produce in the future.
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
 
 [[ml-close-job-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_jobs`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `force`::
   (Optional, boolean) Use to close a failed job, or to forcefully close a job

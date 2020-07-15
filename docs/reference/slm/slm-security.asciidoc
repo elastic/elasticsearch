@@ -1,0 +1,58 @@
+[[slm-and-security]]
+=== Security and {slm-init}
+
+Two built-in cluster privileges control access to the {slm-init} actions when
+{es} {security-features} are enabled:
+
+`manage_slm`:: Allows a user to perform all {slm-init} actions, including creating and updating policies
+and starting and stopping {slm-init}.
+
+`read_slm`:: Allows a user to perform all read-only {slm-init} actions,
+such as getting policies and checking the {slm-init} status.
+
+`cluster:admin/snapshot/*`:: Allows a user to take and delete snapshots of any
+index, whether or not they have access to that index.
+
+You can create and manage roles to assign these privileges through {kib} Management.
+
+To grant the privileges necessary to create and manage {slm-init} policies and snapshots,
+you can set up a role with the `manage_slm` and `cluster:admin/snapshot/*` cluster privileges
+and full access to the {slm-init} history indices. 
+
+For example, the following request creates an `slm-admin` role:
+
+[source,console]
+-----------------------------------
+POST /_security/role/slm-admin
+{
+  "cluster": ["manage_slm", "cluster:admin/snapshot/*"],
+  "indices": [
+    {
+      "names": [".slm-history-*"],
+      "privileges": ["all"]
+    }
+  ]
+}
+-----------------------------------
+// TEST[skip:security is not enabled here]
+
+To grant read-only access to {slm-init} policies and the snapshot history, 
+you can set up a role with the `read_slm` cluster privilege and read access
+to the {slm} history indices. 
+
+For example, the following request creates a `slm-read-only` role:
+
+[source,console]
+-----------------------------------
+POST /_security/role/slm-read-only
+{
+  "cluster": ["read_slm"],
+  "indices": [
+    {
+      "names": [".slm-history-*"],
+      "privileges": ["read"]
+    }
+  ]
+}
+-----------------------------------
+// TEST[skip:security is not enabled here]

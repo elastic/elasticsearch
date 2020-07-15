@@ -59,9 +59,11 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -91,18 +93,6 @@ public final class BlobStoreTestUtil {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
-    private static final byte[] SINK = new byte[1024];
-
-    public static boolean blobExists(BlobContainer container, String blobName) throws IOException {
-        try (InputStream input = container.readBlob(blobName)) {
-            // Drain input stream fully to avoid warnings from SDKs like S3 that don't like closing streams mid-way
-            while (input.read(SINK) >= 0);
-            return true;
-        } catch (NoSuchFileException e) {
-            return false;
-        }
-    }
-
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
      * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata
@@ -127,9 +117,9 @@ public final class BlobStoreTestUtil {
                 try (InputStream blob = blobContainer.readBlob("index-" + latestGen);
                      XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
                          LoggingDeprecationHandler.INSTANCE, blob)) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
                 }
-                assertIndexUUIDs(blobContainer, repositoryData);
+                assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
                 assertShardIndexGenerations(blobContainer, repositoryData.shardGenerations());
                 return null;
@@ -172,10 +162,10 @@ public final class BlobStoreTestUtil {
         }
     }
 
-    private static void assertIndexUUIDs(BlobContainer repoRoot, RepositoryData repositoryData) throws IOException {
+    private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
         final List<String> expectedIndexUUIDs =
             repositoryData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toList());
-        final BlobContainer indicesContainer = repoRoot.children().get("indices");
+        final BlobContainer indicesContainer = repository.blobContainer().children().get("indices");
         final List<String> foundIndexUUIDs;
         if (indicesContainer == null) {
             foundIndexUUIDs = Collections.emptyList();
@@ -185,6 +175,21 @@ public final class BlobStoreTestUtil {
                 s -> s.startsWith("extra") == false).collect(Collectors.toList());
         }
         assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        for (String indexId : foundIndexUUIDs) {
+            final Set<String> indexMetaGenerationsFound = indicesContainer.children().get(indexId)
+                .listBlobsByPrefix(BlobStoreRepository.METADATA_PREFIX).keySet().stream()
+                .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(".dat", ""))
+                .collect(Collectors.toSet());
+            final Set<String> indexMetaGenerationsExpected = new HashSet<>();
+            final IndexId idx =
+                repositoryData.getIndices().values().stream().filter(i -> i.getId().equals(indexId)).findFirst().get();
+            for (SnapshotId snapshotId : repositoryData.getSnapshots(idx)) {
+                indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, idx));
+            }
+            // TODO: assertEquals(indexMetaGenerationsExpected, indexMetaGenerationsFound); requires cleanup functionality for
+            //       index meta generations blobs
+            assertTrue(indexMetaGenerationsFound.containsAll(indexMetaGenerationsExpected));
+        }
     }
 
     private static void assertSnapshotUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
@@ -215,8 +220,9 @@ public final class BlobStoreTestUtil {
                 assertThat(indices, hasKey(indexId.getId()));
                 final BlobContainer indexContainer = indices.get(indexId.getId());
                 assertThat(indexContainer.listBlobs(),
-                    hasKey(String.format(Locale.ROOT, BlobStoreRepository.METADATA_NAME_FORMAT, snapshotId.getUUID())));
-                final IndexMetadata indexMetadata = repository.getSnapshotIndexMetadata(snapshotId, indexId);
+                    hasKey(String.format(Locale.ROOT, BlobStoreRepository.METADATA_NAME_FORMAT,
+                        repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, indexId))));
+                final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
                 for (Map.Entry<String, BlobContainer> entry : indexContainer.children().entrySet()) {
                     // Skip Lucene MockFS extraN directory
                     if (entry.getKey().startsWith("extra")) {

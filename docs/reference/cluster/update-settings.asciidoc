@@ -40,20 +40,17 @@ the setting is the same on all nodes. If, on the other hand, you define differen
 settings on different nodes by accident using the configuration file, it is very
 difficult to notice these discrepancies.
 
-You can find the list of settings that you can dynamically update in 
-<<modules,Modules>>.
-
 
 [[cluster-update-settings-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
     (Optional, boolean) If `true`, returns all default cluster settings. 
     Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[cluster-update-settings-api-example]]

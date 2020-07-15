@@ -30,11 +30,13 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -75,9 +77,10 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
         final Context context,
         final Random random) {
-        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, BlobPath.cleanPath());
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;
@@ -188,6 +191,16 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
+            public boolean blobExists(String blobName) {
+                try {
+                    readBlob(blobName);
+                    return true;
+                } catch (NoSuchFileException ignored) {
+                    return false;
+                }
+            }
+
+            @Override
             public InputStream readBlob(String name) throws NoSuchFileException {
                 ensureNotClosed();
                 final String blobPath = path.buildAsString() + name;
@@ -203,6 +216,15 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                     }
                     throw new AssertionError("Inconsistent read on [" + blobPath + ']');
                 }
+            }
+
+            @Override
+            public InputStream readBlob(String blobName, long position, long length) throws IOException {
+                final InputStream stream = readBlob(blobName);
+                if (position > 0) {
+                    stream.skip(position);
+                }
+                return Streams.limitStream(stream, length);
             }
 
             private List<BlobStoreAction> relevantActions(String blobPath) {

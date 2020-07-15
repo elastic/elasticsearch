@@ -52,7 +52,10 @@ public class JobUpdate implements ToXContentObject {
         PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
         PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
+        PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+        PARSER.declareObject(Builder::setPerPartitionCategorizationConfig, PerPartitionCategorizationConfig.PARSER,
+                AnalysisConfig.PER_PARTITION_CATEGORIZATION);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
     }
@@ -66,8 +69,10 @@ public class JobUpdate implements ToXContentObject {
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
+    private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
     private final List<String> categorizationFilters;
+    private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     private final Map<String, Object> customSettings;
     private final Boolean allowLazyOpen;
 
@@ -75,7 +80,9 @@ public class JobUpdate implements ToXContentObject {
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
                       @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
+                      @Nullable Long modelSnapshotRetentionDays, @Nullable Long dailyModelSnapshotRetentionAfterDays,
+                      @Nullable List<String> categorizationFilters,
+                      @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
                       @Nullable Map<String, Object> customSettings, @Nullable Boolean allowLazyOpen) {
         this.jobId = jobId;
         this.groups = groups;
@@ -86,8 +93,10 @@ public class JobUpdate implements ToXContentObject {
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+        this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.categorizationFilters = categorisationFilters;
+        this.categorizationFilters = categorizationFilters;
+        this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
         this.customSettings = customSettings;
         this.allowLazyOpen = allowLazyOpen;
     }
@@ -136,6 +145,10 @@ public class JobUpdate implements ToXContentObject {
         return categorizationFilters;
     }
 
+    public PerPartitionCategorizationConfig getPerPartitionCategorizationConfig() {
+        return perPartitionCategorizationConfig;
+    }
+
     public Map<String, Object> getCustomSettings() {
         return customSettings;
     }
@@ -172,11 +185,17 @@ public class JobUpdate implements ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             builder.field(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
         }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.field(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
+        }
         if (resultsRetentionDays != null) {
             builder.field(Job.RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
         }
         if (categorizationFilters != null) {
             builder.field(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName(), categorizationFilters);
+        }
+        if (perPartitionCategorizationConfig != null) {
+            builder.field(AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName(), perPartitionCategorizationConfig);
         }
         if (customSettings != null) {
             builder.field(Job.CUSTOM_SETTINGS.getPreferredName(), customSettings);
@@ -209,8 +228,10 @@ public class JobUpdate implements ToXContentObject {
             && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
             && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
             && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+            && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
             && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
             && Objects.equals(this.categorizationFilters, that.categorizationFilters)
+            && Objects.equals(this.perPartitionCategorizationConfig, that.perPartitionCategorizationConfig)
             && Objects.equals(this.customSettings, that.customSettings)
             && Objects.equals(this.allowLazyOpen, that.allowLazyOpen);
     }
@@ -218,8 +239,8 @@ public class JobUpdate implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
-            backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
-            allowLazyOpen);
+            backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
+            categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen);
     }
 
     public static class DetectorUpdate implements ToXContentObject {
@@ -312,8 +333,10 @@ public class JobUpdate implements ToXContentObject {
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays;
+        private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
         private List<String> categorizationFilters;
+        private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private Map<String, Object> customSettings;
         private Boolean allowLazyOpen;
 
@@ -423,6 +446,18 @@ public class JobUpdate implements ToXContentObject {
         }
 
         /**
+         * The time in days after which only one model snapshot per day is retained for the job.
+         *
+         * Updates the {@link Job#dailyModelSnapshotRetentionAfterDays} setting
+         *
+         * @param dailyModelSnapshotRetentionAfterDays number of days to keep a model snapshot
+         */
+        public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
+            this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
+            return this;
+        }
+
+        /**
          * Advanced configuration option. The number of days for which job results are retained
          *
          * Updates the {@link Job#resultsRetentionDays} setting
@@ -448,6 +483,19 @@ public class JobUpdate implements ToXContentObject {
         }
 
         /**
+         * Sets the per-partition categorization options on the {@link Job}
+         *
+         * Updates the {@link AnalysisConfig#perPartitionCategorizationConfig} setting.
+         * Requires {@link AnalysisConfig#perPartitionCategorizationConfig} to have been set on the existing Job.
+         *
+         * @param perPartitionCategorizationConfig per-partition categorization options for the Job's {@link AnalysisConfig}
+         */
+        public Builder setPerPartitionCategorizationConfig(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
+            this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
+            return this;
+        }
+
+        /**
          * Contains custom meta data about the job.
          *
          * Updates the {@link Job#customSettings} setting
@@ -466,8 +514,8 @@ public class JobUpdate implements ToXContentObject {
 
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
-                renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
-                allowLazyOpen);
+                renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays,
+                categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen);
         }
     }
 }

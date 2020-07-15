@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -45,7 +46,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -53,23 +54,23 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).checkFeature(Feature.MONITORING);
         }
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).isMonitoringAllowed();
+        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {

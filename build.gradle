@@ -22,7 +22,6 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
@@ -31,14 +30,13 @@ import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
-
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.gradle.spotless" version "3.28.0" apply false
+  id "com.diffplug.gradle.spotless" version "4.0.0" apply false
 }
 
 apply from: 'gradle/build-scan.gradle'
@@ -47,6 +45,9 @@ apply from: 'gradle/runtime-jdk-provision.gradle'
 apply from: 'gradle/ide.gradle'
 apply from: 'gradle/forbidden-dependencies.gradle'
 apply from: 'gradle/formatting.gradle'
+apply from: 'gradle/local-distribution.gradle'
+apply from: 'gradle/fips.gradle'
+apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -54,8 +55,6 @@ allprojects {
   version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
-
-BuildPlugin.configureRepositories(project)
 
 String licenseCommit
 if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
@@ -109,17 +108,12 @@ subprojects {
   }
 }
 
-/* Introspect all versions of ES that may be tested against for backwards
- * compatibility. It is *super* important that this logic is the same as the
- * logic in VersionUtils.java. */
-BwcVersions versions = new BwcVersions(file('server/src/main/java/org/elasticsearch/Version.java').readLines('UTF-8'))
-
-task updateCIBwcVersions() {
+tasks.register("updateCIBwcVersions") {
   doLast {
     File yml = file(".ci/bwcVersions")
     yml.text = ""
     yml << "BWC_VERSION:\n"
-    versions.indexCompatible.each {
+    BuildParams.bwcVersions.indexCompatible.each {
       yml << "  - \"$it\"\n"
     }
   }
@@ -144,14 +138,11 @@ allprojects {
       gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
       gradle.startParameter.taskNames.contains('cleanEclipse')
 
-    // for BWC testing
-    bwcVersions = versions
-
     buildMetadata = buildMetadataMap
   }
 }
 
-task verifyVersions {
+tasks.register("verifyVersions") {
   doLast {
     if (gradle.startParameter.isOffline()) {
       throw new GradleException("Must run in online mode to verify versions")
@@ -160,7 +151,7 @@ task verifyVersions {
     // Fetch the metadata and parse the xml into Version instances because it's more straight forward here
     // rather than bwcVersion ( VersionCollection ).
     new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
-      bwcVersions.compareToAuthoritative(
+      BuildParams.bwcVersions.compareToAuthoritative(
         new XmlParser().parse(s)
           .versioning.versions.version
           .collect { it.text() }.findAll { it ==~ /\d+\.\d+\.\d+/ }
@@ -168,7 +159,7 @@ task verifyVersions {
       )
     }
     String ciYml = file(".ci/bwcVersions").text
-    bwcVersions.indexCompatible.each {
+    BuildParams.bwcVersions.indexCompatible.each {
       if (ciYml.contains("\"$it\"\n") == false) {
         throw new Exception(".ci/bwcVersions is outdated, run `./gradlew updateCIBwcVersions` and check in the results");
       }
@@ -183,8 +174,8 @@ task verifyVersions {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = false
+final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/59622" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -203,7 +194,7 @@ subprojects {
   ext.bwc_tests_enabled = bwc_tests_enabled
 }
 
-task verifyBwcTestsEnabled {
+tasks.register("verifyBwcTestsEnabled") {
   doLast {
     if (bwc_tests_enabled == false) {
       throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
@@ -211,10 +202,10 @@ task verifyBwcTestsEnabled {
   }
 }
 
-task branchConsistency {
+tasks.register("branchConsistency") {
   description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
-  dependsOn verifyVersions, verifyBwcTestsEnabled
+  dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 allprojects {
@@ -260,7 +251,8 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+          String externalLinkName = upstreamProject.archivesBaseName
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
         }
       }
@@ -385,43 +377,6 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-// we need to add the same --debug-jvm option as
-// the real RunTask has, so we can pass it through
-class Run extends DefaultTask {
-  boolean debug = false
-
-  @Option(
-    option = "debug-jvm",
-    description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
-  )
-  public void setDebug(boolean enabled) {
-    project.project(':distribution').run.debug = enabled
-  }
-
-  @Option(
-    option = "data-dir",
-    description = "Override the base data directory used by the testcluster"
-  )
-  public void setDataDir(String dataDirStr) {
-    project.project(':distribution').run.dataDir = dataDirStr
-  }
-
-  @Option(
-    option = "keystore-password",
-    description = "Set the elasticsearch keystore password"
-  )
-  public void setKeystorePassword(String password) {
-    project.project(':distribution').run.keystorePassword = password
-  }
-}
-
-task run(type: Run) {
-  dependsOn ':distribution:run'
-  description = 'Runs elasticsearch in the foreground'
-  group = 'Verification'
-  impliesSubProjects = true
-}
-
 wrapper {
   distributionType = 'ALL'
   doLast {
@@ -472,12 +427,17 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
+  apply plugin: 'elasticsearch.enforce-deprecation-use-failures'
+
   tasks.register('resolveAllDependencies') {
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
     }
     doLast {
-      configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
+      configurations.findAll { it.isCanBeResolved() &&
+        it.name.equals("testCompile") == false &&
+        it.name.equals("compile") == false
+      }.each { it.resolve() }
     }
   }
 
@@ -494,7 +454,7 @@ allprojects {
     if (realTask == null) {
       return
     }
-    project.tasks.create(taskName) {
+    project.tasks.register(taskName) {
       doLast {
         println("${realTask.path} dependencies:")
         for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {
@@ -511,18 +471,6 @@ allprojects {
       checkPart2.configure { dependsOn 'check' }
     } else {
       checkPart1.configure { dependsOn 'check' }
-    }
-  }
-}
-
-// TODO: remove this once 7.7 is released and the 7.x branch is 7.8
-subprojects {
-  pluginManager.withPlugin('elasticsearch.testclusters') {
-    testClusters.all {
-      if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-        systemProperty 'es.itv2_feature_enabled', 'true'
-        systemProperty 'es.datastreams_feature_enabled', 'true'
-      }
     }
   }
 }

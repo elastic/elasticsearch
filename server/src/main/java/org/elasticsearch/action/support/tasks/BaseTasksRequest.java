@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -159,7 +160,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     public boolean match(Task task) {
-        if (getActions() != null && getActions().length > 0 && Regex.simpleMatch(getActions(), task.getAction()) == false) {
+        if (CollectionUtils.isEmpty(getActions()) == false && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
         if (getTaskId().isSet()) {

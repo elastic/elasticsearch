@@ -125,7 +125,6 @@ public class EBrace extends AExpression {
                         new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
                 analyze(indexNode, semanticScope);
                 indexNode.cast(semanticScope);
-
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {
@@ -167,7 +166,6 @@ public class EBrace extends AExpression {
                 semanticScope.putDecoration(indexNode, new TargetType(int.class));
                 analyze(indexNode, semanticScope);
                 indexNode.cast(semanticScope);
-
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {

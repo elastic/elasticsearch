@@ -265,7 +265,7 @@ public final class ShardPath {
         long maxUsableBytes = Long.MIN_VALUE;
         for (NodeEnvironment.NodePath nodePath : paths) {
             FileStore fileStore = nodePath.fileStore;
-            long usableBytes = fileStore.getUsableSpace();
+            long usableBytes = fileStore.getUsableSpace(); // NB usable bytes doesn't account for reserved space (e.g. incoming recoveries)
             assert usableBytes >= 0 : "usable bytes must be >= 0, got: " + usableBytes;
 
             if (bestPath == null || usableBytes > maxUsableBytes) {

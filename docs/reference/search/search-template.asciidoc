@@ -46,13 +46,13 @@ per type and context as described in the
 [[search-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 
 
 [[search-template-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
@@ -60,7 +60,7 @@ Defaults to `true`.
   (Optional, boolean) If `true`, network round-trips are minimized for 
  cross-cluster search requests. Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `explain`::
   (Optional, boolean) If `true`, the response includes additional details about 
@@ -70,9 +70,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
   (Optional, boolean) If `true`, specified concrete, expanded or aliased indices 
   are not included in the response when throttled. Defaults to `false`. 
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 `profile`::
   (Optional, boolean) If `true`, the query execution is profiled. Defaults 
@@ -82,11 +82,11 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
   (Optional, boolean) If `true`, `hits.total` are rendered as an integer in 
   the response. Defaults to `false`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `typed_keys`::
   (Optional, boolean) If `true`, aggregation and suggester names are 

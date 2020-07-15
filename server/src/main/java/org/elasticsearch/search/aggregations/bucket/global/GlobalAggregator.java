@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
@@ -34,7 +35,7 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
 
     public GlobalAggregator(String name, AggregatorFactories subFactories, SearchContext aggregationContext,
             Map<String, Object> metadata) throws IOException {
-        super(name, subFactories, aggregationContext, null, metadata);
+        super(name, subFactories, aggregationContext, null, CardinalityUpperBound.ONE, metadata);
     }
 
     @Override
@@ -50,9 +51,11 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
-        return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metadata());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        assert owningBucketOrds.length == 1 && owningBucketOrds[0] == 0: "global aggregator can only be a top level aggregator";
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalGlobal(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata())
+        );
     }
 
     @Override

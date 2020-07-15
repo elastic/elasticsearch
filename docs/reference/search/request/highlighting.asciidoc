@@ -309,7 +309,6 @@ highlighting would only take the search query into account.
 --------------------------------------------------
 GET /_search
 {
-    "stored_fields": [ "_id" ],
     "query" : {
         "match": {
             "comment": {
@@ -331,6 +330,7 @@ GET /_search
             "rescore_query_weight" : 10
         }
     },
+    "_source": false,
     "highlight" : {
         "order" : "score",
         "fields" : {

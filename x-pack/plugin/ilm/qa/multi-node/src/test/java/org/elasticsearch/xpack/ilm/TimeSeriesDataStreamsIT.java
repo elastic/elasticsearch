@@ -11,7 +11,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -47,15 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class TimeSeriesDataStreamsIT extends ESRestTestCase {
-
-    private static final String FAILED_STEP_RETRY_COUNT_FIELD = "failed_step_retry_count";
-    public static final String TIMESTAMP_MAPPING = "{\n" +
-        "      \"properties\": {\n" +
-        "        \"@timestamp\": {\n" +
-        "          \"type\": \"date\"\n" +
-        "        }\n" +
-        "      }\n" +
-        "    }";
 
     public void testRolloverAction() throws Exception {
         String policyName = "logs-policy";
@@ -233,7 +223,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     private static Template getTemplate(String policyName) throws IOException {
-        return new Template(getLifcycleSettings(policyName), new CompressedXContent(TIMESTAMP_MAPPING), null);
+        return new Template(getLifcycleSettings(policyName), null, null);
     }
 
     private static Settings getLifcycleSettings(String policyName) {

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ThrowNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -34,35 +35,32 @@ import java.util.Objects;
  */
 public class SThrow extends AStatement {
 
-    protected final AExpression expression;
+    private final AExpression expressionNode;
 
-    public SThrow(Location location, AExpression expression) {
-        super(location);
+    public SThrow(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.expressionNode = Objects.requireNonNull(expressionNode);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitThrow(this, input);
+    }
 
-        AExpression.Input expressionInput = new AExpression.Input();
-        expressionInput.expected = Exception.class;
-        AExpression.Output expressionOutput = AExpression.analyze(expression, classNode, scriptRoot, scope, expressionInput);
-        PainlessCast expressionCast = AnalyzerCaster.getLegalCast(expression.location,
-                expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal);
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        semanticScope.setCondition(expressionNode, Read.class);
+        semanticScope.putDecoration(expressionNode, new TargetType(Exception.class));
+        AExpression.analyze(expressionNode, semanticScope);
+        expressionNode.cast(semanticScope);
 
-        output.methodEscape = true;
-        output.loopEscape = true;
-        output.allEscape = true;
-        output.statementCount = 1;
-
-        ThrowNode throwNode = new ThrowNode();
-        throwNode.setExpressionNode(AExpression.cast(expressionOutput.expressionNode, expressionCast));
-        throwNode.setLocation(location);
-
-        output.statementNode = throwNode;
-
-        return output;
+        semanticScope.setCondition(this, MethodEscape.class);
+        semanticScope.setCondition(this, LoopEscape.class);
+        semanticScope.setCondition(this, AllEscape.class);
     }
 }

@@ -37,40 +37,28 @@ restResources {
 }
 
 dependencies {
-  compile project(':modules:mapper-extras')
-  compile project(':modules:parent-join')
-  compile project(':modules:aggs-matrix-stats')
-  compile project(':modules:rank-eval')
-  compile project(':modules:lang-mustache')
+  api project(':modules:mapper-extras')
+  api project(':modules:parent-join')
+  api project(':modules:aggs-matrix-stats')
+  api project(':modules:rank-eval')
+  api project(':modules:lang-mustache')
 
   // Don't bundle the server or low-level rest client JARs in the shadow JAR since these get published to Maven Central
   shadow project(':server')
   shadow project(':client:rest')
 
-  testCompile project(':client:test')
-  testCompile project(':test:framework')
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testCompile "junit:junit:${versions.junit}"
+  testImplementation project(':client:test')
+  testImplementation project(':test:framework')
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
-  testCompile project(":rest-api-spec")
+  testImplementation project(":rest-api-spec")
   // Needed for serialization tests:
   // (In order to serialize a server side class to a client side class or the other way around)
-  testCompile(project(':x-pack:plugin:core')) {
+  testImplementation(project(':x-pack:plugin:core')) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
   }
-  testCompile(project(':x-pack:plugin:eql'))
-}
-
-processTestResources {
-  from(project(':client:rest-high-level').file('src/test/resources'))
-}
-
-dependencyLicenses {
-  // Don't check licenses for dependency that are part of the elasticsearch project
-  // But any other dependency should have its license/notice/sha1
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
-  }
+  testImplementation(project(':x-pack:plugin:eql'))
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -110,9 +98,6 @@ testClusters.all {
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.transport.ssl.enabled', 'false'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.eql_feature_flag_registered', 'true'
-  }
   setting 'xpack.eql.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'

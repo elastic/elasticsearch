@@ -313,9 +313,81 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
+    public void testRewriteForUpdate() throws IOException {
+        String pivotTransform = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } },"
+            + " \"max_page_search_size\" : 111"
+            + "},"
+            + " \"version\" : \""
+            + Version.V_7_6_0.toString()
+            + "\""
+            + "}";
+
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
+        TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
+
+        assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
+        assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
+        assertEquals(111L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+        assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+    }
+
+    public void testRewriteForUpdateConflicting() throws IOException {
+        String pivotTransform = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } },"
+            + " \"max_page_search_size\": 111"
+            + "},"
+            + " \"settings\" : { \"max_page_search_size\": 555"
+            + "},"
+            + " \"version\" : \""
+            + Version.V_7_5_0.toString()
+            + "\""
+            + "}";
+
+        TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
+        TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
+
+        assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
+        assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
+        assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
+        assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
+        assertWarnings("[max_page_search_size] is deprecated inside pivot please use settings instead");
+    }
+
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
+        return createTransformConfigFromString(json, id, false);
+    }
+
+    private TransformConfig createTransformConfigFromString(String json, String id, boolean lenient) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
-        return TransformConfig.fromXContent(parser, id, false);
+        return TransformConfig.fromXContent(parser, id, lenient);
     }
 }

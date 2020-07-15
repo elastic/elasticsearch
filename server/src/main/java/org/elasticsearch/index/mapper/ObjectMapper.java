@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ObjectMapper.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
@@ -62,22 +63,52 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class Nested {
 
-        public static final Nested NO = new Nested(false, false, false);
+        public static final Nested NO = new Nested(false, new Explicit<>(false, false), new Explicit<>(false, false));
 
-        public static Nested newNested(boolean includeInParent, boolean includeInRoot) {
+        public static Nested newNested() {
+            return new Nested(true, new Explicit<>(false, false), new Explicit<>(false, false));
+        }
+
+        public static Nested newNested(Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot) {
             return new Nested(true, includeInParent, includeInRoot);
         }
 
         private final boolean nested;
+        private Explicit<Boolean> includeInParent;
+        private Explicit<Boolean> includeInRoot;
 
-        private final boolean includeInParent;
-
-        private final boolean includeInRoot;
-
-        private Nested(boolean nested, boolean includeInParent, boolean includeInRoot) {
+        private Nested(boolean nested, Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot) {
             this.nested = nested;
             this.includeInParent = includeInParent;
             this.includeInRoot = includeInRoot;
+        }
+
+        public void merge(Nested mergeWith, MergeReason reason) {
+            if (isNested()) {
+                if (!mergeWith.isNested()) {
+                    throw new IllegalArgumentException("cannot change object mapping from nested to non-nested");
+                }
+            } else {
+                if (mergeWith.isNested()) {
+                    throw new IllegalArgumentException("cannot change object mapping from non-nested to nested");
+                }
+            }
+
+            if (reason == MergeReason.INDEX_TEMPLATE) {
+                if (mergeWith.includeInParent.explicit()) {
+                    includeInParent = mergeWith.includeInParent;
+                }
+                if (mergeWith.includeInRoot.explicit()) {
+                    includeInRoot = mergeWith.includeInRoot;
+                }
+            } else {
+                if (includeInParent.value() != mergeWith.includeInParent.value()) {
+                    throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
+                }
+                if (includeInRoot.value() != mergeWith.includeInRoot.value()) {
+                    throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
+                }
+            }
         }
 
         public boolean isNested() {
@@ -85,18 +116,26 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         public boolean isIncludeInParent() {
-            return includeInParent;
+            return includeInParent.value();
         }
 
         public boolean isIncludeInRoot() {
-            return includeInRoot;
+            return includeInRoot.value();
+        }
+
+        public void setIncludeInParent(boolean value) {
+            includeInParent = new Explicit<>(value, true);
+        }
+
+        public void setIncludeInRoot(boolean value) {
+            includeInRoot = new Explicit<>(value, true);
         }
     }
 
     @SuppressWarnings("rawtypes")
     public static class Builder<T extends Builder> extends Mapper.Builder<T> {
 
-        protected boolean enabled = Defaults.ENABLED;
+        protected Explicit<Boolean> enabled = new Explicit<>(true, false);
 
         protected Nested nested = Defaults.NESTED;
 
@@ -111,7 +150,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         public T enabled(boolean enabled) {
-            this.enabled = enabled;
+            this.enabled = new Explicit<>(enabled, true);
             return builder;
         }
 
@@ -151,7 +190,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return objectMapper;
         }
 
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
+        protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
                 Map<String, Mapper> mappers, @Nullable Settings settings) {
             return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, settings);
         }
@@ -209,8 +248,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @SuppressWarnings("rawtypes")
         protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
             boolean nested = false;
-            boolean nestedIncludeInParent = false;
-            boolean nestedIncludeInRoot = false;
+            Explicit<Boolean> nestedIncludeInParent = new Explicit<>(false, false);
+            Explicit<Boolean> nestedIncludeInRoot = new Explicit<>(false, false);
             Object fieldNode = node.get("type");
             if (fieldNode!=null) {
                 String type = fieldNode.toString();
@@ -225,18 +264,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             fieldNode = node.get("include_in_parent");
             if (fieldNode != null) {
-                nestedIncludeInParent = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_parent");
+                boolean includeInParent = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_parent");
+                nestedIncludeInParent = new Explicit<>(includeInParent, true);
                 node.remove("include_in_parent");
             }
             fieldNode = node.get("include_in_root");
             if (fieldNode != null) {
-                nestedIncludeInRoot = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_root");
+                boolean includeInRoot = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_root");
+                nestedIncludeInRoot = new Explicit<>(includeInRoot, true);
                 node.remove("include_in_root");
             }
             if (nested) {
                 builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);
             }
-
         }
 
         @SuppressWarnings("rawtypes")
@@ -304,7 +344,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private final String fullPath;
 
-    private final boolean enabled;
+    private Explicit<Boolean> enabled;
 
     private final Nested nested;
 
@@ -316,7 +356,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
-    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
+    ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
             Map<String, Mapper> mappers, Settings settings) {
         super(name);
         assert settings != null;
@@ -373,7 +413,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public boolean isEnabled() {
-        return this.enabled;
+        return this.enabled.value();
     }
 
     public Mapper getMapper(String field) {
@@ -440,61 +480,59 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public ObjectMapper merge(Mapper mergeWith) {
+        return merge(mergeWith, MergeReason.MAPPING_UPDATE);
+    }
+
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
         if (!(mergeWith instanceof ObjectMapper)) {
-            throw new IllegalArgumentException("Can't merge a non object mapping [" + mergeWith.name()
-                + "] with an object mapping [" + name() + "]");
+            throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
-        merged.doMerge(mergeWithObject);
+        merged.doMerge(mergeWithObject, reason);
         return merged;
     }
 
-    protected void doMerge(final ObjectMapper mergeWith) {
-        if (nested().isNested()) {
-            if (!mergeWith.nested().isNested()) {
-                throw new IllegalArgumentException("object mapping [" + name() + "] can't be changed from nested to non-nested");
-            }
-        } else {
-            if (mergeWith.nested().isNested()) {
-                throw new IllegalArgumentException("object mapping [" + name() + "] can't be changed from non-nested to nested");
-            }
-        }
+    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason) {
+        nested().merge(mergeWith.nested(), reason);
 
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
         }
 
-        checkObjectMapperParameters(mergeWith);
+        if (reason == MergeReason.INDEX_TEMPLATE) {
+            if (mergeWith.enabled.explicit()) {
+                this.enabled = mergeWith.enabled;
+            }
+        } else if (isEnabled() != mergeWith.isEnabled()) {
+            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
+        }
 
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
 
             Mapper merged;
             if (mergeIntoMapper == null) {
-                // no mapping, simply add it
                 merged = mergeWithMapper;
+            } else if (mergeIntoMapper instanceof ObjectMapper) {
+                ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
+                merged = objectMapper.merge(mergeWithMapper, reason);
             } else {
-                // root mappers can only exist here for backcompat, and are merged in Mapping
-                merged = mergeIntoMapper.merge(mergeWithMapper);
+                assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
+                if (mergeWithMapper instanceof ObjectMapper) {
+                    throw new IllegalArgumentException("can't merge a non object mapping [" +
+                        mergeWithMapper.name() + "] with an object mapping");
+                }
+
+                // If we're merging template mappings when creating an index, then a field definition always
+                // replaces an existing one.
+                if (reason == MergeReason.INDEX_TEMPLATE) {
+                    merged = mergeWithMapper;
+                } else {
+                    merged = mergeIntoMapper.merge(mergeWithMapper);
+                }
             }
             putMapper(merged);
-        }
-    }
-
-    private void checkObjectMapperParameters(final ObjectMapper mergeWith) {
-        if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("The [enabled] parameter can't be updated for the object mapping [" + name() + "].");
-        }
-
-        if (nested().isIncludeInParent() != mergeWith.nested().isIncludeInParent()) {
-            throw new MapperException("The [include_in_parent] parameter can't be updated for the nested object mapping [" +
-                name() + "].");
-        }
-
-        if (nested().isIncludeInRoot() != mergeWith.nested().isIncludeInRoot()) {
-            throw new MapperException("The [include_in_root] parameter can't be updated for the nested object mapping [" +
-                name() + "].");
         }
     }
 
@@ -521,8 +559,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (dynamic != null) {
             builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
         }
-        if (enabled != Defaults.ENABLED) {
-            builder.field("enabled", enabled);
+        if (isEnabled() != Defaults.ENABLED) {
+            builder.field("enabled", enabled.value());
         }
 
         if (custom != null) {

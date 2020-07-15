@@ -1,9 +1,5 @@
 [[snapshots-restore-snapshot]]
-== Restore indices from a snapshot
-
-++++
-<titleabbrev>Restore a snapshot</titleabbrev>
-++++
+== Restore a snapshot
 
 ////
 [source,console]
@@ -29,15 +25,48 @@ A snapshot can be restored using the following command:
 POST /_snapshot/my_backup/snapshot_1/_restore
 -----------------------------------
 
-By default, all indices in the snapshot are restored, and the cluster state is
-*not* restored. It's possible to select indices that should be restored as well
+By default, all data streams and indices in the snapshot are restored, but the cluster state is
+*not* restored. It's possible to select specific data streams or indices that should be restored as well
 as to allow the global cluster state from being restored by using `indices` and
-`include_global_state` options in the restore request body. The list of indices
-supports <<multi-index,multi index syntax>>. The `rename_pattern`
-and `rename_replacement` options can be also used to rename indices on restore
+`include_global_state` options in the restore request body. The list
+supports <<multi-index,multi-target syntax>>.
+
+[WARNING]
+====
+Each data stream requires a matching
+<<create-a-data-stream-template,index template>>. The stream uses this
+template to create new backing indices.
+
+When restoring a data stream, ensure a matching template exists for the stream.
+You can do this using one of the following methods:
+
+* Check for existing templates that match the stream. If no matching template
+  exists, <<create-a-data-stream-template,create one>>.
+
+* Restore a global cluster state that includes a matching template for the
+  stream.
+
+If no index template matches a data stream, the stream cannot
+<<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
+====
+
+The `rename_pattern`
+and `rename_replacement` options can be also used to rename data streams and indices on restore
 using regular expression that supports referencing the original text as
 explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
+
+If you rename a restored data stream, its backing indices are also
+renamed. For example, if you rename the `logs` data stream to `restored-logs`,
+the backing index `.ds-logs-000005` is renamed to `.ds-restored-logs-000005`.
+
+[WARNING]
+====
+If you rename a restored stream, ensure an index template matches the new stream
+name. If no index template matches the stream, it cannot
+<<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
+====
+
 Set `include_aliases` to `false` to prevent aliases from being restored together
 with associated indices.
 
@@ -45,7 +74,7 @@ with associated indices.
 -----------------------------------
 POST /_snapshot/my_backup/snapshot_1/_restore
 {
-  "indices": "index_1,index_2",
+  "indices": "data_stream_1,index_1,index_2",
   "ignore_unavailable": true,
   "include_global_state": false,              <1>
   "rename_pattern": "index_(.+)",
@@ -69,10 +98,22 @@ has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
 new indices if they didn't exist in the cluster.
 
+If a data stream is restored, its backing indices are also restored. The restore
+operation automatically opens restored backing indices if they were closed.
+
+NOTE: You cannot restore a data stream if a stream with the same name already
+exists. 
+
+In addition to entire data streams, you can restore only specific backing
+indices from a snapshot. However, restored backing indices are not automatically
+added to any existing data streams. For example, if only the `.ds-logs-000003`
+backing index is restored from a snapshot, it is not automatically added to the
+existing `logs` data stream.
+
 [float]
 === Partial restore
 
-By default, the entire restore operation will fail if one or more indices participating in the operation don't have
+By default, the entire restore operation will fail if one or more indices or backing indices participating in the operation don't have
 snapshots of all shards available. It can occur if some shards failed to snapshot for example. It is still possible to
 restore such indices by setting `partial` to `true`. Please note, that only successfully snapshotted shards will be
 restored in this case and all missing shards will be recreated empty.
@@ -102,6 +143,21 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 
 Please note, that some settings such as `index.number_of_shards` cannot be changed during restore operation.
 
+For data streams, these index settings are applied to the restored backing
+indices.
+
+[IMPORTANT]
+====
+The `index_settings` and `ignore_index_settings` parameters affect
+restored backing indices only. New backing indices created for a stream use the index
+settings specified in the stream's matching
+<<create-a-data-stream-template,index template>>.
+
+If you change index settings during a restore, we recommend you make similar
+changes in the stream's matching index template. This ensures new backing
+indices created for the stream use the same index settings.
+====
+
 [float]
 === Restoring to a different cluster
 
@@ -111,11 +167,11 @@ containing the snapshot in the new cluster and starting the restore process. The
 same size or topology.  However, the version of the new cluster should be the same or newer (only 1 major version newer) than the cluster that was used to create the snapshot.  For example, you can restore a 1.x snapshot to a 2.x cluster, but not a 1.x snapshot to a 5.x cluster.
 
 If the new cluster has a smaller size additional considerations should be made. First of all it's necessary to make sure
-that new cluster have enough capacity to store all indices in the snapshot. It's possible to change indices settings
+that new cluster have enough capacity to store all data streams and indices in the snapshot. It's possible to change index settings
 during restore to reduce the number of replicas, which can help with restoring snapshots into smaller cluster. It's also
-possible to select only subset of the indices using the `indices` parameter.
+possible to select only subset of the data streams or indices using the `indices` parameter.
 
-If indices in the original cluster were assigned to particular nodes using
+If indices or backing indices in the original cluster were assigned to particular nodes using
 <<shard-allocation-filtering,shard allocation filtering>>, the same rules will be enforced in the new cluster. Therefore
 if the new cluster doesn't contain nodes with appropriate attributes that a restored index can be allocated on, such
 index will not be successfully restored unless these index allocation settings are changed during restore operation.

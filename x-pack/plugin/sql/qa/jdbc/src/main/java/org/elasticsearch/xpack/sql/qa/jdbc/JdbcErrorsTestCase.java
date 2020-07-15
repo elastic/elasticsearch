@@ -135,9 +135,9 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(
                 SQLException.class,
-                () -> c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000").executeQuery()
+                () -> c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000").executeQuery()
             );
-            assertEquals("The maximum LIMIT for aggregate sorting is [10000], received [12000]", e.getMessage());
+            assertEquals("The maximum LIMIT for aggregate sorting is [65535], received [120000]", e.getMessage());
         }
     }
 }

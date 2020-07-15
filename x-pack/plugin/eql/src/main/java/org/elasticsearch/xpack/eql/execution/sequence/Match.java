@@ -6,7 +6,8 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Objects;
 
@@ -15,25 +16,25 @@ import java.util.Objects;
  */
 class Match {
 
-    private final long timestamp;
-    private final SearchHit hit;
+    private final Ordinal ordinal;
+    private final HitReference hit;
 
-    Match(long timestamp, SearchHit hit) {
-        this.timestamp = timestamp;
+    Match(Ordinal ordinal, HitReference hit) {
+        this.ordinal = ordinal;
         this.hit = hit;
     }
 
-    long timestamp() {
-        return timestamp;
+    Ordinal ordinal() {
+        return ordinal;
     }
 
-    SearchHit hit() {
+    HitReference hit() {
         return hit;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, hit);
+        return Objects.hash(ordinal, hit);
     }
 
     @Override
@@ -47,12 +48,12 @@ class Match {
         }
 
         Match other = (Match) obj;
-        return Objects.equals(timestamp, other.timestamp)
+        return Objects.equals(ordinal, other.ordinal)
                 && Objects.equals(hit, other.hit);
     }
 
     @Override
     public String toString() {
-        return timestamp + "->" + hit.getId();
+        return ordinal + "->" + hit;
     }
 }

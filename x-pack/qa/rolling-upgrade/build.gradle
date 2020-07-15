@@ -5,10 +5,11 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
-  testCompile project(':client:rest-high-level')
+  testImplementation project(':x-pack:qa')
+  testImplementation project(':client:rest-high-level')
 }
 
 restResources {
@@ -47,6 +48,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.authc.token.timeout', '60m'
+      setting 'xpack.security.authc.api_key.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
       setting 'xpack.security.transport.ssl.key', 'testnode.pem'
       setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'

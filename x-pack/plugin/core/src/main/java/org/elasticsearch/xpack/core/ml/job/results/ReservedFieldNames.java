@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -172,6 +173,7 @@ public final class ReservedFieldNames {
             ForecastRequestStats.MEMORY_USAGE.getPreferredName(),
 
             ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName(),
+            ModelSizeStats.PEAK_MODEL_BYTES_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(),
@@ -242,6 +244,7 @@ public final class ReservedFieldNames {
             AnalysisConfig.CATEGORIZATION_FIELD_NAME.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName(),
             AnalysisConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
+            AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName(),
             AnalysisConfig.LATENCY.getPreferredName(),
             AnalysisConfig.SUMMARY_COUNT_FIELD_NAME.getPreferredName(),
             AnalysisConfig.DETECTORS.getPreferredName(),
@@ -277,6 +280,9 @@ public final class ReservedFieldNames {
 
             ModelPlotConfig.ENABLED_FIELD.getPreferredName(),
             ModelPlotConfig.TERMS_FIELD.getPreferredName(),
+            ModelPlotConfig.ANNOTATIONS_ENABLED_FIELD.getPreferredName(),
+
+            PerPartitionCategorizationConfig.STOP_ON_WARN.getPreferredName(),
 
             DatafeedConfig.ID.getPreferredName(),
             DatafeedConfig.QUERY_DELAY.getPreferredName(),

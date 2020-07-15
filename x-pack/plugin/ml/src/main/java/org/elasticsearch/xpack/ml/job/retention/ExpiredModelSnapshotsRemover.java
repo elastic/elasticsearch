@@ -63,12 +63,10 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
      */
     private static final int MODEL_SNAPSHOT_SEARCH_SIZE = 10000;
 
-    private final OriginSettingClient client;
     private final ThreadPool threadPool;
 
-    public ExpiredModelSnapshotsRemover(OriginSettingClient client, ThreadPool threadPool) {
-        super(client);
-        this.client = Objects.requireNonNull(client);
+    public ExpiredModelSnapshotsRemover(OriginSettingClient client, Iterator<Job> jobIterator, ThreadPool threadPool) {
+        super(client, jobIterator);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 

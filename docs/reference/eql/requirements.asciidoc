@@ -6,7 +6,7 @@
 <titleabbrev>Requirements</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 EQL is schema-less and works well with most common log formats.
 
@@ -21,10 +21,11 @@ with core ECS fields by default.
 [[eql-required-fields]]
 === Required fields
 
-In {es}, EQL assumes each document in an index corresponds to an event.
+In {es}, EQL assumes each document in a data stream or index corresponds to an
+event.
 
-To search an index using EQL, each document in the index must contain the
-following field archetypes:
+To search a data stream or index using EQL, each document in the data stream or
+index must contain the following field archetypes:
 
 Event category::
 A field containing the event classification, such as `process`, `file`, or
@@ -32,11 +33,11 @@ A field containing the event classification, such as `process`, `file`, or
 
 Timestamp::
 A field containing the date and/or time the event occurred. This is typically
-mapped as a <<date,`date`>> field.
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field.
 
 [NOTE]
 ====
-You cannot use a <<nested,`nested`>> field datatype or the sub-fields of a
+You cannot use a <<nested,`nested`>> field data type or the sub-fields of a
 `nested` field dataype as the timestamp or event category field. See
 <<eql-nested-fields>>.
 ====

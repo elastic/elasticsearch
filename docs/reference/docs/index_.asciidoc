@@ -6,32 +6,60 @@
 
 IMPORTANT: See <<removal-of-types>>.
 
-Adds a JSON document to the specified index and makes
-it searchable. If the document already exists,
-updates the document and increments its version.
+Adds a JSON document to the specified data stream or index and makes
+it searchable. If the target is an index and the document already exists,
+the request updates the document and increments its version.
+
+NOTE: You cannot use the index API to send update requests for existing
+documents to a data stream. See <<update-delete-docs-in-a-data-stream>>
+and <<update-delete-docs-in-a-backing-index>>.
 
 [[docs-index-api-request]]
 ==== {api-request-title}
 
-`PUT /<index>/_doc/<_id>`
+`PUT /<target>/_doc/<_id>`
 
-`POST /<index>/_doc/`
+`POST /<target>/_doc/`
 
-`PUT /<index>/_create/<_id>`
+`PUT /<target>/_create/<_id>`
 
-`POST /<index>/_create/<_id>`
+`POST /<target>/_create/<_id>`
+
+IMPORTANT: You cannot add new documents to a data stream using the 
+`PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the 
+`PUT /<target>/_create/<_id>` format instead. See 
+<<add-documents-to-a-data-stream>>.
 
 [[docs-index-api-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-(Required, string) Name of the target index. By default, the index is created
-automatically if it doesn't exist. For more information, see <<index-creation>>.
+`<target>`::
+(Required, string) Name of the data stream or index to target.
++
+If the target doesn't exist and matches the name or wildcard (`*`) pattern of an
+<<create-a-data-stream-template,index template with a `data_stream`
+definition>>, this request creates the data stream. See
+<<set-up-a-data-stream>>.
++
+If the target doesn't exist and doesn't match a data stream template,
+this request creates the index.
++
+You can check for existing targets using the resolve index API.
 
 `<_id>`::
-(Optional, string) Unique identifier for the document. Required if you are
-using a PUT request. Omit to automatically generate an ID when using a
-POST request.
+(Optional, string) Unique identifier for the document.
++
+--
+This parameter is required for the following request formats:
+
+* `PUT /<target>/_doc/<_id>`
+* `PUT /<target>/_create/<_id>`
+* `POST /<target>/_create/<_id>`
+
+To automatically generate a document ID, use the `POST /<target>/_doc/` request
+format and omit this parameter.
+--
+
 
 
 [[docs-index-api-query-params]]
@@ -41,12 +69,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
+[[docs-index-api-op_type]]
 `op_type`::
 (Optional, enum) Set to `create` to only index the document
 if it does not already exist (_put if absent_). If a document with the specified
 `_id` already exists, the indexing operation will fail. Same as using the
 `<index>/_create` endpoint. Valid values: `index`, `create`.
 If document id is specified, it defaults to `index`. Otherwise, it defaults to `create`.
++
+NOTE: If the request targets a data stream, an `op_type` of `create` is
+required. See <<add-documents-to-a-data-stream>>.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
@@ -124,12 +156,19 @@ You can index a new JSON document with the `_doc` or `_create` resource. Using
 exist. To update an existing document, you must use the `_doc` resource.
 
 [[index-creation]]
-===== Create indices automatically
+===== Automatically create data streams and indices
 
-If the specified index does not already exist, by default the index operation
-automatically creates it and applies any configured
-<<indices-templates,index templates>>. If no mapping exists, the index operation
-creates a dynamic mapping.  By default,  new fields and objects are
+If request's target doesn't exist and matches an
+<<create-a-data-stream-template,index template with a `data_stream`
+definition>>, the index operation automatically creates the data stream. See
+<<set-up-a-data-stream>>.
+
+If the target doesn't exist and doesn't match a data stream template,
+the operation automatically creates the index and applies any matching
+<<indices-templates,index templates>>.
+
+If no mapping exists, the index operation
+creates a dynamic mapping. By default, new fields and objects are
 automatically added to the mapping if needed. For more information about field
 mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.
 
@@ -141,6 +180,9 @@ automatic creation of indices that match specified patterns, or set it to
 comma-separated list of patterns you want to allow, or prefix each pattern with
 `+` or `-` to indicate whether it should be allowed or blocked.  When a list is
 specified, the default behaviour is to disallow.
+
+IMPORTANT: The `action.auto_create_index` setting only affects the automatic
+creation of indices. It does not affect the creation of data streams.
 
 [source,console]
 --------------------------------------------------
@@ -187,9 +229,9 @@ already exists in the index.
 [float]
 ===== Create document IDs automatically
 
-If you don't specify a document ID when using POST, the `op_type` is
-automatically set to `create` and the index operation generates a unique ID
-for the document.
+When using the `POST /<target>/_doc/` request format, the `op_type` is
+automatically set to `create` and the index operation generates a unique ID for
+the document.
 
 [source,console]
 --------------------------------------------------
@@ -259,6 +301,9 @@ document itself. This does come at the (very minimal) cost of an
 additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
+
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
 
 [float]
 [[index-distributed]]

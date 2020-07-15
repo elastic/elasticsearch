@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   name 'spatial'
@@ -11,8 +12,8 @@ esplugin {
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  compile project(path: ':modules:geo', configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  api project(path: ':modules:geo', configuration: 'default')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }
 

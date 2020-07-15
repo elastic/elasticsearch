@@ -229,6 +229,23 @@ setup:
   - length: { aggregations.top_vals.buckets: 2 }
 
 ---
+"Scripted Aggs work":
+  - do:
+      search:
+        body:
+          track_total_hits: true
+          query:
+            wildcard:
+              my_wildcard: {value: "*goodbye*" }
+          aggs:
+            top_vals:
+              terms: {script: "doc['my_wildcard']" }
+
+
+  - match: {hits.total.value: 1}
+  - length: { aggregations.top_vals.buckets: 1 }
+  - match: { aggregations.top_vals.buckets.0.key: "goodbye world" }
+---
 "Sort works":
   - do:
       search:

@@ -40,9 +40,6 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
             EqlSearchRequest.fetchSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.implicitJoinKeyField(randomAlphaOfLength(10));
-        }
-        if (randomBoolean()) {
             EqlSearchRequest.eventCategoryField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
@@ -52,7 +49,7 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
             EqlSearchRequest.timestampField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
-            EqlSearchRequest.searchAfter(randomArray(1, 4, Object[]::new, () -> randomAlphaOfLength(3)));
+            EqlSearchRequest.tiebreakerField(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             if (randomBoolean()) {
@@ -73,11 +70,10 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
     protected void assertInstances(org.elasticsearch.xpack.eql.action.EqlSearchRequest serverInstance, EqlSearchRequest
         clientTestInstance) {
         assertThat(serverInstance.eventCategoryField(), equalTo(clientTestInstance.eventCategoryField()));
-        assertThat(serverInstance.implicitJoinKeyField(), equalTo(clientTestInstance.implicitJoinKeyField()));
         assertThat(serverInstance.timestampField(), equalTo(clientTestInstance.timestampField()));
+        assertThat(serverInstance.tiebreakerField(), equalTo(clientTestInstance.tiebreakerField()));
         assertThat(serverInstance.filter(), equalTo(clientTestInstance.filter()));
         assertThat(serverInstance.query(), equalTo(clientTestInstance.query()));
-        assertThat(serverInstance.searchAfter(), equalTo(clientTestInstance.searchAfter()));
         assertThat(serverInstance.indicesOptions(), equalTo(clientTestInstance.indicesOptions()));
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));
         assertThat(serverInstance.fetchSize(), equalTo(clientTestInstance.fetchSize()));

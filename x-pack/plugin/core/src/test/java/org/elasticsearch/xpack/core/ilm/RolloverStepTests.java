@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
@@ -122,7 +123,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
 
     public void testPerformActionOnDataStream() {
         String dataStreamName = "test-datastream";
-        IndexMetadata indexMetadata = IndexMetadata.builder(dataStreamName + "-000001")
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
@@ -134,7 +135,8 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", List.of(indexMetadata.getIndex()), 1L))
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                        List.of(indexMetadata.getIndex()), 1L))
                     .put(indexMetadata, true)
             )
             .build();

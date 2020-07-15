@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 restResources {
   restApi {
@@ -10,8 +11,8 @@ restResources {
 }
 
 dependencies {
-  testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
-  testCompile project(path: xpackModule('enrich:qa:common'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('enrich'))
+  testImplementation project(path: xpackModule('enrich:qa:common'))
 }
 
 testClusters.integTest {

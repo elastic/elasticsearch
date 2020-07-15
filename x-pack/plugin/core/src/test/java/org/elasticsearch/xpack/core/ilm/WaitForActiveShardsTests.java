@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
-import static org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep.parseIndexNameCounter;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -151,11 +151,11 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
     public void testResultEvaluatedOnDataStream() throws IOException {
         String dataStreamName = "test-datastream";
-        IndexMetadata originalIndexMeta = IndexMetadata.builder(dataStreamName + "-000001")
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        IndexMetadata rolledIndexMeta= IndexMetadata.builder(dataStreamName + "-000002")
+        IndexMetadata rolledIndexMeta= IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
             .settings(settings(Version.CURRENT).put("index.write.wait_for_active_shards", "3"))
             .numberOfShards(1).numberOfReplicas(3).build();
 
@@ -168,7 +168,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
             )
@@ -250,31 +251,5 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
         assertThat(actualResultAsString,
             containsString("[" + step.getKey().getAction() + "] lifecycle action for index [index-000000] executed but " +
                 "index no longer exists"));
-    }
-
-    public void testParseIndexNameReturnsCounter() {
-        assertThat(parseIndexNameCounter("logs-000003"), is(3));
-    }
-
-    public void testParseIndexNameSupportsDateMathPattern() {
-        assertThat(parseIndexNameCounter("<logs-{now/d}-1>"), is(1));
-    }
-
-    public void testParseIndexNameThrowExceptionWhenNoSeparatorIsPresent() {
-        try {
-            parseIndexNameCounter("testIndexNameWithoutDash");
-            fail("expected to fail as the index name contains no - separator");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("no - separator found in index name [testIndexNameWithoutDash]"));
-        }
-    }
-
-    public void testParseIndexNameCannotFormatNumber() {
-        try {
-            parseIndexNameCounter("testIndexName-000a2");
-            fail("expected to fail as the index name doesn't end with digits");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("unable to parse the index name [testIndexName-000a2] to extract the counter"));
-        }
     }
 }

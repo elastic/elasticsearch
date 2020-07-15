@@ -7,37 +7,37 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 dependencies {
-  compile project(":test:framework")
+  api project(":test:framework")
 
   // JDBC testing dependencies
-  compile project(path: xpackModule('sql:jdbc'))
+  api project(path: xpackModule('sql:jdbc'))
 
-  compile "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+  api "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
 
   // CLI testing dependencies
-  compile project(path: xpackModule('sql:sql-cli'))
+  api project(path: xpackModule('sql:sql-cli'))
 
   // H2GIS testing dependencies
-  compile("org.orbisgis:h2gis:${h2gisVersion}") {
+  api( "org.orbisgis:h2gis:${h2gisVersion}") {
     exclude group: "org.locationtech.jts"
   }
 
   // select just the parts of JLine that are needed
-  compile("org.jline:jline-terminal-jna:${jlineVersion}") {
+  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
     exclude group: "net.java.dev.jna"
   }
-  compile "org.jline:jline-terminal:${jlineVersion}"
-  compile "org.jline:jline-reader:${jlineVersion}"
-  compile "org.jline:jline-style:${jlineVersion}"
+  api "org.jline:jline-terminal:${jlineVersion}"
+  api "org.jline:jline-reader:${jlineVersion}"
+  api "org.jline:jline-style:${jlineVersion}"
 
-  testRuntime "org.elasticsearch:jna:${versions.jna}"
+  testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
 }
 
 /* disable unit tests because these are all integration tests used
  * other qa projects. */
 test.enabled = false
 
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
 
 // just a test fixture: we aren't using this jars in releases and H2GIS requires disabling a lot of checks
@@ -55,7 +55,7 @@ subprojects {
     configurations.testRuntimeClasspath {
       resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
     }
-    configurations.testRuntime {
+    configurations.testRuntimeOnly {
       // This is also required to make resolveAllDependencies work
       resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
     }
@@ -64,41 +64,41 @@ subprojects {
      * dependencies but we don't really want them because they cause
      * all kinds of trouble with the jar hell checks. So we suppress
      * them explicitly for non-es projects. */
-    testCompile(xpackProject('plugin:sql:qa:server')) {
+    testImplementation(xpackProject('plugin:sql:qa:server')) {
       transitive = false
     }
-    testCompile project(":test:framework")
+    testImplementation project(":test:framework")
 
     // JDBC testing dependencies
-    testRuntime "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
-    testRuntime "com.h2database:h2:${h2Version}"
+    testRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+    testRuntimeOnly "com.h2database:h2:${h2Version}"
 
     // H2GIS testing dependencies
-    testRuntime("org.orbisgis:h2gis:${h2gisVersion}") {
+    testRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}") {
       exclude group: "org.locationtech.jts"
       exclude group: "com.fasterxml.jackson.core"
     }
 
-    testRuntime project(path: xpackModule('sql:jdbc'))
-    testRuntime xpackProject('plugin:sql:sql-client')
+    testRuntimeOnly project(path: xpackModule('sql:jdbc'))
+    testRuntimeOnly xpackProject('plugin:sql:sql-client')
 
     // CLI testing dependencies
-    testRuntime project(path: xpackModule('sql:sql-cli'))
-    testRuntime(xpackProject('plugin:sql:sql-action')) {
+    testRuntimeOnly project(path: xpackModule('sql:sql-cli'))
+    testRuntimeOnly(xpackProject('plugin:sql:sql-action')) {
       transitive = false
     }
 
-    testRuntime("org.jline:jline-terminal-jna:${jlineVersion}") {
+    testRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
       exclude group: "net.java.dev.jna"
     }
-    testRuntime "org.jline:jline-terminal:${jlineVersion}"
-    testRuntime "org.jline:jline-reader:${jlineVersion}"
-    testRuntime "org.jline:jline-style:${jlineVersion}"
+    testRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
+    testRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
+    testRuntimeOnly "org.jline:jline-style:${jlineVersion}"
 
-    testRuntime "org.elasticsearch:jna:${versions.jna}"
+    testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
 
     // spatial dependency
-    testRuntime project(path: xpackModule('spatial'))
+    testRuntimeOnly project(path: xpackModule('spatial'))
   }
 
   if (project.name != 'security') {

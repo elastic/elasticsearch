@@ -1909,10 +1909,13 @@ public class InternalEngine extends Engine {
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
         if (combinedDeletionPolicy.releaseCommit(snapshot)) {
-            ensureOpen();
-            // Here we don't have to trim translog because snapshotting an index commit
-            // does not lock translog or prevents unreferenced files from trimming.
-            indexWriter.deleteUnusedFiles();
+            try {
+                // Here we don't have to trim translog because snapshotting an index commit
+                // does not lock translog or prevents unreferenced files from trimming.
+                indexWriter.deleteUnusedFiles();
+            } catch (AlreadyClosedException ignored) {
+                // That's ok, we'll clean up unused files the next time it's opened.
+            }
         }
     }
 

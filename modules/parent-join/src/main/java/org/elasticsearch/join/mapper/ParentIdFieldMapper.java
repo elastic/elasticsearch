@@ -20,6 +20,7 @@
 package org.elasticsearch.join.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
@@ -31,19 +32,20 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -54,12 +56,11 @@ public final class ParentIdFieldMapper extends FieldMapper {
     static final String CONTENT_TYPE = "parent";
 
     static class Defaults {
-        static final MappedFieldType FIELD_TYPE = new ParentIdFieldType();
+        static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
@@ -70,7 +71,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         private final Set<String> children;
 
         Builder(String name, String parent, Set<String> children) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
             this.parent = parent;
             this.children = children;
@@ -81,29 +82,22 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             return builder;
         }
 
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
-            fieldType.setName(name);
-            return new ParentIdFieldMapper(name, parent, children, fieldType, context.indexSettings());
+            return new ParentIdFieldMapper(name, parent, children, fieldType,
+                new ParentIdFieldType(buildFullName(context), eagerGlobalOrdinals, meta));
         }
     }
 
     public static final class ParentIdFieldType extends StringFieldType {
-        ParentIdFieldType() {
+        ParentIdFieldType(String name, boolean eagerGlobalOrdinals, Map<String, String> meta) {
+            super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected ParentIdFieldType(ParentIdFieldType ref) {
-            super(ref);
-        }
-
-        public ParentIdFieldType clone() {
-            return new ParentIdFieldType(this);
+            setEagerGlobalOrdinals(eagerGlobalOrdinals);
         }
 
         @Override
@@ -138,9 +132,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
     protected ParentIdFieldMapper(String simpleName,
                                   String parentName,
                                   Set<String> children,
-                                  MappedFieldType fieldType,
-                                  Settings indexSettings) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
+                                  FieldType fieldType,
+                                  MappedFieldType mappedFieldType) {
+        super(simpleName, fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
         this.parentName = parentName;
         this.children = children;
     }
@@ -186,7 +180,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         }
         String refId = (String) context.externalValue();
         BytesRef binaryValue = new BytesRef(refId);
-        Field field = new Field(fieldType().name(), binaryValue, fieldType());
+        Field field = new Field(fieldType().name(), binaryValue, fieldType);
         context.doc().add(field);
         context.doc().add(new SortedDocValuesField(fieldType().name(), binaryValue));
     }

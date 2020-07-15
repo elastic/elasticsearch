@@ -33,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -41,12 +42,17 @@ public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVector
 
     @Override
     protected DenseVectorFieldMapper.Builder newBuilder() {
-        return new DenseVectorFieldMapper.Builder("densevector");
+        return new DenseVectorFieldMapper.Builder("densevector").dims(4);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
     }
 
     @Before
@@ -76,7 +82,8 @@ public class DenseVectorFieldMapperTests extends FieldMapperTestCase<DenseVector
             .endObject()
             .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("_doc", new CompressedXContent(mapping)));
-        assertEquals(e.getMessage(), "The number of dimensions for field [my-dense-vector] should be in the range [1, 2048]");
+        assertEquals(e.getMessage(),
+            "The number of dimensions for field [my-dense-vector] should be in the range [1, 2048] but was [2049]");
     }
 
     public void testDefaults() throws Exception {

@@ -16,6 +16,7 @@ more about the Painless scripting language in the
 * <<painless-bucket-script>>
 * <<painless-count-http>>
 * <<painless-compare>>
+* <<painless-web-session>>
 
 NOTE: While the context of the following examples is the {transform} use case, 
 the Painless scripts in the snippets below can be used in other {es} search 
@@ -105,7 +106,7 @@ You can retrieve the last value in a similar way:
 
 [discrete]
 [[painless-time-features]]
-==== Getting time features as scripted fields
+==== Getting time features by using aggregations
 
 This snippet shows how to extract time based features by using Painless in a 
 {transform}. The snippet uses an index where `@timestamp` is defined as a `date` 
@@ -114,37 +115,39 @@ type field.
 [source,js]
 --------------------------------------------------
 "aggregations": {
-  "script_fields": {
-      "hour_of_day": { <1>
-        "script": {
-          "lang": "painless",
-          "source": """
-            ZonedDateTime date =  doc['@timestamp'].value; <2>
-            return date.getHour(); <3>
-          """
-        }
-      },
-      "month_of_year": { <4>
-        "script": {
-          "lang": "painless",
-          "source": """
-            ZonedDateTime date =  doc['@timestamp'].value; <5>
-            return date.getMonthValue(); <6>
-          """
-        }
+  "avg_hour_of_day": { <1>
+    "avg":{
+      "script": { <2>
+        "source": """
+          ZonedDateTime date =  doc['@timestamp'].value; <3>
+          return date.getHour(); <4>
+        """
       }
-    },
-  ...
+    }  
+  },
+  "avg_month_of_year": { <5>
+    "avg":{
+      "script": { <6> 
+        "source": """
+          ZonedDateTime date =  doc['@timestamp'].value; <7>
+          return date.getMonthValue(); <8>
+        """
+      }
+    }
+  },
+ ...
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> Contains the Painless script that returns the hour of the day.
-<2> Sets `date` based on the timestamp of the document.
-<3> Returns the hour value from `date`.
-<4> Contains the Painless script that returns the month of the year.
-<5> Sets `date` based on the timestamp of the document.
-<6> Returns the month value from `date`.
+<1> Name of the aggregation.
+<2> Contains the Painless script that returns the hour of the day.
+<3> Sets `date` based on the timestamp of the document.
+<4> Returns the hour value from `date`.
+<5> Name of the aggregation.
+<6> Contains the Painless script that returns the month of the year.
+<7> Sets `date` based on the timestamp of the document.
+<8> Returns the month value from `date`.
 
 
 [discrete]
@@ -296,7 +299,7 @@ The example uses the {kib} sample web logs dataset.
 
 [source,console]
 --------------------------------------------------
-PUT _data_frame/transforms/data_log
+PUT _transform/data_log
 {
   "source": {
     "index": "kibana_sample_data_logs"
@@ -471,3 +474,175 @@ want to pass the full source object from one phase to the next.
 not equal, than it reports back a `count_mismatch`. Then it iterates through all 
 the values of the two indices and compare them. If the values are equal, then it 
 returns a `match`, otherwise returns a `mismatch`.
+
+[discrete]
+[[painless-web-session]]
+==== Getting web session details by using scripted metric aggregation
+
+This example shows how to derive multiple features from a single transaction. 
+Let's take a look on the example source document from the data:
+
+.Source document
+[%collapsible%open]
+=====
+[source,js]
+--------------------------------------------------
+{
+  "_index":"apache-sessions",
+  "_type":"_doc",
+  "_id":"KvzSeGoB4bgw0KGbE3wP",
+  "_score":1.0,
+  "_source":{
+    "@timestamp":1484053499256,
+    "apache":{
+      "access":{
+        "sessionid":"571604f2b2b0c7b346dc685eeb0e2306774a63c2",
+        "url":"http://www.leroymerlin.fr/v3/search/search.do?keyword=Carrelage%20salle%20de%20bain",
+        "path":"/v3/search/search.do",
+        "query":"keyword=Carrelage%20salle%20de%20bain",
+        "referrer":"http://www.leroymerlin.fr/v3/p/produits/carrelage-parquet-sol-souple/carrelage-sol-et-mur/decor-listel-et-accessoires-carrelage-mural-l1308217717?resultOffset=0&resultLimit=51&resultListShape=MOSAIC&priceStyle=SALEUNIT_PRICE",
+        "user_agent":{
+          "original":"Mobile Safari 10.0 Mac OS X (iPad) Apple Inc.",
+          "os_name":"Mac OS X (iPad)"
+        },
+        "remote_ip":"0337b1fa-5ed4-af81-9ef4-0ec53be0f45d",
+        "geoip":{
+          "country_iso_code":"FR",
+          "location":{
+            "lat":48.86,
+            "lon":2.35
+          }
+        },
+        "response_code":200,
+        "method":"GET"
+      }
+    }
+  }
+}
+...
+--------------------------------------------------
+// NOTCONSOLE
+=====
+
+
+By using the `sessionid` as a group-by field, you are able to enumerate events 
+through the session and get more details of the session by using scripted metric 
+aggregation.
+
+[source,js]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": "apache-sessions"
+  },
+  "pivot": {
+    "group_by": {
+      "sessionid": { <1>
+        "terms": {
+          "field": "apache.access.sessionid"
+        }
+      }
+    },
+    "aggregations": { <2>
+      "distinct_paths": { 
+        "cardinality": {
+          "field": "apache.access.path"
+        }
+      },
+      "num_pages_viewed": {
+        "value_count": {
+          "field": "apache.access.url"
+        }
+      },
+      "session_details": {
+        "scripted_metric": {
+          "init_script": "state.docs = []", <3>
+          "map_script": """ <4>
+            Map span = [
+              '@timestamp':doc['@timestamp'].value, 
+              'url':doc['apache.access.url'].value,
+              'referrer':doc['apache.access.referrer'].value
+            ]; 
+            state.docs.add(span)
+          """,
+          "combine_script": "return state.docs;", <5>
+          "reduce_script": """ <6>
+            def all_docs = []; 
+            for (s in states) { 
+              for (span in s) { 
+                all_docs.add(span); 
+              }
+            }
+            all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].millis.compareTo(o2['@timestamp'].millis)); 
+            def size = all_docs.size();
+            def min_time = all_docs[0]['@timestamp'];
+            def max_time = all_docs[size-1]['@timestamp'];
+            def duration = max_time.millis - min_time.millis;
+            def entry_page = all_docs[0]['url'];
+            def exit_path = all_docs[size-1]['url'];
+            def first_referrer = all_docs[0]['referrer'];
+            def ret = new HashMap();
+            ret['first_time'] = min_time;
+            ret['last_time'] = max_time;
+            ret['duration'] = duration;
+            ret['entry_page'] = entry_page;
+            ret['exit_path'] = exit_path;
+            ret['first_referrer'] = first_referrer;
+            return ret;
+          """
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The data is grouped by `sessionid`.
+<2> The aggregations counts the number of paths and enumerate the viewed pages 
+during the session.
+<3> The `init_script` creates an array type `doc` in the `state` object.
+<4> The `map_script` defines a `span` array with a timestamp, a URL, and a 
+referrer value which are based on the corresponding values of the document, then 
+adds the value of the `span` array to the `doc` object.
+<5> The `combine_script` returns `state.docs` from each shard.
+<6> The `reduce_script` defines various objects like `min_time`, `max_time`, and 
+`duration` based on the document fields, then declares a `ret` object, and 
+copies the source document by using `new HashMap ()`. Next, the script defines 
+`first_time`, `last_time`, `duration` and other fields inside the `ret` object 
+based on the corresponding object defined earlier, finally returns `ret`.
+
+The API call results in a similar response:
+
+[source,js]
+--------------------------------------------------
+{
+  "num_pages_viewed" : 2.0,
+  "session_details" : {
+    "duration" : 131374,
+    "first_referrer" : "https://www.bing.com/",
+    "entry_page" : "http://www.leroymerlin.fr/v3/p/produits/materiaux-menuiserie/porte-coulissante-porte-interieure-escalier-et-rambarde/barriere-de-securite-l1308218463",
+    "first_time" : "2017-01-10T21:22:52.982Z",
+    "last_time" : "2017-01-10T21:25:04.356Z",
+    "exit_path" : "http://www.leroymerlin.fr/v3/p/produits/materiaux-menuiserie/porte-coulissante-porte-interieure-escalier-et-rambarde/barriere-de-securite-l1308218463?__result-wrapper?pageTemplate=Famille%2FMat%C3%A9riaux+et+menuiserie&resultOffset=0&resultLimit=50&resultListShape=PLAIN&nomenclatureId=17942&priceStyle=SALEUNIT_PRICE&fcr=1&*4294718806=4294718806&*14072=14072&*4294718593=4294718593&*17942=17942"
+  },
+  "distinct_paths" : 1.0,
+  "sessionid" : "000046f8154a80fd89849369c984b8cc9d795814"
+},
+{
+  "num_pages_viewed" : 10.0,
+  "session_details" : {
+    "duration" : 343112,
+    "first_referrer" : "https://www.google.fr/",
+    "entry_page" : "http://www.leroymerlin.fr/",
+    "first_time" : "2017-01-10T16:57:39.937Z",
+    "last_time" : "2017-01-10T17:03:23.049Z",
+    "exit_path" : "http://www.leroymerlin.fr/v3/p/produits/porte-de-douche-coulissante-adena-e168578"
+  },
+  "distinct_paths" : 8.0,
+  "sessionid" : "000087e825da1d87a332b8f15fa76116c7467da6"
+}
+...
+--------------------------------------------------
+// NOTCONSOLE

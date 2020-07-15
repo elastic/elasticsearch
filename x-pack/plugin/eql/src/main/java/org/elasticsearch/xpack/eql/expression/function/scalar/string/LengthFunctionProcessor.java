@@ -17,39 +17,39 @@ public class LengthFunctionProcessor implements Processor {
 
     public static final String NAME = "slen";
 
-    private final Processor source;
+    private final Processor input;
 
-    public LengthFunctionProcessor(Processor source) {
-        this.source = source;
+    public LengthFunctionProcessor(Processor input) {
+        this.input = input;
     }
 
     public LengthFunctionProcessor(StreamInput in) throws IOException {
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(source);
+        out.writeNamedWriteable(input);
     }
 
     @Override
-    public Object process(Object input) {
-        return doProcess(source.process(input));
+    public Object process(Object o) {
+        return doProcess(input.process(o));
     }
 
-    public static Object doProcess(Object source) {
-        if (source == null) {
+    public static Object doProcess(Object input) {
+        if (input == null) {
             return null;
         }
-        if (source instanceof String == false && source instanceof Character == false) {
-            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (input instanceof String == false && input instanceof Character == false) {
+            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
 
-        return source.toString().length();
+        return input.toString().length();
     }
     
-    protected Processor source() {
-        return source;
+    protected Processor input() {
+        return input;
     }
     
     @Override
@@ -62,12 +62,12 @@ public class LengthFunctionProcessor implements Processor {
             return false;
         }
         
-        return Objects.equals(source(), ((LengthFunctionProcessor) obj).source());
+        return Objects.equals(input(), ((LengthFunctionProcessor) obj).input());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(source());
+        return Objects.hash(input());
     }
     
 

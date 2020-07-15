@@ -29,18 +29,11 @@ public class Results {
     private final TimeValue tookTime;
     private final Type type;
 
-    public static Results fromHits(TimeValue tookTime, List<SearchHit> hits) {
-        return new Results(new TotalHits(hits.size(), Relation.EQUAL_TO), tookTime, false, hits, Type.SEARCH_HIT);
+    public static Results fromPayload(Payload payload) {
+        List<?> values = payload.values();
+        return new Results(new TotalHits(values.size(), Relation.EQUAL_TO), payload.timeTook(), false, values, payload.resultType());
     }
-
-    public static Results fromSequences(TimeValue tookTime, List<Sequence> sequences) {
-        return new Results(new TotalHits(sequences.size(), Relation.EQUAL_TO), tookTime, false, sequences, Type.SEQUENCE);
-    }
-
-    public static Results fromCounts(TimeValue tookTime, List<Count> counts) {
-        return new Results(new TotalHits(counts.size(), Relation.EQUAL_TO), tookTime, false, counts, Type.COUNT);
-    }
-
+    
     Results(TotalHits totalHits, TimeValue tookTime, boolean timedOut, List<?> results, Type type) {
         this.totalHits = totalHits;
         this.tookTime = tookTime;

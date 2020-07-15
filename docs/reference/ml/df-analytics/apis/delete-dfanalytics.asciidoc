@@ -44,6 +44,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
   (Optional, boolean) If `true`, it deletes a job that is not stopped; this method is
   quicker than stopping and deleting the job.
 
+`timeout`::
+  (Optional, <<time-units,time units>>) The time to wait for the job to be deleted.
+  Defaults to 1 minute.
+
+
 
 [[ml-delete-dfanalytics-example]]
 ==== {api-examples-title}

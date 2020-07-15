@@ -20,10 +20,10 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,31 +32,34 @@ import java.util.Objects;
  */
 public class SClass extends ANode {
 
-    protected final List<SFunction> functions = new ArrayList<>();
+    private final List<SFunction> functionNodes;
 
-    public SClass(Location location, List<SFunction> functions) {
-        super(location);
-        this.functions.addAll(Objects.requireNonNull(functions));
+    public SClass(int identifier, Location location, List<SFunction> functionNodes) {
+        super(identifier, location);
+
+        this.functionNodes = Collections.unmodifiableList(Objects.requireNonNull(functionNodes));
     }
 
-    public void buildClassScope(ScriptRoot scriptRoot) {
-        for (SFunction function : functions) {
-            function.buildClassScope(scriptRoot);
+    public List<SFunction> getFunctionNodes() {
+        return functionNodes;
+    }
+
+    @Override
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitClass(this, input);
+    }
+
+    public void buildClassScope(ScriptScope scriptScope) {
+        for (SFunction function : functionNodes) {
+            function.buildClassScope(scriptScope);
         }
     }
 
-    public ClassNode writeClass(ScriptRoot scriptRoot) {
-        buildClassScope(scriptRoot);
+    public void analyze(ScriptScope scriptScope) {
+        buildClassScope(scriptScope);
 
-        ClassNode classNode = new ClassNode();
-
-        for (SFunction function : functions) {
-            classNode.addFunctionNode(function.writeFunction(classNode, scriptRoot));
+        for (SFunction function : functionNodes) {
+            function.analyze(scriptScope);
         }
-
-        classNode.setLocation(location);
-        classNode.setScriptRoot(scriptRoot);
-
-        return classNode;
     }
 }

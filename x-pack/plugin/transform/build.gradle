@@ -12,9 +12,9 @@ dependencies {
   compileOnly project(":server")
 
   compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('analytics'), configuration: 'runtime')
-  testCompile project(path: ':modules:aggs-matrix-stats', configuration: 'runtime')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('analytics'))
+  testImplementation project(path: ':modules:aggs-matrix-stats')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

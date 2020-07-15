@@ -19,10 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DocIdSetIterator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,11 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -50,10 +42,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.zone.ZoneOffsetTransition;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -104,8 +93,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         PARSER.declareLong(DateHistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
 
-        PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> ExtendedBounds.PARSER.apply(parser, null),
-                ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> LongBounds.PARSER.apply(parser, null),
+                Histogram.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+
+        PARSER.declareField(DateHistogramAggregationBuilder::hardBounds, parser -> LongBounds.PARSER.apply(parser, null),
+            Histogram.HARD_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
                 Histogram.ORDER_FIELD);
@@ -117,7 +109,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
     private long offset = 0;
-    private ExtendedBounds extendedBounds;
+    private LongBounds extendedBounds;
+    private LongBounds hardBounds;
     private BucketOrder order = BucketOrder.key(true);
     private boolean keyed = false;
     private long minDocCount = 0;
@@ -133,13 +126,14 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         this.dateHistogramInterval = clone.dateHistogramInterval;
         this.offset = clone.offset;
         this.extendedBounds = clone.extendedBounds;
+        this.hardBounds = clone.hardBounds;
         this.order = clone.order;
         this.keyed = clone.keyed;
         this.minDocCount = clone.minDocCount;
     }
 
     @Override
-protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new DateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -151,7 +145,10 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
         minDocCount = in.readVLong();
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
-        extendedBounds = in.readOptionalWriteable(ExtendedBounds::new);
+        extendedBounds = in.readOptionalWriteable(LongBounds::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            hardBounds = in.readOptionalWriteable(LongBounds::new);
+        }
     }
 
     @Override
@@ -168,6 +165,9 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(hardBounds);
+        }
     }
 
     /** Get the current interval in milliseconds that is set on this builder. */
@@ -293,17 +293,32 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
     }
 
     /** Return extended bounds for this histogram, or {@code null} if none are set. */
-    public ExtendedBounds extendedBounds() {
+    public LongBounds extendedBounds() {
         return extendedBounds;
     }
 
     /** Set extended bounds on this histogram, so that buckets would also be
      *  generated on intervals that did not match any documents. */
-    public DateHistogramAggregationBuilder extendedBounds(ExtendedBounds extendedBounds) {
+    public DateHistogramAggregationBuilder extendedBounds(LongBounds extendedBounds) {
         if (extendedBounds == null) {
             throw new IllegalArgumentException("[extendedBounds] must not be null: [" + name + "]");
         }
         this.extendedBounds = extendedBounds;
+        return this;
+    }
+
+
+    /** Return hard bounds for this histogram, or {@code null} if none are set. */
+    public LongBounds hardBounds() {
+        return hardBounds;
+    }
+
+    /** Set hard bounds on this histogram, specifying boundaries outside which buckets cannot be created. */
+    public DateHistogramAggregationBuilder hardBounds(LongBounds hardBounds) {
+        if (hardBounds == null) {
+            throw new IllegalArgumentException("[hardBounds] must not be null: [" + name + "]");
+        }
+        this.hardBounds = hardBounds;
         return this;
     }
 
@@ -390,130 +405,22 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
         builder.field(Histogram.MIN_DOC_COUNT_FIELD.getPreferredName(), minDocCount);
 
         if (extendedBounds != null) {
+            builder.startObject(Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName());
             extendedBounds.toXContent(builder, params);
+            builder.endObject();
         }
 
+        if (hardBounds != null) {
+            builder.startObject(Histogram.HARD_BOUNDS_FIELD.getPreferredName());
+            hardBounds.toXContent(builder, params);
+            builder.endObject();
+        }
         return builder;
     }
 
     @Override
     public String getType() {
         return NAME;
-    }
-
-    /**
-     * Returns a {@linkplain ZoneId} that functions the same as
-     * {@link #timeZone()} on the data in the shard referred to by
-     * {@code context}. It <strong>attempts</strong> to convert zones that
-     * have non-fixed offsets into fixed offset zones that produce the
-     * same results on all data in the shard.
-     * <p>
-     * We go about this in three phases:
-     * <ol>
-     * <li>A bunch of preflight checks to see if we *can* optimize it
-     * <li>Find the any Instant in shard
-     * <li>Find the DST transition before and after that Instant
-     * <li>Round those into the interval
-     * <li>Check if the rounded value include all values within shard
-     * <li>If they do then return a fixed offset time zone because it
-     *     will return the same values for all time in the shard as the
-     *     original time zone, but faster
-     * <li>Otherwise return the original time zone. It'll be slower, but
-     *     correct.
-     * </ol>
-     * <p>
-     * NOTE: this can't be done in rewrite() because the timezone is then also used on the
-     * coordinating node in order to generate missing buckets, which may cross a transition
-     * even though data on the shards doesn't.
-     */
-    ZoneId rewriteTimeZone(QueryShardContext context) throws IOException {
-        final ZoneId tz = timeZone();
-        if (tz == null || tz.getRules().isFixedOffset()) {
-            // This time zone is already as fast as it is going to get.
-            return tz;
-        }
-        if (script() != null) {
-            // We can't be sure what dates the script will return so we don't attempt to optimize anything
-            return tz;
-        }
-        if (field() == null) {
-            // Without a field we're not going to be able to look anything up.
-            return tz;
-        }
-        MappedFieldType ft = context.fieldMapper(field());
-        if (ft == null || false == ft instanceof DateFieldMapper.DateFieldType) {
-            // If the field is unmapped or not a date then we can't get its range.
-            return tz;
-        }
-        DateFieldMapper.DateFieldType dft = (DateFieldMapper.DateFieldType) ft;
-        final IndexReader reader = context.getIndexReader();
-        if (reader == null) {
-            return tz;
-        }
-
-        Instant instant = null;
-        final IndexNumericFieldData fieldData = context.getForField(ft);
-        for (LeafReaderContext ctx : reader.leaves()) {
-            LeafNumericFieldData leafFD = fieldData.load(ctx);
-            SortedNumericDocValues values = leafFD.getLongValues();
-            if (values.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                instant = Instant.ofEpochMilli(values.nextValue());
-                break;
-            }
-        }
-        if (instant == null) {
-            return tz;
-        }
-
-        ZoneOffsetTransition prevOffsetTransition = tz.getRules().previousTransition(instant);
-        final long prevTransition;
-        if (prevOffsetTransition != null) {
-            prevTransition = prevOffsetTransition.getInstant().toEpochMilli();
-        } else {
-            prevTransition = instant.toEpochMilli();
-        }
-        ZoneOffsetTransition nextOffsetTransition = tz.getRules().nextTransition(instant);
-        final long nextTransition;
-        if (nextOffsetTransition != null) {
-            nextTransition = nextOffsetTransition.getInstant().toEpochMilli();
-        } else {
-            nextTransition = Long.MAX_VALUE; // fixed time-zone after prevTransition
-        }
-
-        // We need all not only values but also rounded values to be within
-        // [prevTransition, nextTransition].
-        final long low;
-
-        DateIntervalWrapper.IntervalTypeEnum intervalType = dateHistogramInterval.getIntervalType();
-        if (intervalType.equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
-            low = Math.addExact(prevTransition, dateHistogramInterval.tryIntervalAsFixedUnit().millis());
-        } else if (intervalType.equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
-            final Rounding.DateTimeUnit intervalAsUnit = dateHistogramInterval.tryIntervalAsCalendarUnit();
-            final Rounding rounding = Rounding.builder(intervalAsUnit).timeZone(timeZone()).build();
-            low = rounding.nextRoundingValue(prevTransition);
-        } else {
-            // We're not sure what the interval was originally (legacy) so use old behavior of assuming
-            // calendar first, then fixed. Required because fixed/cal overlap in places ("1h")
-            Rounding.DateTimeUnit intervalAsUnit = dateHistogramInterval.tryIntervalAsCalendarUnit();
-            if (intervalAsUnit != null) {
-                final Rounding rounding = Rounding.builder(intervalAsUnit).timeZone(timeZone()).build();
-                low = rounding.nextRoundingValue(prevTransition);
-            } else {
-                final TimeValue intervalAsMillis =  dateHistogramInterval.tryIntervalAsFixedUnit();
-                low = Math.addExact(prevTransition, intervalAsMillis.millis());
-            }
-        }
-        // rounding rounds down, so 'nextTransition' is a good upper bound
-        final long high = nextTransition;
-
-        if (dft.isFieldWithinRange(
-                        reader, Instant.ofEpochMilli(low), Instant.ofEpochMilli(high - 1)) == Relation.WITHIN) {
-            // All values in this reader have the same offset despite daylight saving times.
-            // This is very common for location-based timezones such as Europe/Paris in
-            // combination with time-based indices.
-            return ZoneOffset.ofTotalSeconds(tz.getRules().getOffset(instant).getTotalSeconds());
-        }
-        return tz;
     }
 
     @Override
@@ -523,27 +430,52 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
-        // TODO once we optimize TimeIntervalRounding we won't need to rewrite the time zone 
-        final ZoneId rewrittenTimeZone = rewriteTimeZone(queryShardContext);
-        final Rounding shardRounding;
-        if (tz == rewrittenTimeZone) {
-            shardRounding = rounding;
-        } else {
-            shardRounding = dateHistogramInterval.createRounding(rewrittenTimeZone, offset);
-        }
 
-        ExtendedBounds roundedBounds = null;
+        LongBounds roundedBounds = null;
         if (this.extendedBounds != null) {
             // parse any string bounds to longs and round
-            roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
+            roundedBounds = this.extendedBounds.parseAndValidate(name, "extended_bounds" , queryShardContext, config.format())
+                .round(rounding);
         }
-        return new DateHistogramAggregatorFactory(name, config, order, keyed, minDocCount,
-                rounding, shardRounding, roundedBounds, queryShardContext, parent, subFactoriesBuilder, metadata);
+
+        LongBounds roundedHardBounds = null;
+        if (this.hardBounds != null) {
+            // parse any string bounds to longs and round
+            roundedHardBounds = this.hardBounds.parseAndValidate(name, "hard_bounds" , queryShardContext, config.format())
+                .round(rounding);
+        }
+
+        if (roundedBounds != null && roundedHardBounds != null) {
+            if (roundedBounds.getMax() != null &&
+                roundedHardBounds.getMax() != null && roundedBounds.getMax() > roundedHardBounds.getMax()) {
+                throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
+                    hardBounds + "], extended bounds: [" + extendedBounds + "]");
+            }
+            if (roundedBounds.getMin() != null &&
+                roundedHardBounds.getMin() != null && roundedBounds.getMin() < roundedHardBounds.getMin()) {
+                throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
+                    hardBounds + "], extended bounds: [" + extendedBounds + "]");
+            }
+        }
+
+        return new DateHistogramAggregatorFactory(
+            name,
+            config,
+            order,
+            keyed,
+            minDocCount,
+            rounding,
+            roundedBounds,
+            roundedHardBounds,
+            queryShardContext,
+            parent,
+            subFactoriesBuilder,
+            metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, keyed, minDocCount, dateHistogramInterval, minDocCount, extendedBounds);
+        return Objects.hash(super.hashCode(), order, keyed, minDocCount, dateHistogramInterval, minDocCount, extendedBounds, hardBounds);
     }
 
     @Override
@@ -557,6 +489,7 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
                 && Objects.equals(minDocCount, other.minDocCount)
                 && Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
                 && Objects.equals(offset, other.offset)
-                && Objects.equals(extendedBounds, other.extendedBounds);
+                && Objects.equals(extendedBounds, other.extendedBounds)
+                && Objects.equals(hardBounds, other.hardBounds);
     }
 }

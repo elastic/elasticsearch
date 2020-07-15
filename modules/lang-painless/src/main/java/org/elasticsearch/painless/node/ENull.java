@@ -20,51 +20,51 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NullNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a null constant.
  */
 public class ENull extends AExpression {
 
-    public ENull(Location location) {
-        super(location);
+    public ENull(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitNull(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: null constant not used"));
         }
 
-        Output output = new Output();
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+        Class<?> valueType;
 
-        if (input.expected != null) {
-            if (input.expected.isPrimitive()) {
+        if (targetType != null) {
+            if (targetType.getTargetType().isPrimitive()) {
                 throw createError(new IllegalArgumentException(
-                    "Cannot cast null to a primitive type [" + PainlessLookupUtility.typeToCanonicalTypeName(input.expected) + "]."));
+                        "Cannot cast null to a primitive type [" + targetType.getTargetCanonicalTypeName() + "]."));
             }
 
-            output.actual = input.expected;
+            valueType = targetType.getTargetType();
         } else {
-            output.actual = Object.class;
+            valueType = Object.class;
         }
 
-        NullNode nullNode = new NullNode();
-
-        nullNode.setLocation(location);
-        nullNode.setExpressionType(output.actual);
-
-        output.expressionNode = nullNode;
-
-        return output;
+        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

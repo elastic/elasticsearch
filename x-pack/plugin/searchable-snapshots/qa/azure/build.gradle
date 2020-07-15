@@ -21,13 +21,14 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:azure-fixture')
 final Project repositoryPlugin = project(':plugins:repository-azure')
 
 dependencies {
-  testCompile project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
-  testCompile repositoryPlugin
+  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
+  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -63,7 +64,7 @@ integTest {
   dependsOn repositoryPlugin.bundlePlugin
   runner {
     systemProperty 'test.azure.container', azureContainer
-    systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests"
+    nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
   }
 }
 

@@ -30,9 +30,9 @@ public class StatsHolder {
         dataCountsTracker = new DataCountsTracker();
     }
 
-    public void resetProgressTrackerPreservingReindexingProgress(List<String> analysisPhases) {
+    public void resetProgressTrackerPreservingReindexingProgress(List<String> analysisPhases, boolean hasInferencePhase) {
         int reindexingProgressPercent = progressTracker.getReindexingProgressPercent();
-        progressTracker = ProgressTracker.fromZeroes(analysisPhases);
+        progressTracker = ProgressTracker.fromZeroes(analysisPhases, hasInferencePhase);
         progressTracker.updateReindexingProgress(reindexingProgressPercent);
     }
 

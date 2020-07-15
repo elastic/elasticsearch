@@ -86,7 +86,7 @@ GET my_index/_search
 {ref}/search-request-body.html#request-body-search-script-fields[script field]
 to return the `_size` field in the search response.
 <5> Uses a
-{ref}/search-request-body.html#request-body-search-docvalue-fields[doc value
+{ref}/run-a-search.html#docvalue-fields[doc value
 field] to return the `_size` field in the search response. Doc value fields are
 useful if
 {ref}/modules-scripting-security.html#allowed-script-types-setting[inline

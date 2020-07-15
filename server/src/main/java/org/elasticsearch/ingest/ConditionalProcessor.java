@@ -19,12 +19,13 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,10 +42,11 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
-    private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of(
             "_type", value -> {
                 deprecationLogger.deprecate("conditional-processor__type",
@@ -55,24 +57,36 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     static final String TYPE = "conditional";
 
     private final Script condition;
-
     private final ScriptService scriptService;
-
     private final Processor processor;
     private final IngestMetric metric;
     private final LongSupplier relativeTimeProvider;
+    private final IngestConditionalScript precompiledConditionScript;
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor) {
-        this(tag, script, scriptService, processor, System::nanoTime);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor) {
+        this(tag, description, script, scriptService, processor, System::nanoTime);
     }
 
-    ConditionalProcessor(String tag, Script script, ScriptService scriptService, Processor processor, LongSupplier relativeTimeProvider) {
-        super(tag);
+    ConditionalProcessor(String tag, String description, Script script, ScriptService scriptService, Processor processor,
+                         LongSupplier relativeTimeProvider) {
+        super(tag, description);
         this.condition = script;
         this.scriptService = scriptService;
         this.processor = processor;
         this.metric = new IngestMetric();
         this.relativeTimeProvider = relativeTimeProvider;
+
+        try {
+            final IngestConditionalScript.Factory factory = scriptService.compile(script, IngestConditionalScript.CONTEXT);
+            if (ScriptType.INLINE.equals(script.getType())) {
+                precompiledConditionScript = factory.newInstance(script.getParams());
+            } else {
+                // stored script, so will have to compile at runtime
+                precompiledConditionScript = null;
+            }
+        } catch (ScriptException e) {
+            throw newConfigurationException(TYPE, tag, null, e);
+        }
     }
 
     @Override
@@ -109,8 +123,11 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     boolean evaluate(IngestDocument ingestDocument) {
-        IngestConditionalScript script =
-            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
+        IngestConditionalScript script = precompiledConditionScript;
+        if (script == null) {
+            IngestConditionalScript.Factory factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
+            script = factory.newInstance(condition.getParams());
+        }
         return script.execute(new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS)));
     }
 

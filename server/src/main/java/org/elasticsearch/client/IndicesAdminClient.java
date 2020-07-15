@@ -21,9 +21,6 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -62,12 +59,16 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuild
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -105,6 +106,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -282,6 +284,23 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @see org.elasticsearch.client.Requests#openIndexRequest(String)
      */
     void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener);
+
+    /**
+     * Adds a block to an index
+     *
+     * @param block   The block to add
+     * @param indices The name of the indices to add the block to
+     */
+    AddIndexBlockRequestBuilder prepareAddBlock(APIBlock block, String... indices);
+
+    /**
+     * Adds a block to an index
+     *
+     * @param request  The add index block request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#openIndexRequest(String)
+     */
+    void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener);
 
     /**
      * Opens one or more indices based on their index name.
@@ -717,32 +736,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
 
     /**
-     * Store a data stream
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
      */
-    void createDataStream(CreateDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
+    void resolveIndex(ResolveIndexAction.Request request, ActionListener<ResolveIndexAction.Response> listener);
 
     /**
-     * Store a data stream
+     * Resolves names and wildcard expressions to indices, aliases, and data streams
      */
-    ActionFuture<AcknowledgedResponse> createDataStream(CreateDataStreamAction.Request request);
-
-    /**
-     * Delete a data stream
-     */
-    void deleteDataStream(DeleteDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Delete a data stream
-     */
-    ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request);
-
-    /**
-     * Get data streams
-     */
-    void getDataStreams(GetDataStreamAction.Request request, ActionListener<GetDataStreamAction.Response> listener);
-
-    /**
-     * Get data streams
-     */
-    ActionFuture<GetDataStreamAction.Response> getDataStreams(GetDataStreamAction.Request request);
+    ActionFuture<ResolveIndexAction.Response> resolveIndex(ResolveIndexAction.Request request);
 }

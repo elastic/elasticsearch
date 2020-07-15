@@ -4623,6 +4623,8 @@ public class InternalEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         store = createStore();
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        final Engine.IndexCommitRef snapshot;
+        final boolean closeSnapshotBeforeEngine = randomBoolean();
         try (InternalEngine engine = createEngine(store, createTempDir(), globalCheckpoint::get)) {
             int numDocs = between(1, 20);
             for (int i = 0; i < numDocs; i++) {
@@ -4633,7 +4635,6 @@ public class InternalEngineTests extends EngineTestCase {
             }
             final boolean flushFirst = randomBoolean();
             final boolean safeCommit = randomBoolean();
-            final Engine.IndexCommitRef snapshot;
             if (safeCommit) {
                 snapshot = engine.acquireSafeIndexCommit();
             } else {
@@ -4650,10 +4651,17 @@ public class InternalEngineTests extends EngineTestCase {
                 assertThat(reader.numDocs(), equalTo(flushFirst && safeCommit == false ? numDocs : 0));
             }
             assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(2));
-            snapshot.close();
-            // check it's clean up
-            engine.flush(true, true);
-            assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
+
+            if (closeSnapshotBeforeEngine) {
+                snapshot.close();
+                // check it's clean up
+                engine.flush(true, true);
+                assertThat(DirectoryReader.listCommits(engine.store.directory()), hasSize(1));
+            }
+        }
+
+        if (closeSnapshotBeforeEngine == false) {
+            snapshot.close(); // shouldn't throw AlreadyClosedException
         }
     }
 

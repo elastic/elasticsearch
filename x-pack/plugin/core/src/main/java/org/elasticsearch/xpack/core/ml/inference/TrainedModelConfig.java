@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -606,6 +607,14 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
             if (input != null && input.getFieldNames().isEmpty()) {
                 validationException = addValidationError("[input.field_names] must not be empty", validationException);
+            }
+            if (input != null && input.getFieldNames()
+                .stream()
+                .filter(s -> s.contains("."))
+                .flatMap(s -> Arrays.stream(Strings.delimitedListToStringArray(s, ".")))
+                .anyMatch(String::isEmpty)) {
+                validationException = addValidationError("[input.field_names] must only contain valid dot delimited field names",
+                    validationException);
             }
             if (forCreation) {
                 validationException = checkIllegalSetting(version, VERSION.getPreferredName(), validationException);

@@ -24,12 +24,12 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
 import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -45,15 +45,15 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
         builder.register(DiversifiedAggregationBuilder.NAME,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             (DiversifiedAggregatorSupplier) (String name, int shardSize, AggregatorFactories factories, SearchContext context,
-                                             Aggregator parent, Map<String, Object> metadata, ValuesSource valuesSource,
+                                             Aggregator parent, Map<String, Object> metadata, ValuesSourceConfig valuesSourceConfig,
                                              int maxDocsPerValue, String executionHint) ->
-                new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, metadata, valuesSource,
+                new DiversifiedNumericSamplerAggregator(name, shardSize, factories, context, parent, metadata, valuesSourceConfig,
                     maxDocsPerValue)
         );
 
         builder.register(DiversifiedAggregationBuilder.NAME, CoreValuesSourceType.BYTES,
             (DiversifiedAggregatorSupplier) (String name, int shardSize, AggregatorFactories factories, SearchContext context,
-                                             Aggregator parent, Map<String, Object> metadata, ValuesSource valuesSource,
+                                             Aggregator parent, Map<String, Object> metadata, ValuesSourceConfig valuesSourceConfig,
                                              int maxDocsPerValue, String executionHint) -> {
                 ExecutionMode execution = null;
                 if (executionHint != null) {
@@ -64,10 +64,10 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 if (execution == null) {
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
-                if ((execution.needsGlobalOrdinals()) && (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals))) {
+                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasGlobalOrdinals() == false)) {
                     execution = ExecutionMode.MAP;
                 }
-                return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSource, context, parent, metadata);
+                return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSourceConfig, context, parent, metadata);
         });
 
     }
@@ -86,20 +86,18 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource,
-                                            SearchContext searchContext,
-                                            Aggregator parent,
-                                            boolean collectsFromSingleBucket,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator doCreateInternal(SearchContext searchContext,
+                                          Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
 
-        AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            DiversifiedAggregationBuilder.NAME);
+        AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config, DiversifiedAggregationBuilder.NAME);
         if (supplier instanceof DiversifiedAggregatorSupplier == false) {
             throw new AggregationExecutionException("Registry miss-match - expected " + DiversifiedAggregatorSupplier.class.toString() +
                 ", found [" + supplier.getClass().toString() + "]");
         }
-        return ((DiversifiedAggregatorSupplier) supplier).build(name, shardSize, factories, searchContext, parent, metadata, valuesSource,
-            maxDocsPerValue, executionHint);
+        return ((DiversifiedAggregatorSupplier) supplier).build(name, shardSize, factories, searchContext, parent, metadata,
+            config, maxDocsPerValue, executionHint);
     }
 
     @Override

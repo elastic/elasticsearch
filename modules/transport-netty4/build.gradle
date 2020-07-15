@@ -21,6 +21,8 @@
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'elasticsearch.yaml-rest-test'
+
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
@@ -34,13 +36,13 @@ esplugin {
 
 dependencies {
   // network stack
-  compile "io.netty:netty-buffer:${versions.netty}"
-  compile "io.netty:netty-codec:${versions.netty}"
-  compile "io.netty:netty-codec-http:${versions.netty}"
-  compile "io.netty:netty-common:${versions.netty}"
-  compile "io.netty:netty-handler:${versions.netty}"
-  compile "io.netty:netty-resolver:${versions.netty}"
-  compile "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
 }
 
 restResources {
@@ -49,7 +51,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 

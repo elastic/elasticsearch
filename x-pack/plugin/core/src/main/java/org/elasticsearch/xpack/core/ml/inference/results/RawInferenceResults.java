@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
@@ -18,9 +19,9 @@ public class RawInferenceResults implements InferenceResults {
     public static final String NAME = "raw";
 
     private final double[] value;
-    private final Map<String, double[]> featureImportance;
+    private final double[][] featureImportance;
 
-    public RawInferenceResults(double[] value, Map<String, double[]> featureImportance) {
+    public RawInferenceResults(double[] value, double[][] featureImportance) {
         this.value = value;
         this.featureImportance = featureImportance;
     }
@@ -29,7 +30,7 @@ public class RawInferenceResults implements InferenceResults {
         return value;
     }
 
-    public Map<String, double[]> getFeatureImportance() {
+    public double[][] getFeatureImportance() {
         return featureImportance;
     }
 
@@ -44,7 +45,7 @@ public class RawInferenceResults implements InferenceResults {
         if (object == null || getClass() != object.getClass()) { return false; }
         RawInferenceResults that = (RawInferenceResults) object;
         return Arrays.equals(value, that.value)
-            && Objects.equals(featureImportance, that.featureImportance);
+            && Arrays.deepEquals(featureImportance, that.featureImportance);
     }
 
     @Override
@@ -58,8 +59,21 @@ public class RawInferenceResults implements InferenceResults {
     }
 
     @Override
+    public Map<String, Object> asMap() {
+        throw new UnsupportedOperationException("[raw] does not support map conversion");
+    }
+    @Override
+    public Object predictedValue() {
+        return null;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        throw new UnsupportedOperationException("[raw] does not support toXContent");
+    }
 }

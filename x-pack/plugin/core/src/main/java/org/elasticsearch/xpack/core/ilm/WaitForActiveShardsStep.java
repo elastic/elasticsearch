@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
+
 /**
  * After we performed the index rollover we wait for the the configured number of shards for the rolled over index (ie. newly created
  * index) to become available.
@@ -132,27 +134,6 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         // Index must have been since deleted
         logger.debug(errorMessage);
         return new Result(false, new Info(errorMessage));
-    }
-
-    /**
-     * Parses the number from the rolled over index name. It also supports the date-math format (ie. index name is wrapped in &lt; and &gt;)
-     * <p>
-     * Eg.
-     * <p>
-     * - For "logs-000002" it'll return 2
-     * - For "&lt;logs-{now/d}-3&gt;" it'll return 3
-     */
-    static int parseIndexNameCounter(String indexName) {
-        int numberIndex = indexName.lastIndexOf("-");
-        if (numberIndex == -1) {
-            throw new IllegalArgumentException("no - separator found in index name [" + indexName + "]");
-        }
-        try {
-            return Integer.parseInt(indexName.substring(numberIndex + 1, indexName.endsWith(">") ? indexName.length() - 1 :
-                indexName.length()));
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("unable to parse the index name [" + indexName + "] to extract the counter", e);
-        }
     }
 
     static final class ActiveShardsInfo implements ToXContentObject {

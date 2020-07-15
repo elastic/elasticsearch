@@ -49,12 +49,12 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
                 metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, 0, emptyList(), 0);
     }
 
-    protected SignificantStringTerms buildEmptySignificantTermsAggregation(SignificanceHeuristic significanceHeuristic) {
+    protected SignificantStringTerms buildEmptySignificantTermsAggregation(long subsetSize, SignificanceHeuristic significanceHeuristic) {
         // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
         return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, 0, supersetSize, significanceHeuristic, emptyList());
+                metadata(), format, subsetSize, supersetSize, significanceHeuristic, emptyList());
     }
 }

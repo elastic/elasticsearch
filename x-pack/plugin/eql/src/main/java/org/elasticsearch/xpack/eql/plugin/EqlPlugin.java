@@ -49,27 +49,9 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
 
     private final boolean enabled;
 
-    private static final boolean EQL_FEATURE_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.eql_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.eql_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        if ("true".equals(property)) {
-            EQL_FEATURE_FLAG_REGISTERED = true;
-        } else if ("false".equals(property) || property == null) {
-            EQL_FEATURE_FLAG_REGISTERED = false;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.eql_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
-            );
-        }
-    }
-
     public static final Setting<Boolean> EQL_ENABLED_SETTING = Setting.boolSetting(
         "xpack.eql.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
@@ -99,10 +81,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        if (isSnapshot() || EQL_FEATURE_FLAG_REGISTERED) {
-            return List.of(EQL_ENABLED_SETTING);
-        }
-        return List.of();
+        return List.of(EQL_ENABLED_SETTING);
     }
 
     @Override
@@ -111,6 +90,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
             return List.of(
                 new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
                 new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+                new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class),
                 new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
                 new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
             );
@@ -140,7 +120,12 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
         if (enabled) {
-            return List.of(new RestEqlSearchAction(), new RestEqlStatsAction());
+            return List.of(
+                new RestEqlSearchAction(),
+                new RestEqlStatsAction(),
+                new RestEqlGetAsyncResultAction(),
+                new RestEqlDeleteAsyncResultAction()
+            );
         }
         return List.of();
     }

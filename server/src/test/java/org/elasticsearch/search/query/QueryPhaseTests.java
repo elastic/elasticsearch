@@ -443,6 +443,40 @@ public class QueryPhaseTests extends IndexShardTestCase {
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             assertThat(collector.getTotalHits(), equalTo(1));
         }
+
+        // tests with trackTotalHits and terminateAfter
+        context.terminateAfter(10);
+        context.setSize(0);
+        for (int trackTotalHits : new int[] { -1, 3, 76, 100}) {
+            context.trackTotalHitsUpTo(trackTotalHits);
+            TotalHitCountCollector collector = new TotalHitCountCollector();
+            context.queryCollectors().put(TotalHitCountCollector.class, collector);
+            QueryPhase.executeInternal(context);
+            assertTrue(context.queryResult().terminatedEarly());
+            if (trackTotalHits == -1) {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
+            } else {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) Math.min(trackTotalHits, 10)));
+            }
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
+            assertThat(collector.getTotalHits(), equalTo(10));
+        }
+
+        context.terminateAfter(7);
+        context.setSize(10);
+        for (int trackTotalHits : new int[] { -1, 3, 75, 100}) {
+            context.trackTotalHitsUpTo(trackTotalHits);
+            EarlyTerminatingCollector collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 1, false);
+            context.queryCollectors().put(EarlyTerminatingCollector.class, collector);
+            QueryPhase.executeInternal(context);
+            assertTrue(context.queryResult().terminatedEarly());
+            if (trackTotalHits == -1) {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
+            } else {
+                assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(7L));
+            }
+            assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(7));
+        }
         reader.close();
         dir.close();
     }
@@ -472,7 +506,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        context.sort(new SortAndFormats(sort, new DocValueFormat[] {DocValueFormat.RAW}));
+        context.sort(new SortAndFormats(sort, new DocValueFormat[]{DocValueFormat.RAW}));
 
 
         QueryPhase.executeInternal(context);
@@ -626,7 +660,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
 
         context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)),
-            new DocValueFormat[] { DocValueFormat.RAW }));
+            new DocValueFormat[]{DocValueFormat.RAW}));
         topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES);
         QueryPhase.executeInternal(context);
@@ -641,8 +675,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testNumericLongOrDateSortOptimization() throws Exception {
         final String fieldNameLong = "long-field";
         final String fieldNameDate = "date-field";
-        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-        MappedFieldType fieldTypeDate = new DateFieldMapper.Builder(fieldNameDate).fieldType();
+        MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
+        MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(fieldNameLong)).thenReturn(fieldTypeLong);
         when(mapperService.fieldType(fieldNameDate)).thenReturn(fieldTypeDate);
@@ -748,14 +782,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 LongPoint.encodeDimension(value, longBytes, 0);
                 w.add(longBytes, docId);
             }
-            long indexFP;
-            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
-                indexFP = w.finish(out);
+            try (IndexOutput metaout = dir.createOutput("bkdmeta", IOContext.DEFAULT);
+                 IndexOutput indexout = dir.createOutput("bkdindex", IOContext.DEFAULT);
+                 IndexOutput dataout = dir.createOutput("bkddata", IOContext.DEFAULT)) {
+                w.finish(metaout, indexout, dataout).run();
             }
-            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
-                in.seek(indexFP);
-                BKDReader r = new BKDReader(in);
-                assertTrue(pointsHaveDuplicateData(r, r.getDocCount()/2));
+            try (IndexInput metain = dir.openInput("bkdmeta", IOContext.DEFAULT);
+                 IndexInput indexin = dir.openInput("bkdindex", IOContext.DEFAULT);
+                 IndexInput datain = dir.openInput("bkddata", IOContext.DEFAULT)) {
+                BKDReader r = new BKDReader(metain, indexin, datain);
+                assertTrue(pointsHaveDuplicateData(r, r.getDocCount() / 2));
             }
         }
     }
@@ -776,12 +812,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
             }
             long indexFP;
             try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
-                indexFP = w.finish(out);
+                Runnable finalizer = w.finish(out, out, out);
+                indexFP = out.getFilePointer();
+                finalizer.run();;
             }
             try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
                 in.seek(indexFP);
-                BKDReader r = new BKDReader(in);
-                assertFalse(pointsHaveDuplicateData(r, r.getDocCount()/2));
+                BKDReader r = new BKDReader(in, in, in);
+                assertFalse(pointsHaveDuplicateData(r, r.getDocCount() / 2));
             }
         }
     }
@@ -907,7 +945,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 TestSearchContext context = new TestSearchContextWithRewriteAndCancellation(
-                        null, indexShard, newContextSearcher(reader));
+                    null, indexShard, newContextSearcher(reader));
                 PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
                 prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
@@ -966,7 +1004,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
-                    QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
+                               QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
                 final Query query = weight.getQuery();
                 assertTrue(query instanceof BooleanQuery);
                 List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
@@ -974,7 +1012,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
                 assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
                 if (queryType == 0) {
-                    assertTrue (clauses.get(1).getQuery().getClass() ==
+                    assertTrue(clauses.get(1).getQuery().getClass() ==
                         LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
                     );
                 }
@@ -984,7 +1022,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) {
-                assert(false);  // should not be there, expected to search with CollectorManager
+                assert (false);  // should not be there, expected to search with CollectorManager
             }
         };
     }
@@ -1006,7 +1044,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 @Override
                 public void collect(int doc) throws IOException {
                     assert collected <= size : "should not collect more than " + size + " doc per segment, got " + collected;
-                    ++ collected;
+                    ++collected;
                     super.collect(doc);
                 }
             };

@@ -63,7 +63,6 @@ public class MetadataRolloverService {
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-
     @Inject
     public MetadataRolloverService(ThreadPool threadPool,
                                    MetadataCreateIndexService createIndexService, MetadataIndexAliasesService indexAliasesService,
@@ -88,16 +87,16 @@ public class MetadataRolloverService {
 
     public RolloverResult rolloverClusterState(ClusterState currentState, String rolloverTarget, String newIndexName,
                                                CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                               boolean silent) throws Exception {
+                                               boolean silent, boolean onlyValidate) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {
             case ALIAS:
                 return rolloverAlias(currentState, (IndexAbstraction.Alias) indexAbstraction, rolloverTarget, newIndexName,
-                    createIndexRequest, metConditions, silent);
+                    createIndexRequest, metConditions, silent, onlyValidate);
             case DATA_STREAM:
                 return  rolloverDataStream(currentState, (IndexAbstraction.DataStream) indexAbstraction, rolloverTarget,
-                    createIndexRequest, metConditions, silent);
+                    createIndexRequest, metConditions, silent, onlyValidate);
             default:
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -106,7 +105,7 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverAlias(ClusterState currentState, IndexAbstraction.Alias alias, String aliasName,
                                          String newIndexName, CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                         boolean silent) throws Exception {
+                                         boolean silent, boolean onlyValidate) throws Exception {
         final Metadata metadata = currentState.metadata();
         final IndexMetadata writeIndex = alias.getWriteIndex();
         final AliasMetadata aliasMetadata = writeIndex.getAliases().get(alias.getName());
@@ -122,6 +121,9 @@ public class MetadataRolloverService {
             IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings()) : null;
         createIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
+        if (onlyValidate) {
+            return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
+        }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareCreateIndexRequest(unresolvedName, rolloverIndexName, createIndexRequest);
@@ -140,15 +142,19 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverDataStream(ClusterState currentState, IndexAbstraction.DataStream dataStream, String dataStreamName,
                                               CreateIndexRequest createIndexRequest, List<Condition<?>> metConditions,
-                                              boolean silent) throws Exception {
+                                              boolean silent, boolean onlyValidate) throws Exception {
         lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        final String newWriteIndexName = DataStream.getBackingIndexName(ds.getName(), ds.getGeneration() + 1);
+        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1);
+        createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        if (onlyValidate) {
+            return new RolloverResult(newWriteIndexName, originalWriteIndex.getIndex().getName(), currentState);
+        }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
-            prepareDataStreamCreateIndexRequest(newWriteIndexName, createIndexRequest);
+            prepareDataStreamCreateIndexRequest(dataStreamName, newWriteIndexName, createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
             (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex())));
 
@@ -178,10 +184,12 @@ public class MetadataRolloverService {
         }
     }
 
-    static CreateIndexClusterStateUpdateRequest prepareDataStreamCreateIndexRequest(final String targetIndexName,
+    static CreateIndexClusterStateUpdateRequest prepareDataStreamCreateIndexRequest(final String dataStreamName,
+                                                                                    final String targetIndexName,
                                                                                     CreateIndexRequest createIndexRequest) {
         Settings settings = Settings.builder().put("index.hidden", true).build();
-        return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings);
+        return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
+            .dataStreamName(dataStreamName);
     }
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(
@@ -219,7 +227,7 @@ public class MetadataRolloverService {
         } else {
             return List.of(
                 new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
-                new AliasAction.Remove(oldIndex, alias));
+                new AliasAction.Remove(oldIndex, alias, null));
         }
     }
 

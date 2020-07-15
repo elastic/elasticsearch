@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -45,7 +47,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
-            new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            new ComposableIndexTemplate.DataStreamTemplate());
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put("template", template).build())
             .build();
@@ -54,8 +56,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(1));
         assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
-        assertThat(newState.metadata().index(DataStream.getBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(newState.metadata().index(DataStream.getBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
+        assertThat(newState.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
             equalTo("true"));
     }
 
@@ -63,7 +65,8 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
-        DataStream existingDataStream = new DataStream(dataStreamName, "timestamp", List.of(idx.getIndex()));
+        DataStream existingDataStream =
+            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().dataStreams(Map.of(dataStreamName, existingDataStream)).build()).build();
         CreateDataStreamClusterStateUpdateRequest req =
@@ -134,6 +137,18 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template"));
     }
 
+    public static ClusterState createDataStream(final String dataStreamName) throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStreamName + "*"), null, null, null, null, null,
+            new ComposableIndexTemplate.DataStreamTemplate());
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+        MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest req =
+            new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
+        return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
+    }
+
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean()))
@@ -147,6 +162,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                             .put(request.settings())
                             .build())
+                        .putMapping(generateMapping("@timestamp"))
                         .numberOfShards(1)
                         .numberOfReplicas(1)
                         .build(), false);

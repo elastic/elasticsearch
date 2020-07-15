@@ -164,6 +164,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  rtrim(String)
   String  space(Number)
   String  substring(String, Number, Number)
+  String  trim(String)
   String  ucase(String)
 
 #

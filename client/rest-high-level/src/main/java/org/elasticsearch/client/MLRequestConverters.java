@@ -81,6 +81,7 @@ import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -171,6 +172,7 @@ final class MLRequestConverters {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml")
             .addPathPartAsIs("_delete_expired_data")
+            .addPathPart(deleteExpiredDataRequest.getJobId())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         request.setEntity(createEntity(deleteExpiredDataRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -615,6 +617,17 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request updateDataFrameAnalytics(UpdateDataFrameAnalyticsRequest updateRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(updateRequest.getUpdate().getId())
+            .addPathPartAsIs("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getDataFrameAnalytics(GetDataFrameAnalyticsRequest getRequest) {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml", "data_frame", "analytics")
@@ -711,6 +724,9 @@ final class MLRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         if (deleteRequest.getForce() != null) {
             params.putParam("force", Boolean.toString(deleteRequest.getForce()));
+        }
+        if (deleteRequest.getTimeout() != null) {
+            params.withTimeout(deleteRequest.getTimeout());
         }
         request.addParameters(params.asMap());
 

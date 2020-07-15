@@ -1,17 +1,18 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest'
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk'
     includeXpack 'ml', 'cat'
   }
   restTests {
@@ -183,6 +184,7 @@ integTest.runner {
     'ml/job_groups/Test put job with id that matches an existing group',
     'ml/job_groups/Test put job with invalid group',
     'ml/ml_info/Test ml info',
+    'ml/pipeline_inference/Test setting results field is invalid',
     'ml/post_data/Test Flush data with invalid parameters',
     'ml/post_data/Test flushing and posting a closed job',
     'ml/post_data/Test open and close with non-existent job id',

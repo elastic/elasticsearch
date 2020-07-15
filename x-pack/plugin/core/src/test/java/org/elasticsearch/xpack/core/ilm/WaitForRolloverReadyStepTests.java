@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.times;
@@ -140,7 +141,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
     public void testEvaluateConditionOnDataStreamTarget() {
         String dataStreamName = "test-datastream";
-        IndexMetadata indexMetadata = IndexMetadata.builder(dataStreamName + "-000001")
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
@@ -150,7 +151,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder().put(indexMetadata, true)
-            .put(new DataStream(dataStreamName, "timestamp", List.of(indexMetadata.getIndex()), 1L))
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                List.of(indexMetadata.getIndex()), 1L))
             .build();
         step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 

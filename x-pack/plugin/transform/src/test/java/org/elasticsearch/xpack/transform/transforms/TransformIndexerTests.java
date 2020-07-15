@@ -36,11 +36,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
-import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.junit.After;
 import org.junit.Before;
 
@@ -66,7 +66,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.matches;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -91,7 +90,6 @@ public class TransformIndexerTests extends ESTestCase {
             String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
-            TransformProgressGatherer progressGatherer,
             TransformConfig transformConfig,
             Map<String, String> fieldMappings,
             TransformAuditor auditor,
@@ -108,7 +106,6 @@ public class TransformIndexerTests extends ESTestCase {
                 executorName,
                 transformsConfigManager,
                 checkpointProvider,
-                progressGatherer,
                 auditor,
                 transformConfig,
                 fieldMappings,
@@ -123,6 +120,10 @@ public class TransformIndexerTests extends ESTestCase {
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
+        }
+
+        public void initialize() {
+            this.initializeFunction();
         }
 
         public CountDownLatch newLatch(int count) {
@@ -212,6 +213,31 @@ public class TransformIndexerTests extends ESTestCase {
             }
         }
 
+        @Override
+        void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+            responseListener.onResponse(
+                new SearchResponse(
+                    new InternalSearchResponse(
+                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                        // Simulate completely null aggs
+                        null,
+                        new Suggest(Collections.emptyList()),
+                        new SearchProfileShardResults(Collections.emptyMap()),
+                        false,
+                        false,
+                        1
+                    ),
+                    "",
+                    1,
+                    1,
+                    0,
+                    0,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    SearchResponse.Clusters.EMPTY
+                )
+            );
+        }
+
     }
 
     @Before
@@ -240,7 +266,7 @@ public class TransformIndexerTests extends ESTestCase {
             new SettingsConfig(pageSize, null)
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final long initialPageSize = pageSize == null ? Pivot.DEFAULT_INITIAL_PAGE_SIZE : pageSize;
+        final long initialPageSize = pageSize == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : pageSize;
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
             throw new SearchPhaseExecutionException(
                 "query",
@@ -349,7 +375,6 @@ public class TransformIndexerTests extends ESTestCase {
         assertThat(newPosition.getToIndex(), is(empty()));
         assertThat(newPosition.getPosition(), is(nullValue()));
         assertThat(newPosition.isDone(), is(true));
-        verify(auditor, times(1)).info(anyString(), anyString());
     }
 
     public void testScriptError() throws Exception {
@@ -442,12 +467,11 @@ public class TransformIndexerTests extends ESTestCase {
         TransformAuditor auditor,
         TransformContext context
     ) {
-        return new MockedTransformIndexer(
+        MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
             executorName,
             mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
-            new TransformProgressGatherer(client),
             config,
             Collections.emptyMap(),
             auditor,
@@ -459,6 +483,9 @@ public class TransformIndexerTests extends ESTestCase {
             bulkFunction,
             failureConsumer
         );
+
+        indexer.initialize();
+        return indexer;
     }
 
 }

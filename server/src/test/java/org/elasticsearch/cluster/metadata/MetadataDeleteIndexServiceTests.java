@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -79,10 +78,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteSnapshotting() {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
-        SnapshotsInProgress snaps = new SnapshotsInProgress(new SnapshotsInProgress.Entry(snapshot, true, false,
+        SnapshotsInProgress snaps = SnapshotsInProgress.of(List.of(new SnapshotsInProgress.Entry(snapshot, true, false,
                 SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
                 System.currentTimeMillis(), (long) randomIntBetween(0, 1000), ImmutableOpenMap.of(),
-                SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random())));
+                SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()))));
         ClusterState state = ClusterState.builder(clusterState(index))
                 .putCustom(SnapshotsInProgress.TYPE, snaps)
                 .build();
@@ -115,26 +114,27 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteBackingIndexForDataStream() {
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        ClusterState before = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
 
-        Index indexToDelete = before.metadata().index(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
+        Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)).getIndex();
         ClusterState after = service.deleteIndices(before, Set.of(indexToDelete));
 
         assertThat(after.metadata().getIndices().get(indexToDelete.getName()), IsNull.nullValue());
         assertThat(after.metadata().getIndices().size(), equalTo(numBackingIndices - 1));
-        assertThat(after.metadata().getIndices().get(DataStream.getBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
+        assertThat(after.metadata().getIndices().get(
+            DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), IsNull.nullValue());
     }
 
     public void testDeleteCurrentWriteIndexForDataStream() {
         int numBackingIndices = randomIntBetween(1, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        ClusterState before = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
-        Index indexToDelete = before.metadata().index(DataStream.getBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
+        Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
         Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
 
         assertThat(e.getMessage(), containsString("index [" + indexToDelete.getName() + "] is the write index for data stream [" +

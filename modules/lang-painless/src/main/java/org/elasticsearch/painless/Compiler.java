@@ -24,8 +24,9 @@ import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.phase.UserTreeToIRTreeVisitor;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
 
 import java.lang.reflect.Method;
@@ -204,26 +205,27 @@ final class Compiler {
      * @param name The name of the script.
      * @param source The source code for the script.
      * @param settings The CompilerSettings to be used during the compilation.
-     * @return The ScriptRoot used to compile
+     * @return The ScriptScope used to compile
      */
-    ScriptRoot compile(Loader loader, String name, String source, CompilerSettings settings) {
+    ScriptScope compile(Loader loader, String name, String source, CompilerSettings settings) {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
-        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, scriptName, source);
-        ClassNode classNode = root.writeClass(scriptRoot);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        root.analyze(scriptScope);
+        ClassNode classNode = (ClassNode)new UserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         DefBootstrapInjectionPhase.phase(classNode);
-        ScriptInjectionPhase.phase(scriptRoot, classNode);
+        ScriptInjectionPhase.phase(scriptScope, classNode);
         byte[] bytes = classNode.write();
 
         try {
             Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, bytes);
 
-            for (Map.Entry<String, Object> staticConstant : scriptRoot.getStaticConstants().entrySet()) {
+            for (Map.Entry<String, Object> staticConstant : scriptScope.getStaticConstants().entrySet()) {
                 clazz.getField(staticConstant.getKey()).set(null, staticConstant.getValue());
             }
 
-            return scriptRoot;
+            return scriptScope;
         } catch (Exception exception) {
             // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException("An internal error occurred attempting to define the script [" + name + "].", exception);
@@ -240,11 +242,12 @@ final class Compiler {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptClassInfo, scriptName, source, settings);
-        ScriptRoot scriptRoot = new ScriptRoot(painlessLookup, settings, scriptClassInfo, scriptName, source);
-        ClassNode classNode = root.writeClass(scriptRoot);
+        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        root.analyze(scriptScope);
+        ClassNode classNode = (ClassNode)new UserTreeToIRTreeVisitor().visitClass(root, scriptScope);
         classNode.setDebugStream(debugStream);
         DefBootstrapInjectionPhase.phase(classNode);
-        ScriptInjectionPhase.phase(scriptRoot, classNode);
+        ScriptInjectionPhase.phase(scriptScope, classNode);
 
         return classNode.write();
     }

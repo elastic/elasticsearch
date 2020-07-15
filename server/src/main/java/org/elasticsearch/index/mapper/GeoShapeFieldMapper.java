@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
@@ -51,52 +52,43 @@ import java.util.Map;
  */
 public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
+    public static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setDimensions(7, 4, Integer.BYTES);
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+        FIELD_TYPE.setOmitNorms(true);
+        FIELD_TYPE.freeze();
+    }
 
-    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<AbstractShapeGeometryFieldMapper.Builder,
-            GeoShapeFieldType> {
+    public static class Builder extends AbstractShapeGeometryFieldMapper.Builder<Builder,GeoShapeFieldType> {
+
         public Builder(String name) {
-            super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
+            super (name, FIELD_TYPE);
+            this.hasDocValues = false;
+        }
+
+        private GeoShapeFieldType buildFieldType(BuilderContext context) {
+            GeoShapeFieldType ft = new GeoShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
+            GeometryParser geometryParser = new GeometryParser(ft.orientation.getAsBoolean(), coerce().value(),
+                ignoreZValue().value());
+            ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
+            ft.setGeometryIndexer(new GeoShapeIndexer(orientation().value().getAsBoolean(), buildFullName(context)));
+            ft.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+            ft.setOrientation(orientation == null ? Defaults.ORIENTATION.value() : orientation);
+            return ft;
         }
 
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), orientation(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-        }
-
-        @Override
-        protected void setGeometryParser(GeoShapeFieldType ft) {
-            // @todo check coerce
-            GeometryParser geometryParser = new GeometryParser(ft.orientation.getAsBoolean(), coerce().value(),
-                ignoreZValue().value());
-            ft.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
-        }
-
-        @Override
-        protected void setGeometryIndexer(GeoShapeFieldType fieldType) {
-            fieldType.setGeometryIndexer(new GeoShapeIndexer(fieldType.orientation.getAsBoolean(), fieldType.name()));
-        }
-
-        @Override
-        protected void setGeometryQueryBuilder(GeoShapeFieldType fieldType) {
-            fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+            return new GeoShapeFieldMapper(name, fieldType, buildFieldType(context), ignoreMalformed(context), coerce(context),
+                ignoreZValue(), orientation(),
+                multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
-        public GeoShapeFieldType() {
-            super();
-            setDimensions(7, 4, Integer.BYTES);
-        }
-
-        protected GeoShapeFieldType(GeoShapeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public GeoShapeFieldType clone() {
-            return new GeoShapeFieldType(this);
+        public GeoShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, indexed, hasDocValues, meta);
         }
 
         @Override
@@ -117,11 +109,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
-    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+    public GeoShapeFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<ShapeBuilder.Orientation> orientation,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, indexSettings,
+        super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation,
             multiFields, copyTo);
     }
 
@@ -146,7 +138,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     protected void mergeGeoOptions(AbstractShapeGeometryFieldMapper<?,?> mergeWith, List<String> conflicts) {
         if (mergeWith instanceof LegacyGeoShapeFieldMapper) {
             LegacyGeoShapeFieldMapper legacy = (LegacyGeoShapeFieldMapper) mergeWith;
-            throw new IllegalArgumentException("[" + fieldType.name() + "] with field mapper [" + fieldType.typeName() + "] " +
+            throw new IllegalArgumentException("[" + fieldType().name() + "] with field mapper [" + fieldType().typeName() + "] " +
                 "using [BKD] strategy cannot be merged with " + "[" + legacy.fieldType().typeName() + "] with [" +
                 legacy.fieldType().strategy() + "] strategy");
         }
@@ -160,5 +152,10 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected boolean docValuesByDefault() {
+        return false;
     }
 }

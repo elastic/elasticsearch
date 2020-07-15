@@ -24,13 +24,14 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
 }
 
-testClusters.integTest {
+testClusters.all {
   // Modules who's integration is explicitly tested in integration tests
   module project(':modules:parent-join').tasks.bundlePlugin.archiveFile
   module project(':modules:lang-painless').tasks.bundlePlugin.archiveFile
@@ -48,12 +49,12 @@ test {
 }
 
 dependencies {
-  compile project(":client:rest")
-  compile project(":libs:elasticsearch-ssl-config")
+  api project(":client:rest")
+  api project(":libs:elasticsearch-ssl-config")
   // for http - testing reindex from remote
-  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
+  testImplementation project(':modules:transport-netty4')
   // for parent/child testing
-  testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+  testImplementation project(':modules:parent-join')
 }
 
 restResources {

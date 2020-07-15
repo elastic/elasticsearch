@@ -9,7 +9,7 @@ Returns metadata about the state of the cluster.
 [[cluster-state-api-request]]
 ==== {api-request-title}
 
-`GET /_cluster/state/<metrics>/<index>`
+`GET /_cluster/state/<metrics>/<target>`
 
 [[cluster-state-api-desc]]
 ==== {api-description-title}
@@ -26,8 +26,8 @@ whole cluster. This includes information such as
 
 * the locations of all the shards in the cluster.
 
-The response is an internal representation of the cluster state and its format
-may change from version to version. If possible, you should obtain any
+NOTE: The response is an internal representation of the cluster state and its
+format may change from version to version. If possible, you should obtain any
 information from the cluster state using the other, more stable,
 <<cluster,cluster APIs>>.
 
@@ -86,7 +86,13 @@ you can request only the part of the cluster state that you need:
       Shows the cluster state version.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[cluster-state-api-query-params]]
@@ -127,14 +133,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 ==== {api-examples-title}
 
 The following example returns only `metadata` and `routing_table` data for the
-`foo` and `bar` indices:
+`foo` and `bar` data streams or indices:
 
 [source,console]
 --------------------------------------------------
 GET /_cluster/state/metadata,routing_table/foo,bar
 --------------------------------------------------
 
-The next example returns everything for the `foo` and `bar` indices:
+The next example returns all available metadata for `foo` and `bar`:
 
 [source,console]
 --------------------------------------------------

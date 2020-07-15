@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
@@ -124,6 +123,12 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         explainResponse = explainDataFrame(config);
 
-        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(), lessThan(allDataUsedForTraining));
+        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(),
+                   lessThanOrEqualTo(allDataUsedForTraining));
+    }
+
+    @Override
+    boolean supportsInference() {
+        return false;
     }
 }

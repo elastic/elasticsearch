@@ -20,9 +20,9 @@ Returns configuration and usage information about {transforms}.
 [[cat-transforms-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_transform` 
-cluster privileges to use this API. The built-in `transform_user` role has these 
-privileges. For more information, see <<security-privileges>> and 
+* If the {es} {security-features} are enabled, you must have `monitor_transform`
+cluster privileges to use this API. The built-in `transform_user` role has these
+privileges. For more information, see <<security-privileges>> and
 <<built-in-roles>>.
 
 //[[cat-transforms-api-desc]]
@@ -76,6 +76,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
 
 `documents_indexed`, `doci`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
+
+`docs_per_second`, `dps`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
 
 `documents_processed`, `docp`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-processed]
@@ -139,7 +143,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
 
 `transform_type`, `tt`:::
 (Default)
-Indicates the type of {transform}: `batch` or `continuous`. 
+Indicates the type of {transform}: `batch` or `continuous`.
 
 `trigger_count`, `tc`:::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=trigger-count]

@@ -20,41 +20,38 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ContinueNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a continue statement.
  */
 public class SContinue extends AStatement {
 
-    public SContinue(Location location) {
-        super(location);
+    public SContinue(int identifier, Location location) {
+        super(identifier, location);
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitContinue(this, input);
+    }
 
-        if (input.inLoop == false) {
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, InLoop.class) == false) {
             throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
         }
 
-        if (input.lastLoop) {
+        if (semanticScope.getCondition(this, LastLoop.class)) {
             throw createError(new IllegalArgumentException("Extraneous continue statement."));
         }
 
-        output.allEscape = true;
-        output.anyContinue = true;
-        output.statementCount = 1;
-
-        ContinueNode continueNode = new ContinueNode();
-        continueNode.setLocation(location);
-
-        output.statementNode = continueNode;
-
-        return output;
+        semanticScope.setCondition(this, AllEscape.class);
+        semanticScope.setCondition(this, AnyContinue.class);
     }
 }

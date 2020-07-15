@@ -24,10 +24,10 @@ import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.elasticsearch.gradle.RepositoriesSetupPlugin
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.elasticsearch.gradle.test.rest.RestResourcesPlugin
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
@@ -60,9 +60,9 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(TestClustersPlugin)
+        project.pluginManager.apply(RepositoriesSetupPlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
-        ElasticsearchJavaPlugin.configureRepositories(project)
         ElasticsearchJavaPlugin.configureTestTasks(project)
         ElasticsearchJavaPlugin.configureInputNormalization(project)
         ElasticsearchJavaPlugin.configureCompile(project)
@@ -73,8 +73,6 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         // only setup tests to build
         SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)
         SourceSet testSourceSet = sourceSets.create('test')
-        // need to apply plugin after test source sets are created
-        project.pluginManager.apply(RestResourcesPlugin)
 
         project.tasks.withType(Test).configureEach { Test test ->
             test.testClassesDirs = testSourceSet.output.classesDirs
@@ -83,7 +81,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.configurations.create("compileOnly")
-        project.dependencies.add('testCompile', project.project(':test:framework'))
+        project.dependencies.add('testImplementation', project.project(':test:framework'))
 
         EclipseModel eclipse = project.extensions.getByType(EclipseModel)
         eclipse.classpath.sourceSets = [testSourceSet]

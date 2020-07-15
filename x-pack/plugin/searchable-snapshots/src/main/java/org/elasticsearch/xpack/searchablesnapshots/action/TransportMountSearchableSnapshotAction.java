@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -154,9 +155,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
-            // We must fail the restore if it obtains different IDs from the ones we just obtained (e.g. the target snapshot was replaced
-            // by one with the same name while we are restoring it) or else the index metadata might bear no relation to the snapshot we're
-            // searching. TODO NORELEASE validate IDs in the restore.
+            final String[] ignoreIndexSettings = Arrays.copyOf(request.ignoreIndexSettings(), request.ignoreIndexSettings().length + 1);
+            ignoreIndexSettings[ignoreIndexSettings.length - 1] = IndexMetadata.SETTING_DATA_PATH;
 
             client.admin()
                 .cluster()
@@ -170,12 +170,14 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         // Pass through index settings, adding the index-level settings required to use searchable snapshots
                         .indexSettings(
                             Settings.builder()
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
+                                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
                                 .put(request.indexSettings())
                                 .put(buildIndexSettings(request.repositoryName(), snapshotId, indexId))
                                 .build()
                         )
                         // Pass through ignored index settings
-                        .ignoreIndexSettings(request.ignoreIndexSettings())
+                        .ignoreIndexSettings(ignoreIndexSettings)
                         // Don't include global state
                         .includeGlobalState(false)
                         // Don't include aliases
@@ -183,7 +185,9 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         // Pass through the wait-for-completion flag
                         .waitForCompletion(request.waitForCompletion())
                         // Pass through the master-node timeout
-                        .masterNodeTimeout(request.masterNodeTimeout()),
+                        .masterNodeTimeout(request.masterNodeTimeout())
+                        // Fail the restore if the snapshot found above is swapped out from under us before the restore happens
+                        .snapshotUuid(snapshotId.getUUID()),
                     listener
                 );
         }, listener::onFailure);

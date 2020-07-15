@@ -21,6 +21,7 @@ GET /exams/_search
 
 The above aggregation computes the grades statistics over all documents. The aggregation type is `extended_stats` and the `field` setting defines the numeric field of the documents the stats will be computed on. The above will return the following:
 
+The `std_deviation` and `variance` are calculated as population metrics so they are always the same as `std_deviation_population` and `variance_population` respectively.
 
 [source,console-result]
 --------------------------------------------------
@@ -36,10 +37,18 @@ The above aggregation computes the grades statistics over all documents. The agg
            "sum": 150.0,
            "sum_of_squares": 12500.0,
            "variance": 625.0,
+           "variance_population": 625.0,
+           "variance_sampling": 1250.0,
            "std_deviation": 25.0,
+           "std_deviation_population": 25.0,
+           "std_deviation_sampling": 35.35533905932738,
            "std_deviation_bounds": {
             "upper": 125.0,
-            "lower": 25.0
+            "lower": 25.0,
+            "upper_population" : 125.0,
+            "lower_population" : 25.0,
+            "upper_sampling" : 145.71067811865476,
+            "lower_sampling" : 4.289321881345245
            }
         }
     }
@@ -75,6 +84,9 @@ GET /exams/_search
 `sigma` can be any non-negative double, meaning you can request non-integer values such as `1.5`.  A value of `0` is valid, but will simply
 return the average for both `upper` and `lower` bounds.
 
+The `upper` and `lower` bounds are calculated as population metrics so they are always the same as `upper_population` and
+`lower_population` respectively.
+
 .Standard Deviation and Bounds require normality
 [NOTE]
 =====
@@ -93,9 +105,9 @@ GET /exams/_search
 {
     "size": 0,
     "aggs" : {
-        "grades_stats" : { 
-            "extended_stats" : { 
-                "script" : { 
+        "grades_stats" : {
+            "extended_stats" : {
+                "script" : {
                     "source" : "doc['grade'].value",
                     "lang" : "painless"
                  }
@@ -114,8 +126,8 @@ GET /exams/_search
 {
     "size": 0,
     "aggs" : {
-        "grades_stats" : { 
-            "extended_stats" : { 
+        "grades_stats" : {
+            "extended_stats" : {
                 "script" : {
                     "id": "my_script",
                     "params": {

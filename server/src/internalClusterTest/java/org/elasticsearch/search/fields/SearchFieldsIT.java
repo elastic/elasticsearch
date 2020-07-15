@@ -659,7 +659,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("field1"), nullValue());
-        assertThat(searchResponse.getHits().getAt(0).field("_routing").isMetadataField(), equalTo(true));
         assertThat(searchResponse.getHits().getAt(0).field("_routing").getValue().toString(), equalTo("1"));
     }
 
@@ -735,7 +734,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField(field).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(0).field(field).isMetadataField(), equalTo(false));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
@@ -1187,7 +1185,6 @@ public class SearchFieldsIT extends ESIntegTestCase {
         Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
 
         assertThat(fields.get("field1"), nullValue());
-        assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
     }
 }

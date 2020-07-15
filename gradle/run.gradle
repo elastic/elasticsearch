@@ -44,4 +44,6 @@ tasks.register("run", RunTask) {
   useCluster testClusters.runTask;
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
+
+  impliesSubProjects = true
 }

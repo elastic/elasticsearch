@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -28,19 +27,12 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 
-public class IgnoredFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-
-    @Override
-    protected MappedFieldType createDefaultFieldType() {
-        return new IgnoredFieldMapper.IgnoredFieldType();
-    }
+public class IgnoredFieldTypeTests extends FieldTypeTestCase {
 
     public void testPrefixQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
-        Query expected = new PrefixQuery(new Term("field", new BytesRef("foo*")));
+        Query expected = new PrefixQuery(new Term("_ignored", new BytesRef("foo*")));
         assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
@@ -50,11 +42,9 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
-        Query expected = new RegexpQuery(new Term("field", new BytesRef("foo?")));
+        Query expected = new RegexpQuery(new Term("_ignored", new BytesRef("foo?")));
         assertEquals(expected, ft.regexpQuery("foo?", 0, 10, null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,
@@ -64,11 +54,9 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
     }
 
     public void testWildcardQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
+        MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
-        Query expected = new WildcardQuery(new Term("field", new BytesRef("foo*")));
+        Query expected = new WildcardQuery(new Term("_ignored", new BytesRef("foo*")));
         assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_QSC));
 
         ElasticsearchException ee = expectThrows(ElasticsearchException.class,

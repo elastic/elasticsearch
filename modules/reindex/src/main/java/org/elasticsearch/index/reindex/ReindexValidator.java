@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -42,8 +40,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.util.List;
 
 class ReindexValidator {
-    private static final Logger logger = LogManager.getLogger(ReindexValidator.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ReindexValidator.class);
     static final String SORT_DEPRECATED_MESSAGE = "The sort option in reindex is deprecated. " +
         "Instead consider using query filtering to find the desired subset of data.";
 
@@ -120,7 +117,7 @@ class ReindexValidator {
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination, false).getName();
+            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
         for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
             if (sourceIndex.equals(target)) {

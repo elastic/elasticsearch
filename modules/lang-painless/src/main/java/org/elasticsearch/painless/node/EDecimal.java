@@ -20,10 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -32,61 +34,63 @@ import java.util.Objects;
  */
 public class EDecimal extends AExpression {
 
-    protected final String value;
+    private final String decimal;
 
-    public EDecimal(Location location, String value) {
-        super(location);
+    public EDecimal(int identifier, Location location, String decimal) {
+        super(identifier, location);
 
-        this.value = Objects.requireNonNull(value);
+        this.decimal = Objects.requireNonNull(decimal);
+    }
+
+    public String getDecimal() {
+        return decimal;
+    }
+
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDecimal(this, input);
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        return analyze(classNode, scriptRoot, scope, input, false);
+    void analyze(SemanticScope semanticScope) {
+        analyze(semanticScope, false);
     }
 
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input, boolean negate) {
-        if (input.write) {
+    void analyze(SemanticScope semanticScope, boolean negate) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to decimal constant [" + value + "]"));
+                    "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
         }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + value + "] not used"));
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
         }
 
-        Output output = new Output();
+        Class<?> valueType;
         Object constant;
 
-        String value = negate ? "-" + this.value : this.value;
+        String decimal = negate ? "-" + this.decimal : this.decimal;
 
-        if (value.endsWith("f") || value.endsWith("F")) {
+        if (decimal.endsWith("f") || decimal.endsWith("F")) {
             try {
-                constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                output.actual = float.class;
+                constant = Float.parseFloat(decimal.substring(0, decimal.length() - 1));
+                valueType = float.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
             }
         } else {
-            String toParse = value;
-            if (toParse.endsWith("d") || value.endsWith("D")) {
-                toParse = toParse.substring(0, value.length() - 1);
+            String toParse = decimal;
+            if (toParse.endsWith("d") || decimal.endsWith("D")) {
+                toParse = toParse.substring(0, decimal.length() - 1);
             }
             try {
                 constant = Double.parseDouble(toParse);
-                output.actual = double.class;
+                valueType = double.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
             }
         }
 
-        ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
-        constantNode.setExpressionType(output.actual);
-        constantNode.setConstant(constant);
-
-        output.expressionNode = constantNode;
-
-        return output;
+        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(this, new StandardConstant(constant));
     }
 }

@@ -19,14 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -41,30 +41,26 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_feature";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new RankFeatureMetaFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
             FIELD_TYPE.setTokenized(true);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
         }
     }
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
-        public Builder(MappedFieldType existing) {
-            super(NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
+        public Builder() {
+            super(NAME, Defaults.FIELD_TYPE);
         }
 
         @Override
         public RankFeatureMetaFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            return new RankFeatureMetaFieldMapper(fieldType, context.indexSettings());
+            return new RankFeatureMetaFieldMapper();
         }
     }
 
@@ -72,28 +68,21 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder<?> parse(String name,
                 Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return new Builder(parserContext.mapperService().fieldType(NAME));
+            return new Builder();
         }
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new RankFeatureMetaFieldMapper(indexSettings, Defaults.FIELD_TYPE);
+            return new RankFeatureMetaFieldMapper();
         }
     }
 
     public static final class RankFeatureMetaFieldType extends MappedFieldType {
 
-        public RankFeatureMetaFieldType() {
-        }
+        public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
-        protected RankFeatureMetaFieldType(RankFeatureMetaFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public RankFeatureMetaFieldType clone() {
-            return new RankFeatureMetaFieldType(this);
+        private RankFeatureMetaFieldType() {
+            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -112,12 +101,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private RankFeatureMetaFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing.clone(), indexSettings);
-    }
-
-    private RankFeatureMetaFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
+    private RankFeatureMetaFieldMapper() {
+        super(Defaults.FIELD_TYPE, RankFeatureMetaFieldType.INSTANCE);
     }
 
     @Override

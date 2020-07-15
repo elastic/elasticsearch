@@ -12,10 +12,11 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -64,12 +65,7 @@ public class Regression implements DataFrameAnalysis {
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
         parser.declareDouble(optionalConstructorArg(), TRAINING_PERCENT);
         parser.declareLong(optionalConstructorArg(), RANDOMIZE_SEED);
-        parser.declareField(optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return LossFunction.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, LOSS_FUNCTION, ObjectParser.ValueType.STRING);
+        parser.declareString(optionalConstructorArg(), LossFunction::fromString, LOSS_FUNCTION);
         parser.declareDouble(optionalConstructorArg(), LOSS_FUNCTION_PARAMETER);
         return parser;
     }
@@ -263,6 +259,19 @@ public class Regression implements DataFrameAnalysis {
     @Override
     public List<String> getProgressPhases() {
         return PROGRESS_PHASES;
+    }
+
+    @Override
+    public InferenceConfig inferenceConfig(FieldInfo fieldInfo) {
+        return RegressionConfig.builder()
+            .setResultsField(predictionFieldName)
+            .setNumTopFeatureImportanceValues(getBoostedTreeParams().getNumTopFeatureImportanceValues())
+            .build();
+    }
+
+    @Override
+    public boolean supportsInference() {
+        return true;
     }
 
     public static String extractJobIdFromStateDoc(String stateDocId) {

@@ -61,8 +61,7 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         Mockito.when(context.getShardId()).thenReturn(0);
         Mockito.when(context.getIndexSettings()).thenReturn(settings);
         MapperService mapperService = Mockito.mock(MapperService.class);
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
-        ft.setName("foo");
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("foo", NumberType.LONG);
         Mockito.when(mapperService.fieldType(Mockito.anyString())).thenReturn(ft);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
         builder.toFunction(context);

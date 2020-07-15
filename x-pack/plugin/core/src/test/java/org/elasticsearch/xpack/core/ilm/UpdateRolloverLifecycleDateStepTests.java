@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<UpdateRolloverLifecycleDateStep> {
@@ -84,19 +85,20 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         long creationDate = randomLongBetween(0, 1000000);
         long rolloverTime = randomValueOtherThan(creationDate, () -> randomNonNegativeLong());
         String dataStreamName = "test-datastream";
-        IndexMetadata originalIndexMeta = IndexMetadata.builder(dataStreamName + "-000001")
+        IndexMetadata originalIndexMeta = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .putRolloverInfo(new RolloverInfo(dataStreamName, Collections.emptyList(), rolloverTime))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        IndexMetadata rolledIndexMeta= IndexMetadata.builder(dataStreamName + "-000002")
+        IndexMetadata rolledIndexMeta= IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, "timestamp", List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
             ).build();

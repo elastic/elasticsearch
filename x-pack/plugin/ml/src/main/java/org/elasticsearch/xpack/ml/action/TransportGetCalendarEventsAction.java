@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
-import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -49,7 +49,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                             .from(request.getPageParams().getFrom())
                             .size(request.getPageParams().getSize());
 
-                    if (GetCalendarsAction.Request.ALL.equals(request.getCalendarId()) == false) {
+                    if (Strings.isAllOrWildcard(request.getCalendarId()) == false) {
                         query.calendarIds(Collections.singletonList(request.getCalendarId()));
                     }
 
@@ -93,7 +93,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
     }
 
     private void checkCalendarExists(String calendarId, ActionListener<Boolean> listener) {
-        if (GetCalendarsAction.Request.ALL.equals(calendarId)) {
+        if (Strings.isAllOrWildcard(calendarId)) {
             listener.onResponse(true);
             return;
         }

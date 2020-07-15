@@ -56,7 +56,7 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
             update.setDetectorUpdates(createRandomDetectorUpdates());
         }
         if (randomBoolean()) {
-            update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
+            update.setModelPlotConfig(ModelPlotConfigTests.createRandomized());
         }
         if (randomBoolean()) {
             update.setAnalysisLimits(AnalysisLimitsTests.createRandomized());

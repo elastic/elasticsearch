@@ -22,6 +22,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Azure Repository plugin adds support for Azure storage repositories.'
@@ -29,11 +30,11 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:8.6.2'
-  compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
+  api 'com.microsoft.azure:azure-storage:8.6.2'
+  api 'com.microsoft.azure:azure-keyvault-core:1.0.0'
   runtimeOnly 'com.google.guava:guava:20.0'
-  compile 'org.apache.commons:commons-lang3:3.4'
-  testCompile project(':test:fixtures:azure-fixture')
+  api 'org.apache.commons:commons-lang3:3.4'
+  testImplementation project(':test:fixtures:azure-fixture')
 }
 
 restResources {
@@ -42,7 +43,7 @@ restResources {
   }
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jersey-.*/, to: 'jersey'

@@ -12,7 +12,23 @@ Using rolling indices enables you to:
 * Shift older, less frequently accessed data to less expensive _cold_ nodes,
 * Delete data according to your retention policies by removing entire indices.
 
-Rollover relies on three things:
+We recommend using <<indices-create-data-stream, data streams>> to manage time-series
+data. Data streams automatically track the write index while keeping configuration to a minimum.
+
+Each data stream requires an <<indices-templates,index template>> that contains:
+
+* A name or wildcard (`*`) pattern for the data stream.
+
+* The data stream's timestamp field. This field must be mapped as a
+  <<date,`date`>> or <<date_nanos,`date_nanos`>> field data type and must be
+  included in every document indexed to the data stream.
+  
+  * The mappings and settings applied to each backing index when it's created.
+
+Data streams are designed for append-only data, where the data stream name
+can be used as the operations (read, write, rollover, shrink etc.) target.
+If your use case requires data to be updated in place, you can instead manage your time-series data using <<indices-aliases, indices aliases>>. However, there are a few more configuration steps and
+concepts:
 
 * An _index template_ that specifies the settings for each new index in the series.
 You optimize this configuration for ingestion, typically using as many shards as you have hot nodes.

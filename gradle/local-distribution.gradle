@@ -25,7 +25,7 @@
  * */
 import org.elasticsearch.gradle.Architecture
 
-apply plugin:'elasticsearch.distribution-download'
+apply plugin:'elasticsearch.internal-distribution-download'
 
 elasticsearch_distributions {
   local {

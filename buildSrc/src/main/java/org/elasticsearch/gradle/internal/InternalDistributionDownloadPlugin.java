@@ -27,6 +27,7 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -43,33 +44,30 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (BuildParams.isInternal()) {
             this.bwcVersions = BuildParams.getBwcVersions();
         }
-        registerInternalDistributionResolutions(project);
+        registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
     }
 
-    private void registerInternalDistributionResolutions(Project project) {
-        NamedDomainObjectContainer<DistributionResolution> resolutions = DistributionDownloadPlugin.getRegistrationsContainer(project);
-        DistributionResolution localBuild = resolutions.create("localBuild");
-        localBuild.setResolver((project1, distribution) -> {
+    private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
+        resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             if (BuildParams.isInternal() && VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 // non-external project, so depend on local build
-                return projectDependency(project1, distributionProjectPath(distribution), "default");
+                return projectDependency(project, distributionProjectPath(distribution), "default");
             }
             return null;
-        });
+        }));
 
-        DistributionResolution bwb = resolutions.create("bwb");
-        bwb.setResolver((project1, distribution) -> {
+        resolutions.register("bwb", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             if (BuildParams.isInternal()) {
                 BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(
                     Version.fromString(distribution.getVersion())
                 );
                 if (unreleasedInfo != null) {
                     assert distribution.getBundledJdk();
-                    return projectDependency(project1, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
+                    return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
                 }
             }
             return null;
-        });
+        }));
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {

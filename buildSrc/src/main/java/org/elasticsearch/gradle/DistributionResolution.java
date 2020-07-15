@@ -24,6 +24,7 @@ import org.gradle.api.Project;
 public class DistributionResolution {
     private Resolver resolver;
     private String name;
+    private int priority;
 
     public DistributionResolution(String name) {
         this.name = name;
@@ -39,6 +40,14 @@ public class DistributionResolution {
 
     public void setResolver(Resolver resolver) {
         this.resolver = resolver;
+    }
+
+    public void setPriority(int priority) {
+        this.priority = priority;
+    }
+
+    public int getPriority() {
+        return priority;
     }
 
     public interface Resolver {

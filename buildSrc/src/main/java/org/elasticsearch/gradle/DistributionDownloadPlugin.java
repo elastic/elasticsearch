@@ -44,6 +44,9 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.authentication.http.HttpHeaderAuthentication;
 
 import java.io.File;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
@@ -80,17 +83,26 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
 
-        distributionsResolutionStrategiesContainer = project.container(DistributionResolution.class);
-        project.getExtensions().add(RESOLUTION_CONTAINER_NAME, distributionsResolutionStrategiesContainer);
+        setupResolutionsContainer(project);
+        setupDistributionContainer(project, dockerSupport);
+        setupDownloadServiceRepo(project);
+        project.afterEvaluate(this::setupDistributions);
+    }
 
+    private void setupDistributionContainer(Project project, Provider<DockerSupportService> dockerSupport) {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create("es_distro_extracted_" + name);
             return new ElasticsearchDistribution(name, project.getObjects(), dockerSupport, fileConfiguration, extractedConfiguration);
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
-        setupDownloadServiceRepo(project);
-        project.afterEvaluate(this::setupDistributions);
+    }
+
+    private void setupResolutionsContainer(Project project) {
+        distributionsResolutionStrategiesContainer = project.container(DistributionResolution.class);
+        // We want this ordered in the same resolution strategies are added
+        distributionsResolutionStrategiesContainer.whenObjectAdded(resolveDependencyNotation -> resolveDependencyNotation.setPriority(distributionsResolutionStrategiesContainer.size()));
+        project.getExtensions().add(RESOLUTION_CONTAINER_NAME, distributionsResolutionStrategiesContainer);
     }
 
     @SuppressWarnings("unchecked")
@@ -126,9 +138,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
     }
 
-    private Object resolveDependencyNotation(Project project, ElasticsearchDistribution distribution) {
+    private Object resolveDependencyNotation(Project p, ElasticsearchDistribution distribution) {
         return distributionsResolutionStrategiesContainer.stream()
-            .map(r -> r.getResolver().resolve(project, distribution))
+            .sorted(Comparator.comparingInt(DistributionResolution::getPriority))
+            .map(r -> r.getResolver().resolve(p, distribution))
             .filter(d -> d != null)
             .findFirst()
             .orElseGet(() -> dependencyNotation(distribution));

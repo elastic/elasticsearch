@@ -19,6 +19,8 @@
 
 package org.elasticsearch.compat;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -50,7 +52,7 @@ import java.util.Locale;
 import java.util.function.Supplier;
 
 public class RestCompatPlugin extends Plugin implements ActionPlugin {
-
+    Logger log = LogManager.getLogger(RestCompatPlugin.class);
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
@@ -61,7 +63,9 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (Version.CURRENT.major == 8) {
+        boolean compatibilityEnabled = Boolean.parseBoolean(settings.get("compat.setting"));
+        log.warn(" compat setting "+compatibilityEnabled);
+        if (compatibilityEnabled && Version.CURRENT.major == 8) {
             return validateCompatibleHandlers(
                 7,
                 new RestDeleteByQueryActionV7(),

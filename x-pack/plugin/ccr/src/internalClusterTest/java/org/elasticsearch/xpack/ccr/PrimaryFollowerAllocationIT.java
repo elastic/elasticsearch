@@ -46,16 +46,6 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             leaderClient().prepareIndex(leaderIndex, "_doc").setSource("f", i).get();
         }
-        // Empty follower primaries must be assigned to nodes with the remote cluster client role
-        assertBusy(() -> {
-            final ClusterState state = getFollowerCluster().client().admin().cluster().prepareState().get().getState();
-            for (IndexShardRoutingTable shardRoutingTable : state.routingTable().index(followerIndex)) {
-                final ShardRouting primaryShard = shardRoutingTable.primaryShard();
-                assertTrue(primaryShard.assignedToNode());
-                final DiscoveryNode assignedNode = state.nodes().get(primaryShard.currentNodeId());
-                assertThat(assignedNode.getName(), in(dataAndRemoteNodes));
-            }
-        });
         // Follower primaries can be relocated to nodes without the remote cluster client role
         followerClient().admin().indices().prepareUpdateSettings(followerIndex)
             .setSettings(Settings.builder().put("index.routing.allocation.include._name", String.join(",", dataOnlyNodes)))

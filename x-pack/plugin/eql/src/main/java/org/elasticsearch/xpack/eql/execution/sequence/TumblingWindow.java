@@ -288,6 +288,8 @@ public class TumblingWindow implements Executable {
     private void payload(ActionListener<Payload> listener) {
         List<Sequence> completed = matcher.completed();
 
+        log.trace("Sending payload for [{}] sequences", completed.size());
+
         if (completed.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
             matcher.clear();

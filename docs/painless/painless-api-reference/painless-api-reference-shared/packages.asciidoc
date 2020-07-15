@@ -8655,14 +8655,6 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * ZonedDateTime withZoneSameLocal(ZoneId)
 
 
-[[painless-api-reference-shared-ScoreScript-ExplanationHolder]]
-==== ScoreScript.ExplanationHolder
-* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
-* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
-* void set(String)
-* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
-
-
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-search-lookup"]
 === Shared API for package org.elasticsearch.search.lookup
 See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.

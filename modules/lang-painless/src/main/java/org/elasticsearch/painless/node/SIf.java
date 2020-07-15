@@ -20,10 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.IfNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
 import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
@@ -65,15 +61,13 @@ public class SIf extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        Output output = new Output();
-
+    void analyze(SemanticScope semanticScope) {
         semanticScope.setCondition(conditionNode, Read.class);
         semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope);
-        PainlessCast conditionCast = conditionNode.cast(semanticScope);
+        AExpression.analyze(conditionNode, semanticScope);
+        conditionNode.cast(semanticScope);
 
-        if (conditionNode instanceof EBoolean) {
+        if (conditionNode instanceof EBooleanConstant) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
         }
 
@@ -84,18 +78,8 @@ public class SIf extends AStatement {
         semanticScope.replicateCondition(this, ifblockNode, LastSource.class);
         semanticScope.replicateCondition(this, ifblockNode, InLoop.class);
         semanticScope.replicateCondition(this, ifblockNode, LastLoop.class);
-        Output ifblockOutput = ifblockNode.analyze(classNode, semanticScope.newLocalScope());
-
+        ifblockNode.analyze(semanticScope.newLocalScope());
         semanticScope.replicateCondition(ifblockNode, this, AnyContinue.class);
         semanticScope.replicateCondition(ifblockNode, this, AnyBreak.class);
-
-        IfNode ifNode = new IfNode();
-        ifNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
-        ifNode.setBlockNode((BlockNode)ifblockOutput.statementNode);
-        ifNode.setLocation(getLocation());
-
-        output.statementNode = ifNode;
-
-        return output;
     }
 }

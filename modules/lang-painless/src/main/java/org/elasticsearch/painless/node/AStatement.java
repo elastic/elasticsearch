@@ -20,22 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.StatementNode;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * The superclass for all S* (statement) nodes.
  */
 public abstract class AStatement extends ANode {
-
-    public static class Output {
-
-        /**
-         * The {@link StatementNode}(s) generated from this expression.
-         */
-        StatementNode statementNode = null;
-    }
 
     /**
      * Standard constructor with location used for error tracking.
@@ -47,7 +37,7 @@ public abstract class AStatement extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         throw new UnsupportedOperationException();
     }
 }

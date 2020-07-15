@@ -49,7 +49,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
 
-        try (model) {
+        try {
             InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
             List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
@@ -116,6 +116,8 @@ public class InferencePipelineAggregator extends PipelineAggregator {
             assert model.getReferenceCount() > 0;
 
             return originalAgg.create(newBuckets);
+        } finally {
+            model.release();
         }
     }
 

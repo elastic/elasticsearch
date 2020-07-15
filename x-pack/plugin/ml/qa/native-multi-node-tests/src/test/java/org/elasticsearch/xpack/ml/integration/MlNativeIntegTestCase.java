@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -41,6 +41,7 @@ import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
+import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.io.IOException;
@@ -85,6 +87,10 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.monitoring.MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED;
+import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -109,7 +115,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             // This is to reduce log spam
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class);
+            IndexLifecycle.class,
+            DataStreamsPlugin.class);
     }
 
     @Override
@@ -149,6 +156,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     protected void cleanUp() {
         setUpgradeModeTo(false);
+        deleteAllDataStreams();
         cleanUpResources();
         waitForPendingTasks();
     }
@@ -287,6 +295,14 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     new ComposableIndexTemplate.DataStreamTemplate())))
             .actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+    }
+
+    protected static void deleteAllDataStreams() {
+        AcknowledgedResponse response = client().execute(
+            DeleteDataStreamAction.INSTANCE,
+            new DeleteDataStreamAction.Request(new String[]{"*"})
+        ).actionGet();
+        assertAcked(response);
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

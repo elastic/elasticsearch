@@ -90,6 +90,58 @@ setup:
   - match: {hits.hits.1._source.voltage: 5.2}
 
 ---
+"fuzzy query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            fuzzy:
+              day_of_week:
+                value: Manday
+                fuzziness: 1
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"prefix query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            prefix:
+              day_of_week: M
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"range query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              day_of_week:
+                gt: M
+                lt: N
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"regexp query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            regexp:
+              day_of_week: M[aeiou]nday
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
 "term query":
   - do:
       search:
@@ -114,3 +166,15 @@ setup:
   - match: {hits.total.value: 2}
   - match: {hits.hits.0._source.voltage: 5.8}
   - match: {hits.hits.1._source.voltage: 5.2}
+
+---
+"wildcard query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            wildcard:
+              day_of_week: M*ay
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}

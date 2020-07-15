@@ -6,26 +6,27 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.util.List;
 
 public class StringScriptFieldExistsQuery extends AbstractStringScriptFieldQuery {
-    public StringScriptFieldExistsQuery(StringScriptFieldScript.LeafFactory leafFactory, String fieldName) {
-        super(leafFactory, fieldName);
+    public StringScriptFieldExistsQuery(Script script, StringScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+        super(script, leafFactory, fieldName);
     }
 
     @Override
-    public boolean matches(List<String> values) {
+    protected boolean matches(List<String> values) {
         return false == values.isEmpty();
     }
 
     @Override
     public final String toString(String field) {
         if (fieldName().contentEquals(field)) {
-            return "*";
+            return "ScriptFieldExists";
         }
-        return fieldName() + ":*";
+        return fieldName() + ":ScriptFieldExists";
     }
 
     // Superclass's equals and hashCode are great for this class

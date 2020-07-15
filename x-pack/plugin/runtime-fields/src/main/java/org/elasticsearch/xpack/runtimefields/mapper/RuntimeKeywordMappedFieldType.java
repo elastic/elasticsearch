@@ -6,9 +6,13 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -18,10 +22,16 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldExistsQuery;
+import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldFuzzyQuery;
+import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldPrefixQuery;
+import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldRangeQuery;
+import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldRegexpQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldTermsQuery;
+import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldWildcardQuery;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,18 +79,75 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public Query existsQuery(QueryShardContext context) {
-        return new StringScriptFieldExistsQuery(leafFactory(context), name());
+        return new StringScriptFieldExistsQuery(script, leafFactory(context), name());
+    }
+
+    @Override
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        QueryShardContext context
+    ) {
+        return StringScriptFieldFuzzyQuery.build(
+            script,
+            leafFactory(context),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(value)),
+            fuzziness.asDistance(BytesRefs.toString(value)),
+            prefixLength,
+            transpositions
+        );
+    }
+
+    @Override
+    public Query prefixQuery(String value, RewriteMethod method, org.elasticsearch.index.query.QueryShardContext context) {
+        return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value);
+    }
+
+    @Override
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        QueryShardContext context
+    ) {
+        return new StringScriptFieldRangeQuery(
+            script,
+            leafFactory(context),
+            name(),
+            BytesRefs.toString(Objects.requireNonNull(lowerTerm)),
+            BytesRefs.toString(Objects.requireNonNull(upperTerm)),
+            includeLower,
+            includeUpper
+        );
+    }
+
+    @Override
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+        return new StringScriptFieldRegexpQuery(script, leafFactory(context), name(), value, flags, maxDeterminizedStates);
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
-        return new StringScriptFieldTermQuery(leafFactory(context), name(), BytesRefs.toString(Objects.requireNonNull(value)));
+        return new StringScriptFieldTermQuery(script, leafFactory(context), name(), BytesRefs.toString(Objects.requireNonNull(value)));
     }
 
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
-        return new StringScriptFieldTermsQuery(leafFactory(context), name(), terms);
+        return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
+    }
+
+    @Override
+    public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
+        return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value);
     }
 
     void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {

@@ -18,9 +18,11 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MapperService;
@@ -102,6 +104,67 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
         }
     }
 
+    public void testFuzzyQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));   // No edits, matches
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"caat\"}"))));  // Single insertion, matches
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cta\"}"))));   // Single transposition, matches
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"caaat\"}")))); // Two insertions, no match
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));   // Totally wrong, no match
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(
+                    searcher.count(build("value(source.foo)").fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())),
+                    equalTo(3)
+                );
+            }
+        }
+    }
+
+    public void testPrefixQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cata\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(build("value(source.foo)").prefixQuery("cat", null, mockContext())), equalTo(2));
+            }
+        }
+    }
+
+    public void testRangeQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cata\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(
+                    searcher.count(build("value(source.foo)").rangeQuery("cat", "d", false, false, null, null, null, mockContext())),
+                    equalTo(1)
+                );
+            }
+        }
+    }
+
+    public void testRegexpQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cata\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(
+                    searcher.count(
+                        build("value(source.foo)").regexpQuery("ca.+", 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+                    ),
+                    equalTo(2)
+                );
+            }
+        }
+    }
+
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -122,6 +185,17 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(build("value(source.foo.toString())").termsQuery(List.of("1", "2"), mockContext())), equalTo(2));
+            }
+        }
+    }
+
+    public void testWildcardQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"aab\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"b\"}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(build("value(source.foo)").wildcardQuery("a*b", null, mockContext())), equalTo(1));
             }
         }
     }

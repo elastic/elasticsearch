@@ -6,26 +6,28 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
-import org.apache.lucene.index.Term;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.util.List;
 import java.util.Objects;
 
-public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
-    private final String term;
+public class StringScriptFieldPrefixQuery extends AbstractStringScriptFieldQuery {
+    private final String prefix;
 
-    public StringScriptFieldTermQuery(Script script, StringScriptFieldScript.LeafFactory leafFactory, String fieldName, String term) {
+    public StringScriptFieldPrefixQuery(Script script, StringScriptFieldScript.LeafFactory leafFactory, String fieldName, String prefix) {
         super(script, leafFactory, fieldName);
-        this.term = Objects.requireNonNull(term);
+        this.prefix = Objects.requireNonNull(prefix);
     }
 
     @Override
     protected boolean matches(List<String> values) {
         for (String value : values) {
-            if (term.equals(value)) {
+            if (value != null && value.startsWith(prefix)) {
                 return true;
             }
         }
@@ -34,20 +36,22 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
 
     @Override
     public void visit(QueryVisitor visitor) {
-        visitor.consumeTerms(this, new Term(fieldName(), term));
+        if (visitor.acceptField(fieldName())) {
+            visitor.consumeTermsMatching(this, fieldName(), () -> new ByteRunAutomaton(PrefixQuery.toAutomaton(new BytesRef(prefix))));
+        }
     }
 
     @Override
     public final String toString(String field) {
         if (fieldName().contentEquals(field)) {
-            return term;
+            return prefix + "*";
         }
-        return fieldName() + ":" + term;
+        return fieldName() + ":" + prefix + "*";
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), term);
+        return Objects.hash(super.hashCode(), prefix);
     }
 
     @Override
@@ -55,11 +59,11 @@ public class StringScriptFieldTermQuery extends AbstractStringScriptFieldQuery {
         if (false == super.equals(obj)) {
             return false;
         }
-        StringScriptFieldTermQuery other = (StringScriptFieldTermQuery) obj;
-        return term.equals(other.term);
+        StringScriptFieldPrefixQuery other = (StringScriptFieldPrefixQuery) obj;
+        return prefix.equals(other.prefix);
     }
 
-    String term() {
-        return term;
+    String prefix() {
+        return prefix;
     }
 }

@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -18,22 +19,31 @@ import static org.hamcrest.Matchers.equalTo;
 public class StringScriptFieldExistsQueryTests extends AbstractStringScriptFieldQueryTestCase<StringScriptFieldExistsQuery> {
     @Override
     protected StringScriptFieldExistsQuery createTestInstance() {
-        return new StringScriptFieldExistsQuery(leafFactory, randomAlphaOfLength(5));
+        return new StringScriptFieldExistsQuery(randomScript(), leafFactory, randomAlphaOfLength(5));
     }
 
     @Override
     protected StringScriptFieldExistsQuery copy(StringScriptFieldExistsQuery orig) {
-        return new StringScriptFieldExistsQuery(leafFactory, orig.fieldName());
+        return new StringScriptFieldExistsQuery(orig.script(), leafFactory, orig.fieldName());
     }
 
     @Override
     protected StringScriptFieldExistsQuery mutate(StringScriptFieldExistsQuery orig) {
-        return new StringScriptFieldExistsQuery(leafFactory, orig.fieldName() + "modified");
+        if (randomBoolean()) {
+            new StringScriptFieldExistsQuery(randomValueOtherThan(orig.script(), this::randomScript), leafFactory, orig.fieldName());
+        }
+        return new StringScriptFieldExistsQuery(orig.script(), leafFactory, orig.fieldName() + "modified");
+    }
+
+    @Override
+    public void testMatches() {
+        assertTrue(createTestInstance().matches(List.of("test")));
+        assertFalse(createTestInstance().matches(List.of()));
     }
 
     @Override
     protected void assertToString(StringScriptFieldExistsQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo("*"));
+        assertThat(query.toString(query.fieldName()), equalTo("ScriptFieldExists"));
     }
 
     @Override

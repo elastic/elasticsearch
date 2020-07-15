@@ -16,6 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript.LeafFactory;
 
@@ -27,10 +28,12 @@ import java.util.Objects;
  * Abstract base class for building queries based on {@link StringScriptFieldScript}.
  */
 abstract class AbstractStringScriptFieldQuery extends Query {
+    private final Script script;
     private final StringScriptFieldScript.LeafFactory leafFactory;
     private final String fieldName;
 
-    AbstractStringScriptFieldQuery(LeafFactory leafFactory, String fieldName) {
+    AbstractStringScriptFieldQuery(Script script, LeafFactory leafFactory, String fieldName) {
+        this.script = script;
         this.leafFactory = Objects.requireNonNull(leafFactory);
         this.fieldName = Objects.requireNonNull(fieldName);
     }
@@ -38,7 +41,7 @@ abstract class AbstractStringScriptFieldQuery extends Query {
     /**
      * Does the value match this query?
      */
-    public abstract boolean matches(List<String> values);
+    protected abstract boolean matches(List<String> values);
 
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -69,14 +72,17 @@ abstract class AbstractStringScriptFieldQuery extends Query {
         };
     }
 
+    final Script script() {
+        return script;
+    }
+
     protected final String fieldName() {
         return fieldName;
     }
 
     @Override
     public int hashCode() {
-        // TODO should leafFactory be here? Something about the script probably should be!
-        return Objects.hash(getClass(), fieldName);
+        return Objects.hash(getClass(), script, fieldName);
     }
 
     @Override
@@ -84,8 +90,7 @@ abstract class AbstractStringScriptFieldQuery extends Query {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        // TODO should leafFactory be here? Something about the script probably should be!
         AbstractStringScriptFieldQuery other = (AbstractStringScriptFieldQuery) obj;
-        return fieldName.equals(other.fieldName);
+        return script.equals(other.script) && fieldName.equals(other.fieldName);
     }
 }

@@ -2282,25 +2282,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardRepoGeneration = null;
                     }
                     final ShardSnapshotStatus shardSnapshotStatus;
-                    ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                     if (indexRoutingTable == null) {
                         shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING,
                                 "missing routing table", shardRepoGeneration);
-                    } else if (readyToExecute == false || inProgressShards.contains(shardId)) {
-                        shardSnapshotStatus = ShardSnapshotStatus.UNASSIGNED_QUEUED;
-                    } else if (primary == null || !primary.assignedToNode()) {
-                        shardSnapshotStatus =
-                            new ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated", shardRepoGeneration);
-                    } else if (primary.relocating() || primary.initializing()) {
-                        shardSnapshotStatus = new ShardSnapshotStatus(
-                            primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
-                    } else if (!primary.started()) {
-                        shardSnapshotStatus =
-                            new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
-                                "primary shard hasn't been started yet", shardRepoGeneration);
                     } else {
-                        shardSnapshotStatus =
-                            new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+                        ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
+                        if (readyToExecute == false || inProgressShards.contains(shardId)) {
+                            shardSnapshotStatus = ShardSnapshotStatus.UNASSIGNED_QUEUED;
+                        } else if (primary == null || !primary.assignedToNode()) {
+                            shardSnapshotStatus = new ShardSnapshotStatus(null, ShardState.MISSING,
+                                    "primary shard is not allocated", shardRepoGeneration);
+                        } else if (primary.relocating() || primary.initializing()) {
+                            shardSnapshotStatus = new ShardSnapshotStatus(
+                                    primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration);
+                        } else if (!primary.started()) {
+                            shardSnapshotStatus =
+                                    new ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
+                                            "primary shard hasn't been started yet", shardRepoGeneration);
+                        } else {
+                            shardSnapshotStatus =
+                                    new ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+                        }
                     }
                     builder.put(shardId, shardSnapshotStatus);
                 }

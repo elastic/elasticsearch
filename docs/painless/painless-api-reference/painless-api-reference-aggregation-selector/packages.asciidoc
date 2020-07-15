@@ -1,63 +1,6 @@
 // This file is auto-generated. Do not edit.
 
 
-[role="exclude",id="painless-api-reference-aggregation-selector-org-elasticsearch-xpack-eql-expression-function-scalar-whitelist"]
-=== Aggregation Selector API for package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist
-See the <<painless-api-reference-aggregation-selector, Aggregation Selector API>> for a high-level overview of all packages and classes.
-
-[[painless-api-reference-aggregation-selector-InternalEqlScriptUtils]]
-==== InternalEqlScriptUtils
-* static String between(String, String, String, Boolean, Boolean)
-* static Boolean cidrMatch(String, List)
-* static String concat(List)
-* static Boolean endsWith(String, String, Boolean)
-* static Integer indexOf(String, String, Number, Boolean)
-* static Integer length(String)
-* static Number number(String, Number)
-* static String string(Object)
-* static Boolean stringContains(String, String, Boolean)
-* static String substring(String, Number, Number)
-* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
-* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
-* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
-
-
-[role="exclude",id="painless-api-reference-aggregation-selector-org-elasticsearch-xpack-ql-expression-function-scalar-whitelist"]
-=== Aggregation Selector API for package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist
-See the <<painless-api-reference-aggregation-selector, Aggregation Selector API>> for a high-level overview of all packages and classes.
-
-[[painless-api-reference-aggregation-selector-InternalQlScriptUtils]]
-==== InternalQlScriptUtils
-* static Number add(Number, Number)
-* static Boolean and(Boolean, Boolean)
-* static Number div(Number, Number)
-* static def docValue(Map, String)
-* static Boolean eq(Object, Object)
-* static Boolean gt(Object, Object)
-* static Boolean gte(Object, Object)
-* static Boolean in(Object, List)
-* static Boolean isNotNull(Object)
-* static Boolean isNull(Object)
-* static Boolean lt(Object, Object)
-* static Boolean lte(Object, Object)
-* static Number mod(Number, Number)
-* static Number mul(Number, Number)
-* static Number neg(Number)
-* static Boolean neq(Object, Object)
-* static Boolean not(Boolean)
-* static boolean nullSafeFilter(Boolean)
-* static double nullSafeSortNumeric(Number)
-* static String nullSafeSortString(Object)
-* static Boolean nulleq(Object, Object)
-* static Boolean or(Boolean, Boolean)
-* static Boolean regex(String, String)
-* static Boolean startsWith(String, String, Boolean)
-* static Number sub(Number, Number)
-* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
-* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
-* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
-
-
 [role="exclude",id="painless-api-reference-aggregation-selector-org-elasticsearch-xpack-sql-expression-literal-geo"]
 === Aggregation Selector API for package org.elasticsearch.xpack.sql.expression.literal.geo
 See the <<painless-api-reference-aggregation-selector, Aggregation Selector API>> for a high-level overview of all packages and classes.

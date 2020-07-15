@@ -11,16 +11,6 @@ The following specialized API is available in the Number Sort context.
 The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
 
 
-==== org.elasticsearch.xpack.eql.expression.function.scalar.whitelist
-<<painless-api-reference-number-sort-org-elasticsearch-xpack-eql-expression-function-scalar-whitelist, Expand details for org.elasticsearch.xpack.eql.expression.function.scalar.whitelist>>
-
-* <<painless-api-reference-number-sort-InternalEqlScriptUtils, InternalEqlScriptUtils>>
-
-==== org.elasticsearch.xpack.ql.expression.function.scalar.whitelist
-<<painless-api-reference-number-sort-org-elasticsearch-xpack-ql-expression-function-scalar-whitelist, Expand details for org.elasticsearch.xpack.ql.expression.function.scalar.whitelist>>
-
-* <<painless-api-reference-number-sort-InternalQlScriptUtils, InternalQlScriptUtils>>
-
 ==== org.elasticsearch.xpack.sql.expression.literal.geo
 <<painless-api-reference-number-sort-org-elasticsearch-xpack-sql-expression-literal-geo, Expand details for org.elasticsearch.xpack.sql.expression.literal.geo>>
 

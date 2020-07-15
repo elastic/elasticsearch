@@ -270,9 +270,10 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         assertThat(repository, instanceOf(BlobStoreRepository.class));
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
+        assertThat("Repository blobs tracking disabled", tracker.enabled.compareAndSet(true, false), is(true));
+
         final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
         final SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
-        assertThat("Repository blobs tracking disabled", tracker.enabled.compareAndSet(true, false), is(true));
 
         logger.debug("--> checking prewarmed files");
         for (int index = 0; index < nbIndices; index++) {

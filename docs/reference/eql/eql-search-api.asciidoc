@@ -565,10 +565,7 @@ the events in ascending, lexicographic order.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607252647000
-        ]
+        }
       },
       {
         "_index": "my_index",
@@ -596,10 +593,7 @@ the events in ascending, lexicographic order.
             "name": "cmd.exe",
             "path": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607339228000
-        ]
+        }
       }
     ]
   }
@@ -696,10 +690,7 @@ the events in ascending, lexicographic order.
                 "name": "cmd.exe",
                 "path": "C:\\Windows\\System32\\cmd.exe"
               }
-            },
-            "sort": [
-              1607339228000
-            ]
+            }
           },
           {
             "_index": "my_index",
@@ -720,10 +711,7 @@ the events in ascending, lexicographic order.
                 "name": "regsvr32.exe",
                 "path": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "sort": [
-              1607339229000
-            ]
+            }
           }
         ]
       }
@@ -732,3 +720,4 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
+// TESTRESPONSE[skip: response format updated]

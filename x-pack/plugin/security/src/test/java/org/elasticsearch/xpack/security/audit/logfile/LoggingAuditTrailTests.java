@@ -220,7 +220,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, new XPackLicenseState(settings),
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, new XPackLicenseState(settings, () -> 0),
                 securityIndexManager, clusterService, mock(ThreadPool.class));
     }
 
@@ -1455,11 +1455,16 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
             assert false == authentication.getUser().isRunAs();
             checkedFields.put(LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
-                    (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY))
-                    .put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME,
-                            (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY))
-                    .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME,
-                            (String) authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME));
+                    (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY));
+            String apiKeyName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+            if (apiKeyName != null) {
+                checkedFields.put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME, apiKeyName);
+            }
+            String creatorRealmName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+            if (creatorRealmName != null) {
+                checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);
+            }
+
         } else {
             if (authentication.getUser().isRunAs()) {
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getLookedUpBy().getName())

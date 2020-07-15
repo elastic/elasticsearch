@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -89,6 +90,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -102,6 +104,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     private XPackLicenseState licenseState;
     private SSLService sslService;
     private LicenseService licenseService;
+    private LongSupplier epochMillisSupplier;
     protected List<Plugin> plugins = new ArrayList<>();
 
     public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) {
@@ -147,6 +150,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
             modules.addAll(p.createGuiceModules())
         );
         return modules;
+    }
+
+    protected LongSupplier getEpochMillisSupplier() {
+        return epochMillisSupplier;
+    }
+
+    @Override
+    protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
+        this.epochMillisSupplier = epochMillisSupplier;
     }
 
     @Override
@@ -474,6 +486,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                 .stream()
                 .flatMap(p -> p.indicesAliasesRequestValidators().stream())
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+        return filterPlugins(ClusterPlugin.class)
+            .stream()
+            .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
+            .collect(Collectors.toList());
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

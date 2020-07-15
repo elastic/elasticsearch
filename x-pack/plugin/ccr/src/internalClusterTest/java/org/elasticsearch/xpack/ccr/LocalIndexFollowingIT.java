@@ -141,7 +141,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             assertBusy(() -> {
                 // The actual write bytes will be greater due to other request fields. However, this test is
                 // just spot checking that the bytes are incremented at all.
-                assertTrue(memoryLimits.getCurrentCoordinatingAndPrimaryBytes() > finalSourceSize);
+                assertTrue(memoryLimits.getCurrentCombinedCoordinatingAndPrimaryBytes() > finalSourceSize);
             });
             blocker.countDown();
             assertBusy(() -> {

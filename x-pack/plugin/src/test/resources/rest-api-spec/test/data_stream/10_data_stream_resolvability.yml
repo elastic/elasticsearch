@@ -1,8 +1,8 @@
 ---
 "Verify data stream resolvability for xpack apis":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -17,8 +17,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -54,8 +53,8 @@
 ---
 "Verify data stream resolvability in ilm explain api":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -88,8 +87,7 @@
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
           template:
             settings:
               index.lifecycle.name: "my_lifecycle"
@@ -119,8 +117,8 @@
 ---
 "Verify data stream resolvability rollup":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: " - 7.9.99"
+      reason: "enable in 7.9+ when backported"
       features: allowed_warnings
 
   - do:
@@ -135,8 +133,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -155,8 +152,8 @@
 ---
 "Verify data stream resolvability in ILM remove policy API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -196,8 +193,7 @@
                   type: date
             settings:
               index.lifecycle.name: "my_moveable_timeseries_lifecycle"
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -245,8 +241,8 @@
 ---
 "Verify data stream resolvability for graph explore API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -261,8 +257,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -302,8 +297,8 @@
 ---
 "Verify data stream resolvability in migrations API":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -318,8 +313,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -342,8 +336,8 @@
 ---
 "Verify data stream resolvability in async search":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -358,8 +352,7 @@
               properties:
                 '@timestamp':
                   type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:
@@ -369,17 +362,17 @@
   - do:
       index:
         index:  simple-data-stream1
-        body:   { max: 2 }
+        body:   { max: 2, '@timestamp': '2020-12-12'  }
 
   - do:
       index:
         index:  simple-data-stream1
-        body:   { max: 1 }
+        body:   { max: 1, '@timestamp': '2020-12-12'  }
 
   - do:
       index:
         index:  simple-data-stream1
-        body:   { max: 3 }
+        body:   { max: 3, '@timestamp': '2020-12-12'  }
 
   - do:
       indices.refresh:
@@ -413,8 +406,8 @@
 ---
 "Verify data stream resolvability in rollup search":
   - skip:
-      version: " - 7.99.99"
-      reason: "change to 7.8.99 after backport"
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -433,8 +426,7 @@
                   type: keyword
                 price:
                   type: integer
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:

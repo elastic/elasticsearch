@@ -12,16 +12,11 @@
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
           template:
             settings:
               number_of_shards:   1
               number_of_replicas: 0
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
 
   - do:
       index:

@@ -68,7 +68,7 @@ public class TransportBulkShardOperationsAction
     @Override
     protected void doExecute(Task task, BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener) {
         // This is executed on the follower coordinator node and we need to mark the bytes.
-        Releasable releasable = indexingPressure.markIndexingOperationStarted(primaryOperationSize(request));
+        Releasable releasable = indexingPressure.markCoordinatingOperationStarted(primaryOperationSize(request));
         ActionListener<BulkShardOperationsResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
         try {
             super.doExecute(task, request, releasingListener);

@@ -22,3 +22,12 @@ Snapshot restore throttling::
   default that's used for `indices.recovery.max_bytes_per_sec`. This means
   that no behavioral change will be observed by clusters where the recovery
   and restore settings had not been adapted from the defaults. {es-pull}58658[#58658]
+
+Thread pool write queue size::
+* The WRITE thread pool default queue size (`thread_pool.write.size`) has been
+  increased from 200 to 10000. A small queue size (200) caused issues when users
+  wanted to send small indexing requests with a high client count. Additional
+  memory-oriented back pressure has been introduced with the
+  `indexing_pressure.memory.limit` setting. This setting configures a limit to
+  the number of bytes allowed to be consumed by outstanding indexing requests.
+  {es-issue}59263[#59263]

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
+import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 
@@ -25,7 +26,7 @@ public abstract class AbstractQueryFolderTestCase extends ESTestCase {
     protected EqlParser parser = new EqlParser();
     protected PreAnalyzer preAnalyzer = new PreAnalyzer();
     protected EqlConfiguration configuration = EqlTestUtils.randomConfiguration();
-    protected Analyzer analyzer = new Analyzer(configuration, new EqlFunctionRegistry(), new Verifier());
+    protected Analyzer analyzer = new Analyzer(configuration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
     protected Optimizer optimizer = new Optimizer();
     protected Planner planner = new Planner();
 

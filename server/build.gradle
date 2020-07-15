@@ -122,7 +122,7 @@ dependencies {
 
   // repackaged jna with native bits linked against all elastic supported platforms
   api "org.elasticsearch:jna:${versions.jna}"
-  
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'
@@ -331,12 +331,6 @@ tasks.named("dependencyLicenses").configure {
 licenseHeaders {
   // Ignore our vendored version of Google Guice
   excludes << 'org/elasticsearch/common/inject/**/*'
-}
-
-tasks.named('internalClusterTest').configure {
-  if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.datastreams_feature_enabled', 'true'
-  }
 }
 
 licenseHeaders {

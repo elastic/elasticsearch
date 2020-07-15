@@ -29,9 +29,12 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -46,12 +49,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -66,10 +69,13 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -226,6 +232,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return masterName;
     }
 
+    public static void blockMasterFromDeletingIndexNFile(String repositoryName) {
+        final String masterName = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
+            .repository(repositoryName)).setBlockOnDeleteIndexFile();
+    }
+
     public static String blockMasterFromFinalizingSnapshotOnSnapFile(final String repositoryName) {
         final String masterName = internalCluster().getMasterName();
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
@@ -241,6 +253,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         }
         fail("No nodes for the index " + indexName + " found");
         return null;
+    }
+
+    public static void blockNodeOnAnyFiles(String repository, String nodeName) {
+        ((MockRepository) internalCluster().getInstance(RepositoriesService.class, nodeName)
+                .repository(repository)).setBlockOnAnyFiles(true);
     }
 
     public static void blockDataNode(String repository, String nodeName) {
@@ -274,7 +291,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertTrue("No repository is blocked waiting on a data node", blocked);
     }
 
-    public static void unblockNode(final String repository, final String node) {
+    public void unblockNode(final String repository, final String node) {
+        logger.info("--> unblocking [{}] on node [{}]", repository, node);
         ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repository)).unblock();
     }
 
@@ -325,8 +343,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         logger.info("--> writing downgraded RepositoryData for repository metadata version [{}]", version);
         final RepositoryData repositoryData = getRepositoryData(repoName);
         final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
-        final boolean writeShardGens = version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
-        repositoryData.snapshotsToXContent(jsonBuilder, writeShardGens);
+        repositoryData.snapshotsToXContent(jsonBuilder, version);
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -334,7 +351,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 repositoryData.getGenId(), randomBoolean());
         Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
                 BytesReference.toBytes(BytesReference.bytes(
-                        downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), writeShardGens))),
+                        downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         return oldVersionSnapshot;
     }
@@ -377,13 +394,41 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertEquals(getCountForIndex(index), count);
     }
 
+    /**
+     * Adds a snapshot in state {@link SnapshotState#FAILED} to the given repository.
+     *
+     * @param repoName     repository to add snapshot to
+     * @param snapshotName name for the new failed snapshot
+     * @param metadata     snapshot metadata to write (as returned by {@link SnapshotInfo#userMetadata()})
+     */
+    protected void addBwCFailedSnapshot(String repoName, String snapshotName, Map<String, Object> metadata) throws Exception {
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final RepositoriesMetadata repositoriesMetadata = state.metadata().custom(RepositoriesMetadata.TYPE);
+        assertNotNull(repositoriesMetadata);
+        final RepositoryMetadata initialRepoMetadata = repositoriesMetadata.repository(repoName);
+        assertNotNull(initialRepoMetadata);
+        assertThat("We can only manually insert a snapshot into a repository that does not have a generation tracked in the CS",
+                initialRepoMetadata.generation(), is(RepositoryData.UNKNOWN_REPO_GEN));
+        final Repository repo = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
+        logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
+        final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
+                Collections.emptyList(), Collections.emptyList(),
+                SnapshotState.FAILED, "failed on purpose",
+                SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L,0L, 0, 0, Collections.emptyList(),
+                randomBoolean(), metadata);
+        PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
+                ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
+                SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
+    }
+
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
                 state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
     }
 
-    private void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());

@@ -168,12 +168,14 @@ public class CompositeRolesStore {
                                     rolesRetrievalResult.getMissingRoles()));
                         }
                         final Set<RoleDescriptor> effectiveDescriptors;
-                        if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS)) {
-                            effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors();
+                        Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
+                        if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity) &&
+                            licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                            effectiveDescriptors = roleDescriptors.stream()
+                                .filter(r -> r.isUsingDocumentOrFieldLevelSecurity() == false)
+                                .collect(Collectors.toSet());
                         } else {
-                            effectiveDescriptors = rolesRetrievalResult.getRoleDescriptors().stream()
-                                    .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
-                                    .collect(Collectors.toSet());
+                            effectiveDescriptors = roleDescriptors;
                         }
                         logger.trace(() -> new ParameterizedMessage("Exposing effective role descriptors [{}] for role names [{}]",
                                 effectiveDescriptors, roleNames));

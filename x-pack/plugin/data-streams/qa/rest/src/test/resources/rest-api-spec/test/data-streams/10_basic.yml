@@ -9,14 +9,10 @@ setup:
         body:
           index_patterns: [simple-data-stream1]
           template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
             settings:
               index.number_of_replicas: 0
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
+
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
@@ -28,9 +24,8 @@ setup:
             mappings:
               properties:
                 '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+                  type: date_nanos
+          data_stream: {}
 
 ---
 "Create data stream":
@@ -64,6 +59,18 @@ setup:
   - length: { data_streams.1.indices: 1 }
   - match: { data_streams.1.indices.0.index_name: '.ds-simple-data-stream2-000001' }
   - match: { data_streams.1.template: 'my-template2' }
+
+  - do:
+      indices.get_mapping:
+        index: .ds-simple-data-stream1-000001
+        expand_wildcards: hidden
+  - match: { \.ds-simple-data-stream1-000001.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_mapping:
+        index: .ds-simple-data-stream2-000001
+        expand_wildcards: hidden
+  - match: { \.ds-simple-data-stream2-000001.mappings.properties.@timestamp.type: 'date_nanos' }
 
   - do:
       index:
@@ -113,7 +120,7 @@ setup:
 "Get data stream":
   - skip:
       version: " - 7.8.99"
-      reason: "change to 7.8.99 after backport"
+      reason: "data streams available in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -232,13 +239,8 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
+
 
   - do:
       index:
@@ -293,13 +295,7 @@ setup:
         name: generic_logs_template
         body:
           index_patterns: logs-*
-          template:
-            mappings:
-              properties:
-                '@timestamp':
-                  type: date
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       catch: bad_request

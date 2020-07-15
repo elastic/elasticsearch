@@ -29,6 +29,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.AuthCache;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.entity.GzipDecompressingEntity;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpOptions;
@@ -205,6 +206,14 @@ public class RestClient implements Closeable {
      */
     public List<Node> getNodes() {
         return nodeTuple.nodes;
+    }
+
+    /**
+     * check client running status
+     * @return client running status
+     */
+    public boolean isRunning() {
+        return client.isRunning();
     }
 
     /**
@@ -710,6 +719,7 @@ public class RestClient implements Closeable {
             this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
+            setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
             this.warningsHandler = request.getOptions().getWarningsHandler() == null ?
                 RestClient.this.warningsHandler : request.getOptions().getWarningsHandler();
         }
@@ -725,6 +735,12 @@ public class RestClient implements Closeable {
                 if (requestNames.contains(defaultHeader.getName()) == false) {
                     httpRequest.addHeader(defaultHeader);
                 }
+            }
+        }
+
+        private void setRequestConfig(HttpRequestBase httpRequest, RequestConfig requestConfig) {
+            if (requestConfig != null) {
+                httpRequest.setConfig(requestConfig);
             }
         }
 

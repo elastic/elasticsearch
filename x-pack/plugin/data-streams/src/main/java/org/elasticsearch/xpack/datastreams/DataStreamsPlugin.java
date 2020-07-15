@@ -21,8 +21,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.action.ActionModule.DATASTREAMS_FEATURE_ENABLED;
-
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     private final boolean transportClientMode;
@@ -33,11 +31,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, MapperPlu
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        if (DATASTREAMS_FEATURE_ENABLED) {
-            return Collections.singletonMap(DataStreamTimestampFieldMapper.NAME, new DataStreamTimestampFieldMapper.TypeParser());
-        } else {
-            return Collections.emptyMap();
-        }
+        return Collections.singletonMap(DataStreamTimestampFieldMapper.NAME, new DataStreamTimestampFieldMapper.TypeParser());
     }
 
     public Collection<Module> createGuiceModules() {

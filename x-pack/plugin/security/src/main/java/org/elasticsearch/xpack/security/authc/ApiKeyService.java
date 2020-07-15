@@ -830,8 +830,12 @@ public class ApiKeyService {
             if (Strings.hasText(userName)) {
                 boolQuery.filter(QueryBuilders.termQuery("creator.principal", userName));
             }
-            if (Strings.hasText(apiKeyName)) {
-                boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
+            if (Strings.hasText(apiKeyName) && "*".equals(apiKeyName) == false) {
+                if (apiKeyName.endsWith("*")) {
+                    boolQuery.filter(QueryBuilders.prefixQuery("name", apiKeyName.substring(0, apiKeyName.length() - 1)));
+                } else {
+                    boolQuery.filter(QueryBuilders.termQuery("name", apiKeyName));
+                }
             }
             if (Strings.hasText(apiKeyId)) {
                 boolQuery.filter(QueryBuilders.termQuery("_id", apiKeyId));

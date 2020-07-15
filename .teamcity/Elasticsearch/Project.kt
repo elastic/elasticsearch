@@ -29,4 +29,10 @@ object Elasticsearch : VersionedProject({
     name = "Elasticsearch"
 
     includeDevelopmentBranchProjects()
+
+    cleanup {
+        baseRule {
+            artifacts(builds = 5)
+        }
+    }
 })

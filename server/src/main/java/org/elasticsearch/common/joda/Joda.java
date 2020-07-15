@@ -56,7 +56,7 @@ public class Joda {
     // If LogManager.getLogger is called before logging config is loaded
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
-    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger2
+    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
         = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
@@ -412,7 +412,7 @@ public class Joda {
     }
 
     private static DeprecationLogger getDeprecationLogger() {
-        return deprecationLogger2.getOrCompute();
+        return deprecationLogger.getOrCompute();
     }
 
     public static class EpochTimePrinter implements DateTimePrinter {

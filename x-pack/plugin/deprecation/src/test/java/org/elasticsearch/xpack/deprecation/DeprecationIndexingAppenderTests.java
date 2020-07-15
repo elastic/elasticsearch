@@ -6,24 +6,18 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecatedMessage;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingAppender;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationIndexingService.WRITE_DEPRECATION_LOGS_TO_INDEX;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -31,37 +25,21 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-public class DeprecationIndexingServiceTests extends ESTestCase {
+public class DeprecationIndexingAppenderTests extends ESTestCase {
 
-    private DeprecationIndexingService service;
-    private ClusterService clusterService;
+    private DeprecationIndexingAppender appender;
     private Consumer<IndexRequest> consumer;
 
     @Before
     @SuppressWarnings("unchecked")
     public void initialize() {
         consumer = mock(Consumer.class);
-        clusterService = mock(ClusterService.class);
-        service = new DeprecationIndexingService(clusterService, consumer);
-    }
+        appender = new DeprecationIndexingAppender(consumer, "a name", null);
 
-    /**
-     * Checks that the service registers a cluster state listener, so that the service
-     * can be enabled and disabled.
-     */
-    public void testClusterStateListenerRegistered() {
-        verify(clusterService).addListener(service);
-    }
-
-    /**
-     * Checks that the service does not attempt to index messages when it had not reach the
-     * "started" lifecycle state.
-     */
-    public void testDoesNotWriteMessageWhenServiceNotStarted() {
-        service.log("a key", DeprecatedMessage.of(null, "a message"));
-
-        verify(consumer, never()).accept(any());
+        appender.setClusterUUID("cluster-uuid");
+        appender.setNodeId("local-node-id");
     }
 
     /**
@@ -69,9 +47,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * is disabled.
      */
     public void testDoesNotWriteMessageWhenServiceDisabled() {
-        service.start();
-
-        service.log("a key", DeprecatedMessage.of(null, "a message"));
+        appender.append(buildEvent());
 
         verify(consumer, never()).accept(any());
     }
@@ -80,11 +56,10 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Checks that the service can be disabled after being enabled.
      */
     public void testDoesNotWriteMessageWhenServiceEnabledAndDisabled() {
-        service.start();
-        service.clusterChanged(getEvent(true));
-        service.clusterChanged(getEvent(false));
+        appender.setEnabled(true);
+        appender.setEnabled(false);
 
-        service.log("a key", DeprecatedMessage.of(null, "a message"));
+        appender.append(buildEvent());
 
         verify(consumer, never()).accept(any());
     }
@@ -93,8 +68,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Checks that messages are indexed in the correct shape when the service is enabled.
      */
     public void testWritesMessageWhenServiceEnabled() {
-        service.start();
-        service.clusterChanged(getEvent(true));
+        appender.setEnabled(true);
 
         final Map<String, Object> payloadMap = getWriteRequest("a key", DeprecatedMessage.of(null, "a message"));
 
@@ -111,8 +85,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Check that if an xOpaqueId is set, then it is added to the index request payload.
      */
     public void testMessageIncludesOpaqueIdWhenSupplied() {
-        service.start();
-        service.clusterChanged(getEvent(true));
+        appender.setEnabled(true);
 
         final Map<String, Object> payloadMap = getWriteRequest("a key", DeprecatedMessage.of("an ID", "a message"));
 
@@ -123,8 +96,7 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
      * Check that if any arguments are set, then they substituted in the log message
      */
     public void testMessageSubstitutesArgumentsWhenSupplied() {
-        service.start();
-        service.clusterChanged(getEvent(true));
+        appender.setEnabled(true);
 
         final Map<String, Object> payloadMap = getWriteRequest(
             "a key",
@@ -134,21 +106,15 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
         assertThat(payloadMap, hasEntry("message", "a first and second message"));
     }
 
-    private ClusterChangedEvent getEvent(boolean shouldWriteDeprecationLogs) {
-        Settings settings = Settings.builder().put(WRITE_DEPRECATION_LOGS_TO_INDEX.getKey(), shouldWriteDeprecationLogs).build();
-        final Metadata metadata = Metadata.builder().clusterUUID("cluster-uuid").transientSettings(settings).build();
-        final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("local-node-id").build();
-
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(metadata).nodes(nodes).build();
-
-        return new ClusterChangedEvent("test", clusterState, clusterState);
-    }
-
     /*
      * Wraps up the steps for extracting an index request payload from the mocks.
      */
     private Map<String, Object> getWriteRequest(String key, ESLogMessage message) {
-        service.log(key, message);
+        message.field("x-key", key);
+        LogEvent logEvent = mock(LogEvent.class);
+        when(logEvent.getMessage()).thenReturn(message);
+
+        appender.append(logEvent);
 
         ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
 
@@ -156,5 +122,11 @@ public class DeprecationIndexingServiceTests extends ESTestCase {
 
         final IndexRequest indexRequest = argument.getValue();
         return indexRequest.sourceAsMap();
+    }
+
+    private LogEvent buildEvent() {
+        LogEvent logEvent = mock(LogEvent.class);
+        when(logEvent.getMessage()).thenReturn(DeprecatedMessage.of(null, "a message").field("x-key", "a key"));
+        return logEvent;
     }
 }

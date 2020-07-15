@@ -32,7 +32,7 @@ import java.util.Set;
  * When a {@code key} is seen for the first time, the {@code runnable} will be executed, but then will not be
  * executed again for that key until the key is removed from the set.
  */
-class RateLimiter {
+public class RateLimiter {
 
     // LRU set of keys used to determine if a message should be emitted to the logs
     private final Set<String> keys = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
@@ -42,7 +42,7 @@ class RateLimiter {
         }
     }));
 
-    void limit(String key, Runnable runnable) {
+    public void limit(String key, Runnable runnable) {
         boolean shouldRun = keys.add(key);
         if (shouldRun) {
             runnable.run();

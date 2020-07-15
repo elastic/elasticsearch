@@ -11,10 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
-import org.elasticsearch.xpack.eql.session.Payload;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -98,10 +97,10 @@ public class SequenceMatcher {
      * Match hits for the given stage.
      * Returns false if the process needs to be stopped.
      */
-    public boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, SearchHit>> hits) {
-        for (Tuple<KeyAndOrdinal, SearchHit> tuple : hits) {
+    public boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+        for (Tuple<KeyAndOrdinal, HitReference> tuple : hits) {
             KeyAndOrdinal ko = tuple.v1();
-            SearchHit hit = tuple.v2();
+            HitReference hit = tuple.v2();
 
             if (stage == 0) {
                 Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
@@ -125,7 +124,7 @@ public class SequenceMatcher {
      * Match the given hit (based on key and timestamp and potential tiebreaker) with any potential sequence from the previous
      * given stage. If that's the case, update the sequence and the rest of the references.
      */
-    private void match(int stage, SequenceKey key, Ordinal ordinal, SearchHit hit) {
+    private void match(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
         stats.seen++;
         
         int previousStage = stage - 1;
@@ -172,7 +171,7 @@ public class SequenceMatcher {
             }
         }
         
-        sequence.putMatch(stage, hit, ordinal);
+        sequence.putMatch(stage, ordinal, hit);
 
         // bump the stages
         if (stage == completionStage) {
@@ -207,12 +206,9 @@ public class SequenceMatcher {
         return false;
     }
 
-    public Payload payload(long startTime) {
-        TimeValue tookTime = new TimeValue(System.currentTimeMillis() - startTime);
-        List<Sequence> view = limit != null ? limit.view(completed) : completed;
-        Payload p = new SequencePayload(view, false, tookTime);
-        clear();
-        return p;
+
+    public List<Sequence> completed() {
+        return limit != null ? limit.view(completed) : completed;
     }
 
     public void dropUntil() {

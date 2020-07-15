@@ -21,11 +21,9 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.CastNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
 import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
 import org.elasticsearch.painless.symbol.Decorations.StaticType;
@@ -38,14 +36,6 @@ import org.elasticsearch.painless.symbol.SemanticScope;
  */
 public abstract class AExpression extends ANode {
 
-    public static class Output {
-
-        /**
-         * The {@link ExpressionNode}(s) generated from this expression.
-         */
-        ExpressionNode expressionNode = null;
-    }
-
     /**
      * Standard constructor with location used for error tracking.
      */
@@ -56,7 +46,7 @@ public abstract class AExpression extends ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         throw new UnsupportedOperationException();
     }
 
@@ -64,8 +54,8 @@ public abstract class AExpression extends ANode {
      * Checks for errors and collects data for the writing phase. Adds additional, common
      * error checking for conditions related to static types and partially constructed static types.
      */
-    static Output analyze(AExpression expression, ClassNode classNode, SemanticScope semanticScope) {
-        Output output = expression.analyze(classNode, semanticScope);
+    static void analyze(AExpression expression, SemanticScope semanticScope) {
+        expression.analyze(semanticScope);
 
         if (semanticScope.hasDecoration(expression, PartialCanonicalTypeName.class)) {
             throw expression.createError(new IllegalArgumentException("cannot resolve symbol " +
@@ -80,8 +70,6 @@ public abstract class AExpression extends ANode {
         if (semanticScope.hasDecoration(expression, ValueType.class) == false) {
             throw expression.createError(new IllegalStateException("value required: instead found no value"));
         }
-
-        return output;
     }
 
     // TODO: move this somewhere more appropriate
@@ -91,20 +79,12 @@ public abstract class AExpression extends ANode {
         boolean isExplicitCast = semanticScope.getCondition(this, Explicit.class);
         boolean isInternalCast = semanticScope.getCondition(this, Internal.class);
 
-        return AnalyzerCaster.getLegalCast(getLocation(), valueType, targetType, isExplicitCast, isInternalCast);
-    }
+        PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), valueType, targetType, isExplicitCast, isInternalCast);
 
-    static ExpressionNode cast(ExpressionNode expressionNode, PainlessCast painlessCast) {
-        if (painlessCast == null) {
-            return expressionNode;
+        if (painlessCast != null) {
+            semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
         }
 
-        CastNode castNode = new CastNode();
-        castNode.setLocation(expressionNode.getLocation());
-        castNode.setExpressionType(painlessCast.targetType);
-        castNode.setCast(painlessCast);
-        castNode.setChildNode(expressionNode);
-
-        return castNode;
+        return painlessCast;
     }
 }

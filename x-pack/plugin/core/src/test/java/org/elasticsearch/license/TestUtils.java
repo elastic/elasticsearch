@@ -362,7 +362,7 @@ public class TestUtils {
         public final List<Version> trialVersionUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, () -> 0);
         }
 
         @Override
@@ -383,7 +383,7 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings);
+            super(settings, () -> 0);
         }
 
         @Override
@@ -393,7 +393,7 @@ public class TestUtils {
     }
 
     public static XPackLicenseState newTestLicenseState() {
-        return new XPackLicenseState(Settings.EMPTY);
+        return new XPackLicenseState(Settings.EMPTY, () -> 0);
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {

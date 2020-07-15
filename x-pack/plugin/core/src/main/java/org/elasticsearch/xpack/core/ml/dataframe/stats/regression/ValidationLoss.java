@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.FoldValues;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,7 +63,9 @@ public class ValidationLoss implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(LOSS_TYPE.getPreferredName(), lossType);
-        builder.field(FOLD_VALUES.getPreferredName(), foldValues);
+        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(FOLD_VALUES.getPreferredName(), foldValues);
+        }
         builder.endObject();
         return builder;
     }

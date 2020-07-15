@@ -129,7 +129,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).preserveSeparators, Defaults.DEFAULT_PRESERVE_SEPARATORS);
         private final Parameter<Boolean> preservePosInc = Parameter.boolParam("preserve_position_increments", false,
             m -> toType(m).preservePosInc, Defaults.DEFAULT_POSITION_INCREMENTS);
-        private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, null,
+        private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, () -> null,
             (n, c, o) -> ContextMappings.load(o, c.indexVersionCreated()), m -> toType(m).contexts)
             .setSerializer((b, n, c) -> {
                 if (c == null) {
@@ -155,8 +155,9 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         public Builder(String name, NamedAnalyzer defaultAnalyzer) {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
-            this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, defaultAnalyzer);
-            this.searchAnalyzer = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, defaultAnalyzer);
+            this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> defaultAnalyzer);
+            this.searchAnalyzer
+                = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
         }
 
         private static void validateInputLength(int maxInputLength) {

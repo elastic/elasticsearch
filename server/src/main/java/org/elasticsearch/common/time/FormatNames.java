@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.LazyInitializable;
 
@@ -140,15 +139,15 @@ public enum FormatNames {
                 return name;
             }
         }
-        throw new IllegalArgumentException("Format name " + format + " is not defined");
+        return null;
     }
 
     public boolean matches(String format) {
-        if (format.equals(camelCaseName)) {
-            deprecate();
-            return true;
-        }
-        return format.equals(snakeCaseName);
+        return format.equals(camelCaseName) || format.equals(snakeCaseName);
+    }
+
+    public  boolean isCamelCase(String format) {
+        return format.equals(camelCaseName);
     }
 
     private void deprecate() {
@@ -160,5 +159,9 @@ public enum FormatNames {
 
     public String getSnakeCaseName() {
         return snakeCaseName;
+    }
+
+    public String getCamelCaseName() {
+        return camelCaseName;
     }
 }

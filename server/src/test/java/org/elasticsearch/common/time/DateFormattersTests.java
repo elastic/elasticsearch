@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.test.ESTestCase;
 
@@ -399,9 +398,10 @@ public class DateFormattersTests extends ESTestCase {
             "strictWeekyearWeekDay", "strictYear", "strictYearMonth", "strictYearMonthDay"
         };
         for (String name : deprecatedNames) {
-            DateFormatter dateFormatter = DateFormatter.forPattern(name);
-            assertThat(dateFormatter.pattern(), equalTo(name));
             String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
+
+            DateFormatter dateFormatter = DateFormatter.forPattern(name);
+            assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
             assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
                 "Use snake case name " + snakeCaseName + " instead.");
 
@@ -412,9 +412,9 @@ public class DateFormattersTests extends ESTestCase {
         for (String name : deprecatedNames) {
             if (name.equals("strictDateOptionalTimeNanos") == false) {
                 DateFormatter dateFormatter = Joda.forPattern(name);
-                String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
                 assertThat(dateFormatter.pattern(), equalTo(name));
 
+                String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
                 assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
                     "Use snake case name " + snakeCaseName + " instead.");
 

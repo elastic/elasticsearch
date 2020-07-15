@@ -21,6 +21,8 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.LazyInitializable;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -52,6 +54,13 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
+    // DateFormatters is being used even before the logging is initialized.
+    // If LogManager.getLogger is called before logging config is loaded
+    // it results in errors sent to status logger and startup to fail.
+    // Hence a lazy initialization.
+    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
+        = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
+
     public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
 
     private static final DateTimeFormatter TIME_ZONE_FORMATTER_NO_COLON = new DateTimeFormatterBuilder()
@@ -1633,6 +1642,14 @@ public class DateFormatters {
         }
         if (input == null || input.length() == 0) {
             throw new IllegalArgumentException("No date pattern provided");
+        }
+
+        FormatNames formatName = FormatNames.forName(input);
+        if (formatName != null && formatName.isCamelCase(input)) {
+            String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
+                "Use snake case name {} instead.";
+            deprecationLogger.getOrCompute()
+                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
         }
 
         if (FormatNames.ISO8601.matches(input)) {

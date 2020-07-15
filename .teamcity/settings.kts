@@ -33,8 +33,8 @@ project {
     defaultTemplate = DefaultTemplate
 
     buildType {
-        id("Passed_Intake")
-        name = "Passed Intake"
+        id("Intake")
+        name = "Intake"
         type = BuildTypeSettings.Type.COMPOSITE
 
         dependsOn(OssChecks, XpackChecks, BwcChecks) {

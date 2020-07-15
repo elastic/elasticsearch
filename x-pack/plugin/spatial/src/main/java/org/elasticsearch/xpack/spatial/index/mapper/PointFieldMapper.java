@@ -136,7 +136,8 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         }
     }
 
-    protected static class ParsedCartesianPoint extends CartesianPoint implements ParsedPoint {
+    // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint
+    protected static class ParsedCartesianPoint extends CartesianPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {
         @Override
         public void validate(String fieldName) {
             if (Float.isFinite(getX()) == false) {

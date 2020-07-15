@@ -186,7 +186,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
 
     }
 
-    protected static class ParsedGeoPoint extends GeoPoint implements ParsedPoint {
+    // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint
+    protected static class ParsedGeoPoint extends GeoPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {
         @Override
         public void validate(String fieldName) {
             if (lat() > 90.0 || lat() < -90.0) {

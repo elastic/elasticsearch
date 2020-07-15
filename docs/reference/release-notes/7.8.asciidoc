@@ -1,17 +1,153 @@
+[[release-notes-7.8.2]]
+== {es} version 7.8.2
+
+coming::[7.8.2]
+
+
 [[release-notes-7.8.1]]
 == {es} version 7.8.1
 
-coming::[7.8.1]
+Also see <<breaking-changes-7.8,Breaking changes in 7.8>>.
 
+[[breaking-7.8.1]]
 [float]
-[[bug-7.8.1]]
-=== Bug fixes
+=== Breaking changes
+
+License::
+* Display enterprise license as platinum in /_xpack {es-pull}58217[#58217]
+
+
+
+[[feature-7.8.1]]
+[float]
+=== New features
+
+SQL::
+* Implement SUM, MIN, MAX, AVG over literals {es-pull}56786[#56786] (issues: {es-issue}41412[#41412], {es-issue}55569[#55569])
+
+
+
+[[enhancement-7.8.1]]
+[float]
+=== Enhancements
+
+Authorization::
+* Add read privileges for observability-annotations for apm_user {es-pull}58530[#58530] (issues: {es-issue}64796[#64796], {es-issue}69642[#69642], {es-issue}69881[#69881])
+
+Features/Indices APIs::
+* Change "apply create index" log level to DEBUG {es-pull}56947[#56947]
+* Make noop template updates be cluster state noops {es-pull}57851[#57851] (issue: {es-issue}57662[#57662])
+* Rename template V2 classes to ComposableTemplate {es-pull}57183[#57183] (issue: {es-issue}56609[#56609])
+
+License::
+* [DOCS] Clarify subscription requirements {es-pull}58958[#58958]
 
 Machine Learning::
+* Add exponent output aggregator to inference {es-pull}58933[#58933]
+
+Snapshot/Restore::
+* Allow read operations to be executed without waiting for full range to be written in cache {es-pull}58728[#58728] (issues: {es-issue}58164[#58164], {es-issue}58477[#58477])
+* Allows SparseFileTracker to progressively execute listeners during Gap processing {es-pull}58477[#58477] (issue: {es-issue}58164[#58164])
+* Do not wrap CacheFile reentrant r/w locks with ReleasableLock {es-pull}58244[#58244] (issue: {es-issue}58164[#58164])
+* Use snapshot information to build searchable snapshot store MetadataSnapshot {es-pull}56289[#56289]
+
+Transform::
+* Improve update API {es-pull}57648[#57648] (issue: {es-issue}56499[#56499])
+
+
+
+[[bug-7.8.1]]
+[float]
+=== Bug fixes
+
+CCR::
+* Ensure CCR partial reads never overuse buffer {es-pull}58620[#58620]
+
+Cluster Coordination::
+* Suppress cluster UUID logs in 6.8/7.x upgrade {es-pull}56835[#56835]
+* Timeout health API on busy master {es-pull}57587[#57587]
+
+Engine::
+* Fix realtime get of numeric fields from translog {es-pull}58121[#58121] (issue: {es-issue}57462[#57462])
+
+Features/ILM+SLM::
+* Fix negative limiting with fewer PARTIAL snapshots than minimum required {es-pull}58563[#58563] (issue: {es-issue}58515[#58515])
+
+Features/Indices APIs::
+* Fix issue reading template mappings after cluster restart {es-pull}58964[#58964] (issues: {es-issue}58521[#58521], {es-issue}58643[#58643], {es-issue}58883[#58883])
+* ITV2: disallow duplicate dynamic templates {es-pull}56291[#56291] (issues: {es-issue}28988[#28988], {es-issue}53101[#53101], {es-issue}53326[#53326])
+
+
+Features/Stats::
+* Fix unnecessary stats warning when swap is disabled {es-pull}57983[#57983]
+
+Geo::
+* Fix max-int limit for number of points reduced in geo_centroid {es-pull}56370[#56370] (issue: {es-issue}55992[#55992])
+* Re-enable support for array-valued geo_shape fields. {es-pull}58786[#58786]
+
+Infra/Core::
+* Week based parsing for ingest date processor {es-pull}58597[#58597] (issue: {es-issue}58479[#58479])
+
+Machine Learning::
+* Allow unran/incomplete forecasts to be deleted for stopped/failed jobs {es-pull}57152[#57152] (issue: {es-issue}56419[#56419])
+* Fix inference .ml-stats-write alias creation {es-pull}58947[#58947] (issue: {es-issue}58662[#58662])
+* Fix race condition when force stopping DF analytics job {es-pull}57680[#57680]
+* Handle broken setup with state alias being an index {es-pull}58999[#58999] (issue: {es-issue}58482[#58482])
+* Mark forecasts for force closed/failed jobs as failed {es-pull}57143[#57143] (issue: {es-issue}56419[#56419])
 * Better interrupt handling during named pipe connection {ml-pull}1311[#1311]
 * Trap potential cause of SIGFPE {ml-pull}1351[#1351] (issue: {ml-issue}1348[#1348])
 * Correct inference model definition for MSLE regression models {ml-pull}1375[#1375]
 * Fix cause of SIGSEGV of classification and regression {ml-pull}1379[#1379]
+
+Network::
+* Close channel on handshake error with old version {es-pull}56989[#56989] (issue: {es-issue}54337[#54337])
+
+Percolator::
+* Fix nested document support in percolator query {es-pull}58149[#58149] (issue: {es-issue}52850[#52850])
+
+Recovery::
+* Fix recovery stage transition with sync_id {es-pull}57754[#57754] (issues: {es-issue}57187[#57187], {es-issue}57708[#57708])
+
+SQL::
+* Fix behaviour of COUNT(DISTINCT <literal>) {es-pull}56869[#56869]
+* Fix bug in resolving aliases against filters {es-pull}58399[#58399] (issues: {es-issue}57270[#57270], {es-issue}57417[#57417])
+* Fix handling of escaped chars in JDBC connection string {es-pull}58429[#58429] (issue: {es-issue}57927[#57927])
+* Handle MIN and MAX functions on dates in Painless scripts {es-pull}57605[#57605] (issue: {es-issue}57581[#57581])
+
+Search::
+* Ensure search contexts are removed on index delete {es-pull}56335[#56335]
+* Filter empty fields in SearchHit#toXContent {es-pull}58418[#58418] (issue: {es-issue}41656[#41656])
+* Fix exists query on unmapped field in query_string {es-pull}58804[#58804] (issues: {es-issue}55785[#55785], {es-issue}58737[#58737])
+* Fix handling of terminate_after when size is 0 {es-pull}58212[#58212] (issue: {es-issue}57624[#57624])
+* Fix possible NPE on search phase failure {es-pull}57952[#57952] (issues: {es-issue}51708[#51708], {es-issue}57945[#57945])
+* Handle failures with no explicit cause in async search {es-pull}58319[#58319] (issues: {es-issue}57925[#57925], {es-issue}58311[#58311])
+* Improve error handling in async search code {es-pull}57925[#57925] (issue: {es-issue}58995[#58995])
+* Prevent BigInteger serialization errors in term queries {es-pull}57987[#57987] (issue: {es-issue}57917[#57917])
+* Submit async search to not require read privilege {es-pull}58942[#58942]
+
+Snapshot/Restore::
+* Fix Incorrect Snapshot Shar Status for DONE Shards in Running Snapshots {es-pull}58390[#58390]
+* Fix Memory Leak From Master Failover During Snapshot {es-pull}58511[#58511] (issue: {es-issue}56911[#56911])
+* Fix NPE in SnapshotService CS Application {es-pull}58680[#58680]
+* Fix Snapshot Abort Not Waiting for Data Nodes {es-pull}58214[#58214]
+* Remove Overly Strict Safety Mechnism in Shard Snapshot Logic {es-pull}57227[#57227] (issue: {es-issue}57198[#57198])
+
+Task Management::
+* Cancel persistent task recheck when no longer master {es-pull}58539[#58539] (issue: {es-issue}58531[#58531])
+* Ensure unregister child node if failed to register task {es-pull}56254[#56254] (issues: {es-issue}54312[#54312], {es-issue}55875[#55875])
+
+Transform::
+* Fix page size return in cat transform, add dps {es-pull}57871[#57871] (issues: {es-issue}56007[#56007], {es-issue}56498[#56498])
+
+
+
+[[upgrade-7.8.1]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade to JNA 5.5.0 {es-pull}58183[#58183]
+
 
 [[release-notes-7.8.0]]
 == {es} version 7.8.0

@@ -21,9 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ir.BooleanNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -36,13 +33,13 @@ import java.util.Objects;
 /**
  * Represents a boolean expression.
  */
-public class EBool extends AExpression {
+public class EBooleanComp extends AExpression {
 
     private final AExpression leftNode;
     private final AExpression rightNode;
     private final Operation operation;
 
-    public EBool(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
+    public EBooleanComp(int identifier, Location location, AExpression leftNode, AExpression rightNode, Operation operation) {
         super(identifier, location);
 
         this.operation = Objects.requireNonNull(operation);
@@ -68,7 +65,7 @@ public class EBool extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
@@ -79,28 +76,16 @@ public class EBool extends AExpression {
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        Output output = new Output();
-
         semanticScope.setCondition(leftNode, Read.class);
         semanticScope.putDecoration(leftNode, new TargetType(boolean.class));
-        Output leftOutput = analyze(leftNode, classNode, semanticScope);
-        PainlessCast leftCast = leftNode.cast(semanticScope);
+        analyze(leftNode, semanticScope);
+        leftNode.cast(semanticScope);
 
         semanticScope.setCondition(rightNode, Read.class);
         semanticScope.putDecoration(rightNode, new TargetType(boolean.class));
-        Output rightOutput = analyze(rightNode, classNode, semanticScope);
-        PainlessCast rightCast = rightNode.cast(semanticScope);
+        analyze(rightNode, semanticScope);
+        rightNode.cast(semanticScope);
 
         semanticScope.putDecoration(this, new ValueType(boolean.class));
-
-        BooleanNode booleanNode = new BooleanNode();
-        booleanNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
-        booleanNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-        booleanNode.setLocation(getLocation());
-        booleanNode.setExpressionType(boolean.class);
-        booleanNode.setOperation(operation);
-        output.expressionNode = booleanNode;
-
-        return output;
     }
 }

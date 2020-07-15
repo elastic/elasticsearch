@@ -25,9 +25,10 @@ setup:
                 type: script
                 runtime_type: keyword
                 script: |
-                  String dow = doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT);
-                  if (dow.startsWith('T')) {
-                    value(dow);
+                  for (String dow: doc['day_of_week']) {
+                    if (dow.startsWith('T')) {
+                      value(dow);
+                    }
                   }
 
   - do:

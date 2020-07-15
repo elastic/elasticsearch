@@ -38,7 +38,7 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     private LongConsumer circuitBreakerConsumer;
 
     protected SortingNumericDocValues() {
-        this(null);
+        this((l) -> {});
     }
 
     protected SortingNumericDocValues(LongConsumer circuitBreakerConsumer) {

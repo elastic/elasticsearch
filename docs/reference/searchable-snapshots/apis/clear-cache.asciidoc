@@ -15,7 +15,7 @@ Clear the cache of searchable snapshots.
 
 `POST /_searchable_snapshots/cache/clear`
 
-`POST /<index>/_searchable_snapshots/cache/clear`
+`POST /<target>/_searchable_snapshots/cache/clear`
 
 [[searchable-snapshots-api-clear-cache-prereqs]]
 ==== {api-prereq-title}
@@ -32,9 +32,9 @@ For more information, see <<security-privileges>>.
 [[searchable-snapshots-api-clear-cache-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
+`<target>`::
 (Optional, string)
-A comma-separated list of index names for which the
+A comma-separated list of data streams and indices for which the
 searchable snapshots cache must be cleared.
 
 

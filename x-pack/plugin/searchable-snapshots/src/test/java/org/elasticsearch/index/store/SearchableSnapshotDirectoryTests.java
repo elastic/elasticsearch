@@ -482,7 +482,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 writer.commit();
             }
 
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             releasables.add(() -> terminate(threadPool));
 
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -650,7 +650,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final ShardId shardId = new ShardId(new org.elasticsearch.index.Index("_name", "_id"), 0);
 
             final Path cacheDir = createTempDir();
-            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilder());
+            final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             try (
                 SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                     () -> blobContainer,

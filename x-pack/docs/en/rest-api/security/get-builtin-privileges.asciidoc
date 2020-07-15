@@ -100,6 +100,7 @@ A successful call returns an object with "cluster" and "index" fields.
   ],
   "index" : [
     "all",
+    "auto_configure",
     "create",
     "create_doc",
     "create_index",

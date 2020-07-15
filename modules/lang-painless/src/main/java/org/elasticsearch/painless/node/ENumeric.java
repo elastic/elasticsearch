@@ -20,10 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
@@ -54,17 +53,16 @@ public class ENumeric extends AExpression {
         return radix;
     }
 
-    @Override
     public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
         return userTreeVisitor.visitNumeric(this, input);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        return analyze(semanticScope, false);
+    void analyze(SemanticScope semanticScope) {
+        analyze(semanticScope, false);
     }
 
-    Output analyze(SemanticScope semanticScope, boolean negate) {
+    void analyze(SemanticScope semanticScope, boolean negate) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
@@ -74,7 +72,6 @@ public class ENumeric extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: numeric constant [" + numeric + "] not used"));
         }
 
-        Output output = new Output();
         Class<?> valueType;
         Object constant;
 
@@ -142,13 +139,6 @@ public class ENumeric extends AExpression {
         }
 
         semanticScope.putDecoration(this, new ValueType(valueType));
-
-        ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(valueType);
-        constantNode.setConstant(constant);
-        output.expressionNode = constantNode;
-
-        return output;
+        semanticScope.putDecoration(this, new StandardConstant(constant));
     }
 }

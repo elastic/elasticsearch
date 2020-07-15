@@ -174,8 +174,8 @@ tasks.register("verifyVersions") {
  * after the backport of the backcompat code is complete.
  */
 
-boolean bwc_tests_enabled = false
-final String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/59293" /* place a PR link here when committing bwc changes */
+boolean bwc_tests_enabled = true
+final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -471,17 +471,6 @@ allprojects {
       checkPart2.configure { dependsOn 'check' }
     } else {
       checkPart1.configure { dependsOn 'check' }
-    }
-  }
-}
-
-// TODO: remove this once 7.7 is released and the 7.x branch is 7.8
-subprojects {
-  pluginManager.withPlugin('elasticsearch.testclusters') {
-    testClusters.all {
-      if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-        systemProperty 'es.datastreams_feature_enabled', 'true'
-      }
     }
   }
 }

@@ -50,6 +50,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     protected final long minDocCount;
     protected final double minBound;
     protected final double maxBound;
+    protected final DoubleBounds hardBounds;
     protected final LongKeyedBucketOrds bucketOrds;
 
     public AbstractHistogramAggregator(
@@ -62,6 +63,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         long minDocCount,
         double minBound,
         double maxBound,
+        DoubleBounds hardBounds,
         DocValueFormat formatter,
         SearchContext context,
         Aggregator parent,
@@ -80,6 +82,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         this.minDocCount = minDocCount;
         this.minBound = minBound;
         this.maxBound = maxBound;
+        this.hardBounds = hardBounds;
         this.formatter = formatter;
         bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinalityUpperBound);
     }

@@ -25,7 +25,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
@@ -80,7 +80,7 @@ public class RetentionLeaseSyncAction extends
             final ThreadPool threadPool,
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
-            final WriteMemoryLimits writeMemoryLimits) {
+            final IndexingPressure indexingPressure) {
         super(
                 settings,
                 ACTION_NAME,
@@ -92,7 +92,7 @@ public class RetentionLeaseSyncAction extends
                 actionFilters,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ThreadPool.Names.MANAGEMENT, false, writeMemoryLimits);
+                ThreadPool.Names.MANAGEMENT, false, indexingPressure);
     }
 
     @Override

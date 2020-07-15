@@ -232,12 +232,12 @@ The total time, in milliseconds, that it took for the snapshot process
 to complete.
 ====
 
-`indices`::
+`<index>`::
 (list of objects)
 List of objects containing information about the
 indices included in the snapshot.
 +
-.Properties of `indices`
+.Properties of `<index>`
 [%collapsible%open]
 ====
 `shards_stats`::

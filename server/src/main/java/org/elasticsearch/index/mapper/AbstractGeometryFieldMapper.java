@@ -269,8 +269,9 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     @Override
-    public AbstractGeometryFieldType fieldType() {
-        return (AbstractGeometryFieldType)mappedFieldType;
+    @SuppressWarnings("unchecked")
+    public AbstractGeometryFieldType<Parsed, Processed> fieldType() {
+        return (AbstractGeometryFieldType<Parsed, Processed>) mappedFieldType;
     }
 
     @Override
@@ -285,10 +286,10 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     /** parsing logic for geometry indexing */
     @Override
     public void parse(ParseContext context) throws IOException {
-        AbstractGeometryFieldMapper.AbstractGeometryFieldType mappedFieldType = fieldType();
+        AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
 
-        @SuppressWarnings("unchecked") Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
-        @SuppressWarnings("unchecked") Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
+        Indexer<Parsed, Processed> geometryIndexer = mappedFieldType.geometryIndexer();
+        Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
         try {
             Processed shape = context.parseExternalValue(geometryIndexer.processedClass());
             if (shape == null) {

@@ -54,6 +54,7 @@ import java.util.function.BiFunction;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class AbstractSearchAsyncActionTests extends ESTestCase {
 
@@ -95,7 +96,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                     )
                 ), timeProvider, ClusterState.EMPTY_STATE, null,
                 results, request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY, mock(StartedPrimaryShardObserver.class)) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, final SearchPhaseContext context) {
                 return null;

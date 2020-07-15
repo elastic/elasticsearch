@@ -21,15 +21,20 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -47,12 +52,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,9 +69,11 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class SearchAsyncActionTests extends ESTestCase {
-
     public void testSkipSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         request.allowPartialSearchResults(true);
@@ -75,7 +85,6 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards, randomBoolean(), primaryNode, replicaNode);
         int numSkipped = 0;
         for (SearchShardIterator iter : shardsIter) {
@@ -114,7 +123,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                mock(StartedPrimaryShardObserver.class)) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -190,7 +200,6 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards, doReplicas, primaryNode, replicaNode);
         SearchTransportService transportService = new SearchTransportService(null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
@@ -220,7 +229,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                mock(StartedPrimaryShardObserver.class)) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -286,7 +296,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(1, 10);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-                new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
                 numShards, randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null) {
@@ -323,7 +332,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                         null,
                         new ArraySearchPhaseResults<>(shardsIter.size()),
                         request.getMaxConcurrentShardRequests(),
-                        SearchResponse.Clusters.EMPTY) {
+                        SearchResponse.Clusters.EMPTY,
+                        mock(StartedPrimaryShardObserver.class)) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
@@ -396,7 +406,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(2, 10);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards, randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null) {
@@ -433,7 +442,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                mock(StartedPrimaryShardObserver.class)) {
                 TestSearchResponse response = new TestSearchResponse();
 
                 @Override
@@ -499,7 +509,6 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards, true, primaryNode, replicaNode);
         int numShardAttempts = 0;
         for (SearchShardIterator it : shardsIter) {
@@ -535,7 +544,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY) {
+                SearchResponse.Clusters.EMPTY,
+                mock(StartedPrimaryShardObserver.class)) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -580,18 +590,455 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertThat(numFailReplicas.get(), greaterThanOrEqualTo(1));
     }
 
-    static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, OriginalIndices originalIndices, int numShards,
-                                                     boolean doReplicas, DiscoveryNode primaryNode, DiscoveryNode replicaNode) {
+    public void testFanOutAndWaitForUnallocatedShards() throws Exception {
+        int numShards = randomIntBetween(1, 20);
+        int numUnassignedShards = randomIntBetween(1, numShards);
+        String indexName = randomAlphaOfLength(10);
+
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(indexName,
+            numShards,
+            false,
+            primaryNode,
+            null,
+            numUnassignedShards);
+
+        CountDownLatch startedShardsLatch = new CountDownLatch(numShards - numUnassignedShards);
+
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(false);
+        request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
+        request.setWaitForUnassignedPrimaryShardsAllocationTimeout(TimeValue.timeValueMillis(1000));
+
+        final FakeStartedPrimaryShardObserver startedShardObserver = new FakeStartedPrimaryShardObserver();
+        PlainListenableActionFuture<SearchResponse> responseListener = PlainListenableActionFuture.newListenableFuture();
+        ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
+
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
+            new AbstractSearchPrimaryShardWaiterAction(request,
+                primaryNode,
+                shardsIter,
+                responseListener,
+                startedShardObserver,
+                executor) {
+                final TestSearchResponse response = new TestSearchResponse();
+
+                @Override
+                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                                                   ShardRouting shard,
+                                                   SearchActionListener<TestSearchPhaseResult> listener) {
+                    assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
+
+                    Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                    listener.onResponse(new TestSearchPhaseResult(null, connection.getNode()));
+                    startedShardsLatch.countDown();
+                }
+
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("second phase") {
+                        @Override
+                        public void run() {
+                            for (int i = 0; i < results.getNumShards(); i++) {
+                                assertTrue(results.hasResult(i));
+                            }
+
+                            for (int i = 0; i < shardsIts.size(); i++) {
+                                SearchShardIterator searchShardIterator = shardsIts.get(i);
+                                searchShardIterator.reset();
+
+                                ShardRouting shardRouting = searchShardIterator.nextOrNull();
+                                assertThat(shardRouting, is(notNullValue()));
+                                assertThat(shardRouting.started(), is(true));
+                            }
+                            responseListener.onResponse(response);
+                        }
+                    };
+                }
+            };
+
+        asyncAction.start();
+
+        // The rest of requests were performed without waiting for the unassigned shard
+        startedShardsLatch.await();
+
+        assertThat(startedShardObserver.shardsWaitingForAllocation().size(), is(numUnassignedShards));
+        startedShardObserver.moveAllWaitingShardsToStarted(primaryNode);
+
+        TestSearchResponse response = (TestSearchResponse) responseListener.get();
+        for (int i = 0; i < shardsIter.size(); i++) {
+            ShardId shardId = shardsIter.get(i).shardId();
+            assertThat(response.queried.remove(shardId), is(true));
+        }
+        assertThat(response.queried.isEmpty(), is(true));
+
+        executor.shutdown();
+    }
+
+    public void testFanOutAndWaitForUnallocatedShardsToBeStartedAndSomeShardsAreNotAllocatedAfterTimeout() throws Exception {
+        int numShards = randomIntBetween(1, 20);
+        int numUnassignedShards = randomIntBetween(1, numShards);
+        int numTimedOutShardsWhileWaiting = randomIntBetween(0, numUnassignedShards - 1);
+        String indexName = randomAlphaOfLength(10);
+
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(indexName,
+            numShards,
+            false,
+            primaryNode,
+            null,
+            numUnassignedShards);
+
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(true);
+        request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
+        request.setWaitForUnassignedPrimaryShardsAllocationTimeout(TimeValue.timeValueMillis(1000));
+
+        final FakeStartedPrimaryShardObserver startedShardObserver = new FakeStartedPrimaryShardObserver();
+        PlainListenableActionFuture<SearchResponse> responseListener = PlainListenableActionFuture.newListenableFuture();
+        CountDownLatch startedShardsLatch = new CountDownLatch(numShards - numUnassignedShards);
+        ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
+
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
+            new AbstractSearchPrimaryShardWaiterAction(request,
+                primaryNode,
+                shardsIter,
+                responseListener,
+                startedShardObserver,
+                executor) {
+                final TestSearchResponse response = new TestSearchResponse();
+
+                @Override
+                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                                                   ShardRouting shard,
+                                                   SearchActionListener<TestSearchPhaseResult> listener) {
+                    assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
+                    Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                    listener.onResponse(new TestSearchPhaseResult(null, connection.getNode()));
+                    startedShardsLatch.countDown();
+                }
+
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("second phase") {
+                        @Override
+                        public void run() {
+                            responseListener.onResponse(response);
+                        }
+                    };
+                }
+            };
+
+        asyncAction.start();
+        startedShardsLatch.await();
+
+        Set<ShardId> shardsWaitingForAllocation = startedShardObserver.shardsWaitingForAllocation();
+        List<ShardId> timedOutShards = randomSubsetOf(numTimedOutShardsWhileWaiting, shardsWaitingForAllocation);
+        for (ShardId shardId : timedOutShards) {
+            startedShardObserver.timeoutShardAllocationWait(shardId);
+        }
+
+        shardsWaitingForAllocation.removeAll(timedOutShards);
+        for (ShardId waitingShard : shardsWaitingForAllocation) {
+            startedShardObserver.moveShardToStarted(waitingShard, primaryNode);
+        }
+
+        TestSearchResponse response = (TestSearchResponse) responseListener.get();
+        for (int i = 0; i < shardsIter.size(); i++) {
+            ShardId shardId = shardsIter.get(i).shardId();
+            assertThat(response.queried.remove(shardId),
+                timedOutShards.contains(shardId) ? is(false) : is(true));
+        }
+        assertThat(response.queried.isEmpty(), is(true));
+
+        executor.shutdown();
+    }
+
+    public void testPartialResultsErrorOutWhenASubsetOfUnassignedShardsTimeout() throws Exception {
+        String indexName = randomAlphaOfLength(10);
+        int numShards = randomIntBetween(1, 20);
+        int numUnassignedShards = randomIntBetween(1, numShards);
+
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(indexName,
+            numShards,
+            false,
+            primaryNode,
+            null,
+            numUnassignedShards);
+
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(false);
+        request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
+        request.setWaitForUnassignedPrimaryShardsAllocationTimeout(TimeValue.timeValueMillis(1000));
+
+        FakeStartedPrimaryShardObserver startedShardObserver = new FakeStartedPrimaryShardObserver();
+        PlainListenableActionFuture<SearchResponse> responseListener = PlainListenableActionFuture.newListenableFuture();
+        CountDownLatch startedShardsLatch = new CountDownLatch(numShards - numUnassignedShards);
+        ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
+
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
+            new AbstractSearchPrimaryShardWaiterAction(request,
+                primaryNode,
+                shardsIter,
+                responseListener,
+                startedShardObserver,
+                executor) {
+                final TestSearchResponse response = new TestSearchResponse();
+
+                @Override
+                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                                                   ShardRouting shard,
+                                                   SearchActionListener<TestSearchPhaseResult> listener) {
+                    assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
+                    Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                    final TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(null, connection.getNode());
+                    startedShardsLatch.countDown();
+                    if (randomBoolean()) {
+                        listener.onResponse(testSearchPhaseResult);
+                    } else {
+                        new Thread(() -> listener.onResponse(testSearchPhaseResult)).start();
+                    }
+                }
+
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("second phase") {
+                        @Override
+                        public void run() {
+                            assert false : "The next phase shouldn't be executed";
+                        }
+                    };
+                }
+            };
+
+        asyncAction.start();
+        startedShardsLatch.await();
+
+        Set<ShardId> waitingShards = new HashSet<>(startedShardObserver.shardsWaitingForAllocation());
+        assertThat(waitingShards.size(), is(numUnassignedShards));
+
+        for (ShardId waitingShard : startedShardObserver.shardsWaitingForAllocation()) {
+            startedShardObserver.timeoutShardAllocationWait(waitingShard);
+        }
+
+        expectThrows(ExecutionException.class, SearchPhaseExecutionException.class, () -> responseListener.get(100, TimeUnit.MILLISECONDS));
+
+        executor.shutdown();
+    }
+
+    public void testFailFastWhenPartialSearchIsNotAllowedAndUnavailableShardsTimeoutIsZero() {
+        String indexName = randomAlphaOfLength(10);
+        int numShards = randomIntBetween(1, 20);
+        int numUnassignedShards = randomIntBetween(1, numShards);
+
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(indexName,
+            numShards,
+            false,
+            primaryNode,
+            null,
+            numUnassignedShards);
+
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(false);
+        request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
+        request.setWaitForUnassignedPrimaryShardsAllocationTimeout(TimeValue.ZERO);
+
+        PlainListenableActionFuture<SearchResponse> responseListener = PlainListenableActionFuture.newListenableFuture();
+        ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
+
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
+            new AbstractSearchPrimaryShardWaiterAction(request,
+                primaryNode,
+                shardsIter,
+                responseListener,
+                new FakeStartedPrimaryShardObserver(),
+                executor) {
+                @Override
+                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                                                   ShardRouting shard,
+                                                   SearchActionListener<TestSearchPhaseResult> listener) {
+                    assert false : "This shouldn't be executed";
+                }
+
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                    assert false : "This shouldn't be executed";
+                    return null;
+                }
+            };
+
+        asyncAction.start();
+
+        expectThrows(ExecutionException.class, SearchPhaseExecutionException.class, () -> responseListener.get(100, TimeUnit.MILLISECONDS));
+
+        executor.shutdown();
+    }
+
+    public void testAllUnallocatedShardsAreNotAllocatedAfterTimeoutAndRequestFails() {
+        String indexName = randomAlphaOfLength(10);
+        int numShards = randomIntBetween(1, 20);
+        int numUnassignedShards = numShards;
+
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(indexName,
+            numShards,
+            false,
+            primaryNode,
+            null,
+            numUnassignedShards);
+
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(true);
+        request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
+        request.setWaitForUnassignedPrimaryShardsAllocationTimeout(TimeValue.timeValueMillis(1000));
+
+        PlainListenableActionFuture<SearchResponse> responseListener = PlainListenableActionFuture.newListenableFuture();
+        FakeStartedPrimaryShardObserver startedShardObserver = new FakeStartedPrimaryShardObserver();
+        ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
+
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
+            new AbstractSearchPrimaryShardWaiterAction(request,
+                primaryNode,
+                shardsIter,
+                responseListener,
+                startedShardObserver,
+                executor) {
+                @Override
+                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                                                   ShardRouting shard,
+                                                   SearchActionListener<TestSearchPhaseResult> listener) {
+                    assert false : "This shouldn't be executed";
+                }
+
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results, SearchPhaseContext context) {
+                    return new SearchPhase("second phase") {
+                        @Override
+                        public void run() throws IOException {
+                            assert false : "This shouldn't be executed";
+                        }
+                    };
+                }
+            };
+
+        asyncAction.start();
+
+        // All shards timeout while waiting for a shard allocation
+        for (SearchShardIterator searchShardIterator : shardsIter) {
+            startedShardObserver.timeoutShardAllocationWait(searchShardIterator.shardId());
+        }
+
+        expectThrows(ExecutionException.class, SearchPhaseExecutionException.class, () -> responseListener.get(100, TimeUnit.MILLISECONDS));
+
+        executor.shutdown();
+    }
+
+    abstract class AbstractSearchPrimaryShardWaiterAction extends AbstractSearchAsyncAction<TestSearchPhaseResult> {
+        AbstractSearchPrimaryShardWaiterAction(SearchRequest request,
+                                               DiscoveryNode primaryNode,
+                                               GroupShardsIterator<SearchShardIterator> shardsIter,
+                                               ActionListener<SearchResponse> responseListener,
+                                               StartedPrimaryShardObserver startedPrimaryShardObserver,
+                                               ExecutorService executor) {
+            super("test",
+                logger,
+                mock(SearchTransportService.class),
+                (cluster, node) -> {
+                    assert cluster == null : "cluster was not null: " + cluster;
+                    assert node.equals(primaryNode.getId()) : "Unexpected node";
+                    return new MockConnection(primaryNode); },
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                executor,
+                request,
+                responseListener,
+                shardsIter,
+                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+                ClusterState.EMPTY_STATE,
+                null,
+                new ArraySearchPhaseResults<>(shardsIter.size()),
+                request.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY,
+                startedPrimaryShardObserver);
+        }
+    }
+
+    static class FakeStartedPrimaryShardObserver extends StartedPrimaryShardObserver {
+        private final Map<ShardId, ActionListener<SearchShardIterator>> waitingForStartShards = new HashMap<>();
+
+        FakeStartedPrimaryShardObserver() {
+            super(null, null);
+        }
+
+        @Override
+        void waitUntilPrimaryShardIsStarted(SearchShardIterator searchShardIterator,
+                                            TimeValue timeout,
+                                            ActionListener<SearchShardIterator> listener) {
+            waitingForStartShards.put(searchShardIterator.shardId(), listener);
+        }
+
+        void moveAllWaitingShardsToStarted(DiscoveryNode primary) {
+            for (ShardId shardId : shardsWaitingForAllocation()) {
+                moveShardToStarted(shardId, primary);
+            }
+        }
+
+        void moveShardToStarted(ShardId shardId, DiscoveryNode primary) {
+            ActionListener<SearchShardIterator> listener = waitingForStartShards.remove(shardId);
+            assert listener != null;
+
+            ShardRouting shardRouting =
+                TestShardRouting.newShardRouting(shardId, primary.getId(), true, ShardRoutingState.STARTED);
+
+            OriginalIndices originalIndices =
+                new OriginalIndices(new String[]{shardId.getIndexName()}, SearchRequest.DEFAULT_INDICES_OPTIONS);
+
+            listener.onResponse(new SearchShardIterator(null,
+                shardId,
+                Collections.singletonList(shardRouting),
+                originalIndices));
+        }
+
+        void timeoutShardAllocationWait(ShardId shardId) {
+            ActionListener<SearchShardIterator> listener = waitingForStartShards.remove(shardId);
+            assert listener != null;
+
+            listener.onFailure(new RuntimeException("Timeout while waiting"));
+        }
+
+        Set<ShardId> shardsWaitingForAllocation() {
+            return new HashSet<>(waitingForStartShards.keySet());
+        }
+    }
+
+    static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, int numShards,
+                                                                  boolean doReplicas, DiscoveryNode primaryNode,
+                                                                  DiscoveryNode replicaNode) {
+        return getShardsIter(index, numShards, doReplicas, primaryNode, replicaNode, 0);
+    }
+
+    static GroupShardsIterator<SearchShardIterator> getShardsIter(String index, int numShards, boolean doReplicas,
+                                                                  DiscoveryNode primaryNode, DiscoveryNode replicaNode,
+                                                                  int numUnassignedShards) {
+        int unassignedCount = numUnassignedShards;
         ArrayList<SearchShardIterator> list = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {
-            ArrayList<ShardRouting> started = new ArrayList<>();
+            List<ShardRouting> started = new ArrayList<>();
             ArrayList<ShardRouting> initializing = new ArrayList<>();
             ArrayList<ShardRouting> unassigned = new ArrayList<>();
 
             ShardRouting routing = ShardRouting.newUnassigned(new ShardId(new Index(index, "_na_"), i), true,
                 RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
             routing = routing.initialize(primaryNode.getId(), i + "p", 0);
-            routing.started();
+            routing = routing.moveToStarted();
             started.add(routing);
             if (doReplicas) {
                 routing = ShardRouting.newUnassigned(new ShardId(new Index(index, "_na_"), i), false,
@@ -599,7 +1046,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 if (replicaNode != null) {
                     routing = routing.initialize(replicaNode.getId(), i + "r", 0);
                     if (randomBoolean()) {
-                        routing.started();
+                        routing = routing.moveToStarted();
                         started.add(routing);
                     } else {
                         initializing.add(routing);
@@ -610,13 +1057,16 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
             Collections.shuffle(started, random());
             started.addAll(initializing);
+            started = unassignedCount-- <= 0 ? started : Collections.emptyList();
+            OriginalIndices originalIndices = new OriginalIndices(new String[]{index}, SearchRequest.DEFAULT_INDICES_OPTIONS);
             list.add(new SearchShardIterator(null, new ShardId(new Index(index, "_na_"), i), started, originalIndices));
         }
+
         return new GroupShardsIterator<>(list);
     }
 
     public static class TestSearchResponse extends SearchResponse {
-        final Set<ShardId> queried = new HashSet<>();
+        final Set<ShardId> queried = ConcurrentCollections.newConcurrentSet();
 
         TestSearchResponse() {
             super(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY);

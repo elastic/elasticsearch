@@ -55,6 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testBottomFieldSort() throws InterruptedException {
@@ -109,7 +110,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         };
         CountDownLatch latch = new CountDownLatch(1);
         GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards, randomBoolean(), primaryNode, replicaNode);
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.setMaxConcurrentShardRequests(numConcurrent);
@@ -131,7 +131,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), Collections.emptyMap(), controller, EsExecutors.newDirectExecutorService(), searchRequest,
             null, shardsIter, timeProvider, null, task,
-            SearchResponse.Clusters.EMPTY) {
+            SearchResponse.Clusters.EMPTY, mock(StartedPrimaryShardObserver.class)) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                 return new SearchPhase("test") {

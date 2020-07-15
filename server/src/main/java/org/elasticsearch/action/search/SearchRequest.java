@@ -98,6 +98,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
+    private TimeValue waitForUnassignedPrimaryShardsAllocationTimeout = TimeValue.ZERO;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -217,6 +219,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            waitForUnassignedPrimaryShardsAllocationTimeout = in.readTimeValue();
+        }
     }
 
     @Override
@@ -248,6 +253,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeTimeValue(waitForUnassignedPrimaryShardsAllocationTimeout);
+        }
 
     }
 
@@ -509,6 +517,19 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Sets a timeout to wait until primary shards have been allocated and started
+     * before starting the search in the shard instead of failing immediately.
+     */
+    public SearchRequest setWaitForUnassignedPrimaryShardsAllocationTimeout(TimeValue waitForUnassignedPrimaryShardsAllocationTimeout) {
+        this.waitForUnassignedPrimaryShardsAllocationTimeout = waitForUnassignedPrimaryShardsAllocationTimeout;
+        return this;
+    }
+
+    public TimeValue waitForUnassignedPrimaryShardsAllocationTimeout() {
+        return this.waitForUnassignedPrimaryShardsAllocationTimeout;
+    }
+
+    /**
      * Sets the number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection
      * mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.
      */
@@ -656,6 +677,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults) &&
                 Objects.equals(localClusterAlias, that.localClusterAlias) &&
+                Objects.equals(waitForUnassignedPrimaryShardsAllocationTimeout, that.waitForUnassignedPrimaryShardsAllocationTimeout) &&
                 absoluteStartMillis == that.absoluteStartMillis &&
                 ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips;
     }
@@ -664,7 +686,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
                 scroll, indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardSize,
-                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips);
+                allowPartialSearchResults, localClusterAlias, absoluteStartMillis, ccsMinimizeRoundtrips,
+                waitForUnassignedPrimaryShardsAllocationTimeout);
     }
 
     @Override
@@ -684,6 +707,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 ", localClusterAlias=" + localClusterAlias +
                 ", getOrCreateAbsoluteStartMillis=" + absoluteStartMillis +
                 ", ccsMinimizeRoundtrips=" + ccsMinimizeRoundtrips +
-                ", source=" + source + '}';
+                ", source=" + source +
+                ", waitForUnassignedPrimaryShardsAllocationTimeout=" + waitForUnassignedPrimaryShardsAllocationTimeout + '}';
     }
 }

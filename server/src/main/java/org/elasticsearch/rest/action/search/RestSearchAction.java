@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -169,6 +170,13 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.setCcsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips()));
 
         checkRestTotalHits(request, searchRequest);
+
+        if (request.hasParam("wait_for_unassigned_primary_shards_allocation_timeout")) {
+            String waitTimeout = request.param("wait_for_unassigned_primary_shards_allocation_timeout");
+            TimeValue allocationTimeout =
+                parseTimeValue(waitTimeout, null, "wait_for_unassigned_primary_shards_allocation_timeout");
+            searchRequest.setWaitForUnassignedPrimaryShardsAllocationTimeout(allocationTimeout);
+        }
     }
 
     /**

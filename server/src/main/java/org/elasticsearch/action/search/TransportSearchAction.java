@@ -98,6 +98,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final StartedPrimaryShardObserver startedPrimaryShardObserver;
 
     @Inject
     public TransportSearchAction(ThreadPool threadPool, TransportService transportService, SearchService searchService,
@@ -113,6 +114,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.startedPrimaryShardObserver = new StartedPrimaryShardObserver(clusterService, threadPool);
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
@@ -611,19 +613,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         action.start();
                     }
                 };
-            }, clusters);
+            }, clusters, startedPrimaryShardObserver);
         } else {
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterState, task, clusters);
+                        shardIterators, timeProvider, clusterState, task, clusters, startedPrimaryShardObserver);
                     break;
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                         aliasFilter, concreteIndexBoosts, indexRoutings, searchPhaseController, executor, searchRequest, listener,
-                        shardIterators, timeProvider, clusterState, task, clusters);
+                        shardIterators, timeProvider, clusterState, task, clusters, startedPrimaryShardObserver);
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

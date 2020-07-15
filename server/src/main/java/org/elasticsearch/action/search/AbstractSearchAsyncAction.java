@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -91,12 +92,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchResponse.Clusters clusters;
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
+    protected volatile GroupShardsIterator<SearchShardIterator> shardsIts;
+    private final Object shardItsMutex = new Object();
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
-    private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
+    protected final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
+    private final StartedPrimaryShardObserver startedPrimaryShardObserver;
 
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                               BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -106,7 +109,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                               ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                               SearchTimeProvider timeProvider, ClusterState clusterState,
                               SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
-                              SearchResponse.Clusters clusters) {
+                              SearchResponse.Clusters clusters, StartedPrimaryShardObserver startedPrimaryShardObserver) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
@@ -141,6 +144,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
+        this.startedPrimaryShardObserver = startedPrimaryShardObserver;
     }
 
     /**
@@ -177,7 +181,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         if (shardsIts.size() > 0) {
             assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (request.allowPartialSearchResults() == false) {
+            if (request.allowPartialSearchResults() == false && request.waitForUnassignedPrimaryShardsAllocationTimeout().equals(TimeValue.ZERO)) {
                 final StringBuilder missingShards = new StringBuilder();
                 // Fail-fast verification of all shards being available
                 for (int index = 0; index < shardsIts.size(); index++) {
@@ -197,11 +201,44 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             for (int index = 0; index < shardsIts.size(); index++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(index);
-                assert shardRoutings.skip() == false;
-                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+                final SearchShardIterator searchShardIt = shardsIts.get(index);
+                assert searchShardIt.skip() == false;
+                ShardRouting shard = searchShardIt.nextOrNull();
+                TimeValue unavailableShardsTimeout = request.waitForUnassignedPrimaryShardsAllocationTimeout();
+                if (shard == null && unavailableShardsTimeout.equals(TimeValue.ZERO) == false) {
+                    delayPhaseOnShardUntilPrimaryIsStarted(index, searchShardIt);
+                } else {
+                    performPhaseOnShard(index, searchShardIt, shard);
+                }
             }
         }
+    }
+
+    private void delayPhaseOnShardUntilPrimaryIsStarted(int index, SearchShardIterator searchShardIt) {
+        final int shardIndex = index;
+        startedPrimaryShardObserver.waitUntilPrimaryShardIsStarted(searchShardIt,
+            request.waitForUnassignedPrimaryShardsAllocationTimeout(),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(SearchShardIterator updatedSearchIter) {
+                    fork(() -> {
+                        synchronized (shardItsMutex) {
+                            List<SearchShardIterator> updatedIters = new ArrayList<>(shardsIts.size());
+                            for (int i = 0; i < shardsIts.size(); i++) {
+                                updatedIters.add(shardIndex == i ? updatedSearchIter : shardsIts.get(i));
+                            }
+                            shardsIts = new GroupShardsIterator<>(updatedIters);
+                            ShardRouting primaryShard = updatedSearchIter.nextOrNull();
+                            performPhaseOnShard(shardIndex, updatedSearchIter, primaryShard);
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fork(() -> performPhaseOnShard(shardIndex, searchShardIt, null));
+                }
+            });
     }
 
     void skipShard(SearchShardIterator iterator) {

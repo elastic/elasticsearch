@@ -57,7 +57,6 @@ import java.util.stream.Stream;
 final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMatchResponse> {
 
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
-    private final GroupShardsIterator<SearchShardIterator> shardsIts;
 
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
                                  BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -67,13 +66,12 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                                  ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                  TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                                  SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-                                 SearchResponse.Clusters clusters) {
+                                 SearchResponse.Clusters clusters, StartedPrimaryShardObserver startedPrimaryShardObserver) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
-                new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
+                new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters, startedPrimaryShardObserver);
         this.phaseFactory = phaseFactory;
-        this.shardsIts = shardsIts;
     }
 
     @Override
@@ -87,11 +85,10 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     protected SearchPhase getNextPhase(SearchPhaseResults<CanMatchResponse> results,
                                        SearchPhaseContext context) {
 
-        return phaseFactory.apply(getIterator((CanMatchSearchPhaseResults) results, shardsIts));
+        return phaseFactory.apply(getIterator((CanMatchSearchPhaseResults) results));
     }
 
-    private GroupShardsIterator<SearchShardIterator> getIterator(CanMatchSearchPhaseResults results,
-                                                                 GroupShardsIterator<SearchShardIterator> shardsIts) {
+    private GroupShardsIterator<SearchShardIterator> getIterator(CanMatchSearchPhaseResults results) {
         int cardinality = results.getNumPossibleMatches();
         FixedBitSet possibleMatches = results.getPossibleMatches();
         if (cardinality == 0) {

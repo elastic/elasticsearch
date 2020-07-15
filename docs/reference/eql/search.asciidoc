@@ -409,8 +409,8 @@ GET /sec_logs/_eql/search
 [[eql-search-specify-event-category-field]]
 === Specify an event category field
 
-The EQL search API uses `event.category` as the required
-<<eql-required-fields,event category field>> by default. You can use the
+By default, the EQL search API uses `event.category` as the
+<<eql-required-fields,event category field>>. You can use the
 `event_category_field` parameter to specify another event category field.
 
 .*Example*
@@ -435,9 +435,9 @@ GET /sec_logs/_eql/search
 [[eql-search-specify-timestamp-field]]
 === Specify a timestamp field
 
-The EQL search API uses `@timestamp` as the required <<eql-required-fields,event
-timestamp field>> by default. You can use the `timestamp_field` parameter to
-specify another timestamp field.
+By default, EQL searches use `@timestamp` as the <<eql-required-fields,event
+timestamp field>>. You can use the EQL search API's `timestamp_field` parameter
+to specify another timestamp field.
 
 .*Example*
 [%collapsible]

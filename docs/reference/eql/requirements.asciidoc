@@ -33,7 +33,7 @@ A field containing the event classification, such as `process`, `file`, or
 
 Timestamp::
 A field containing the date and/or time the event occurred. This is typically
-mapped as a <<date,`date`>> field.
+mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field.
 
 [NOTE]
 ====

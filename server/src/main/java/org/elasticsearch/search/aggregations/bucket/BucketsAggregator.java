@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 
@@ -106,33 +107,33 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * ordinals and doc ID deltas.
      *
      * Refer to that method for documentation about the merge map.
+     *
+     * @deprecated use {@link mergeBuckets(long, LongUnaryOperator)}
      */
+    @Deprecated
     public final void mergeBuckets(long[] mergeMap, long newNumBuckets) {
-        UnaryOperator<Long> mergeMapOperator = new UnaryOperator<Long>() {
-            @Override
-            public Long apply(Long bucket) {
-                return mergeMap[Math.toIntExact(bucket)];
-            }
-        };
-
-        mergeBuckets(mergeMapOperator, newNumBuckets);
+        mergeBuckets(newNumBuckets, bucket -> mergeMap[Math.toIntExact(bucket)]);
     }
 
     /**
-     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(UnaryOperator)} to
+     *
+     *  @param mergeMap a unary operatorwhich maps a bucket's ordinal to the ordinal it should be merged with.
+     *  If the value is set to -1 then the bucket is removed entirely.
+     *
+     * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(LongUnaryOperator)} to
      * merge the actual ordinals and doc ID deltas.
      */
-    public final void mergeBuckets(UnaryOperator<Long> mergeMap, long newNumBuckets){
+    public final void mergeBuckets(long newNumBuckets, LongUnaryOperator mergeMap){
         try (IntArray oldDocCounts = docCounts) {
             docCounts = bigArrays.newIntArray(newNumBuckets, true);
             docCounts.fill(0, newNumBuckets, 0);
-            for (int i = 0; i < oldDocCounts.size(); i++) {
+            for (long i = 0; i < oldDocCounts.size(); i++) {
                 int docCount = oldDocCounts.get(i);
 
                 if(docCount == 0) continue;
 
                 // Skip any in the map which have been "removed", signified with -1
-                long destinationOrdinal = mergeMap.apply((long)i);
+                long destinationOrdinal = mergeMap.applyAsLong(i);
                 if (destinationOrdinal != -1) {
                     docCounts.increment(destinationOrdinal, docCount);
                 }

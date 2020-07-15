@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 import java.util.function.UnaryOperator;
 
 public class VariableWidthHistogramAggregator extends DeferableBucketAggregator {
@@ -355,23 +356,23 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 clusterSizes.set(index, holdSize);
 
                 // Move the underlying buckets
-                UnaryOperator<Long> mergeMap = new UnaryOperator<Long>() {
+                LongUnaryOperator mergeMap = new LongUnaryOperator() {
                     @Override
-                    public Long apply(Long i) {
-                       if(i < index) {
-                           // The clusters in range {0 ... idx - 1} don't move
-                           return i;
-                       } else if(i == numClusters - 1) {
-                           // The new cluster moves to index
-                           return (long)index;
-                       } else {
-                           // The clusters in range {index ... numClusters - 1} shift forward
-                           return i + 1;
-                       }
+                    public long applyAsLong(long i) {
+                        if(i < index) {
+                            // The clusters in range {0 ... idx - 1} don't move
+                            return i;
+                        }
+                        if(i == numClusters - 1) {
+                            // The new cluster moves to index
+                            return (long)index;
+                        }
+                        // The clusters in range {index ... numClusters - 1} shift forward
+                        return i + 1;
                     }
                 };
 
-                mergeBuckets(mergeMap, numClusters);
+                mergeBuckets(numClusters, mergeMap);
                 if (deferringCollector != null) {
                     deferringCollector.mergeBuckets(mergeMap);
                 }

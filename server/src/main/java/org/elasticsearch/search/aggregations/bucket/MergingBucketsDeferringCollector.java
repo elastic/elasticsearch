@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongUnaryOperator;
 import java.util.function.UnaryOperator;
 
 /**
@@ -52,19 +53,24 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
      *
      *  This process rebuilds the ordinals and docDeltas according to the mergeMap, so it should
      *  not be called unless there are actually changes to be made, to avoid unnecessary work.
+     *
+     * @deprecated use {@link mergeBuckets(LongUnaryOperator)}
      */
+    @Deprecated
     public void mergeBuckets(long[] mergeMap) {
-        UnaryOperator<Long> mergeMapOperator = new UnaryOperator<Long>() {
-            @Override
-            public Long apply(Long bucket) {
-                return mergeMap[Math.toIntExact(bucket)];
-            }
-        };
-
-        mergeBuckets(mergeMapOperator);
+        mergeBuckets(bucket -> mergeMap[Math.toIntExact(bucket)]);
     }
 
-    public void mergeBuckets(UnaryOperator<Long> mergeMap){
+    /**
+     * Merges/prunes the existing bucket ordinals and docDeltas according to the provided mergeMap.
+     *
+     * @param mergeMap a unary operatorwhich maps a bucket's ordinal to the ordinal it should be merged with.
+     * If the value is set to -1 then the bucket is removed entirely.
+     *
+     * This process rebuilds the ordinals and docDeltas according to the mergeMap, so it should
+     * not be called unless there are actually changes to be made, to avoid unnecessary work.
+     */
+    public void mergeBuckets(LongUnaryOperator mergeMap){
         List<Entry> newEntries = new ArrayList<>(entries.size());
         for (Entry sourceEntry : entries) {
             PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
@@ -78,7 +84,7 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
                 long delta = docDeltasItr.next();
 
                 // Only merge in the ordinal if it hasn't been "removed", signified with -1
-                long ordinal = mergeMap.apply(bucket);
+                long ordinal = mergeMap.applyAsLong(bucket);
 
                 if (ordinal != -1) {
                     newBuckets.add(ordinal);
@@ -114,7 +120,7 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
                 long bucket = itr.next();
                 assert docDeltasItr.hasNext();
                 long delta = docDeltasItr.next();
-                long ordinal = mergeMap.apply(bucket);
+                long ordinal = mergeMap.applyAsLong(bucket);
 
                 // Only merge in the ordinal if it hasn't been "removed", signified with -1
                 if (ordinal != -1) {

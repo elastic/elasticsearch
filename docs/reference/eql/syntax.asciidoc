@@ -88,8 +88,7 @@ error for the entire query.
 
 [source,eql]
 ----
-process where process.parent.name == "foo"
-and process.parent.name == process.name
+process where process.parent.name == "foo" and process.parent.name == process.name
 ----
 
 Instead, you can rewrite the query to compare both the `process.parent.name`
@@ -97,8 +96,7 @@ and `process.name` fields to static values.
 
 [source,eql]
 ----
-process where process.parent.name == "foo"
-and process.name == "foo"
+process where process.parent.name == "foo" and process.name == "foo"
 ----
 ====
 

@@ -38,7 +38,7 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     private LongConsumer circuitBreakerConsumer;
 
     protected SortingNumericDocValues() {
-        this((l) -> {});
+        this(l -> {});
     }
 
     protected SortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
@@ -68,30 +68,25 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
      * store at least that many entries.
      */
     protected final void resize(int newSize) {
-        int oldValuesLength = values.length;
-        long oldValuesSizeInBytes = values.length * Long.BYTES;
+        if (newSize <= values.length) {
+            return;
+        }
 
-        // If array is expected to grow, increment the circuit breaker
+        // Array is expected to grow so increment the circuit breaker
         // to include both the additional bytes used by the grown array
         // as well as the overhead of keeping both arrays in memory while
         // copying.
-        if (newSize > values.length) {
-            int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
-            long bytesDiff = (newValuesLength - oldValuesLength) * Long.BYTES;
-            circuitBreakerConsumer.accept(bytesDiff);
-            circuitBreakerConsumer.accept(oldValuesSizeInBytes);
-        }
+        long oldValuesSizeInBytes = values.length * Long.BYTES;
+        int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
+        circuitBreakerConsumer.accept(newValuesLength * Long.BYTES);
 
         // resize
         count = newSize;
-        values = ArrayUtil.grow(values, count);
+        values = ArrayUtil.growExact(values, newValuesLength);
         valuesCursor = 0;
 
-        // old array is released, so its overhead is no longer accounted for
-        // in the circuit breaker.
-        if (oldValuesLength < values.length) {
-            circuitBreakerConsumer.accept(-oldValuesSizeInBytes);
-        }
+        // clean up old values array
+        circuitBreakerConsumer.accept(-oldValuesSizeInBytes);
     }
 
     /**

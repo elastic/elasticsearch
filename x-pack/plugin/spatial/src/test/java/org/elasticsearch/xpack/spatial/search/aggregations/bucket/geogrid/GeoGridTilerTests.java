@@ -16,7 +16,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
@@ -34,6 +33,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeReader;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -465,23 +465,31 @@ public class GeoGridTilerTests extends ESTestCase {
     }
 
     private void testCircuitBreaker(GeoGridTiler tiler) throws IOException {
-        MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        int precision = randomIntBetween(0, 6);
-        TriangleTreeReader reader = triangleTreeReader(multiPoint, GeoShapeCoordinateEncoder.INSTANCE);
+        Polygon polygon = GeometryTestUtils.randomPolygon(false);
+        int precision = randomIntBetween(0, 7);
+        TriangleTreeReader reader = triangleTreeReader(polygon, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoShapeValues.GeoShapeValue value =  new MultiGeoShapeValues.GeoShapeValue(reader);
 
-        final long numBytes;
+        List<Long> byteChangeHistory = new ArrayList<>();
         if (precision == 0) {
-            AllCellValues values = new AllCellValues(null, tiler, NOOP_BREAKER);
-            numBytes = values.getValuesBytes();
+            new AllCellValues(null, tiler, byteChangeHistory::add);
         } else {
-            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, tiler, NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(null, precision, tiler, byteChangeHistory::add);
             tiler.setValues(values, value, precision);
-            numBytes = values.getValuesBytes();
+        }
+
+        final long maxNumBytes;
+        final long curNumBytes;
+        if (byteChangeHistory.size() == 1) {
+            curNumBytes = maxNumBytes = byteChangeHistory.get(byteChangeHistory.size() - 1);
+        } else {
+            long oldNumBytes = -byteChangeHistory.get(byteChangeHistory.size() - 1);
+            curNumBytes = byteChangeHistory.get(byteChangeHistory.size() - 2);
+            maxNumBytes = oldNumBytes + curNumBytes;
         }
 
         CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
-            Collections.singletonList(new BreakerSettings("limited", numBytes - 1, 1.0)),
+            Collections.singletonList(new BreakerSettings("limited", maxNumBytes - 1, 1.0)),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         CircuitBreaker limitedBreaker = service.getBreaker("limited");
 
@@ -489,9 +497,8 @@ public class GeoGridTilerTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, () -> {
             GeoShapeCellValues values = new GeoShapeCellValues(null, precision, tiler, circuitBreakerConsumer);
             tiler.setValues(values, value, precision);
-            assertThat(values.getValuesBytes(), equalTo(numBytes));
-            assertThat(limitedBreaker.getUsed(), equalTo(numBytes));
+            assertThat(values.getValuesBytes(), equalTo(curNumBytes));
+            assertThat(limitedBreaker.getUsed(), equalTo(curNumBytes));
         });
-
     }
 }

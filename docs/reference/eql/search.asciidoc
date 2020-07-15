@@ -87,12 +87,8 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
     "events": [
        {
         "_index": "sec_logs",
-<<<<<<< HEAD
         "_type": "_doc",
-        "_id": "1",
-=======
         "_id": "OQmfCaduce8zoHT93o4H",
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-06T11:04:05.000Z",
@@ -112,12 +108,8 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
       },
       {
         "_index": "sec_logs",
-<<<<<<< HEAD
         "_type": "_doc",
-        "_id": "3",
-=======
         "_id": "xLkCaj4EujzdNSxfYLbO",
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:06:07.000Z",
@@ -203,15 +195,11 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         "events": [
           {
             "_index": "sec_logs",
-<<<<<<< HEAD
             "_type": "_doc",
-            "_id": "4",
-=======
             "_id": "AtOJ4UjUBAAx3XR5kcCM",
             "_version" : 1,
             "_seq_no" : 3,
             "_primary_term" : 1,
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -238,15 +226,11 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
           },
           {
             "_index": "sec_logs",
-<<<<<<< HEAD
             "_type": "_doc",
-            "_id": "5",
-=======
             "_id": "yDwnGIJouOYGBzP0ZE9n",
             "_version" : 1,
             "_seq_no" : 4,
             "_primary_term" : 1,
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -350,15 +334,11 @@ contains the shared `agent.id` value for each matching event.
         "events": [
           {
             "_index": "sec_logs",
-<<<<<<< HEAD
             "_type": "_doc",
-            "_id": "4",
-=======
             "_id": "AtOJ4UjUBAAx3XR5kcCM",
             "_version": 1,
             "_seq_no": 3,
             "_primary_term": 1,
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -385,15 +365,11 @@ contains the shared `agent.id` value for each matching event.
           },
           {
             "_index": "sec_logs",
-<<<<<<< HEAD
             "_type": "_doc",
-            "_id": "5",
-=======
             "_id": "yDwnGIJouOYGBzP0ZE9n",
             "_version": 1,
             "_seq_no": 4,
             "_primary_term": 1,
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -539,12 +515,8 @@ The API returns the following response.
     "events": [
       {
         "_index": "sec_logs",
-<<<<<<< HEAD
         "_type": "_doc",
-        "_id": "1",
-=======
         "_id": "OQmfCaduce8zoHT93o4H",
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-06T11:04:05.000Z",
@@ -564,12 +536,8 @@ The API returns the following response.
       },
       {
         "_index": "sec_logs",
-<<<<<<< HEAD
         "_type": "_doc",
-        "_id": "3",
-=======
         "_id": "xLkCaj4EujzdNSxfYLbO",
->>>>>>> 5be36b41d49... [DOCS] EQL: Update EQL search response format (#59554)
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:06:07.000Z",

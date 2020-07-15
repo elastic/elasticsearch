@@ -108,7 +108,7 @@ public class GetDataFrameAnalyticsStatsActionResponseTests extends AbstractWireS
             randomResponse(1, () -> randomFrom(ClassificationStatsTests.createRandom(), RegressionStatsTests.createRandom()));
 
         // VERBOSE param defaults to "false", fold values *not* outputted
-        assertThat(Strings.toString(response), containsString(foldValuesFieldName));
+        assertThat(Strings.toString(response), not(containsString(foldValuesFieldName)));
 
         // VERBOSE param explicitly set to "false", fold values *not* outputted
         assertThat(

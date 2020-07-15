@@ -23,7 +23,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
@@ -72,7 +71,6 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
 
     @Override
     protected void masterOperation(
-        Task task,
         GetDataStreamAction.Request request,
         ClusterState state,
         ActionListener<GetDataStreamAction.Response> listener

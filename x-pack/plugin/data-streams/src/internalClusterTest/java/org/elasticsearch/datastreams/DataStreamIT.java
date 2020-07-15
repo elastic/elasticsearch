@@ -84,6 +84,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0)
 public class DataStreamIT extends ESIntegTestCase {
 
     @Override

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.datastreams.action;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,10 +21,12 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.getClusterStateWithDataStreams;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -36,9 +37,9 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
-        final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
+        final List<String> otherIndices = randomSubsetOf(Arrays.asList("foo", "bar", "baz"));
 
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
+        ClusterState cs = getClusterStateWithDataStreams(Collections.singletonList(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));
@@ -50,14 +51,14 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
     public void testDeleteMultipleDataStreams() {
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(
+        ClusterState cs = getClusterStateWithDataStreams(
+            Arrays.asList(
                 new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
             ),
-            List.of()
+            Collections.emptyList()
         );
 
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { "ba*", "eggplant" });
@@ -74,14 +75,14 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
     public void testDeleteSnapshottingDataStream() {
         final String dataStreamName = "my-data-stream1";
         final String dataStreamName2 = "my-data-stream2";
-        final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
+        final List<String> otherIndices = randomSubsetOf(Arrays.asList("foo", "bar", "baz"));
 
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
+        ClusterState cs = getClusterStateWithDataStreams(
+            Arrays.asList(new Tuple<>(dataStreamName, 2), new Tuple<>(dataStreamName2, 2)),
             otherIndices
         );
         SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.of(
-            List.of(createEntry(dataStreamName, "repo1", false), createEntry(dataStreamName2, "repo2", true))
+            Arrays.asList(createEntry(dataStreamName, "repo1", false), createEntry(dataStreamName2, "repo2", true))
         );
         ClusterState snapshotCs = ClusterState.builder(cs).putCustom(SnapshotsInProgress.TYPE, snapshotsInProgress).build();
 
@@ -107,7 +108,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             partial,
             SnapshotsInProgress.State.STARTED,
             Collections.emptyList(),
-            List.of(dataStreamName),
+            Collections.singletonList(dataStreamName),
             0,
             1,
             ImmutableOpenMap.of(),
@@ -120,14 +121,14 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
     public void testDeleteNonexistentDataStream() {
         final String dataStreamName = "my-data-stream";
         String[] dataStreamNames = { "foo", "bar", "baz", "eggplant" };
-        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(
+        ClusterState cs = getClusterStateWithDataStreams(
+            Arrays.asList(
                 new Tuple<>(dataStreamNames[0], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[1], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[2], randomIntBetween(1, 3)),
                 new Tuple<>(dataStreamNames[3], randomIntBetween(1, 3))
             ),
-            List.of()
+            Collections.emptyList()
         );
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamTransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);

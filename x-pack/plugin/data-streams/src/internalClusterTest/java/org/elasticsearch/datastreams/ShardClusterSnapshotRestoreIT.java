@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 // The tests in here do a lot of state updates and other writes to disk and are slowed down too much by WindowsFS
 @LuceneTestCase.SuppressFileSystems(value = "WindowsFS")
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0)
 public class ShardClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Override

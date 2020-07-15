@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
@@ -61,7 +60,6 @@ public class CreateDataStreamTransportAction extends TransportMasterNodeAction<C
 
     @Override
     protected void masterOperation(
-        Task task,
         CreateDataStreamAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener

@@ -15,6 +15,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.getClusterStateWithDataStreams;
@@ -25,7 +27,10 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
+        ClusterState cs = getClusterStateWithDataStreams(
+            Collections.singletonList(new Tuple<>(dataStreamName, 1)),
+            Collections.emptyList()
+        );
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
         List<DataStream> dataStreams = GetDataStreamsTransportAction.getDataStreams(cs, new IndexNameExpressionResolver(), req);
         assertThat(dataStreams.size(), equalTo(1));
@@ -35,8 +40,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
     public void testGetDataStreamsWithWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
         ClusterState cs = getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
-            List.of()
+            Arrays.asList(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
+            Collections.emptyList()
         );
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1].substring(0, 5) + "*" });
@@ -64,8 +69,8 @@ public class GetDataStreamsTransportActionTests extends ESTestCase {
     public void testGetDataStreamsWithoutWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
         ClusterState cs = getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
-            List.of()
+            Arrays.asList(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
+            Collections.emptyList()
         );
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0], dataStreamNames[1] });

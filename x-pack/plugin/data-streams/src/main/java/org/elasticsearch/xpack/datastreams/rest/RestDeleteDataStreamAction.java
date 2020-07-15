@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public class RestDeleteDataStreamAction extends BaseRestHandler {
@@ -24,7 +25,7 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_data_stream/{name}"));
+        return Collections.singletonList(new Route(RestRequest.Method.DELETE, "/_data_stream/{name}"));
     }
 
     @Override

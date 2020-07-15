@@ -10,7 +10,7 @@ your application to {es} 7.9.
 See also <<release-highlights>> and <<es-release-notes>>.
 
 * <<breaking_79_script_cache_changes>>
-* <<breaking_78_settings_changes>>
+* <<breaking_79_settings_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

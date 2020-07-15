@@ -20,8 +20,8 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -161,7 +161,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
+        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
             org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
         cs = addAliases(cs, org.elasticsearch.common.collect.List.of(
             tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
@@ -182,7 +182,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
+        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
             org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
         cs = addAliases(cs, org.elasticsearch.common.collect.List.of(
             tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
@@ -205,7 +205,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
+        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
             org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
         cs = addAliases(cs, org.elasticsearch.common.collect.List.of(
             tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
@@ -228,7 +228,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
+        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
             org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
         final ClusterState cs2 = addAliases(cs, org.elasticsearch.common.collect.List.of(
             tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
@@ -247,7 +247,7 @@ public class PutMappingRequestTests extends ESTestCase {
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata,
+        ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
             org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
         final ClusterState cs2 = addAliases(cs, org.elasticsearch.common.collect.List.of(
             tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", false))),

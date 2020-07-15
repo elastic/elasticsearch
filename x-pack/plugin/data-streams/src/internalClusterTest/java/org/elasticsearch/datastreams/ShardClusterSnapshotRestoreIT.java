@@ -10,7 +10,9 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.collect.List;
@@ -24,21 +26,33 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 // The tests in here do a lot of state updates and other writes to disk and are slowed down too much by WindowsFS
 @LuceneTestCase.SuppressFileSystems(value = "WindowsFS")
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0)
 public class ShardClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class);
+    }
+
+    @After
+    public void cleanup() {
+        AcknowledgedResponse response = client().execute(
+            DeleteDataStreamAction.INSTANCE,
+            new DeleteDataStreamAction.Request(new String[] { "*" })
+        ).actionGet();
+        assertAcked(response);
     }
 
     public void testDeleteDataStreamDuringSnapshot() throws Exception {
@@ -83,7 +97,7 @@ public class ShardClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {
             logger.info("--> delete index while non-partial snapshot is running");
-            client.admin().indices().deleteDataStream(new DeleteDataStreamAction.Request(new String[] { dataStream })).actionGet();
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStream })).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
             assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [" + dataStream));

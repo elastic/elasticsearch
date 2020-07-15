@@ -36,7 +36,6 @@ import org.elasticsearch.repositories.RepositoryData;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -165,11 +164,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {
-        RepositoryMetadata[] repository = new RepositoryMetadata[in.readVInt()];
-        for (int i = 0; i < repository.length; i++) {
-            repository[i] = new RepositoryMetadata(in);
-        }
-        this.repositories = Collections.unmodifiableList(Arrays.asList(repository));
+        this.repositories = in.readList(RepositoryMetadata::new);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
@@ -181,10 +176,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(repositories.size());
-        for (RepositoryMetadata repository : repositories) {
-            repository.writeTo(out);
-        }
+        out.writeList(repositories);
     }
 
     public static RepositoriesMetadata fromXContent(XContentParser parser) throws IOException {

@@ -1,9 +1,9 @@
 [[modules-threadpool]]
 === Thread pools
 
-A node uses several thread pools to manage memory consumption. 
-Queues associated with many of the thread pools enable pending requests 
-to be held instead of discarded. 
+A node uses several thread pools to manage memory consumption.
+Queues associated with many of the thread pools enable pending requests
+to be held instead of discarded.
 
 There are several thread pools, but the important ones include:
 
@@ -33,7 +33,7 @@ There are several thread pools, but the important ones include:
 `write`::
     For single-document index/delete/update and bulk requests. Thread pool type
     is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
-    queue_size of `200`. The maximum size for this pool is
+    queue_size of `10000`. The maximum size for this pool is
     `pass:[1 + ]`<<node.processors, `# of allocated processors`>>.
 
 `snapshot`::

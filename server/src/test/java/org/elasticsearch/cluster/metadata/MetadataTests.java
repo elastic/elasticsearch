@@ -1275,7 +1275,7 @@ public class MetadataTests extends ESTestCase {
             .put("component_template_" + randomAlphaOfLength(3), ComponentTemplateTests.randomInstance())
             .put("index_template_v2_" + randomAlphaOfLength(3), ComposableIndexTemplateTests.randomInstance());
 
-        DataStream randomDataStream = DataStreamTests.randomInstance();
+        DataStream randomDataStream = DataStreamTestHelper.randomInstance();
         for (Index index : randomDataStream.getIndices()) {
             md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
         }

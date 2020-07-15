@@ -39,9 +39,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.datastream.CreateDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -843,36 +840,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
-
-    /**
-     * Store a data stream
-     */
-    void createDataStream(CreateDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Store a data stream
-     */
-    ActionFuture<AcknowledgedResponse> createDataStream(CreateDataStreamAction.Request request);
-
-    /**
-     * Delete a data stream
-     */
-    void deleteDataStream(DeleteDataStreamAction.Request request, ActionListener<AcknowledgedResponse> listener);
-
-    /**
-     * Delete a data stream
-     */
-    ActionFuture<AcknowledgedResponse> deleteDataStream(DeleteDataStreamAction.Request request);
-
-    /**
-     * Get data streams
-     */
-    void getDataStreams(GetDataStreamAction.Request request, ActionListener<GetDataStreamAction.Response> listener);
-
-    /**
-     * Get data streams
-     */
-    ActionFuture<GetDataStreamAction.Response> getDataStreams(GetDataStreamAction.Request request);
 
     /**
      * Resolves names and wildcard expressions to indices, aliases, and data streams

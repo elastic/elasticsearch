@@ -59,7 +59,7 @@ using metrics.
       HTTP connection information.
 
   `indexing_pressure`::
-        Indexing pressure statistics about total and current indexing load and
+        Indexing pressure statistics about current and total indexing load and
         indexing rejections.
 
   `indices`::
@@ -2106,7 +2106,7 @@ Number of failed operations for the processor.
 [[cluster-nodes-stats-api-response-body-indexing-pressure]]
 `indexing_pressure`::
 (object)
-Contains indexing pressure statistics for the node.
+Contains <<index-modules-indexing-pressure,indexing pressure>> statistics for the node.
 +
 .Properties of `indexing_pressure`
 [%collapsible%open]

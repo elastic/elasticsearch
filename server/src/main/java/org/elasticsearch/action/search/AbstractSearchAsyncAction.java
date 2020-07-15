@@ -181,7 +181,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         if (shardsIts.size() > 0) {
             assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
-            if (request.allowPartialSearchResults() == false && request.waitForUnassignedPrimaryShardsAllocationTimeout().equals(TimeValue.ZERO)) {
+            if (request.allowPartialSearchResults() == false &&
+                request.waitForUnassignedPrimaryShardsAllocationTimeout().equals(TimeValue.ZERO)) {
                 final StringBuilder missingShards = new StringBuilder();
                 // Fail-fast verification of all shards being available
                 for (int index = 0; index < shardsIts.size(); index++) {

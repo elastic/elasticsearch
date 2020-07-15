@@ -4,7 +4,7 @@
 === {infer-cap} Bucket Aggregation
 
 A parent pipeline aggregation which loads a pre-trained model and performs 
-{infer} on the collated result field from the parent bucket aggregation.
+{infer} on the collated result fields from the parent bucket aggregation.
 
 To use the {infer} bucket aggregation, you need to have the same security 
 privileges that are required for using the <<get-inference>>.

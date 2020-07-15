@@ -6,60 +6,26 @@
 
 package org.elasticsearch.xpack.runtimefields;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.runtimefields.mapper.ScriptFieldMapper;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin {
 
-    private final ScriptFieldMapper.TypeParser typeParser = new ScriptFieldMapper.TypeParser();
-
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(ScriptFieldMapper.CONTENT_TYPE, typeParser);
+        return Collections.singletonMap(ScriptFieldMapper.CONTENT_TYPE, new ScriptFieldMapper.TypeParser());
     }
 
     @Override
     public List<ScriptContext<?>> getContexts() {
         return List.of(DoubleScriptFieldScript.CONTEXT, LongScriptFieldScript.CONTEXT, StringScriptFieldScript.CONTEXT);
-    }
-
-    @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
-    ) {
-        // TODO getMappers gets called before createComponents. We should wire the script service differently
-        typeParser.setScriptService(scriptService);
-        return Collections.emptyList();
     }
 }

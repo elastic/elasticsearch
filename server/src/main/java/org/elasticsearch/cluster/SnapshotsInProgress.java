@@ -131,11 +131,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             startTime = in.readLong();
             shards = in.readImmutableMap(ShardId::new, ShardSnapshotStatus::new);
             repositoryStateId = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                failure = in.readOptionalString();
-            } else {
-                failure = null;
-            }
+            failure = in.readOptionalString();
             if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
                 userMetadata = in.readMap();
             } else {
@@ -442,7 +438,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public ShardSnapshotStatus(StreamInput in) throws IOException {
             nodeId = in.readOptionalString();
             state = ShardState.fromValue(in.readByte());
-            generation = in.readOptionalString();
+            if (SnapshotsService.useShardGenerations(in.getVersion())) {
+                generation = in.readOptionalString();
+            } else {
+                generation = null;
+            }
             reason = in.readOptionalString();
         }
 
@@ -477,7 +477,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
-            out.writeOptionalString(generation);
+            if (SnapshotsService.useShardGenerations(out.getVersion())) {
+                out.writeOptionalString(generation);
+            }
             out.writeOptionalString(reason);
         }
 

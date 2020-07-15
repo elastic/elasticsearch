@@ -1,0 +1,18 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
+
+esplugin {
+  name 'rest-compat'
+  description 'A plugin for Rest compat request features'
+  classname 'org.elasticsearch.compat.RestCompatRequestPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+

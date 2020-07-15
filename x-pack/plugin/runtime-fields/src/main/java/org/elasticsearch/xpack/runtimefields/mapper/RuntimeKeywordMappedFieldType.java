@@ -15,6 +15,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -62,13 +63,27 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public String typeName() {
-        // TODO not sure what we should return here: the runtime type or the field type?
-        // why is the same string returned from three different methods?
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
     @Override
+    public String familyTypeName() {
+        return KeywordFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean isSearchable() {
+        return true;
+    }
+
+    @Override
+    public boolean isAggregatable() {
+        return true;
+    }
+
+    @Override
     public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+        assert fullyQualifiedIndexName.length() > 0 : "index name must not be empty";
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
         return new ScriptBinaryFieldData.Builder(scriptFactory);
     }

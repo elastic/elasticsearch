@@ -6,11 +6,14 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
@@ -26,6 +29,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
@@ -91,6 +95,51 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             "Failed to parse mapping: stored scripts specified but not supported when defining script field [my_field]",
             exception.getMessage()
         );
+    }
+
+    public void testFieldCaps() throws Exception {
+        {
+            XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "script")
+                .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
+                .startObject("script")
+                .field("source", "value('test')")
+                .field("lang", "test")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            createIndex("test_script", Settings.EMPTY, mapping);
+        }
+        {
+            XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("_doc")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            createIndex("test_concrete", Settings.EMPTY, mapping);
+        }
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("test_*").setFields("field").get();
+        assertThat(response.getIndices(), arrayContainingInAnyOrder("test_script", "test_concrete"));
+        Map<String, FieldCapabilities> field = response.getField("field");
+        assertEquals(1, field.size());
+        FieldCapabilities fieldCapabilities = field.get(KeywordFieldMapper.CONTENT_TYPE);
+        assertTrue(fieldCapabilities.isSearchable());
+        assertTrue(fieldCapabilities.isAggregatable());
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, fieldCapabilities.getType());
+        assertNull(fieldCapabilities.nonAggregatableIndices());
+        assertNull(fieldCapabilities.nonSearchableIndices());
+        assertEquals("field", fieldCapabilities.getName());
     }
 
     public void testDefaultMapping() throws Exception {

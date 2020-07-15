@@ -34,7 +34,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -182,8 +181,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
                           Consumer<InternalSampler> verify, int shardSize, int maxDocsPerValue) throws IOException {
         MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 
-        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(new Index("index", "index"), "price",
-                IndexNumericFieldData.NumericType.DOUBLE);
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData("price", IndexNumericFieldData.NumericType.DOUBLE);
         FunctionScoreQuery query = new FunctionScoreQuery(new MatchAllDocsQuery(),
                 new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData));
 

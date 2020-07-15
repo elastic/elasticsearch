@@ -23,7 +23,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -56,15 +55,13 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new BinaryIndexFieldData(indexSettings.getIndex(), fieldName, valuesSourceType);
+            return new BinaryIndexFieldData(fieldName, valuesSourceType);
         }
     }
-    protected final Index index;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
-    public BinaryIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
-        this.index = index;
+    public BinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
     }
@@ -82,11 +79,6 @@ public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldDat
     @Override
     public final void clear() {
         // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
     }
 
     @Override

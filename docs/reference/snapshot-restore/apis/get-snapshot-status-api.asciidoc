@@ -11,6 +11,42 @@ Retrieves a detailed description of the current state for each shard participati
 ----
 PUT /index_1
 
+PUT /index_1/_doc/1
+{
+  "title": "Elastic, Vol.1", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
+PUT /index_1/_doc/2
+{
+  "title": "Elastic, Vol.2", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
+PUT /index_1/_doc/3
+{
+  "title": "Elastic, Vol.3", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
+PUT /index_1/_doc/4
+{
+  "title": "Elastic, Vol.4", "category": "Non-Fiction",
+  "author": {
+    "first_name": "Elk",
+    "last_name": "Stack"
+  }
+}
+
 PUT /_snapshot/my_repository
 {
   "type": "fs",
@@ -274,8 +310,6 @@ The following request returns detailed status information for `snapshot_2` in th
 GET /_snapshot/my_repository/snapshot_2/_status
 ----
 
-The API returns the following response:
-
 [source,console-result]
 ----
 {
@@ -283,93 +317,80 @@ The API returns the following response:
     {
       "snapshot" : "snapshot_2",
       "repository" : "my_repository",
-      "uuid" : "ITWHQY2fR2OqX-TYt6mUNA",
+      "uuid" : "lNeQD1SvTQCqqJUMQSwmGg",
       "state" : "SUCCESS",
       "include_global_state" : false,
       "shards_stats" : {
         "initializing" : 0,
         "started" : 0,
         "finalizing" : 0,
-        "done" : 10,
+        "done" : 1,
         "failed" : 0,
-        "total" : 10
+        "total" : 1
       },
       "stats" : {
         "incremental" : {
-          "file_count" : 72,
-          "size_in_bytes" : 11013810
+          "file_count" : 3,
+          "size_in_bytes" : 5969
         },
         "total" : {
-          "file_count" : 76,
-          "size_in_bytes" : 11014642
+          "file_count" : 4,
+          "size_in_bytes" : 6024
         },
-        "start_time_in_millis" : 1594158151205,
-        "time_in_millis" : 1011
+        "start_time_in_millis" : 1594829326691,
+        "time_in_millis" : 205
       },
       "indices" : {
         "index_1" : {
-            "shards_stats" : {
-              "initializing" : 0,
-              "started" : 0,
-              "finalizing" : 0,
-              "done" : 1,
-              "failed" : 0,
-              "total" : 1
+          "shards_stats" : {
+            "initializing" : 0,
+            "started" : 0,
+            "finalizing" : 0,
+            "done" : 1,
+            "failed" : 0,
+            "total" : 1
+          },
+          "stats" : {
+            "incremental" : {
+              "file_count" : 3,
+              "size_in_bytes" : 5969
             },
-            "stats" : {
-              "incremental" : {
-                "file_count" : 4,
-                "size_in_bytes" : 5587
-              },
-              "total" : {
-                "file_count" : 4,
-                "size_in_bytes" : 5587
-              },
-              "start_time_in_millis" : 1594754139076,
-              "time_in_millis" : 0
+            "total" : {
+              "file_count" : 4,
+              "size_in_bytes" : 6024
             },
-            "shards" : {
-              "0" : {
-                "stage" : "DONE",
-                "stats" : {
-                  "incremental" : {
-                    "file_count" : 4,
-                    "size_in_bytes" : 5587
-                  },
-                  "total" : {
-                    "file_count" : 4,
-                    "size_in_bytes" : 5587
-                  },
-                  "start_time_in_millis" : 1594754139076,
-                  "time_in_millis" : 0
-                }
+            "start_time_in_millis" : 1594829326896,
+            "time_in_millis" : 0
+          },
+          "shards" : {
+            "0" : {
+              "stage" : "DONE",
+              "stats" : {
+                "incremental" : {
+                  "file_count" : 3,
+                  "size_in_bytes" : 5969
+                },
+                "total" : {
+                  "file_count" : 4,
+                  "size_in_bytes" : 6024
+                },
+                "start_time_in_millis" : 1594829326896,
+                "time_in_millis" : 0
               }
             }
           }
-       }
+        }
+      }
     }
   ]
 }
-
 ----
-// TESTRESPONSE[s/"uuid" : "ITWHQY2fR2OqX-TYt6mUNA"/"uuid" : $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"uuid" : "lNeQD1SvTQCqqJUMQSwmGg"/"uuid" : $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"size_in_bytes" : 6024/"size_in_bytes" : $body.snapshots.0.stats.total.size_in_bytes/]
 // TESTRESPONSE[s/"done" : 10/"done" : $body.snapshots.0.shards_stats.done/]
 // TESTRESPONSE[s/"total" : 10/"total" : $body.snapshots.0.shards_stats.total/]
-// TESTRESPONSE[s/"size_in_bytes" : 11013810/"size_in_bytes" : $body.snapshots.0.stats.incremental.size_in_bytes/]
-// TESTRESPONSE[s/"size_in_bytes" : 11014642/"size_in_bytes" : $body.snapshots.0.stats.total.size_in_bytes/]
-// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.stats.total.size_in_bytes/]
-// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.stats.incremental.size_in_bytes/]
-// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.shards.0.stats.incremental.size_in_bytes/]
-// TESTRESPONSE[s/"size_in_bytes" : 5587/"size_in_bytes" : $body.snapshots.0.indices.index_1.shards.0.stats.total.size_in_bytes/]
-// TESTRESPONSE[s/"file_count" : 72/"file_count" : $body.snapshots.0.stats.incremental.file_count/]
-// TESTRESPONSE[s/"file_count" : 76/"file_count" : $body.snapshots.0.stats.total.file_count/]
-// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.stats.incremental.file_count/]
-// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.stats.total.file_count/]
-// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.shards.0.stats.incremental.file_count/]
-// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.indices.index_1.shards.0.stats.total.file_count/]
-// TESTRESPONSE[s/"start_time_in_millis" : 1594158151205/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
-// TESTRESPONSE[s/"start_time_in_millis" : 1594158151205/"start_time_in_millis" : $body.snapshots.0.indices.index_1.start_time_in_millis/]
-// TESTRESPONSE[s/"time_in_millis" : 1011/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
-// TESTRESPONSE[s/"time_in_millis" : 1011/"time_in_millis" : $body.snapshots.0.indices.index_1.time_in_millis/]
-// TESTRESPONSE[s/"time_in_millis" : 1011/"time_in_millis" : $body.snapshots.0.indices.index_1.shards.0.time_in_millis/]
-// TESTRESPONSE[s/"start_time_in_millis" : 1594754139076/"start_time_in_millis" : $body.snapshots.0.indices.index_1.shards.0.stats.start_time_in_millis/]
+// TESTRESPONSE[s/"start_time_in_millis" : 1594829326691/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
+// TESTRESPONSE[s/"time_in_millis" : 205/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
+// TESTRESPONSE[s/"file_count" : 3/"file_count" : $body.snapshots.0.stats.incremental.file_count/]
+// TESTRESPONSE[s/"size_in_bytes" : 5969/"size_in_bytes" : $body.snapshots.0.stats.incremental.size_in_bytes/]
+// TESTRESPONSE[s/"start_time_in_millis" : 1594829326896/"start_time_in_millis" : $body.snapshots.0.indices.index_1.stats.start_time_in_millis/]

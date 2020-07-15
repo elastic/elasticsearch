@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -93,6 +94,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
+        if (in.getVersion().before(Version.V_7_7_0)) {
+            readSettingsFromStream(in); // formerly the unused settings field
+        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
     }
@@ -110,6 +114,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
+        if (out.getVersion().before(Version.V_7_7_0)) {
+            writeSettingsToStream(Settings.EMPTY, out); // formerly the unused settings field
+        }
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
     }

@@ -89,7 +89,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexCreatedVersion, defaultAnalyzer).init(this);
+        return new Builder(simpleName(), defaultAnalyzer).init(this);
     }
 
     public static class Defaults {
@@ -146,19 +146,17 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
-        private final Version indexCreatedVersion;
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build
          */
-        public Builder(String name, Version indexCreatedVersion, NamedAnalyzer defaultAnalyzer) {
+        public Builder(String name, NamedAnalyzer defaultAnalyzer) {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
             this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, defaultAnalyzer);
             this.searchAnalyzer = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, defaultAnalyzer);
-            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         private static void validateInputLength(int maxInputLength) {
@@ -174,13 +172,6 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
-                super.toXContent(builder, includeDefaults);
-                return;
-            }
-            // Prior to parametrization, CompletionFieldMapper did not check for default values,
-            // and always emitted some fields.  To preserve mapping constraints in mixed clusters,
-            // we continue to use this logic for indexes created in versions earlier than 8x
             builder.field("analyzer", this.analyzer.getValue().name());
             if (Objects.equals(this.analyzer.getValue().name(), this.searchAnalyzer.getValue().name()) == false) {
                 builder.field("search_analyzer", this.searchAnalyzer.getValue().name());
@@ -236,8 +227,8 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         @Override
         public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
-            CompletionFieldMapper.Builder builder = new CompletionFieldMapper.Builder(name,
-                parserContext.indexVersionCreated(), parserContext.getIndexAnalyzers().get("simple"));
+            CompletionFieldMapper.Builder builder
+                = new CompletionFieldMapper.Builder(name, parserContext.getIndexAnalyzers().get("simple"));
             builder.parse(name, parserContext, node);
             return builder;
         }
@@ -350,7 +341,6 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     private final NamedAnalyzer analyzer;
     private final NamedAnalyzer searchAnalyzer;
     private final ContextMappings contexts;
-    private final Version indexCreatedVersion;
 
     public CompletionFieldMapper(String simpleName, MappedFieldType mappedFieldType, NamedAnalyzer defaultAnalyzer,
                                  MultiFields multiFields, CopyTo copyTo, Builder builder) {
@@ -362,7 +352,6 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         this.analyzer = builder.analyzer.getValue();
         this.searchAnalyzer = builder.searchAnalyzer.getValue();
         this.contexts = builder.contexts.getValue();
-        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override

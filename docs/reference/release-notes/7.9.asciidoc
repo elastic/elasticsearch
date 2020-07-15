@@ -31,3 +31,9 @@ Thread pool write queue size::
   `indexing_pressure.memory.limit` setting. This setting configures a limit to
   the number of bytes allowed to be consumed by outstanding indexing requests.
   {es-issue}59263[#59263]
+
+Dangling indices::
+* Automatically importing dangling indices is now deprecated, disabled by
+  default, and will be removed in {es} 8.0. See the
+  <<deprecate_auto_import_dangling_indices,migration notes>>.
+  {es-pull}58176[#58176] {es-pull}58898[#58898] (issue: {es-issue}48366[#48366])

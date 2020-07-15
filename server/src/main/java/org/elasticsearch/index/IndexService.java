@@ -32,6 +32,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -79,6 +80,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -115,6 +117,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
+    private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
@@ -175,7 +178,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             BooleanSupplier idFieldDataEnabled,
             BooleanSupplier allowExpensiveQueries,
             IndexNameExpressionResolver expressionResolver,
-            ValuesSourceRegistry valuesSourceRegistry) {
+            ValuesSourceRegistry valuesSourceRegistry,
+            IndexStorePlugin.RecoveryStateFactory recoveryStateFactory) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -224,6 +228,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
         this.directoryFactory = directoryFactory;
+        this.recoveryStateFactory = recoveryStateFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.readerWrapper = wrapperFactory.apply(this);
@@ -562,6 +567,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         "[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()), e);
             }
         }
+    }
+
+    public RecoveryState createRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
+        return recoveryStateFactory.newRecoveryState(shardRouting, targetNode, sourceNode);
     }
 
     @Override

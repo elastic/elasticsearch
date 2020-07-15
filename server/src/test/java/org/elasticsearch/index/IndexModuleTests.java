@@ -35,6 +35,10 @@ import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -77,6 +81,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -104,6 +109,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class IndexModuleTests extends ESTestCase {
     private Index index;
@@ -168,7 +175,13 @@ public class IndexModuleTests extends ESTestCase {
     public void testWrapperIsBound() throws IOException {
         final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
         IndexModule module = new IndexModule(
-                indexSettings, emptyAnalysisRegistry, engineFactory, Collections.emptyMap(), () -> true, new IndexNameExpressionResolver());
+                indexSettings,
+                emptyAnalysisRegistry,
+                engineFactory,
+                Collections.emptyMap(),
+                () -> true,
+                new IndexNameExpressionResolver(),
+                Collections.emptyMap());
         module.setReaderWrapper(s -> new Wrapper());
 
         IndexService indexService = newIndexService(module);
@@ -189,7 +202,7 @@ public class IndexModuleTests extends ESTestCase {
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = singletonMap(
             "foo_store", new FooFunction());
         final IndexModule module = new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), indexStoreFactories,
-            () -> true, new IndexNameExpressionResolver());
+            () -> true, new IndexNameExpressionResolver(), Collections.emptyMap());
 
         final IndexService indexService = newIndexService(module);
         assertThat(indexService.getDirectoryFactory(), instanceOf(FooFunction.class));
@@ -485,9 +498,47 @@ public class IndexModuleTests extends ESTestCase {
         assertThat(e, hasToString(containsString("store type [" + storeType + "] is not allowed")));
     }
 
+    public void testRegisterCustomRecoveryStateFactory() throws IOException {
+        final Settings settings = Settings
+            .builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey(), "test_recovery")
+            .build();
+
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
+
+        RecoveryState recoveryState = mock(RecoveryState.class);
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = singletonMap(
+            "test_recovery", (shardRouting, targetNode, sourceNode) -> recoveryState);
+
+        final IndexModule module = new IndexModule(indexSettings,
+            emptyAnalysisRegistry,
+            new InternalEngineFactory(),
+            Collections.emptyMap(),
+            () -> true,
+            new IndexNameExpressionResolver(),
+            recoveryStateFactories);
+
+        final IndexService indexService = newIndexService(module);
+
+        ShardRouting shard = createInitializedShardRouting();
+
+        assertThat(indexService.createRecoveryState(shard, mock(DiscoveryNode.class), mock(DiscoveryNode.class)), is(recoveryState));
+
+        indexService.close("closing", false);
+    }
+
+    private ShardRouting createInitializedShardRouting() {
+        ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        shard = shard.initialize("node1", null, -1);
+        return shard;
+    }
+
     private static IndexModule createIndexModule(IndexSettings indexSettings, AnalysisRegistry emptyAnalysisRegistry) {
         return new IndexModule(indexSettings, emptyAnalysisRegistry, new InternalEngineFactory(), Collections.emptyMap(), () -> true,
-            new IndexNameExpressionResolver());
+            new IndexNameExpressionResolver(), Collections.emptyMap());
     }
 
     class CustomQueryCache implements QueryCache {

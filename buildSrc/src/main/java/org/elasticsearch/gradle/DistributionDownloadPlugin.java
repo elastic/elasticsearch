@@ -24,8 +24,6 @@ import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.docker.DockerSupportService;
-import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -72,10 +70,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        // this is needed for isInternal
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
-
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
@@ -216,10 +211,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return;
         }
         addIvyRepo(project, DOWNLOAD_REPO_NAME, "https://artifacts.elastic.co", FAKE_IVY_GROUP);
-        if (BuildParams.isInternal() == false) {
-            // external, so add snapshot repo as well
-            addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
-        }
+        addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
     /**

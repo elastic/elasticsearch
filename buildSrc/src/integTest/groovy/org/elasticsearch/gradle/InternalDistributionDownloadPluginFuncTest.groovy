@@ -39,6 +39,9 @@ class InternalDistributionDownloadPluginFuncTest extends Specification {
         settingsFile = testProjectDir.newFile('settings.gradle')
         settingsFile << "rootProject.name = 'hello-world'"
         buildFile = testProjectDir.newFile('build.gradle')
+    }
+
+    private File internalBuild() {
         buildFile << """plugins {
           id 'elasticsearch.global-build-info'
         }
@@ -60,8 +63,23 @@ class InternalDistributionDownloadPluginFuncTest extends Specification {
         """
     }
 
+    def "plugin application fails on non internal build"() {
+        given:
+        buildFile.text = """
+            plugins {
+             id 'elasticsearch.internal-distribution-download'
+            }
+        """
+        when:
+        def buildOutput = gradleRunner("createExtractedTestDistro").buildAndFail()
+        then:
+        buildOutput.output.contains("Plugin 'elasticsearch.internal-distribution-download' is not supported. " +
+            "Use 'elasticsearch.distribution-download' plugin instead")
+    }
+
     def testCurrent() {
         given:
+        internalBuild()
         localDistroSetup()
         def distroVersion = VersionProperties.getElasticsearch()
         buildFile << """
@@ -89,6 +107,7 @@ class InternalDistributionDownloadPluginFuncTest extends Specification {
 
     def testBwc() {
         given:
+        internalBuild()
         bwcMinorProjectSetup()
         def distroVersion = "8.1.0"
         buildFile << """

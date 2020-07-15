@@ -27,6 +27,8 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -39,6 +41,14 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        // this is needed for isInternal
+        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        if (!BuildParams.isInternal()) {
+            throw new GradleException(
+                "Plugin 'elasticsearch.internal-distribution-download' is not supported. "
+                    + "Use 'elasticsearch.distribution-download' plugin instead."
+            );
+        }
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         this.bwcVersions = BuildParams.getBwcVersions();
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));

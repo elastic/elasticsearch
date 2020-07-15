@@ -195,6 +195,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             break;
                         case INIT:
                         case WAITING:
+                        case QUEUED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;
                         case SUCCESS:

@@ -1,8 +1,8 @@
 // This file is auto-generated. Do not edit.
 
 
-[role="exclude",id="painless-api-reference-score-org-elasticsearch-index-query"]
-=== Score API for package org.elasticsearch.index.query
+[role="exclude",id="painless-api-reference-score-org-elasticsearch-xpack-vectors-query"]
+=== Score API for package org.elasticsearch.xpack.vectors.query
 See the <<painless-api-reference-score, Score API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-score-DenseVectorScriptDocValues]]
@@ -59,3 +59,5 @@ See the <<painless-api-reference-score, Score API>> for a high-level overview of
 * def[] {java11-javadoc}/java.base/java/util/Collection.html#toArray()[toArray]()
 * def[] {java11-javadoc}/java.base/java/util/Collection.html#toArray(java.lang.Object%5B%5D)[toArray](def[])
 * String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

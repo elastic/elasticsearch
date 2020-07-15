@@ -426,6 +426,7 @@ The following classes are available grouped by their respective packages. Click 
 <<painless-api-reference-shared-org-elasticsearch-script, Expand details for org.elasticsearch.script>>
 
 * <<painless-api-reference-shared-JodaCompatibleZonedDateTime, JodaCompatibleZonedDateTime>>
+* <<painless-api-reference-shared-ScoreScript-ExplanationHolder, ScoreScript.ExplanationHolder>>
 
 ==== org.elasticsearch.search.lookup
 <<painless-api-reference-shared-org-elasticsearch-search-lookup, Expand details for org.elasticsearch.search.lookup>>

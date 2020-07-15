@@ -1,11 +1,11 @@
 // This file is auto-generated. Do not edit.
 
 
-[role="exclude",id="painless-api-reference-field-org-elasticsearch-xpack-eql-expression-function-scalar-whitelist"]
-=== Field API for package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist
-See the <<painless-api-reference-field, Field API>> for a high-level overview of all packages and classes.
+[role="exclude",id="painless-api-reference-string-sort-org-elasticsearch-xpack-eql-expression-function-scalar-whitelist"]
+=== String Sort API for package org.elasticsearch.xpack.eql.expression.function.scalar.whitelist
+See the <<painless-api-reference-string-sort, String Sort API>> for a high-level overview of all packages and classes.
 
-[[painless-api-reference-field-InternalEqlScriptUtils]]
+[[painless-api-reference-string-sort-InternalEqlScriptUtils]]
 ==== InternalEqlScriptUtils
 * static String between(String, String, String, Boolean, Boolean)
 * static Boolean cidrMatch(String, List)
@@ -22,11 +22,11 @@ See the <<painless-api-reference-field, Field API>> for a high-level overview of
 * String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-field-org-elasticsearch-xpack-ql-expression-function-scalar-whitelist"]
-=== Field API for package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist
-See the <<painless-api-reference-field, Field API>> for a high-level overview of all packages and classes.
+[role="exclude",id="painless-api-reference-string-sort-org-elasticsearch-xpack-ql-expression-function-scalar-whitelist"]
+=== String Sort API for package org.elasticsearch.xpack.ql.expression.function.scalar.whitelist
+See the <<painless-api-reference-string-sort, String Sort API>> for a high-level overview of all packages and classes.
 
-[[painless-api-reference-field-InternalQlScriptUtils]]
+[[painless-api-reference-string-sort-InternalQlScriptUtils]]
 ==== InternalQlScriptUtils
 * static Number add(Number, Number)
 * static Boolean and(Boolean, Boolean)
@@ -58,29 +58,29 @@ See the <<painless-api-reference-field, Field API>> for a high-level overview of
 * String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-field-org-elasticsearch-xpack-sql-expression-literal-geo"]
-=== Field API for package org.elasticsearch.xpack.sql.expression.literal.geo
-See the <<painless-api-reference-field, Field API>> for a high-level overview of all packages and classes.
+[role="exclude",id="painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-geo"]
+=== String Sort API for package org.elasticsearch.xpack.sql.expression.literal.geo
+See the <<painless-api-reference-string-sort, String Sort API>> for a high-level overview of all packages and classes.
 
-[[painless-api-reference-field-GeoShape]]
+[[painless-api-reference-string-sort-GeoShape]]
 ==== GeoShape
 * boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
 * String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[role="exclude",id="painless-api-reference-field-org-elasticsearch-xpack-sql-expression-literal-interval"]
-=== Field API for package org.elasticsearch.xpack.sql.expression.literal.interval
-See the <<painless-api-reference-field, Field API>> for a high-level overview of all packages and classes.
+[role="exclude",id="painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-interval"]
+=== String Sort API for package org.elasticsearch.xpack.sql.expression.literal.interval
+See the <<painless-api-reference-string-sort, String Sort API>> for a high-level overview of all packages and classes.
 
-[[painless-api-reference-field-IntervalDayTime]]
+[[painless-api-reference-string-sort-IntervalDayTime]]
 ==== IntervalDayTime
 * boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
 * String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
-[[painless-api-reference-field-IntervalYearMonth]]
+[[painless-api-reference-string-sort-IntervalYearMonth]]
 ==== IntervalYearMonth
 * boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
 * int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()

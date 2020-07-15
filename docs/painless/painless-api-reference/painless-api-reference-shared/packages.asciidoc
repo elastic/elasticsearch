@@ -7117,6 +7117,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 ==== UUID
 * static UUID {java11-javadoc}/java.base/java/util/UUID.html#fromString(java.lang.String)[fromString](String)
 * static UUID {java11-javadoc}/java.base/java/util/UUID.html#nameUUIDFromBytes(byte%5B%5D)[nameUUIDFromBytes](byte[])
+* static UUID {java11-javadoc}/java.base/java/util/UUID.html#randomUUID()[randomUUID]()
 * {java11-javadoc}/java.base/java/util/UUID.html#<init>(long,long)[UUID](long, long)
 * int {java11-javadoc}/java.base/java/util/UUID.html#clockSequence()[clockSequence]()
 * int {java11-javadoc}/java.base/java/util/UUID.html#compareTo(java.util.UUID)[compareTo](UUID)
@@ -8565,8 +8566,12 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [[painless-api-reference-shared-JodaCompatibleZonedDateTime]]
 ==== JodaCompatibleZonedDateTime
-* boolean equals(Object)
+* int {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#compareTo(java.time.chrono.ChronoZonedDateTime)[compareTo](ChronoZonedDateTime)
+* boolean {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#equals(java.lang.Object)[equals](Object)
+* String {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#format(java.time.format.DateTimeFormatter)[format](DateTimeFormatter)
+* int {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#get(java.time.temporal.TemporalField)[get](TemporalField)
 * int getCenturyOfEra()
+* Chronology {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#getChronology()[getChronology]()
 * int getDayOfMonth()
 * int getDayOfWeek()
 * DayOfWeek getDayOfWeekEnum()
@@ -8574,6 +8579,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * int getEra()
 * int getHour()
 * int getHourOfDay()
+* long {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#getLong(java.time.temporal.TemporalField)[getLong](TemporalField)
 * long getMillis()
 * int getMillisOfDay()
 * int getMillisOfSecond()
@@ -8584,6 +8590,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * int getMonthOfYear()
 * int getMonthValue()
 * int getNano()
+* ZoneOffset {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#getOffset()[getOffset]()
 * int getSecond()
 * int getSecondOfDay()
 * int getSecondOfMinute()
@@ -8592,11 +8599,12 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * int getYear()
 * int getYearOfCentury()
 * int getYearOfEra()
-* ZoneId getZone()
-* int hashCode()
-* boolean isAfter(JodaCompatibleZonedDateTime)
-* boolean isBefore(JodaCompatibleZonedDateTime)
-* boolean isEqual(JodaCompatibleZonedDateTime)
+* ZoneId {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#getZone()[getZone]()
+* int {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#hashCode()[hashCode]()
+* boolean {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#isAfter(java.time.chrono.ChronoZonedDateTime)[isAfter](ChronoZonedDateTime)
+* boolean {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#isBefore(java.time.chrono.ChronoZonedDateTime)[isBefore](ChronoZonedDateTime)
+* boolean {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#isEqual(java.time.chrono.ChronoZonedDateTime)[isEqual](ChronoZonedDateTime)
+* boolean {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#isSupported(java.time.temporal.TemporalField)[isSupported](TemporalField)
 * ZonedDateTime minus(TemporalAmount)
 * ZonedDateTime minus(long, TemporalUnit)
 * ZonedDateTime minusDays(long)
@@ -8617,14 +8625,19 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * ZonedDateTime plusSeconds(long)
 * ZonedDateTime plusWeeks(long)
 * ZonedDateTime plusYears(long)
-* Instant toInstant()
+* def {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#query(java.time.temporal.TemporalQuery)[query](TemporalQuery)
+* ValueRange {java11-javadoc}/java.base/java/time/temporal/TemporalAccessor.html#range(java.time.temporal.TemporalField)[range](TemporalField)
+* long {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#toEpochSecond()[toEpochSecond]()
+* Instant {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#toInstant()[toInstant]()
 * LocalDate toLocalDate()
 * LocalDateTime toLocalDateTime()
+* LocalTime {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#toLocalTime()[toLocalTime]()
 * OffsetDateTime toOffsetDateTime()
-* String toString()
+* String {java11-javadoc}/java.base/java/time/chrono/ChronoZonedDateTime.html#toString()[toString]()
 * String toString(String)
 * String toString(String, Locale)
 * ZonedDateTime truncatedTo(TemporalUnit)
+* long {java11-javadoc}/java.base/java/time/temporal/Temporal.html#until(java.time.temporal.Temporal,java.time.temporal.TemporalUnit)[until](Temporal, TemporalUnit)
 * ZonedDateTime with(TemporalAdjuster)
 * ZonedDateTime with(TemporalField, long)
 * ZonedDateTime withDayOfMonth(int)
@@ -8640,6 +8653,14 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * ZonedDateTime withYear(int)
 * ZonedDateTime withZoneSameInstant(ZoneId)
 * ZonedDateTime withZoneSameLocal(ZoneId)
+
+
+[[painless-api-reference-shared-ScoreScript-ExplanationHolder]]
+==== ScoreScript.ExplanationHolder
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* void set(String)
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-search-lookup"]

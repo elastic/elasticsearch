@@ -19,8 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link HistogramValuesSource} from another numeric values source
@@ -119,8 +122,32 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
             final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
             final MappedFieldType fieldType = config.fieldType();
-            return new CompositeValuesSourceConfig(name, fieldType, vs, config.format(), order(),
-                missingBucket(), script() != null);
+            return new CompositeValuesSourceConfig(
+                name,
+                fieldType,
+                vs,
+                config.format(),
+                order(),
+                missingBucket(),
+                script() != null,
+                (
+                    BigArrays bigArrays,
+                    IndexReader reader,
+                    int size,
+                    LongConsumer addRequestCircuitBreakerBytes,
+                    CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+                    final ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
+                    return new DoubleValuesSource(
+                        bigArrays,
+                        compositeValuesSourceConfig.fieldType(),
+                        numericValuesSource::doubleValues,
+                        compositeValuesSourceConfig.format(),
+                        compositeValuesSourceConfig.missingBucket(),
+                        size,
+                        compositeValuesSourceConfig.reverseMul()
+                    );
+                }
+            );
         } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }

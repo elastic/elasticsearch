@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -45,6 +47,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
+import java.util.function.LongConsumer;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
@@ -261,9 +264,34 @@ public class DateHistogramValuesSourceBuilder
             // is specified in the builder.
             final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
             final MappedFieldType fieldType = config.fieldType();
-            return new CompositeValuesSourceConfig(name, fieldType, vs, docValueFormat, order(),
-                missingBucket(), config.script() != null);
-        } else {
+            return new CompositeValuesSourceConfig(
+                name,
+                fieldType,
+                vs,
+                docValueFormat,
+                order(),
+                missingBucket(),
+                config.script() != null,
+                (
+                    BigArrays bigArrays,
+                    IndexReader reader,
+                    int size,
+                    LongConsumer addRequestCircuitBreakerBytes,
+                    CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+                    final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
+                    return new LongValuesSource(
+                        bigArrays,
+                        compositeValuesSourceConfig.fieldType(),
+                        roundingValuesSource::longValues,
+                        roundingValuesSource::round,
+                        compositeValuesSourceConfig.format(),
+                        compositeValuesSourceConfig.missingBucket(),
+                        size,
+                        compositeValuesSourceConfig.reverseMul()
+                    );
+                }
+            );
+            } else {
             throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
         }
     }

@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,6 +42,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.LongConsumer;
+import java.util.function.LongUnaryOperator;
 
 public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
     static final String TYPE = "geotile_grid";
@@ -139,7 +143,25 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             final MappedFieldType fieldType = config.fieldType();
             CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, geoBoundingBox, GeoTileUtils::longEncode);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
-                missingBucket(), script() != null);
+                missingBucket(), script() != null,
+                (
+                BigArrays bigArrays,
+                IndexReader reader,
+                int size,
+                LongConsumer addRequestCircuitBreakerBytes,
+                CompositeValuesSourceConfig compositeValuesSourceConfig
+
+            ) -> {
+            final CellIdSource cis = (CellIdSource) compositeValuesSourceConfig.valuesSource();
+            return new GeoTileValuesSource(
+                bigArrays,
+                compositeValuesSourceConfig.fieldType(),
+                cis::longValues,
+                LongUnaryOperator.identity(),
+                compositeValuesSourceConfig.format(),
+                compositeValuesSourceConfig.missingBucket(),
+                size,
+                compositeValuesSourceConfig.reverseMul());});
         } else {
             throw new IllegalArgumentException("invalid source, expected geo_point, got " + orig.getClass().getSimpleName());
         }

@@ -19,20 +19,25 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.script.Script;
 
 import java.io.IOException;
+import java.util.function.LongConsumer;
+import java.util.function.LongUnaryOperator;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link ValuesSource} from a {@link Script} or
@@ -71,11 +76,11 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource vs = config.hasValues() ? config.getValuesSource() : null;
-        if (vs == null) {
+        ValuesSource valuesSource = config.hasValues() ? config.getValuesSource() : null;
+        if (valuesSource == null) {
             // The field is unmapped so we use a value source that can parse any type of values.
             // This is needed because the after values are parsed even when there are no values to process.
-            vs = ValuesSource.Bytes.WithOrdinals.EMPTY;
+            valuesSource = ValuesSource.Bytes.WithOrdinals.EMPTY;
         }
         final MappedFieldType fieldType = config.fieldType();
         final DocValueFormat format;
@@ -85,6 +90,89 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         } else {
             format = config.format();
         }
-        return new CompositeValuesSourceConfig(name, fieldType, vs, format, order(), missingBucket(), script() != null);
+        return new CompositeValuesSourceConfig(
+            name,
+            fieldType,
+            valuesSource,
+            format,
+            order(),
+            missingBucket(),
+            script() != null,
+            (
+                BigArrays bigArrays,
+                IndexReader reader,
+                int size,
+                LongConsumer addRequestCircuitBreakerBytes,
+                CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+
+                // TODO: this is a mess, and we can do better, by knowing what actual values source we should have here.
+                final int reverseMul = compositeValuesSourceConfig.reverseMul();
+                if (compositeValuesSourceConfig.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals
+                    && reader instanceof DirectoryReader) {
+                    ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
+                    return new GlobalOrdinalValuesSource(
+                        bigArrays,
+                        compositeValuesSourceConfig.fieldType(),
+                        vs::globalOrdinalsValues,
+                        compositeValuesSourceConfig.format(),
+                        compositeValuesSourceConfig.missingBucket(),
+                        size,
+                        reverseMul
+                    );
+                } else if (compositeValuesSourceConfig.valuesSource() instanceof ValuesSource.Bytes) {
+                    ValuesSource.Bytes vs = (ValuesSource.Bytes) compositeValuesSourceConfig.valuesSource();
+                    return new BinaryValuesSource(
+                        bigArrays,
+                        addRequestCircuitBreakerBytes,
+                        compositeValuesSourceConfig.fieldType(),
+                        vs::bytesValues,
+                        compositeValuesSourceConfig.format(),
+                        compositeValuesSourceConfig.missingBucket(),
+                        size,
+                        reverseMul
+                    );
+
+                } else if (compositeValuesSourceConfig.valuesSource() instanceof ValuesSource.Numeric) {
+                    final ValuesSource.Numeric vs = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
+                    if (vs.isFloatingPoint()) {
+                        return new DoubleValuesSource(
+                            bigArrays,
+                            compositeValuesSourceConfig.fieldType(),
+                            vs::doubleValues,
+                            compositeValuesSourceConfig.format(),
+                            compositeValuesSourceConfig.missingBucket(),
+                            size,
+                            reverseMul
+                        );
+
+                    } else {
+                        final LongUnaryOperator rounding;
+                        if (vs instanceof RoundingValuesSource) {
+                            // TODO: I'm pretty sure we can't get a RoundingValuesSource here
+                            rounding = ((RoundingValuesSource) vs)::round;
+                        } else {
+                            rounding = LongUnaryOperator.identity();
+                        }
+                        return new LongValuesSource(
+                            bigArrays,
+                            compositeValuesSourceConfig.fieldType(),
+                            vs::longValues,
+                            rounding,
+                            compositeValuesSourceConfig.format(),
+                            compositeValuesSourceConfig.missingBucket(),
+                            size,
+                            reverseMul
+                        );
+                    }
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unknown values source type: "
+                            + compositeValuesSourceConfig.valuesSource().getClass().getName()
+                            + " for source: "
+                            + name()
+                    );
+                }
+            }
+        );
     }
 }

@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
@@ -77,8 +78,17 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         return scriptFactory.newFactory(script.getParams(), context.lookup());
     }
 
+    private void checkAllowExpensiveQueries(QueryShardContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new IllegalArgumentException(
+                "queries cannot be executed against [script] fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
+            );
+        }
+    }
+
     @Override
     public Query existsQuery(QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
         return new StringScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -91,6 +101,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         boolean transpositions,
         QueryShardContext context
     ) {
+        checkAllowExpensiveQueries(context);
         return StringScriptFieldFuzzyQuery.build(
             script,
             leafFactory(context),
@@ -104,6 +115,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public Query prefixQuery(String value, RewriteMethod method, org.elasticsearch.index.query.QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
         return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value);
     }
 
@@ -118,6 +130,7 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
         DateMathParser parser,
         QueryShardContext context
     ) {
+        checkAllowExpensiveQueries(context);
         return new StringScriptFieldRangeQuery(
             script,
             leafFactory(context),
@@ -131,22 +144,26 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     @Override
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, RewriteMethod method, QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
         return new StringScriptFieldRegexpQuery(script, leafFactory(context), name(), value, flags, maxDeterminizedStates);
     }
 
     @Override
     public Query termQuery(Object value, QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
         return new StringScriptFieldTermQuery(script, leafFactory(context), name(), BytesRefs.toString(Objects.requireNonNull(value)));
     }
 
     @Override
     public Query termsQuery(List<?> values, QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
         return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 
     @Override
     public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
+        checkAllowExpensiveQueries(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value);
     }
 

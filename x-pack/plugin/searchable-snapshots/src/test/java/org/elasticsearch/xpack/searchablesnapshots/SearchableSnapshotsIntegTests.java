@@ -350,13 +350,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(restoredIndexName);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59287")
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
         final boolean useRateLimits = randomBoolean();
         if (useRateLimits) {
-            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(10, ByteSizeUnit.KB));
+            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(5, ByteSizeUnit.KB));
         } else {
             repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         }

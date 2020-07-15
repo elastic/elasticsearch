@@ -157,8 +157,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 }
 
                 @Override
-                public void afterActions(Task task) {
-                }
+                public void afterActions(Task task) {}
             });
         }
 
@@ -175,8 +174,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 }
 
                 @Override
-                public void beforeExecute(Task task) {
-                }
+                public void beforeExecute(Task task) {}
             });
         }
     }

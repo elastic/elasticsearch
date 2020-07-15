@@ -40,15 +40,13 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
-        if (BuildParams.isInternal()) {
-            this.bwcVersions = BuildParams.getBwcVersions();
-        }
+        this.bwcVersions = BuildParams.getBwcVersions();
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
     }
 
     private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            if (BuildParams.isInternal() && VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
+            if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 // non-external project, so depend on local build
                 return projectDependency(project, distributionProjectPath(distribution), "default");
             }
@@ -56,14 +54,10 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         }));
 
         resolutions.register("bwb", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            if (BuildParams.isInternal()) {
-                BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(
-                    Version.fromString(distribution.getVersion())
-                );
-                if (unreleasedInfo != null) {
-                    assert distribution.getBundledJdk();
-                    return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
-                }
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
+            if (unreleasedInfo != null) {
+                assert distribution.getBundledJdk();
+                return projectDependency(project, unreleasedInfo.gradleProjectPath, distributionProjectName(distribution));
             }
             return null;
         }));

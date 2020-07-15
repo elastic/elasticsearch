@@ -90,7 +90,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
-        project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
+        if (BuildParams.isInternal()) {
+            project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
+        } else {
+            project.getPlugins().apply(DistributionDownloadPlugin.class);
+        }
         project.getPluginManager().apply("elasticsearch.build");
 
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(

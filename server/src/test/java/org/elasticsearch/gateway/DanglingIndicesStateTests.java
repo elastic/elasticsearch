@@ -19,6 +19,7 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -53,16 +54,17 @@ public class DanglingIndicesStateTests extends ESTestCase {
     public void testDanglingIndicesAreDiscovered() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
-            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService);
-            Metadata metadata = Metadata.builder().build();
 
-            assertTrue(danglingState.findDanglingIndices(metadata).isEmpty());
+            Metadata metadata = Metadata.builder().build();
+            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);
+
+            assertTrue(danglingState.getDanglingIndices().isEmpty());
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
             metaStateService.writeIndex("test_write", dangledIndex);
 
-            Map<Index, IndexMetadata> newDanglingIndices = danglingState.findDanglingIndices(metadata);
+            Map<Index, IndexMetadata> newDanglingIndices = danglingState.getDanglingIndices();
             assertTrue(newDanglingIndices.containsKey(dangledIndex.getIndex()));
         }
     }
@@ -70,9 +72,10 @@ public class DanglingIndicesStateTests extends ESTestCase {
     public void testInvalidIndexFolder() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
-            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService);
-
             Metadata metadata = Metadata.builder().build();
+
+            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);
+
             final String uuid = "test1UUID";
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, uuid);
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
@@ -83,7 +86,7 @@ public class DanglingIndicesStateTests extends ESTestCase {
                 }
             }
 
-            final IllegalStateException e = expectThrows(IllegalStateException.class, () -> danglingState.findDanglingIndices(metadata));
+            final IllegalStateException e = expectThrows(IllegalStateException.class, danglingState::getDanglingIndices);
             assertThat(e.getMessage(), equalTo("[invalidUUID] invalid index folder name, rename to [test1UUID]"));
         }
     }
@@ -91,7 +94,6 @@ public class DanglingIndicesStateTests extends ESTestCase {
     public void testDanglingIndicesNotReportedWhenTombstonePresent() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
-            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService);
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
             IndexMetadata dangledIndex = IndexMetadata.builder("test1").settings(settings).build();
@@ -100,7 +102,9 @@ public class DanglingIndicesStateTests extends ESTestCase {
             final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(dangledIndex.getIndex()).build();
             final Metadata metadata = Metadata.builder().indexGraveyard(graveyard).build();
 
-            final Map<Index, IndexMetadata> newDanglingIndices = danglingState.findDanglingIndices(metadata);
+            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);
+
+            final Map<Index, IndexMetadata> newDanglingIndices = danglingState.getDanglingIndices();
             assertThat(newDanglingIndices, is(emptyMap()));
         }
     }
@@ -108,7 +112,6 @@ public class DanglingIndicesStateTests extends ESTestCase {
     public void testDanglingIndicesReportedWhenIndexNameIsAlreadyUsed() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
-            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService);
 
             final Settings.Builder danglingSettings = Settings.builder()
                 .put(indexSettings)
@@ -128,8 +131,10 @@ public class DanglingIndicesStateTests extends ESTestCase {
                 .build();
             final Metadata metadata = Metadata.builder().indices(indices).build();
 
+            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);
+
             // All dangling indices should be found
-            final Map<Index, IndexMetadata> newDanglingIndices = danglingState.findDanglingIndices(metadata);
+            final Map<Index, IndexMetadata> newDanglingIndices = danglingState.getDanglingIndices();
             assertThat(newDanglingIndices, is(aMapWithSize(1)));
         }
     }
@@ -137,7 +142,6 @@ public class DanglingIndicesStateTests extends ESTestCase {
     public void testDanglingIndicesStripAliases() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
-            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService);
 
             final Settings.Builder settings = Settings.builder().put(indexSettings).put(IndexMetadata.SETTING_INDEX_UUID, "test1UUID");
             IndexMetadata dangledIndex = IndexMetadata.builder("test1")
@@ -148,7 +152,9 @@ public class DanglingIndicesStateTests extends ESTestCase {
             assertThat(dangledIndex.getAliases().size(), equalTo(1));
 
             final Metadata metadata = Metadata.builder().build();
-            Map<Index, IndexMetadata> newDanglingIndices = danglingState.findDanglingIndices(metadata);
+            DanglingIndicesState danglingState = createDanglingIndicesState(metaStateService, metadata);
+
+            Map<Index, IndexMetadata> newDanglingIndices = danglingState.getDanglingIndices();
             assertThat(newDanglingIndices.size(), equalTo(1));
             Map.Entry<Index, IndexMetadata> entry = newDanglingIndices.entrySet().iterator().next();
             assertThat(entry.getKey().getName(), equalTo("test1"));
@@ -156,12 +162,13 @@ public class DanglingIndicesStateTests extends ESTestCase {
         }
     }
 
-    private DanglingIndicesState createDanglingIndicesState(MetaStateService metaStateService) {
-        final Settings allocateSettings = Settings.builder().build();
+    private DanglingIndicesState createDanglingIndicesState(MetaStateService metaStateService, Metadata metadata) {
+        final ClusterState clusterState = mock(ClusterState.class);
+        when(clusterState.metadata()).thenReturn(metadata);
 
-        final ClusterService clusterServiceMock = mock(ClusterService.class);
-        when(clusterServiceMock.getSettings()).thenReturn(allocateSettings);
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
 
-        return new DanglingIndicesState(metaStateService, clusterServiceMock);
+        return new DanglingIndicesState(metaStateService, clusterService);
     }
 }

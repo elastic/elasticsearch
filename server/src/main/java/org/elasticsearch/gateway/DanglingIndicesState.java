@@ -62,11 +62,7 @@ public class DanglingIndicesState {
      */
     public Map<Index, IndexMetadata> getDanglingIndices() {
         final Metadata metadata = this.clusterService.state().metadata();
-        return findDanglingIndices(metadata);
-    }
 
-    // Extracted from getDanglingIndices() as a package-private method to allow easier testing testing
-    Map<Index, IndexMetadata> findDanglingIndices(Metadata metadata) {
         final Set<String> excludeIndexPathIds = new HashSet<>(metadata.indices().size());
 
         for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
@@ -87,7 +83,7 @@ public class DanglingIndicesState {
 
             return danglingIndices;
         } catch (IOException e) {
-            logger.warn("Failed to list dangling indices", e);
+            logger.warn("failed to list dangling indices", e);
             return emptyMap();
         }
     }

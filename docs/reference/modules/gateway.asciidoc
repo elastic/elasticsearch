@@ -65,7 +65,3 @@ API>>.
 NOTE: The API cannot offer any guarantees as to whether the imported data
 truly represents the latest state of the data when the index was still part
 of the cluster.
-
-WARNING: You should avoid situations that result in dangling indices (e.g.
-losing all master nodes) at all costs as it puts your cluster's metadata
-and data at risk.

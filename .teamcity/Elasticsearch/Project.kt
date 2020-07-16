@@ -35,10 +35,12 @@ object Elasticsearch : VersionedProject({
             all(builds = 1)
         }
         keepRule {
+            id = "keepHistory"
             days(7)
             historyAndStatistics()
         }
         keepRule {
+            id = "keepLogs"
             builds(5)
             logs()
         }

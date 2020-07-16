@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -41,13 +42,11 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Locale;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Builder> {
+public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -56,28 +55,11 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
-        addModifier("format", false, (a, b) -> {
-            a.format("basic_week_date");
-        });
-        addModifier("locale", false, (a, b) -> {
-            a.locale(Locale.CANADA);
-            b.locale(Locale.JAPAN);
-        });
-    }
-
-    @Override
-    protected Set<String> unsupportedProperties() {
-        return org.elasticsearch.common.collect.Set.of("analyzer", "similarity");
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class);
-    }
-
-    @Override
-    protected DateFieldMapper.Builder newBuilder() {
-        return new DateFieldMapper.Builder("date");
     }
 
     public void testDefaults() throws Exception {
@@ -332,7 +314,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
                 .endObject().endObject());
 
         Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("[format] must not have a [null] value", e.getMessage());
+        assertEquals("[format] on mapper [field] of type [date] must not have a [null] value", e.getMessage());
     }
 
     public void testEmptyName() throws IOException {
@@ -401,7 +383,7 @@ public class DateFieldMapperTests extends FieldMapperTestCase<DateFieldMapper.Bu
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("movie", new CompressedXContent(updateFormatMapping),
                 MapperService.MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
+        assertThat(e.getMessage(), containsString("parameter [format] from [yyyy/MM/dd] to [epoch_millis]"));
     }
 
     public void testMergeText() throws Exception {

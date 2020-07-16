@@ -187,7 +187,7 @@ public class TypeParsersTests extends ESTestCase {
 
         Mapper.TypeParser typeParser = new KeywordFieldMapper.TypeParser();
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(
-            null, null, type -> typeParser, Version.CURRENT, null);
+            null, null, type -> typeParser, Version.CURRENT, null, null);
 
         TypeParsers.parseField(builder, "some-field", fieldNode, parserContext);
         assertWarnings("At least one multi-field, [sub-field], was " +
@@ -215,7 +215,7 @@ public class TypeParsersTests extends ESTestCase {
 
     public void testParseMeta() {
         FieldMapper.Builder<?> builder = new KeywordFieldMapper.Builder("foo");
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null);
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(null, null, null, null, null, null);
 
         {
             Map<String, Object> mapping = new HashMap<>(Collections.singletonMap("meta", 3));

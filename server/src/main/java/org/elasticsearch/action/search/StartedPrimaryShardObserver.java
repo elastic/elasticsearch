@@ -33,8 +33,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
-
 class StartedPrimaryShardObserver {
     private final Logger logger = LogManager.getLogger(StartedPrimaryShardObserver.class);
 
@@ -46,15 +44,18 @@ class StartedPrimaryShardObserver {
         this.threadPool = threadPool;
     }
 
-    void waitUntilPrimaryShardIsStarted(SearchShardIterator searchShardIterator,
+    void waitUntilPrimaryShardIsStarted(ShardId shardId,
                                         TimeValue timeout,
-                                        ActionListener<SearchShardIterator> listener) {
-        final ShardId shardId = searchShardIterator.shardId();
+                                        ActionListener<ShardRouting> listener) {
         ClusterState state = clusterService.state();
 
-        if (isPrimaryShardStarted(state, shardId)) {
-            listener.onResponse(createUpdatedShardIterator(searchShardIterator, state));
+        if (primaryShardIsStarted(shardId, state)) {
+            listener.onResponse(getPrimaryShard(shardId, state));
             return;
+        }
+
+        if (timeout.equals(TimeValue.ZERO)) {
+            listener.onFailure(new PrimaryShardStartTimeout());
         }
 
         final ClusterStateObserver clusterStateObserver = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
@@ -62,8 +63,7 @@ class StartedPrimaryShardObserver {
         clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState newClusterState) {
-                SearchShardIterator updatedShardIterator = createUpdatedShardIterator(searchShardIterator, newClusterState);
-                listener.onResponse(updatedShardIterator);
+                listener.onResponse(getPrimaryShard(shardId, newClusterState));
             }
 
             @Override
@@ -75,22 +75,17 @@ class StartedPrimaryShardObserver {
             public void onTimeout(TimeValue timeout) {
                 listener.onFailure(new PrimaryShardStartTimeout());
             }
-        }, clusterState -> isPrimaryShardStarted(clusterState, shardId), timeout);
+
+        }, clusterState -> primaryShardIsStarted(shardId, clusterState), timeout);
     }
 
-    private SearchShardIterator createUpdatedShardIterator(SearchShardIterator searchShardIterator, ClusterState clusterState) {
-        ShardId shardId = searchShardIterator.shardId();
+    private ShardRouting getPrimaryShard(ShardId shardId, ClusterState clusterState) {
+        assert primaryShardIsStarted(shardId, clusterState);
 
-        ShardRouting primaryShard = clusterState.getRoutingTable().shardRoutingTable(shardId).primaryShard();
-        assert primaryShard != null && primaryShard.started();
-
-        return new SearchShardIterator(searchShardIterator.getClusterAlias(),
-            shardId,
-            Collections.singletonList(primaryShard),
-            searchShardIterator.getOriginalIndices());
+        return clusterState.getRoutingTable().shardRoutingTable(shardId).primaryShard();
     }
 
-    private boolean isPrimaryShardStarted(ClusterState clusterState, ShardId shardId) {
+    private boolean primaryShardIsStarted(ShardId shardId, ClusterState clusterState) {
         IndexRoutingTable indexRouting = clusterState.getRoutingTable().index(shardId.getIndex());
 
         if (indexRouting == null) {
@@ -102,5 +97,5 @@ class StartedPrimaryShardObserver {
         return shardRoutingTable != null && shardRoutingTable.primaryShard() != null && shardRoutingTable.primaryShard().started();
     }
 
-    private static final class PrimaryShardStartTimeout extends RuntimeException {}
+    static final class PrimaryShardStartTimeout extends RuntimeException {}
 }

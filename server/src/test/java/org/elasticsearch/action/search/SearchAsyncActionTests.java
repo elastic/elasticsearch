@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -972,17 +974,17 @@ public class SearchAsyncActionTests extends ESTestCase {
     }
 
     static class FakeStartedPrimaryShardObserver extends StartedPrimaryShardObserver {
-        private final Map<ShardId, ActionListener<SearchShardIterator>> waitingForStartShards = new HashMap<>();
+        private final Map<ShardId, ActionListener<ShardRouting>> waitingForStartShards = new HashMap<>();
 
         FakeStartedPrimaryShardObserver() {
-            super(null, null);
+            super(mock(ClusterService.class), mock(ThreadPool.class));
         }
 
         @Override
-        void waitUntilPrimaryShardIsStarted(SearchShardIterator searchShardIterator,
+        void waitUntilPrimaryShardIsStarted(ShardId shardId,
                                             TimeValue timeout,
-                                            ActionListener<SearchShardIterator> listener) {
-            waitingForStartShards.put(searchShardIterator.shardId(), listener);
+                                            ActionListener<ShardRouting> listener) {
+            waitingForStartShards.put(shardId, listener);
         }
 
         void moveAllWaitingShardsToStarted(DiscoveryNode primary) {
@@ -992,23 +994,17 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         void moveShardToStarted(ShardId shardId, DiscoveryNode primary) {
-            ActionListener<SearchShardIterator> listener = waitingForStartShards.remove(shardId);
+            ActionListener<ShardRouting> listener = waitingForStartShards.remove(shardId);
             assert listener != null;
 
             ShardRouting shardRouting =
                 TestShardRouting.newShardRouting(shardId, primary.getId(), true, ShardRoutingState.STARTED);
 
-            OriginalIndices originalIndices =
-                new OriginalIndices(new String[]{shardId.getIndexName()}, SearchRequest.DEFAULT_INDICES_OPTIONS);
-
-            listener.onResponse(new SearchShardIterator(null,
-                shardId,
-                Collections.singletonList(shardRouting),
-                originalIndices));
+            listener.onResponse(shardRouting);
         }
 
         void timeoutShardAllocationWait(ShardId shardId) {
-            ActionListener<SearchShardIterator> listener = waitingForStartShards.remove(shardId);
+            ActionListener<ShardRouting> listener = waitingForStartShards.remove(shardId);
             assert listener != null;
 
             listener.onFailure(new RuntimeException("Timeout while waiting"));

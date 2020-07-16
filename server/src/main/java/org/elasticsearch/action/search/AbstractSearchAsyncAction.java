@@ -217,20 +217,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void delayPhaseOnShardUntilPrimaryIsStarted(int index, SearchShardIterator searchShardIt) {
         final int shardIndex = index;
-        startedPrimaryShardObserver.waitUntilPrimaryShardIsStarted(searchShardIt,
+        startedPrimaryShardObserver.waitUntilPrimaryShardIsStarted(searchShardIt.shardId(),
             request.waitForUnassignedPrimaryShardsAllocationTimeout(),
             new ActionListener<>() {
                 @Override
-                public void onResponse(SearchShardIterator updatedSearchIter) {
+                public void onResponse(ShardRouting primaryShard) {
                     fork(() -> {
+                        SearchShardIterator updatedSearchIter = createUpdatedShardIterator(searchShardIt, primaryShard);
                         synchronized (shardItsMutex) {
                             List<SearchShardIterator> updatedIters = new ArrayList<>(shardsIts.size());
                             for (int i = 0; i < shardsIts.size(); i++) {
                                 updatedIters.add(shardIndex == i ? updatedSearchIter : shardsIts.get(i));
                             }
                             shardsIts = new GroupShardsIterator<>(updatedIters);
-                            ShardRouting primaryShard = updatedSearchIter.nextOrNull();
-                            performPhaseOnShard(shardIndex, updatedSearchIter, primaryShard);
+                            performPhaseOnShard(shardIndex, updatedSearchIter, updatedSearchIter.nextOrNull());
                         }
                     });
                 }
@@ -240,6 +240,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     fork(() -> performPhaseOnShard(shardIndex, searchShardIt, null));
                 }
             });
+    }
+
+    private SearchShardIterator createUpdatedShardIterator(SearchShardIterator searchShardIterator,
+                                                           ShardRouting primaryShard) {
+        assert primaryShard != null && primaryShard.started();
+
+        ShardId shardId = searchShardIterator.shardId();
+
+        return new SearchShardIterator(searchShardIterator.getClusterAlias(),
+            shardId,
+            Collections.singletonList(primaryShard),
+            searchShardIterator.getOriginalIndices());
     }
 
     void skipShard(SearchShardIterator iterator) {

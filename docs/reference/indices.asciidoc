@@ -50,6 +50,9 @@ index settings, aliases, mappings, and index templates.
 [float]
 [[index-templates]]
 === Index templates:
+
+include::glossary.asciidoc[tag=index-template-def-short]
+
 * <<indices-templates>>
 * <<indices-put-template>>
 * <<indices-get-template>>
@@ -109,6 +112,8 @@ include::indices/forcemerge.asciidoc[]
 
 include::indices/apis/freeze.asciidoc[]
 
+include::indices/get-component-template.asciidoc[]
+
 include::indices/get-field-mapping.asciidoc[]
 
 include::indices/get-index.asciidoc[]
@@ -118,6 +123,8 @@ include::indices/get-alias.asciidoc[]
 include::indices/get-settings.asciidoc[]
 
 include::indices/get-index-template.asciidoc[]
+
+include::indices/get-index-template-v1.asciidoc[]
 
 include::indices/get-mapping.asciidoc[]
 
@@ -137,11 +144,11 @@ include::indices/template-exists.asciidoc[]
 
 include::indices/open-close.asciidoc[]
 
-include::indices/index-templates.asciidoc[]
+include::indices/put-index-template.asciidoc[]
 
-include::indices/component-templates.asciidoc[]
+include::indices/put-index-template-v1.asciidoc[]
 
-include::indices/templates.asciidoc[]
+include::indices/put-component-template.asciidoc[]
 
 include::indices/put-mapping.asciidoc[]
 

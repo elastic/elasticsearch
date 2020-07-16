@@ -18,16 +18,18 @@ event.
 [source,console]
 ----
 PUT /my_index/_bulk?refresh
-{"index":{"_index" : "my_index", "_id" : "1"}}
-{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD","sequence": 1 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "my_index", "_id" : "2"}}
-{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "my_index", "_id" : "3"}}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "my_index", "_id" : "4"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "my_index", "_id" : "5"}}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:07:10.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
 // TESTSETUP
 ////
@@ -304,6 +306,7 @@ parameter. If both parameters are specified, only the query parameter is used.
 `id`::
 +
 --
+(string)
 Identifier for the search.
 
 This search ID is only provided if one of the following conditions is met:
@@ -433,9 +436,24 @@ Name of the index containing the event.
 
 `_id`::
 (string)
-(string)
 Unique identifier for the event.
 This ID is only unique within the index.
+
+`_version`::
+(integer)
+Version of the document (event). This version is incremented each time the document is
+updated.
+
+`_seq_no`::
+(integer)
+Sequence number assigned to the document (event).
++
+Sequence numbers are used to ensure an older version of a document
+doesn’t overwrite a newer version. See <<optimistic-concurrency-control>>.
+
+`_primary_term`::
+(integer)
+Primary term assigned to the document. See <<optimistic-concurrency-control>>.
 
 `_score`::
 (float)
@@ -445,14 +463,6 @@ Positive 32-bit floating point number used to determine the relevance of the
 `_source`::
 (object)
 Original JSON body passed for the event at index time.
-
-`sort`::
-(array)
-Array of field values used to sort the event.
-+
-By default, the first item in the array is the event's
-<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 ======
 =====
 
@@ -483,14 +493,6 @@ Positive 32-bit floating point number used to determine the relevance of the
 `_source`::
 (object)
 Original JSON body passed for the event at index time.
-
-`sort`::
-(array)
-Array of field values used to sort the event.
-+
-By default, the first item in the array is the event's
-<<eql-search-api-timestamp-field,timestamp value>>, converted to milliseconds
-since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
 =====
 ====
 
@@ -541,7 +543,7 @@ the events in ascending, lexicographic order.
     "events": [
       {
         "_index": "my_index",
-        "_id": "2",
+        "_id": "fwGeywNsBl8Y9Ys1x51b",
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-06T11:04:07.000Z",
@@ -562,13 +564,13 @@ the events in ascending, lexicographic order.
           },
           "process": {
             "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
         }
       },
       {
         "_index": "my_index",
-        "_id": "4",
+        "_id": "AtOJ4UjUBAAx3XR5kcCM",
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -589,7 +591,7 @@ the events in ascending, lexicographic order.
           },
           "process": {
             "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
         }
       }
@@ -598,6 +600,8 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "fwGeywNsBl8Y9Ys1x51b"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.events.1._id/]
 
 [[eql-search-api-sequence-ex]]
 ===== Sequence query example
@@ -616,7 +620,7 @@ that:
 +
 --
 * An `event.category` of `process`
-* A `process.path` that contains the substring `regsvr32`
+* A `process.executable` that contains the substring `regsvr32`
 --
 
 These events must also share the same `agent.id` value.
@@ -628,11 +632,10 @@ GET /my_index/_eql/search
   "query": """
     sequence by agent.id
       [ file where file.name == "cmd.exe" and agent.id != "my_user" ]
-      [ process where stringContains(process.path, "regsvr32") ]
+      [ process where stringContains(process.executable, "regsvr32") ]
   """
 }
 ----
-// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event. Matching events in
@@ -664,7 +667,10 @@ the events in ascending, lexicographic order.
         "events": [
           {
             "_index": "my_index",
-            "_id": "4",
+            "_id": "AtOJ4UjUBAAx3XR5kcCM",
+            "_version": 1,
+            "_seq_no": 3,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -685,13 +691,16 @@ the events in ascending, lexicographic order.
               },
               "process": {
                 "name": "cmd.exe",
-                "path": "C:\\Windows\\System32\\cmd.exe"
+                "executable": "C:\\Windows\\System32\\cmd.exe"
               }
             }
           },
           {
             "_index": "my_index",
-            "_id": "5",
+            "_id": "yDwnGIJouOYGBzP0ZE9n",
+            "_version": 1,
+            "_seq_no": 4,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -705,7 +714,7 @@ the events in ascending, lexicographic order.
               },
               "process": {
                 "name": "regsvr32.exe",
-                "path": "C:\\Windows\\System32\\regsvr32.exe"
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
               }
             }
           }
@@ -716,4 +725,5 @@ the events in ascending, lexicographic order.
 }
 ----
 // TESTRESPONSE[s/"took": 6/"took": $body.took/]
-// TESTRESPONSE[skip: response format updated]
+// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]

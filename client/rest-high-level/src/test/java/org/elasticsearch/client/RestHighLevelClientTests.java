@@ -916,7 +916,11 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("async_search") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
-                                apiName.equals("indices.get_index_template") == false) {
+                                apiName.equals("indices.get_index_template") == false &&
+                                List.of("indices.data_streams_stats",
+                                    "indices.delete_data_stream",
+                                    "indices.create_data_stream",
+                                    "indices.get_data_stream").contains(apiName) == false) {
                                 apiNotFound.add(apiName);
                             }
                         }

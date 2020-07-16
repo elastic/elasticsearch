@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
@@ -80,8 +81,12 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     private void checkAllowExpensiveQueries(QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
-            throw new IllegalArgumentException(
-                "queries cannot be executed against [script] fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
+            throw new ElasticsearchException(
+                "queries cannot be executed against ["
+                    + ScriptFieldMapper.CONTENT_TYPE
+                    + "] fields while ["
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "] is set to [false]."
             );
         }
     }

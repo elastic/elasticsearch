@@ -19,6 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -284,7 +285,7 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
 
     private void checkExpensiveQuery(BiConsumer<RuntimeKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
         RuntimeKeywordMappedFieldType ft = build("value('cat')");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.accept(ft, mockContext(false)));
+        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),
             equalTo("queries cannot be executed against [script] fields while [search.allow_expensive_queries] is set to [false].")

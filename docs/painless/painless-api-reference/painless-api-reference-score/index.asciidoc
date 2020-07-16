@@ -36,6 +36,11 @@ The following methods are directly callable without a class/instance qualifier. 
 The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
 
 
+==== java.lang
+<<painless-api-reference-score-java-lang, Expand details for java.lang>>
+
+* <<painless-api-reference-score-String, String>>
+
 ==== org.elasticsearch.xpack.vectors.query
 <<painless-api-reference-score-org-elasticsearch-xpack-vectors-query, Expand details for org.elasticsearch.xpack.vectors.query>>
 

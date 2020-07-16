@@ -101,12 +101,7 @@ final class IndicesRequestConverters {
             .addCommaSeparatedPathParts(expressions)
             .addPathPartAsIs("_stats")
             .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-
-        RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withIndicesOptions(dataStreamsStatsRequest.indicesOptions());
-        request.addParameters(parameters.asMap());
-        return request;
+        return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {

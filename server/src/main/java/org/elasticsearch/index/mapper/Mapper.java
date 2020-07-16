@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -88,18 +89,26 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Supplier<QueryShardContext> queryShardContextSupplier;
 
+            private final DateFormatter dateFormatter;
+
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  MapperService mapperService, Function<String, TypeParser> typeParsers,
-                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier) {
+                                 Version indexVersionCreated, Supplier<QueryShardContext> queryShardContextSupplier,
+                                 DateFormatter dateFormatter) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
                 this.indexVersionCreated = indexVersionCreated;
                 this.queryShardContextSupplier = queryShardContextSupplier;
+                this.dateFormatter = dateFormatter;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
                 return mapperService.getIndexAnalyzers();
+            }
+
+            public Settings getSettings() {
+                return mapperService.getIndexSettings().getSettings();
             }
 
             public SimilarityProvider getSimilarity(String name) {
@@ -122,6 +131,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return queryShardContextSupplier;
             }
 
+            /**
+             * Gets an optional default date format for date fields that do not have an explicit format set
+             *
+             * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
+             */
+            public DateFormatter getDateFormatter() {
+                return dateFormatter;
+            }
+
             public boolean isWithinMultiField() { return false; }
 
             protected Function<String, TypeParser> typeParsers() { return typeParsers; }
@@ -135,7 +153,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService(), in.mapperService(), in.typeParsers(),
-                            in.indexVersionCreated(), in.queryShardContextSupplier());
+                            in.indexVersionCreated(), in.queryShardContextSupplier(), in.getDateFormatter());
                 }
 
                 @Override

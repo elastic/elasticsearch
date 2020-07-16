@@ -468,6 +468,29 @@ public class ExtractedFieldsDetectorTests extends ESTestCase {
             "Supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]."));
     }
 
+    public void testDetect_GivenNotIncludedFieldHasUnsupportedType() {
+        FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
+            .addAggregatableField("numeric", "float")
+            .addAggregatableField("categorical", "keyword")
+            .build();
+        analyzedFields = new FetchSourceContext(true, new String[] {"numeric"}, null);
+
+        ExtractedFieldsDetector extractedFieldsDetector = new ExtractedFieldsDetector(
+            buildOutlierDetectionConfig(), 100, fieldCapabilities, Collections.emptyMap());
+
+        Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+
+        List<ExtractedField> allFields = fieldExtraction.v1().getAllFields();
+        assertThat(allFields, hasSize(1));
+        assertThat(allFields.get(0).getName(), equalTo("numeric"));
+
+        assertFieldSelectionContains(fieldExtraction.v2(),
+            FieldSelection.excluded("categorical", Collections.singleton("keyword"),
+                "unsupported type; supported types are [boolean, byte, double, float, half_float, integer, long, scaled_float, short]"),
+            FieldSelection.included("numeric", Collections.singleton("float"), false, FieldSelection.FeatureType.NUMERICAL)
+        );
+    }
+
     public void testDetect_GivenIndexContainsResultsField() {
         FieldCapabilitiesResponse fieldCapabilities = new MockFieldCapsResponseBuilder()
             .addAggregatableField(RESULTS_FIELD + ".outlier_score", "float")

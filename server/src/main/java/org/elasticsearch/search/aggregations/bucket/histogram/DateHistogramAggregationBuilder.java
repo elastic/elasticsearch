@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -98,8 +99,11 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
         PARSER.declareLong(DateHistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
 
-        PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> ExtendedBounds.PARSER.apply(parser, null),
-                ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> LongBounds.PARSER.apply(parser, null),
+                Histogram.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+
+        PARSER.declareField(DateHistogramAggregationBuilder::hardBounds, parser -> LongBounds.PARSER.apply(parser, null),
+            Histogram.HARD_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
                 Histogram.ORDER_FIELD);
@@ -111,7 +115,8 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
 
     private DateIntervalWrapper dateHistogramInterval = new DateIntervalWrapper();
     private long offset = 0;
-    private ExtendedBounds extendedBounds;
+    private LongBounds extendedBounds;
+    private LongBounds hardBounds;
     private BucketOrder order = BucketOrder.key(true);
     private boolean keyed = false;
     private long minDocCount = 0;
@@ -127,13 +132,14 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         this.dateHistogramInterval = clone.dateHistogramInterval;
         this.offset = clone.offset;
         this.extendedBounds = clone.extendedBounds;
+        this.hardBounds = clone.hardBounds;
         this.order = clone.order;
         this.keyed = clone.keyed;
         this.minDocCount = clone.minDocCount;
     }
 
     @Override
-protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new DateHistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
@@ -145,7 +151,10 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
         minDocCount = in.readVLong();
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
-        extendedBounds = in.readOptionalWriteable(ExtendedBounds::new);
+        extendedBounds = in.readOptionalWriteable(LongBounds::new);
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            hardBounds = in.readOptionalWriteable(LongBounds::new);
+        }
     }
 
     @Override
@@ -162,6 +171,9 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalWriteable(hardBounds);
+        }
     }
 
     /** Get the current interval in milliseconds that is set on this builder. */
@@ -287,17 +299,32 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
     }
 
     /** Return extended bounds for this histogram, or {@code null} if none are set. */
-    public ExtendedBounds extendedBounds() {
+    public LongBounds extendedBounds() {
         return extendedBounds;
     }
 
     /** Set extended bounds on this histogram, so that buckets would also be
      *  generated on intervals that did not match any documents. */
-    public DateHistogramAggregationBuilder extendedBounds(ExtendedBounds extendedBounds) {
+    public DateHistogramAggregationBuilder extendedBounds(LongBounds extendedBounds) {
         if (extendedBounds == null) {
             throw new IllegalArgumentException("[extendedBounds] must not be null: [" + name + "]");
         }
         this.extendedBounds = extendedBounds;
+        return this;
+    }
+
+
+    /** Return hard bounds for this histogram, or {@code null} if none are set. */
+    public LongBounds hardBounds() {
+        return hardBounds;
+    }
+
+    /** Set hard bounds on this histogram, specifying boundaries outside which buckets cannot be created. */
+    public DateHistogramAggregationBuilder hardBounds(LongBounds hardBounds) {
+        if (hardBounds == null) {
+            throw new IllegalArgumentException("[hardBounds] must not be null: [" + name + "]");
+        }
+        this.hardBounds = hardBounds;
         return this;
     }
 
@@ -384,9 +411,16 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
         builder.field(Histogram.MIN_DOC_COUNT_FIELD.getPreferredName(), minDocCount);
 
         if (extendedBounds != null) {
+            builder.startObject(Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName());
             extendedBounds.toXContent(builder, params);
+            builder.endObject();
         }
 
+        if (hardBounds != null) {
+            builder.startObject(Histogram.HARD_BOUNDS_FIELD.getPreferredName());
+            hardBounds.toXContent(builder, params);
+            builder.endObject();
+        }
         return builder;
     }
 
@@ -403,11 +437,33 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
         final ZoneId tz = timeZone();
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
 
-        ExtendedBounds roundedBounds = null;
+        LongBounds roundedBounds = null;
         if (this.extendedBounds != null) {
             // parse any string bounds to longs and round
-            roundedBounds = this.extendedBounds.parseAndValidate(name, queryShardContext, config.format()).round(rounding);
+            roundedBounds = this.extendedBounds.parseAndValidate(name, "extended_bounds" , queryShardContext, config.format())
+                .round(rounding);
         }
+
+        LongBounds roundedHardBounds = null;
+        if (this.hardBounds != null) {
+            // parse any string bounds to longs and round
+            roundedHardBounds = this.hardBounds.parseAndValidate(name, "hard_bounds" , queryShardContext, config.format())
+                .round(rounding);
+        }
+
+        if (roundedBounds != null && roundedHardBounds != null) {
+            if (roundedBounds.getMax() != null &&
+                roundedHardBounds.getMax() != null && roundedBounds.getMax() > roundedHardBounds.getMax()) {
+                throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
+                    hardBounds + "], extended bounds: [" + extendedBounds + "]");
+            }
+            if (roundedBounds.getMin() != null &&
+                roundedHardBounds.getMin() != null && roundedBounds.getMin() < roundedHardBounds.getMin()) {
+                throw new IllegalArgumentException("Extended bounds have to be inside hard bounds, hard bounds: [" +
+                    hardBounds + "], extended bounds: [" + extendedBounds + "]");
+            }
+        }
+
         return new DateHistogramAggregatorFactory(
             name,
             config,
@@ -416,16 +472,16 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
             minDocCount,
             rounding,
             roundedBounds,
+            roundedHardBounds,
             queryShardContext,
             parent,
             subFactoriesBuilder,
-            metadata
-        );
+            metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, keyed, minDocCount, dateHistogramInterval, minDocCount, extendedBounds);
+        return Objects.hash(super.hashCode(), order, keyed, minDocCount, dateHistogramInterval, minDocCount, extendedBounds, hardBounds);
     }
 
     @Override
@@ -439,6 +495,7 @@ protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBu
                 && Objects.equals(minDocCount, other.minDocCount)
                 && Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
                 && Objects.equals(offset, other.offset)
-                && Objects.equals(extendedBounds, other.extendedBounds);
+                && Objects.equals(extendedBounds, other.extendedBounds)
+                && Objects.equals(hardBounds, other.hardBounds);
     }
 }

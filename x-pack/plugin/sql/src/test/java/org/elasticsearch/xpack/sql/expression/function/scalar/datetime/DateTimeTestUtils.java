@@ -64,6 +64,10 @@ public class DateTimeTestUtils {
         return OffsetTime.of(lt, zoneId.getRules().getValidOffsets(ldt).get(0));
     }
 
+    public static ZonedDateTime date(int year, int month, int day, ZoneId zoneId) {
+        return LocalDate.of(year, month, day).atStartOfDay(zoneId);
+    }
+
     static ZonedDateTime nowWithMillisResolution() {
         Clock millisResolutionClock = Clock.tick(Clock.systemUTC(), Duration.ofMillis(1));
         return ZonedDateTime.now(millisResolutionClock);

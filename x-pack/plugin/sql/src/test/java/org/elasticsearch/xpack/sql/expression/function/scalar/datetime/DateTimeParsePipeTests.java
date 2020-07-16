@@ -43,6 +43,12 @@ public class DateTimeParsePipeTests extends AbstractNodeTestCase<DateTimeParsePi
                 randomStringLiteral(),
                 randomZone()
         ).makePipe());
+        functions.add(new DateParse(
+                randomSource(),
+                randomStringLiteral(),
+                randomStringLiteral(),
+                randomZone()
+        ).makePipe());
         return (DateTimeParsePipe) randomFrom(functions);
     }
 

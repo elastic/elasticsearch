@@ -38,3 +38,125 @@ Other versions:
 // === Heading
 //
 // Description.
+
+tag::notable-highlights[]
+[discrete]
+=== EQL
+
+EQL (Event Query Language) is a declarative language dedicated for identifying patterns and relationships between events.
+
+Consider using EQL if you:
+
+* Use {es} for threat hunting or other security use cases
+* Search time-series data or logs, such as network or system logs
+* Want an easy way to explore relationships between events
+
+A good intro on EQL and its purpose is available
+https://www.elastic.co/blog/introducing-event-query-language[in this blog
+post]. See the <<eql,EQL in Elasticsearch>> documentaton for an in-depth
+explanation, and also the
+https://eql.readthedocs.io/en/latest/query-guide/index.html[language
+reference]
+
+This release includes the following features:
+
+* Event queries
+* Sequences
+* Pipes
+
+An in-depth discussion of EQL in ES scope can be found at {es-issue}49581[#49581].
+end::notable-highlights[]
+
+tag::notable-highlights[]
+[discrete]
+=== Data streams
+
+A _data stream_ is a convenient, scalable way to ingest, search, and manage
+continuously generated time-series data. The provide a simpler way to split
+data across multiple indices and still query it via a single named resource.
+
+See the <<data-streams,Data streams documentation>> to get started.
+end::notable-highlights[]
+
+
+tag::notable-highlights[]
+[discrete]
+=== Enable fully concurrent snapshot operations
+
+Snapshot operations can now execute in a fully concurrent manner.
+
+* Create and delete operations can be started in any order
+* Delete operations wait for snapshot finalization to finish, are batched
+  as much as possible to improve efficiency and, once enqueued in the
+  cluster state, prevent new snapshots from starting on data nodes until
+  executed
+* Snapshot creation is completely concurrent across shards, but per shard
+  snapshots are linearized for each repository, as are snapshot
+  finalizations
+
+end::notable-highlights[]
+
+
+[float]
+=== Allow index filtering in field capabilities API
+
+You can now supply an `index_filter` to the <<search-field-cpas,field
+capabilities API>>. Indices are filtered from the response if the provided
+query rewrites to `match_none` on every shard.
+
+
+[float]
+=== Support `terms` and `rare_terms` aggregations in transforms
+
+Transforms now support the `terms` and `rare_terms` aggregations. The
+default behavior is that the results are collapsed in the following manner:
+
+----
+<AGG_NAME>.<BUCKET_NAME>.<SUBAGGS...>...
+----
+
+Or if no sub-aggregations exist:
+
+----
+<AGG_NAME>.<BUCKET_NAME>.<_doc_count>
+----
+
+The mapping is also defined as `flattened` by default. This is to avoid
+field explosion while still providing (limited) search and aggregation
+capabilities.
+
+tag::notable-highlights[]
+[float]
+=== Optimize `date_histograms` across daylight savings time
+
+Rounding dates on a shard that contains a daylight savings time transition
+is currently drastically slower than when a shard contains dates
+only on one side of the DST transition, and also generates a large number
+of short-lived objects in memory. {es} {minor-version} has a revised and
+far more efficient implemention that adds only a comparatively small
+overhead to requests.
+
+end::notable-highlights[]
+
+tag::notable-highlights[]
+[float]
+=== Improved resilience to network disruption
+
+{es} now has mechansisms to safely resume peer recoveries when there is
+network disruption, which would previously have failed any in-progress peer
+recoveries.
+end::notable-highlights[]
+
+
+tag::notable-highlights[]
+[float]
+=== Wildcard field optimised for wildcard queries
+
+{es} now supports a `wildcard` field type, which stores values optimised
+for wildcard grep-like queries. While such queries are possible with other
+field types, they suffer from constraint that limit their usefulness.
+
+This field type is especially well suited for running grep-like queries on
+log lines. See the <<wildcard,wildcard datatype>> documentation for more
+information.
+end::notable-highlights[]

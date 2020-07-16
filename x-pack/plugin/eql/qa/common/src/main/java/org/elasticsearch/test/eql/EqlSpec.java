@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 public class EqlSpec {
+    private String name;
     private String description;
     private String note;
     private String[] tags;
@@ -23,6 +24,14 @@ public class EqlSpec {
     // TRUE -> case sensitive
     // FALSE -> case insensitive
     private Boolean caseSensitive = null;
+
+    public String name() {
+        return name;
+    }
+
+    public void name(String name) {
+        this.name = name;
+    }
 
     public String description() {
         return description;
@@ -72,10 +81,24 @@ public class EqlSpec {
         return this.caseSensitive;
     }
 
+    public EqlSpec withSensitivity(boolean caseSensitive) {
+        EqlSpec spec = new EqlSpec();
+        spec.name = name;
+        spec.description = description;
+        spec.note = note;
+        spec.tags = tags;
+        spec.query = query;
+        spec.expectedEventIds = expectedEventIds;
+
+        spec.caseSensitive = caseSensitive;
+        return spec;
+    }
+
     @Override
     public String toString() {
         String str = "";
         str = appendWithComma(str, "query", query);
+        str = appendWithComma(str, "name", name);
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
 

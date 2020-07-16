@@ -191,6 +191,16 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
+            public boolean blobExists(String blobName) {
+                try {
+                    readBlob(blobName);
+                    return true;
+                } catch (NoSuchFileException ignored) {
+                    return false;
+                }
+            }
+
+            @Override
             public InputStream readBlob(String name) throws NoSuchFileException {
                 ensureNotClosed();
                 final String blobPath = path.buildAsString() + name;

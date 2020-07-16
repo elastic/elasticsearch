@@ -6,10 +6,13 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -19,12 +22,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
-import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -32,11 +36,15 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.transform.transforms.TransformProgressGatherer;
+import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.transform.integration.TransformRestTestCase.REVIEWS_INDEX_NAME;
@@ -117,6 +125,7 @@ public class TransformProgressIT extends ESRestTestCase {
     }
 
     public void testGetProgress() throws Exception {
+        String transformId = "get_progress_transform";
         createReviewsIndex();
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
         DestConfig destConfig = new DestConfig("unnecessary", null);
@@ -128,40 +137,20 @@ public class TransformProgressIT extends ESRestTestCase {
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        TransformConfig config = new TransformConfig(
-            "get_progress_transform",
-            sourceConfig,
-            destConfig,
-            null,
-            null,
-            null,
-            pivotConfig,
-            null,
-            null
-        );
+        TransformConfig config = new TransformConfig(transformId, sourceConfig, destConfig, null, null, null, pivotConfig, null, null);
 
-        final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        SearchResponse response = restClient.search(
-            TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
-            RequestOptions.DEFAULT
-        );
+        Pivot pivot = new Pivot(pivotConfig, transformId);
 
-        TransformProgress progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
+        TransformProgress progress = getProgress(pivot, getProgressQuery(pivot, config.getSource().getIndex(), null));
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
-        QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
-        pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        sourceConfig = new SourceConfig(new String[] { REVIEWS_INDEX_NAME }, queryConfig);
-        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null, null);
-
-        response = restClient.search(
-            TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
-            RequestOptions.DEFAULT
+        progress = getProgress(
+            pivot,
+            getProgressQuery(pivot, config.getSource().getIndex(), QueryBuilders.termQuery("user_id", "user_26"))
         );
-        progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
@@ -172,13 +161,12 @@ public class TransformProgressIT extends ESRestTestCase {
             Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        config = new TransformConfig("get_progress_transform", sourceConfig, destConfig, null, null, null, pivotConfig, null, null);
+        pivot = new Pivot(pivotConfig, transformId);
 
-        response = restClient.search(
-            TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
-            RequestOptions.DEFAULT
+        progress = getProgress(
+            pivot,
+            getProgressQuery(pivot, config.getSource().getIndex(), QueryBuilders.termQuery("user_id", "user_26"))
         );
-        progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(0L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
@@ -194,9 +182,46 @@ public class TransformProgressIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    private TransformProgress getProgress(Function function, SearchRequest searchRequest) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<TransformProgress> progressHolder = new AtomicReference<>();
+        final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            SearchResponse response = restClient.search(searchRequest, RequestOptions.DEFAULT);
+
+            function.getInitialProgressFromResponse(
+                response,
+                new LatchedActionListener<>(
+                    ActionListener.wrap(progressHolder::set, e -> { exceptionHolder.set(e); }),
+                    latch
+                )
+            );
+        }
+
+        assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+
+        return progressHolder.get();
+    }
+
     private class TestRestHighLevelClient extends RestHighLevelClient {
         TestRestHighLevelClient() {
             super(client(), restClient -> {}, Collections.emptyList());
         }
+    }
+
+    private static SearchRequest getProgressQuery(Function function, String[] source, QueryBuilder query) {
+        SearchRequest searchRequest = new SearchRequest(source);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        function.buildSearchQueryForInitialProgress(searchSourceBuilder);
+
+        if (query != null) {
+            searchSourceBuilder.query(QueryBuilders.boolQuery().filter(query).filter(searchSourceBuilder.query()));
+        }
+        searchRequest.allowPartialSearchResults(false).source(searchSourceBuilder);
+        return searchRequest;
     }
 }

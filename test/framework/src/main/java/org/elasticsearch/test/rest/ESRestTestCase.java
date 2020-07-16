@@ -127,6 +127,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Convert the entity from a {@link Response} into a list of maps.
+     */
+    public static List<Object> entityAsList(Response response) throws IOException {
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
+        try (XContentParser parser = xContentType.xContent().createParser(
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            response.getEntity().getContent())) {
+            return parser.list();
+        }
+    }
+
+    /**
      * Does any node in the cluster being tested have x-pack installed?
      */
     public static boolean hasXPack() {
@@ -645,7 +658,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeDataStreams() throws IOException {
         try {
-            adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+            if (hasXPack()) {
+                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+            }
         } catch (ResponseException e) {
             // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
             if (e.getResponse().getStatusLine().getStatusCode() != 405) {

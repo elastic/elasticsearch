@@ -22,14 +22,18 @@ package org.elasticsearch.index.mapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -37,8 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Defines how a particular field should be indexed and searched
@@ -114,18 +119,29 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     }
 
     /**
+     * Serializes a parameter
+     */
+    protected interface Serializer<T> {
+        void serialize(XContentBuilder builder, String name, T value) throws IOException;
+    }
+
+    /**
      * A configurable parameter for a field mapper
      * @param <T> the type of the value the parameter holds
      */
     public static final class Parameter<T> {
 
         public final String name;
-        private final T defaultValue;
-        private final BiFunction<String, Object, T> parser;
+        private final List<String> deprecatedNames = new ArrayList<>();
+        private final Supplier<T> defaultValue;
+        private final TriFunction<String, ParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private final boolean updateable;
         private boolean acceptsNull = false;
+        private Consumer<T> validator = null;
+        private Serializer<T> serializer = XContentBuilder::field;
         private T value;
+        private boolean isSet;
 
         /**
          * Creates a new Parameter
@@ -135,11 +151,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * @param parser        a function that converts an object to a parameter value
          * @param initializer   a function that reads a parameter value from an existing mapper
          */
-        public Parameter(String name, boolean updateable, T defaultValue,
-                         BiFunction<String, Object, T> parser, Function<FieldMapper, T> initializer) {
+        public Parameter(String name, boolean updateable, Supplier<T> defaultValue,
+                         TriFunction<String, ParserContext, Object, T> parser, Function<FieldMapper, T> initializer) {
             this.name = name;
-            this.defaultValue = defaultValue;
-            this.value = defaultValue;
+            this.defaultValue = Objects.requireNonNull(defaultValue);
+            this.value = null;
             this.parser = parser;
             this.initializer = initializer;
             this.updateable = updateable;
@@ -149,13 +165,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Returns the current value of the parameter
          */
         public T getValue() {
-            return value;
+            return isSet ? value : defaultValue.get();
         }
 
         /**
          * Sets the current value of the parameter
          */
         public void setValue(T value) {
+            this.isSet = true;
             this.value = value;
         }
 
@@ -167,26 +184,59 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return this;
         }
 
-        private void init(FieldMapper toInit) {
-            this.value = initializer.apply(toInit);
+        /**
+         * Adds a deprecated parameter name.
+         *
+         * If this parameter name is encountered during parsing, a deprecation warning will
+         * be emitted.  The parameter will be serialized with its main name.
+         */
+        public Parameter<T> addDeprecatedName(String deprecatedName) {
+            this.deprecatedNames.add(deprecatedName);
+            return this;
         }
 
-        private void parse(String field, Object in) {
-            this.value = parser.apply(field, in);
+        /**
+         * Adds validation to a parameter, called after parsing and merging
+         */
+        public Parameter<T> setValidator(Consumer<T> validator) {
+            this.validator = validator;
+            return this;
+        }
+
+        /**
+         * Configure a custom serializer for this parameter
+         */
+        public Parameter<T> setSerializer(Serializer<T> serializer) {
+            this.serializer = serializer;
+            return this;
+        }
+
+        private void validate() {
+            if (validator != null && isSet) {
+                validator.accept(value);
+            }
+        }
+
+        private void init(FieldMapper toInit) {
+            setValue(initializer.apply(toInit));
+        }
+
+        private void parse(String field, ParserContext context, Object in) {
+            setValue(parser.apply(field, context, in));
         }
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
             T value = initializer.apply(toMerge);
-            if (updateable == false && Objects.equals(this.value, value) == false) {
+            if (updateable == false && isSet && Objects.equals(this.value, value) == false) {
                 conflicts.addConflict(name, this.value.toString(), value.toString());
             } else {
-                this.value = value;
+                setValue(value);
             }
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (includeDefaults || (Objects.equals(defaultValue, value) == false)) {
-                builder.field(name, value);
+            if (includeDefaults || Objects.equals(getValue(), defaultValue.get()) == false) {
+                serializer.serialize(builder, name, getValue());
             }
         }
 
@@ -199,7 +249,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<Boolean> boolParam(String name, boolean updateable,
                                                    Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
         }
 
         /**
@@ -211,7 +261,19 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<Float> floatParam(String name, boolean updateable,
                                                   Function<FieldMapper, Float> initializer, float defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, o) -> XContentMapValues.nodeFloatValue(o), initializer);
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeFloatValue(o), initializer);
+        }
+
+        /**
+         * Defines a parameter that takes an integer value
+         * @param name          the parameter name
+         * @param updateable    whether the parameter can be changed by a mapping update
+         * @param initializer   a function that reads the parameter value from an existing mapper
+         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<Integer> intParam(String name, boolean updateable,
+                                                  Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), initializer);
         }
 
         /**
@@ -223,9 +285,38 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<String> stringParam(String name, boolean updateable,
                                                     Function<FieldMapper, String> initializer, String defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue,
-                (n, o) -> XContentMapValues.nodeStringValue(o), initializer);
+            return new Parameter<>(name, updateable, () -> defaultValue,
+                (n, c, o) -> XContentMapValues.nodeStringValue(o), initializer);
         }
+
+        /**
+         * Defines a parameter that takes an analyzer name
+         * @param name              the parameter name
+         * @param updateable        whether the parameter can be changed by a mapping update
+         * @param initializer       a function that reads the parameter value from an existing mapper
+         * @param defaultAnalyzer   the default value, to be used if the parameter is undefined in a mapping
+         */
+        public static Parameter<NamedAnalyzer> analyzerParam(String name, boolean updateable,
+                                                             Function<FieldMapper, NamedAnalyzer> initializer,
+                                                             Supplier<NamedAnalyzer> defaultAnalyzer) {
+            return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
+                String analyzerName = o.toString();
+                NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
+                if (a == null) {
+                    throw new IllegalArgumentException("analyzer [" + analyzerName + "] has not been configured in mappings");
+                }
+                return a;
+            }, initializer).setSerializer((b, n, v) -> b.field(n, v.name()));
+        }
+
+        /**
+         * Declares a metadata parameter
+         */
+        public static Parameter<Map<String, String>> metaParam() {
+            return new Parameter<>("meta", true, Collections::emptyMap,
+                (n, c, o) -> TypeParsers.parseMeta(n, o), m -> m.fieldType().meta());
+        }
+
     }
 
     private static final class Conflicts {
@@ -288,6 +379,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
             }
             this.copyTo.reset(in.copyTo);
+            validate();
+        }
+
+        private void validate() {
+            for (Parameter<?> param : getParameters()) {
+                param.validate();
+            }
         }
 
         /**
@@ -305,7 +403,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return context.path().pathAsText(name);
         }
 
-        private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        /**
+         * Writes the current builder parameter values as XContent
+         */
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
@@ -317,10 +418,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * @param parserContext     the parser context
          * @param fieldNode         the root node of the map of mappings for this field
          */
-        public final void parse(String name, TypeParser.ParserContext parserContext, Map<String, Object> fieldNode) {
+        public final void parse(String name, ParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
+            Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
             for (Parameter<?> param : getParameters()) {
                 paramsMap.put(param.name, param);
+                for (String deprecatedName : param.deprecatedNames) {
+                    deprecatedParamsMap.put(deprecatedName, param);
+                }
             }
             String type = (String) fieldNode.remove("type");
             for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
@@ -337,7 +442,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     iterator.remove();
                     continue;
                 }
-                Parameter<?> parameter = paramsMap.get(propName);
+                Parameter<?> parameter = deprecatedParamsMap.get(propName);
+                if (parameter != null) {
+                    deprecationLogger.deprecatedAndMaybeLog(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                        propName, name, parameter.name);
+                } else {
+                    parameter = paramsMap.get(propName);
+                }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
                         deprecationLogger.deprecatedAndMaybeLog(propName,
@@ -352,9 +463,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                     throw new MapperParsingException("[" + propName + "] on mapper [" + name
                         + "] of type [" + type + "] must not have a [null] value");
                 }
-                parameter.parse(name, propNode);
+                parameter.parse(name, parserContext, propNode);
                 iterator.remove();
             }
+            validate();
         }
 
         // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they

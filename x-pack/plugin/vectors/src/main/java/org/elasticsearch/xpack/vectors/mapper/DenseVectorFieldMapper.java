@@ -104,15 +104,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.dims = dims;
         }
 
-        protected DenseVectorFieldType(DenseVectorFieldType ref) {
-            super(ref);
-            this.dims = ref.dims;
-        }
-
-        public DenseVectorFieldType clone() {
-            return new DenseVectorFieldType(this);
-        }
-
         int dims() {
             return dims;
         }

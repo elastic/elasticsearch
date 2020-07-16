@@ -1308,6 +1308,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("some description"));
+        assertThat(createdConfig.getMaxNumThreads(), equalTo(1));
     }
 
     public void testPutDataFrameAnalyticsConfig_GivenRegression() throws Exception {

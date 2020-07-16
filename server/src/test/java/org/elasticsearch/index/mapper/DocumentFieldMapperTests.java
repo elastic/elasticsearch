@@ -76,15 +76,6 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             super(name, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        FakeFieldType(FakeFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new FakeFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return "fake";

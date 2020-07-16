@@ -215,13 +215,15 @@ MAX              |AGGREGATE
 MIN              |AGGREGATE      
 SUM              |AGGREGATE      
 KURTOSIS         |AGGREGATE
-MAD              |AGGREGATE      
-PERCENTILE       |AGGREGATE      
-PERCENTILE_RANK  |AGGREGATE      
-SKEWNESS         |AGGREGATE      
-STDDEV_POP       |AGGREGATE      
-SUM_OF_SQUARES   |AGGREGATE      
-VAR_POP          |AGGREGATE      
+MAD              |AGGREGATE
+PERCENTILE       |AGGREGATE
+PERCENTILE_RANK  |AGGREGATE
+SKEWNESS         |AGGREGATE
+STDDEV_POP       |AGGREGATE
+STDDEV_SAMP      |AGGREGATE
+SUM_OF_SQUARES   |AGGREGATE
+VAR_POP          |AGGREGATE
+VAR_SAMP         |AGGREGATE
 HISTOGRAM        |GROUPING
 CASE             |CONDITIONAL
 COALESCE         |CONDITIONAL
@@ -245,6 +247,7 @@ DATETIME_PARSE   |SCALAR
 DATETRUNC        |SCALAR
 DATE_ADD         |SCALAR
 DATE_DIFF        |SCALAR
+DATE_PARSE       |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -1550,10 +1553,9 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, SKEWNESS(salary) AS s FROM emp;
 
 aggStddevPop
 // tag::aggStddevPop
-SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_POP(salary) AS stddev 
-       FROM emp;
+SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_POP(salary) AS stddev FROM emp;
 
-      min      |      max      |      stddev      
+      min      |      max      |      stddev
 ---------------+---------------+------------------
 25324          |74999          |13765.125502787832
 // end::aggStddevPop
@@ -1568,6 +1570,27 @@ SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, STDDEV_POP(salary /
 ------------------+-----------------+-----------------
 2110.3333333333335|6249.916666666667|1147.093791898986
 // end::aggStddevPopScalars
+;
+
+aggStddevSamp
+// tag::aggStddevSamp
+SELECT MIN(salary) AS min, MAX(salary) AS max, STDDEV_SAMP(salary) AS stddev FROM emp;
+
+      min      |      max      |      stddev
+---------------+---------------+------------------
+25324          |74999          |13834.471662090747
+// end::aggStddevSamp
+;
+
+aggStddevSampScalars
+schema::min:d|max:d|stddev:d
+// tag::aggStddevSampScalars
+SELECT MIN(salary / 12.0) AS min, MAX(salary / 12.0) AS max, STDDEV_SAMP(salary / 12.0) AS stddev FROM emp;
+
+       min        |       max       |     stddev
+------------------+-----------------+-----------------
+2110.3333333333335|6249.916666666667|1152.872638507562
+// end::aggStddevSampScalars
 ;
 
 
@@ -1613,6 +1636,27 @@ SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, VAR_POP(salary / 24
 1055.1666666666667|3124.9583333333335|328956.04185329855
 
 // end::aggVarPopScalars
+;
+
+aggVarSamp
+// tag::aggVarSamp
+SELECT MIN(salary) AS min, MAX(salary) AS max, VAR_SAMP(salary) AS varsamp FROM emp;
+
+      min      |      max      |     varsamp
+---------------+---------------+----------------
+25324          |74999          |1.913926061691E8
+// end::aggVarSamp
+;
+
+aggVarSampScalars
+schema::min:d|max:d|varsamp:d
+// tag::aggVarSampScalars
+SELECT MIN(salary / 24.0) AS min, MAX(salary / 24.0) AS max, VAR_SAMP(salary / 24.0) AS varsamp FROM emp;
+
+       min        |       max        |     varsamp
+------------------+------------------+----------------
+1055.1666666666667|3124.9583333333335|332278.830154847
+// end::aggVarSampScalars
 ;
 
 ///////////////////////////////
@@ -2862,6 +2906,31 @@ schema::time:time
 ------------------------------------
 10:20:30.000+02:00
 // end::timeParse3
+;
+
+dateParse1
+schema::date:date
+// tag::dateParse1
+SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS "date";
+
+   date
+-----------
+2020-04-07
+// end::dateParse1
+;
+
+dateParse2-Ignore
+schema::date:date
+// tag::dateParse2
+{
+    "query" : "SELECT DATE_PARSE('07/04/2020', 'dd/MM/uuuu') AS \"date\"",
+    "time_zone" : "Europe/Athens"
+}
+
+   date
+------------
+2020-04-07T00:00:00.000+03:00
+// end::dateParse2
 ;
 
 datePartDateTimeYears

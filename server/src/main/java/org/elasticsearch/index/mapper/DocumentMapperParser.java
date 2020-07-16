@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -66,7 +67,12 @@ public class DocumentMapperParser {
 
     public Mapper.TypeParser.ParserContext parserContext() {
         return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
-                typeParsers::get, indexVersionCreated, queryShardContextSupplier);
+                typeParsers::get, indexVersionCreated, queryShardContextSupplier, null);
+    }
+
+    public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
+            typeParsers::get, indexVersionCreated, queryShardContextSupplier, dateFormatter);
     }
 
     public DocumentMapper parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {

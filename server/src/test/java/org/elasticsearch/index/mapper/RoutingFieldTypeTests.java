@@ -25,22 +25,8 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.Map;
-
-public class RoutingFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return RoutingFieldMapper.RoutingFieldType.INSTANCE;
-    }
-
-    @Override
-    public void testEquals() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(RoutingFieldMapper.RoutingFieldType.INSTANCE,
-            RoutingFieldMapper.RoutingFieldType::new);
-    }
+public class RoutingFieldTypeTests extends FieldTypeTestCase {
 
     public void testPrefixQuery() {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;

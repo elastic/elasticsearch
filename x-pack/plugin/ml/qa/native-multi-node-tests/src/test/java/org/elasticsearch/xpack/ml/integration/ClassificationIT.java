@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -145,7 +144,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     public void testWithDatastreams() throws Exception {
-        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
         initialize("classification_with_datastreams", true);
         String predictedClassField = KEYWORD_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
@@ -727,7 +725,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "    }";
         if (isDatastream) {
             try {
-                createDataStreamAndTemplate(index, "@timestamp", mapping);
+                createDataStreamAndTemplate(index, mapping);
             } catch (IOException ex) {
                 throw new ElasticsearchException(ex);
             }
@@ -889,5 +887,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private String expectedDestIndexAuditMessage() {
         return (analysisUsesExistingDestIndex ? "Using existing" : "Creating") + " destination index [" + destIndex + "]";
+    }
+
+    @Override
+    boolean supportsInference() {
+        return true;
     }
 }

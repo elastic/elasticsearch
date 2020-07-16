@@ -121,7 +121,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         return nodes;
     }
 
-    static final Settings DEFAULT_SETTINGS = Settings.builder()
+    public static final Settings DEFAULT_SETTINGS = Settings.builder()
             .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "5s") // for hitting simulated network failures quickly
             .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "5s") // for hitting simulated network failures quickly

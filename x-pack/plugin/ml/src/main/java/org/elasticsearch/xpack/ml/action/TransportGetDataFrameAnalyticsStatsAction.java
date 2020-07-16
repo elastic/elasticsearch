@@ -195,7 +195,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
         logger.debug("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
-            ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases()).report());
+            ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report());
 
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.add(buildStoredProgressSearch(config.getId()));

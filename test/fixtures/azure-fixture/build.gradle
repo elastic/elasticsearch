@@ -27,7 +27,7 @@ dependencies {
 }
 
 preProcessFixture {
-  dependsOn jar
+  dependsOn jar, configurations.runtimeClasspath
   doLast {
     file("${testFixturesDir}/shared").mkdirs()
     project.copy {

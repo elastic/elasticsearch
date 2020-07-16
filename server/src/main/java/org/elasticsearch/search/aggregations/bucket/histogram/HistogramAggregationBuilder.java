@@ -136,7 +136,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         offset = in.readDouble();
         minBound = in.readDouble();
         maxBound = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             hardBounds = in.readOptionalWriteable(DoubleBounds::new);
         }
     }
@@ -150,7 +150,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeDouble(offset);
         out.writeDouble(minBound);
         out.writeDouble(maxBound);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(hardBounds);
         }
     }

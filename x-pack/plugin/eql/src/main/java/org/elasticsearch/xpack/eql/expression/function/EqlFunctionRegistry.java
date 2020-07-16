@@ -40,7 +40,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
         // Scalar functions
         // String
             new FunctionDefinition[] {
-                def(Between.class, Between::new, 2, "between"),
+                def(Between.class, Between::new, "between"),
                 def(CIDRMatch.class, CIDRMatch::new, "cidrmatch"),
                 def(Concat.class, Concat::new, "concat"),
                 def(EndsWith.class, EndsWith::new, "endswith"),

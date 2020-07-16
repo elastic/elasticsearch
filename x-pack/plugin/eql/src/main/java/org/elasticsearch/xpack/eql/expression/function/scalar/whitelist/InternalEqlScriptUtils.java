@@ -29,8 +29,8 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
 
     InternalEqlScriptUtils() {}
 
-    public static String between(String s, String left, String right, Boolean greedy, Boolean caseSensitive) {
-        return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, caseSensitive);
+    public static String between(String s, String left, String right, Boolean greedy, Boolean isCaseSensitive) {
+        return (String) BetweenFunctionProcessor.doProcess(s, left, right, greedy, isCaseSensitive);
     }
 
     public static Boolean cidrMatch(String s, List<Object>  addresses) {

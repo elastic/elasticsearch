@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
+import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.Combinations;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -40,7 +41,7 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
                             randomStringLiteral(),
                             randomStringLiteral(),
                             randomFrom(true, false) ? randomBooleanLiteral() : null,
-                            randomBooleanLiteral())
+                            EqlTestUtils.randomConfiguration())
                 .makePipe());
     }
 
@@ -57,10 +58,10 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
             b1.left(),
             b1.right(),
             b1.greedy(),
-            b1.caseSensitive());
+            b1.isCaseSensitive());
 
         assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+
         BetweenFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new BetweenFunctionPipe(
@@ -70,7 +71,7 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
             b2.left(),
             b2.right(),
             b2.greedy(),
-            b2.caseSensitive());
+            b2.isCaseSensitive());
 
         assertEquals(newB, b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
     }
@@ -82,12 +83,12 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
         Pipe newLeft = randomValueOtherThan(b.left(), () -> pipe(randomStringLiteral()));
         Pipe newRight = randomValueOtherThan(b.right(), () -> pipe(randomStringLiteral()));
         Pipe newGreedy = b.greedy() == null ? null : randomValueOtherThan(b.greedy(), () -> pipe(randomBooleanLiteral()));
-        Pipe newCaseSensitive = randomValueOtherThan(b.caseSensitive(), () -> pipe(randomBooleanLiteral()));
-        
+        boolean newCaseSensitive = randomValueOtherThan(b.isCaseSensitive(), () -> randomBoolean());
+
         BetweenFunctionPipe newB = new BetweenFunctionPipe(b.source(), b.expression(), b.input(), b.left(), b.right(), b.greedy(),
-            b.caseSensitive());
+            newCaseSensitive);
         BetweenFunctionPipe transformed = null;
-        
+
         // generate all the combinations of possible children modifications and test all of them
         for(int i = 1; i < 6; i++) {
             for(BitSet comb : new Combinations(5, i)) {
@@ -96,14 +97,12 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
                         comb.get(0) ? newInput : b.input(),
                         comb.get(1) ? newLeft : b.left(),
                         comb.get(2) ? newRight : b.right(),
-                        tempNewGreedy,
-                        comb.get(4) ? newCaseSensitive : b.caseSensitive());
-                
+                        tempNewGreedy);
+
                 assertEquals(transformed.input(), comb.get(0) ? newInput : b.input());
                 assertEquals(transformed.left(), comb.get(1) ? newLeft : b.left());
                 assertEquals(transformed.right(), comb.get(2) ? newRight : b.right());
                 assertEquals(transformed.greedy(), tempNewGreedy);
-                assertEquals(transformed.caseSensitive(), comb.get(4) ? newCaseSensitive : b.caseSensitive());
                 assertEquals(transformed.expression(), b.expression());
                 assertEquals(transformed.source(), b.source());
             }
@@ -122,7 +121,7 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
                             comb.get(1) ? randomValueOtherThan(f.left(), () -> pipe(randomStringLiteral())) : f.left(),
                             comb.get(2) ? randomValueOtherThan(f.right(), () -> pipe(randomStringLiteral())) : f.right(),
                             null,
-                            comb.get(4) ? randomValueOtherThan(f.caseSensitive(), () -> pipe(randomBooleanLiteral())) : f.caseSensitive()));
+                            randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
                 }
             }
         } else {
@@ -134,11 +133,11 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
                             comb.get(1) ? randomValueOtherThan(f.left(), () -> pipe(randomStringLiteral())) : f.left(),
                             comb.get(2) ? randomValueOtherThan(f.right(), () -> pipe(randomStringLiteral())) : f.right(),
                             comb.get(3) ? randomValueOtherThan(f.greedy(), () -> pipe(randomBooleanLiteral())) : f.greedy(),
-                            comb.get(4) ? randomValueOtherThan(f.caseSensitive(), () -> pipe(randomBooleanLiteral())) : f.caseSensitive()));
+                            randomValueOtherThan(f.isCaseSensitive(), () -> randomBoolean())));
                 }
             }
         }
-        
+
         return randomFrom(randoms).apply(instance);
     }
 
@@ -150,6 +149,6 @@ public class BetweenFunctionPipeTests extends AbstractNodeTestCase<BetweenFuncti
                         instance.left(),
                         instance.right(),
                         instance.greedy(),
-                        instance.caseSensitive());
+                        instance.isCaseSensitive());
     }
 }

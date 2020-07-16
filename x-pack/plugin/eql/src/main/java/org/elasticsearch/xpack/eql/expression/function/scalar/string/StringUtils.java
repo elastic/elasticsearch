@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import java.util.Locale;
 
 import static org.elasticsearch.common.Strings.hasLength;
-import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 
 final class StringUtils {
 
@@ -29,11 +28,12 @@ final class StringUtils {
      * @return the substring in between {@code left} and {@code right} strings.
      */
     static String between(String string, String left, String right, boolean greedy, boolean caseSensitive) {
-        if (hasLength(string) == false || hasLength(left) == false || hasLength(right) == false) {
-            return string;
+        if (string == null || left == null || right == null) {
+            return null;
         }
 
         String matchString = string;
+
         if (caseSensitive == false) {
             matchString = matchString.toLowerCase(Locale.ROOT);
             left = left.toLowerCase(Locale.ROOT);
@@ -42,7 +42,7 @@ final class StringUtils {
 
         int idx = matchString.indexOf(left);
         if (idx == -1) {
-            return EMPTY;
+            return null;
         }
 
         int start = idx + left.length();
@@ -54,7 +54,7 @@ final class StringUtils {
         }
 
         if (idx == -1) {
-            return EMPTY;
+            return null;
         }
 
         return string.substring(start, idx);

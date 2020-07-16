@@ -85,7 +85,8 @@ public class StringUtilsTests extends ESTestCase {
         boolean caseSensitive = randomBoolean();
 
         String string = randomBoolean() ? null : EMPTY;
-        assertThat(StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
+
+        assertNull(StringUtils.between(string, left, right, greedy, caseSensitive));
     }
 
     public void testBetweenEmptyNullLeftRight() throws Exception {
@@ -94,15 +95,26 @@ public class StringUtilsTests extends ESTestCase {
         String right = randomBoolean() ? null : "";
         boolean greedy = randomBoolean();
         boolean caseSensitive = randomBoolean();
-        assertThat(StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(string));
+
+        if (left != null && right != null) {
+            assertThat(StringUtils.between(string, left, right, greedy, caseSensitive), equalTo(greedy ? string : ""));
+        } else {
+            assertNull(StringUtils.between(string, left, right, greedy, caseSensitive));
+        }
     }
 
     // Test from EQL doc https://eql.readthedocs.io/en/latest/query-guide/functions.html
     public void testBetweenBasicEQLExamples() {
+        assertThat(StringUtils.between("welcome to event query language", "", "", false, false),
+            equalTo(""));
+        assertThat(StringUtils.between("welcome to event query language", "", "", true, false),
+            equalTo("welcome to event query language"));
         assertThat(StringUtils.between("welcome to event query language", " ", " ", false, false),
                 equalTo("to"));
         assertThat(StringUtils.between("welcome to event query language", " ", " ", true, false),
                 equalTo("to event query"));
+        assertThat(StringUtils.between("welcome to event query language", " ", "", true, false),
+            equalTo("to event query language"));
         assertThat(StringUtils.between("System Idle Process", "s", "e", true, false),
                 equalTo("ystem Idle Proc"));
 
@@ -123,7 +135,7 @@ public class StringUtilsTests extends ESTestCase {
                 equalTo("Logs\\something"));
 
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", false, true),
-                equalTo(""));
+                equalTo(null));
 
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, true),
                 equalTo("\\TestLogs\\something"));
@@ -132,13 +144,13 @@ public class StringUtilsTests extends ESTestCase {
                 equalTo("Logs\\something"));
 
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", true, true),
-                equalTo(""));
+                equalTo(null));
 
         assertThat(StringUtils.between("System Idle Process", "S", "e", false, true),
                 equalTo("yst"));
 
         assertThat(StringUtils.between("System Idle Process", "Y", "e", false, true),
-                equalTo(""));
+                equalTo(null));
     }
 
     public void testStringContainsWithNullOrEmpty() {

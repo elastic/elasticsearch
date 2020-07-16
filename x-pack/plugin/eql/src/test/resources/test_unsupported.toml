@@ -1,44 +1,3 @@
-[between]
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", null, "planet")'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "welcome", null)'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between(null, "welcome", "planet")'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "welcome", "village")'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "goodbye", "planet")'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "welcome", "x", false)'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "welcome", "x", true)'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "", "x", true)'
-    # expected = null
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "", "planet", false)'
-    expected = "welcome to the "
-
-    [[between.fold.tests]]
-    expression = 'between("welcome to the planet", "", "", false)'
-    expected = ""
-
 [string_case_insensitive_match_comparison]
 case_insensitive = true
 
@@ -124,15 +83,6 @@ case_insensitive = true
 
     [[null_comparison.fold.tests]]
     expression = "null != null"
-    expected = false
-
-
-
-[endswith_sensitive]
-case_sensitive = true
-
-    [[endswith_sensitive.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'baz')"
     expected = false
 
 

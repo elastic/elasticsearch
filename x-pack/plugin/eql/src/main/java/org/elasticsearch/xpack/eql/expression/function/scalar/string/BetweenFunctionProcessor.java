@@ -17,14 +17,15 @@ public class BetweenFunctionProcessor implements Processor {
 
     public static final String NAME = "sbtw";
 
-    private final Processor input, left, right, greedy, caseSensitive;
+    private final Processor input, left, right, greedy;
+    private final boolean isCaseSensitive;
 
-    public BetweenFunctionProcessor(Processor input, Processor left, Processor right, Processor greedy, Processor caseSensitive) {
+    public BetweenFunctionProcessor(Processor input, Processor left, Processor right, Processor greedy, boolean isCaseSensitive) {
         this.input = input;
         this.left = left;
         this.right = right;
         this.greedy = greedy;
-        this.caseSensitive = caseSensitive;
+        this.isCaseSensitive = isCaseSensitive;
     }
 
     public BetweenFunctionProcessor(StreamInput in) throws IOException {
@@ -32,7 +33,7 @@ public class BetweenFunctionProcessor implements Processor {
         left = in.readNamedWriteable(Processor.class);
         right = in.readNamedWriteable(Processor.class);
         greedy = in.readNamedWriteable(Processor.class);
-        caseSensitive = in.readNamedWriteable(Processor.class);
+        isCaseSensitive = in.readBoolean();
     }
 
     @Override
@@ -41,7 +42,7 @@ public class BetweenFunctionProcessor implements Processor {
         out.writeNamedWriteable(left);
         out.writeNamedWriteable(right);
         out.writeNamedWriteable(greedy);
-        out.writeNamedWriteable(caseSensitive);
+        out.writeBoolean(isCaseSensitive);
     }
 
     @Override
@@ -51,27 +52,24 @@ public class BetweenFunctionProcessor implements Processor {
 
     @Override
     public Object process(Object o) {
-        return doProcess(input.process(o), left.process(o), right.process(o), greedy.process(o), caseSensitive.process(o));
+        return doProcess(input.process(o), left.process(o), right.process(o), greedy.process(o), isCaseSensitive());
     }
 
-    public static Object doProcess(Object input, Object left, Object right, Object greedy, Object caseSensitive) {
-        if (input == null) {
+    public static Object doProcess(Object input, Object left, Object right, Object greedy, boolean isCaseSensitive) {
+        if (input == null || left == null || right == null || greedy == null) {
             return null;
         }
 
         Check.isString(input);
         Check.isString(left);
         Check.isString(right);
-
         Check.isBoolean(greedy);
-        Check.isBoolean(caseSensitive);
 
         String str = input.toString();
         String strRight = right.toString();
         String strLeft = left.toString();
-        boolean bGreedy = ((Boolean) greedy).booleanValue();
-        boolean bCaseSensitive = ((Boolean) caseSensitive).booleanValue();
-        return StringUtils.between(str, strLeft, strRight, bGreedy, bCaseSensitive);
+        boolean bGreedy = (Boolean) greedy;
+        return StringUtils.between(str, strLeft, strRight, bGreedy, isCaseSensitive);
     }
 
     protected Processor input() {
@@ -90,13 +88,13 @@ public class BetweenFunctionProcessor implements Processor {
         return greedy;
     }
 
-    public Processor caseSensitive() {
-        return caseSensitive;
+    protected boolean isCaseSensitive() {
+        return isCaseSensitive;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(input(), left(), right(), greedy(), caseSensitive());
+        return Objects.hash(input(), left(), right(), greedy(), isCaseSensitive);
     }
 
     @Override
@@ -114,6 +112,6 @@ public class BetweenFunctionProcessor implements Processor {
                 && Objects.equals(left(), other.left())
                 && Objects.equals(right(), other.right())
                 && Objects.equals(greedy(), other.greedy())
-                && Objects.equals(caseSensitive(), other.caseSensitive());
+                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
 }

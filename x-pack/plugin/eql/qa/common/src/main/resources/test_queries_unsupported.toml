@@ -1065,31 +1065,3 @@ sequence
 '''
 expected_event_ids  = [1, 2,
                        2, 3]
-
-# TODO: update toggles for this function
-[[queries]]
-name = "betweenCaseSensitive"
-case_sensitive = true
-expected_event_ids = [1, 2, 42]
-query = '''
-process where between(process_name, "s", "e", false) == "t"
-'''
-
-# TODO: add toggles to this function so it's not always insensitive
-[[queries]]
-name = "lengthCaseSensitive"
-case_sensitive = true
-expected_event_ids = [7, 14, 29, 44]
-query = '''
-process where length(between(process_name, 'g', 'e')) > 0
-'''
-
-# TODO: add toggles to this function so it's not always insensitive
-#[[queries]]
-#name = ""
-#case_insensitive = true
-#expected_event_ids = [7, 14, 22, 29, 44]
-#query = '''
-#process where length(between(process_name, 'g', 'e')) > 0
-#'''
-

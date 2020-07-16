@@ -437,6 +437,29 @@ public class FunctionRegistry {
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              ScalarQuadFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, distinct, cfg) -> {
+            boolean hasMinimumThree = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumThree && (children.size() > 4 || children.size() < 3)) {
+                throw new QlIllegalArgumentException("expects three or four arguments");
+            } else if (!hasMinimumThree && children.size() != 4) {
+                throw new QlIllegalArgumentException("expects exactly four arguments");
+            }
+
+            if (distinct) {
+                throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(source, children.get(0), children.get(1), children.get(2), children.size() == 4 ? children.get(3) : null, cfg);
+        };
+        return def(function, builder, false, names);
+    }
+
+    protected interface ScalarQuadFunctionConfigurationAwareBuilder<T> {
+        T build(Source source, Expression exp1, Expression exp2, Expression exp3, Expression exp4, Configuration configuration);
+    }
+
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
                                                               FiveParametersFunctionBuilder<T> ctorRef,
                                                               int numOptionalParams, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {

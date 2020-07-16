@@ -1,0 +1,145 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.common.util;
+
+import com.carrotsearch.hppc.BitMixer;
+
+import org.elasticsearch.common.lease.Releasables;
+
+/**
+ * Specialized hash table implementation similar to BytesRefHash that maps
+ * two long values to ids. Collisions are resolved with open addressing and
+ * linear probing, growth is smooth thanks to {@link BigArrays} and capacity
+ * is always a multiple of 2 for faster identification of buckets.
+ * This class is not thread-safe.
+ */
+// IDs are internally stored as id + 1 so that 0 encodes for an empty slot
+public final class LongLongHash extends AbstractHash {
+
+    private LongArray keys1;
+    private LongArray keys2;
+
+    // Constructor with configurable capacity and default maximum load factor.
+    public LongLongHash(long capacity, BigArrays bigArrays) {
+        this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
+    }
+
+    //Constructor with configurable capacity and load factor.
+    public LongLongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
+        super(capacity, maxLoadFactor, bigArrays);
+        keys1 = bigArrays.newLongArray(capacity, false);
+        keys2 = bigArrays.newLongArray(capacity, false);
+    }
+
+    /**
+     * Return the first key at {@code 0 &lt;= index &lt;= capacity()}. The
+     * result is undefined if the slot is unused.
+     */
+    public long getKey1(long id) {
+        return keys1.get(id);
+    }
+
+    /**
+     * Return the second key at {@code 0 &lt;= index &lt;= capacity()}. The
+     * result is undefined if the slot is unused.
+     */
+    public long getKey2(long id) {
+        return keys2.get(id);
+    }
+
+    /**
+     * Get the id associated with <code>key</code> or -1 if the key is not contained in the hash.
+     */
+    public long find(long key1, long key2) {
+        final long slot = slot(hash(key1, key2), mask);
+        for (long index = slot; ; index = nextSlot(index, mask)) {
+            final long id = id(index);
+            if (id == -1 || (keys1.get(id) == key1 && keys2.get(id) == key2)) {
+                return id;
+            }
+        }
+    }
+
+    private long set(long key1, long key2, long id) {
+        assert size < maxSize;
+        final long slot = slot(hash(key1, key2), mask);
+        for (long index = slot; ; index = nextSlot(index, mask)) {
+            final long curId = id(index);
+            if (curId == -1) { // means unset
+                id(index, id);
+                append(id, key1, key2);
+                ++size;
+                return id;
+            } else if (keys1.get(curId) == key1 && keys2.get(curId) == key2) {
+                return -1 - curId;
+            }
+        }
+    }
+
+    private void append(long id, long key1, long key2) {
+        keys1 = bigArrays.grow(keys1, id + 1);
+        keys1.set(id, key1);
+        keys2 = bigArrays.grow(keys2, id + 1);
+        keys2.set(id, key2);
+    }
+
+    private void reset(long key1, long key2, long id) {
+        final long slot = slot(hash(key1, key2), mask);
+        for (long index = slot; ; index = nextSlot(index, mask)) {
+            final long curId = id(index);
+            if (curId == -1) { // means unset
+                id(index, id);
+                append(id, key1, key2);
+                break;
+            }
+        }
+    }
+
+    /**
+     * Try to add <code>key</code>. Return its newly allocated id if it wasn't in the hash table yet, or <code>-1-id</code>
+     * if it was already present in the hash table.
+     */
+    public long add(long key1, long key2) {
+        if (size >= maxSize) {
+            assert size == maxSize;
+            grow();
+        }
+        assert size < maxSize;
+        return set(key1, key2, size);
+    }
+
+    @Override
+    protected void removeAndAdd(long index) {
+        final long id = id(index, -1);
+        assert id >= 0;
+        final long key1 = keys1.set(id, 0);
+        final long key2 = keys2.set(id, 0);
+        reset(key1, key2, id);
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(keys1, keys2, () -> super.close());
+    }
+
+    static long hash(long key1, long key2) {
+        return 31 * BitMixer.mix(key1) +  BitMixer.mix(key2);
+    }
+}

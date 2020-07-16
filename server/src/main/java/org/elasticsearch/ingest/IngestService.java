@@ -494,7 +494,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         continue;
                     }
 
-                    executePipelines(i, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, counter, 
+                    executePipelines(i, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, counter,
                                      onCompletion, originalThread);
 
                     i++;
@@ -528,23 +528,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         onFailure.accept(slot, e);
                     }
 
-                    String newIndex = indexRequest.indices()[0];
-                    if (newIndex != null && oldIndex.equals(newIndex) == false && hasFinalPipeline && it.hasNext() == false) {
-                        totalMetrics.ingestFailed();
-                        onFailure.accept(slot, new IllegalStateException("final pipeline ["+ pipelineId +
-                            "] can't change the target index"));
-                    }
-
                     Iterator<String> newIt = it;
                     boolean newHasFinalPipeline = hasFinalPipeline;
+                    String newIndex = indexRequest.indices()[0];
 
-                    if (oldIndex.equals(indexRequest.indices()[0]) == false && state != null) {
+                    if (Objects.equals(oldIndex, newIndex) == false) {
+                        if (hasFinalPipeline && it.hasNext() == false) {
+                            totalMetrics.ingestFailed();
+                            onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +
+                                "] can't change the target index"));
+                            return;
+                        }
+
                         //Drain old it so it's not looped over
                         it.forEachRemaining($ -> {
                         });
                         indexRequest.isPipelineResolved(false);
                         resolvePipelines(null, indexRequest, state.metadata());
-                        if(IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false){
+                        if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
                             newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
                             newHasFinalPipeline = true;
                         } else {

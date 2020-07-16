@@ -117,8 +117,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     /**
      *
-     *  @param mergeMap a unary operatorwhich maps a bucket's ordinal to the ordinal it should be merged with.
-     *  If the value is set to -1 then the bucket is removed entirely.
+     *  @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
+     *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      *
      * This only tidies up doc counts. Call {@link MergingBucketsDeferringCollector#mergeBuckets(LongUnaryOperator)} to
      * merge the actual ordinals and doc ID deltas.

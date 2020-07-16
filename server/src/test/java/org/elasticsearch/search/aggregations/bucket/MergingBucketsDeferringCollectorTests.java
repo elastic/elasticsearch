@@ -156,7 +156,6 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
 
                 Query query = getQueryToCollectIntoDifferentOrdinals();
                 Query rewrittenQuery = indexSearcher.rewrite(query);
-                TopDocs topDocs = indexSearcher.search(query, numDocs);
 
                 SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
                 when(searchContext.query()).thenReturn(rewrittenQuery);
@@ -226,7 +225,6 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
 
                 Query query = getQueryToCollectIntoDifferentOrdinals();
                 Query rewrittenQuery = indexSearcher.rewrite(query);
-                TopDocs topDocs = indexSearcher.search(query, numDocs);
 
                 SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
                 when(searchContext.query()).thenReturn(rewrittenQuery);
@@ -246,7 +244,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
                             public void collect(int doc, long bucket) throws IOException {
                                 if (doc == 9) {
                                     // Apply two merge operations once we reach the last bucket
-                                    // In the end, only buckets where bucket % 4 = 0, will remain
+                                    // In the end, only the buckets where (bucket % 4 = 0) will remain
                                     deferringCollector.mergeBuckets(b -> b % 2 == 0 ? b : -1);
                                     deferringCollector.mergeBuckets(b -> b % 4 == 0 ? b : -1);
                                 }

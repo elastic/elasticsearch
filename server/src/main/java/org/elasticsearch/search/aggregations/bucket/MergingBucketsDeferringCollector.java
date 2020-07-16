@@ -64,8 +64,8 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
     /**
      * Merges/prunes the existing bucket ordinals and docDeltas according to the provided mergeMap.
      *
-     * @param mergeMap a unary operatorwhich maps a bucket's ordinal to the ordinal it should be merged with.
-     * If the value is set to -1 then the bucket is removed entirely.
+     * @param mergeMap a unary operator which maps a bucket's ordinal to the ordinal it should be merged with.
+     * If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      *
      * This process rebuilds the ordinals and docDeltas according to the mergeMap, so it should
      * not be called unless there are actually changes to be made, to avoid unnecessary work.

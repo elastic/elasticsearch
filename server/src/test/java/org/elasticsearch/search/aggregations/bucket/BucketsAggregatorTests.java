@@ -97,7 +97,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
         mergeAggregator.mergeBuckets(10, bucket -> bucket % 5);
 
         for(int i=0; i<5; i++) {
-            // The i'th bucket should now have all docs whose index % 5 == i
+            // The i'th bucket should now have all docs whose index % 5 = i
             // This is buckets i and i + 5
             // i + (i+5) = 2*i + 5
             assertEquals(mergeAggregator.getDocCounts().get(i), (2 * i) + 5);
@@ -119,7 +119,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
             }
         }
 
-        // Put the buckets in indices 5 ... 14 in bucket 5, and delete the rest of the buckets
+        // Put the buckets in indices 5 ... 14 into bucket 5, and delete the rest of the buckets
         mergeAggregator.mergeBuckets(10, bucket -> (5 <= bucket && bucket < 15) ? 5 : -1);
 
         assertEquals(mergeAggregator.getDocCounts().size(), 10); // Confirm that the 10 other buckets were deleted

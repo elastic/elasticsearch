@@ -132,9 +132,9 @@ public class DocCountFieldMapper extends FieldMapper {
         }
 
         if (value != null) {
-            if (value.longValue() < 0 || value.floatValue() != value.longValue()) {
+            if (value.longValue() <= 0 || value.floatValue() != value.longValue()) {
                 throw new IllegalArgumentException(
-                    "Field [" + fieldType().name() + "] must always be a positive integer");
+                    "Field [" + fieldType().name() + "] must be a positive integer");
             }
 
             final Field docCount = new NumericDocValuesField(name(), value.longValue());

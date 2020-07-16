@@ -1136,6 +1136,29 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
+
+    public void testOverlappingBounds() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> testSearchCase(new MatchAllDocsQuery(),
+            Arrays.asList(
+                "2017-02-01",
+                "2017-02-02",
+                "2017-02-02",
+                "2017-02-03",
+                "2017-02-03",
+                "2017-02-03",
+                "2017-02-05"
+            ),
+            aggregation -> aggregation .calendarInterval(DateHistogramInterval.DAY)
+                .hardBounds(new LongBounds("2010-01-01", "2020-01-01"))
+                .extendedBounds(new LongBounds("2009-01-01", "2021-01-01"))
+                .field(AGGREGABLE_DATE),
+            histogram -> {}, false
+        ));
+
+        assertThat(ex.getMessage(), equalTo("Extended bounds have to be inside hard bounds, " +
+            "hard bounds: [2010-01-01--2020-01-01], extended bounds: [2009-01-01--2021-01-01]"));
+    }
+
     public void testIllegalInterval() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testSearchCase(new MatchAllDocsQuery(),
             Collections.emptyList(),

@@ -32,7 +32,7 @@ object Elasticsearch : VersionedProject({
 
     cleanup {
         baseRule {
-            artifacts(days = 1)
+            artifacts(builds = 5)
         }
     }
 })

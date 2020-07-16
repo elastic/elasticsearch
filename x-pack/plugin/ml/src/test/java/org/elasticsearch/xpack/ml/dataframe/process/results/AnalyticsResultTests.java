@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierD
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -29,6 +30,8 @@ import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResult> {
 
@@ -50,6 +53,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         RegressionStats regressionStats = null;
         ModelSizeInfo modelSizeInfo = null;
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = null;
+        ModelMetadata modelMetadata = null;
         if (randomBoolean()) {
             rowResults = RowResultsTests.createRandom();
         }
@@ -75,8 +79,13 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
             String def = randomAlphaOfLengthBetween(100, 1000);
             trainedModelDefinitionChunk = new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean());
         }
+        if (randomBoolean()) {
+            modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList()));
+        }
         return new AnalyticsResult(rowResults, phaseProgress, memoryUsage, outlierDetectionStats,
-            classificationStats, regressionStats, modelSizeInfo, trainedModelDefinitionChunk);
+            classificationStats, regressionStats, modelSizeInfo, trainedModelDefinitionChunk, modelMetadata);
     }
 
     @Override

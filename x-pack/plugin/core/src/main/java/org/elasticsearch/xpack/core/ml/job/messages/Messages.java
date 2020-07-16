@@ -90,12 +90,15 @@ public final class Messages {
 
     public static final String INFERENCE_TRAINED_MODEL_EXISTS = "Trained machine learning model [{0}] already exists";
     public static final String INFERENCE_TRAINED_MODEL_DOC_EXISTS = "Trained machine learning model chunked doc [{0}][{1}] already exists";
+    public static final String INFERENCE_TRAINED_MODEL_METADATA_EXISTS = "Trained machine learning model metadata [{0}] already exists";
     public static final String INFERENCE_FAILED_TO_STORE_MODEL = "Failed to store trained machine learning model [{0}]";
+    public static final String INFERENCE_FAILED_TO_STORE_MODEL_METADATA = "Failed to store trained machine learning model metadata [{0}]";
     public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}]";
     public static final String INFERENCE_NOT_FOUND_MULTIPLE = "Could not find trained models {0}";
     public static final String INFERENCE_CONFIG_NOT_SUPPORTED_ON_VERSION =
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
+    public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata [{0}]";
     public static final String INFERENCE_CANNOT_DELETE_MODEL =
         "Unable to delete model [{0}]";
     public static final String MODEL_DEFINITION_TRUNCATED =

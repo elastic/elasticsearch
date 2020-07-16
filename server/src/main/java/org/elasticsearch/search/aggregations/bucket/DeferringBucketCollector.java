@@ -44,10 +44,9 @@ public abstract class DeferringBucketCollector extends BucketCollector {
     /** Set the deferred collectors. */
     public abstract void setDeferredCollector(Iterable<BucketCollector> deferredCollectors);
 
-    public final void replay(long... selectedBuckets) throws IOException {
-        prepareSelectedBuckets(selectedBuckets);
-    }
-
+    /**
+     * Replay the deferred hits on the selected buckets.
+     */
     public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
 
     /**
@@ -96,8 +95,8 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public InternalAggregation buildAggregation(long bucket) throws IOException {
-            return in.buildAggregation(bucket);
+        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+            return in.buildAggregations(owningBucketOrds);
         }
 
         @Override

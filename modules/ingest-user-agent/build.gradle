@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Ingest processor that extracts information from a user agent'
@@ -28,6 +29,8 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.all {
   extraConfigFile 'ingest-user-agent/test-regexes.yml', file('src/test/test-regexes.yml')
 }
+
+integTest.enabled = false

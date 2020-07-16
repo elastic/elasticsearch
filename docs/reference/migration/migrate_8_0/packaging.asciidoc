@@ -3,9 +3,15 @@
 === Packaging changes
 
 //tag::notable-breaking-changes[]
-[float]
-==== Java 11 is required
-
-Java 11 or higher is now required to run Elasticsearch and any of its command
+.Java 11 is required.
+[%collapsible]
+====
+*Details* +
+Java 11 or higher is now required to run {es} and any of its command
 line tools.
+
+*Impact* +
+Use Java 11 or higher. Attempts to run {es} 8.0 using earlier Java versions will
+fail.
+====
 //end::notable-breaking-changes[]

@@ -27,11 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -53,22 +49,8 @@ import static org.mockito.Mockito.when;
 
 public class InferenceProcessorFactoryTests extends ESTestCase {
 
-    private static final IngestPlugin SKINNY_PLUGIN = new IngestPlugin() {
-        @Override
-        public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.isMachineLearningAllowed()).thenReturn(true);
-            return Collections.singletonMap(InferenceProcessor.TYPE,
-                new InferenceProcessor.Factory(parameters.client,
-                    parameters.ingestService.getClusterService(),
-                    Settings.EMPTY,
-                    parameters.ingestService));
-        }
-    };
     private Client client;
-    private XPackLicenseState licenseState;
     private ClusterService clusterService;
-    private IngestService ingestService;
 
     @Before
     public void setUpVariables() {
@@ -84,10 +66,6 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         clusterService = new ClusterService(settings, clusterSettings, tp);
-        ingestService = new IngestService(clusterService, tp, null, null,
-            null, Collections.singletonList(SKINNY_PLUGIN), client);
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
     }
 
     public void testNumInferenceProcessors() throws Exception {
@@ -95,8 +73,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
         processorFactory.accept(buildClusterState(metadata));
 
         assertThat(processorFactory.numInferenceProcessors(), equalTo(0));
@@ -109,16 +86,66 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
     }
 
+    public void testNumInferenceProcessorsRecursivelyDefined() throws Exception {
+        Metadata metadata = null;
+
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY);
+        processorFactory.accept(buildClusterState(metadata));
+
+        Map<String, PipelineConfiguration> configurations = new HashMap<>();
+        configurations.put("pipeline_with_model_top_level",
+            randomBoolean() ?
+                newConfigurationWithInferenceProcessor("top_level") :
+                newConfigurationWithForeachProcessorProcessor("top_level"));
+        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
+            Collections.singletonList(
+                Collections.singletonMap("set",
+                    new HashMap<>() {{
+                        put("field", "foo");
+                        put("value", "bar");
+                        put("on_failure",
+                            Arrays.asList(
+                                inferenceProcessorForModel("second_level"),
+                                forEachProcessorWithInference("third_level")));
+                    }}))))) {
+            configurations.put("pipeline_with_model_nested",
+                new PipelineConfiguration("pipeline_with_model_nested", BytesReference.bytes(xContentBuilder), XContentType.JSON));
+        }
+
+        IngestMetadata ingestMetadata = new IngestMetadata(configurations);
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .nodes(DiscoveryNodes.builder()
+                .add(new DiscoveryNode("min_node",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Version.CURRENT))
+                .add(new DiscoveryNode("current_node",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                    Version.CURRENT))
+                .localNodeId("_node_id")
+                .masterNodeId("_node_id"))
+            .build();
+
+        processorFactory.accept(cs);
+        assertThat(processorFactory.numInferenceProcessors(), equalTo(3));
+    }
+
+    public void testNumInferenceWhenLevelExceedsMaxRecurions() {
+        assertThat(InferenceProcessor.Factory.numInferenceProcessors(InferenceProcessor.TYPE, Collections.emptyMap(), 100), equalTo(0));
+    }
+
     public void testCreateProcessorWithTooManyExisting() throws Exception {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.builder().put(InferenceProcessor.MAX_INFERENCE_PROCESSORS.getKey(), 1).build(),
-            ingestService);
+            Settings.builder().put(InferenceProcessor.MAX_INFERENCE_PROCESSORS.getKey(), 1).build());
 
         processorFactory.accept(buildClusterStateWithModelReferences("model1"));
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", Collections.emptyMap()));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, Collections.emptyMap()));
 
         assertThat(ex.getMessage(), equalTo("Max number of inference processors reached, total inference processors [1]. " +
             "Adjust the setting [xpack.ml.max_inference_processors]: [1] if a greater number is desired."));
@@ -127,8 +154,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorWithInvalidInferenceConfig() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
 
         Map<String, Object> config = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
@@ -138,7 +164,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         }};
 
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", config));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config));
         assertThat(ex.getMessage(),
             equalTo("unrecognized inference configuration type [unknown_type]. Supported types [classification, regression]"));
 
@@ -149,7 +175,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.INFERENCE_CONFIG, Collections.singletonMap("regression", "boom"));
         }};
         ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", config2));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config2));
         assertThat(ex.getMessage(),
             equalTo("inference_config must be an object with one inference type mapped to an object."));
 
@@ -160,7 +186,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
             put(InferenceProcessor.INFERENCE_CONFIG, Collections.emptyMap());
         }};
         ex = expectThrows(ElasticsearchStatusException.class,
-            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", config3));
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, config3));
         assertThat(ex.getMessage(),
             equalTo("inference_config must be an object with one inference type mapped to an object."));
     }
@@ -168,8 +194,7 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorWithTooOldMinNodeVersion() throws IOException {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
         processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
 
         Map<String, Object> regression = new HashMap<>() {{
@@ -180,15 +205,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                     Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
         }};
 
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
-            fail("Should not have successfully created");
-        } catch (ElasticsearchException ex) {
-            assertThat(ex.getMessage(),
-                equalTo("Configuration [regression] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
-        } catch (Exception ex) {
-            fail(ex.getMessage());
-        }
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression));
+        assertThat(ex.getMessage(),
+            equalTo("Configuration [regression] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
 
         Map<String, Object> classification = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
@@ -198,22 +218,32 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 Collections.singletonMap(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 1)));
         }};
 
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", classification);
-            fail("Should not have successfully created");
-        } catch (ElasticsearchException ex) {
-            assertThat(ex.getMessage(),
-                equalTo("Configuration [classification] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
-        } catch (Exception ex) {
-            fail(ex.getMessage());
-        }
+        ex = expectThrows(ElasticsearchException.class,
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification));
+        assertThat(ex.getMessage(),
+            equalTo("Configuration [classification] requires minimum node version [7.6.0] (current minimum node version [7.5.0]"));
+    }
+
+    public void testCreateProcessorWithEmptyConfigNotSupportedOnOldNode() throws IOException {
+        InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
+            clusterService,
+            Settings.EMPTY);
+        processorFactory.accept(builderClusterStateWithModelReferences(Version.V_7_5_0, "model1"));
+
+        Map<String, Object> minimalConfig = new HashMap<>() {{
+            put(InferenceProcessor.MODEL_ID, "my_model");
+            put(InferenceProcessor.TARGET_FIELD, "result");
+        }};
+
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, minimalConfig));
+        assertThat(ex.getMessage(), equalTo("[inference_config] required property is missing"));
     }
 
     public void testCreateProcessor() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
 
         Map<String, Object> regression = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
@@ -223,11 +253,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                     Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
         }};
 
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
-        } catch (Exception ex) {
-            fail(ex.getMessage());
-        }
+        processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression);
+
 
         Map<String, Object> classification = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
@@ -237,18 +264,20 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 Collections.singletonMap(ClassificationConfig.NUM_TOP_CLASSES.getPreferredName(), 1)));
         }};
 
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", classification);
-        } catch (Exception ex) {
-            fail(ex.getMessage());
-        }
+        processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, classification);
+
+        Map<String, Object> mininmal = new HashMap<>() {{
+            put(InferenceProcessor.MODEL_ID, "my_model");
+            put(InferenceProcessor.TARGET_FIELD, "result");
+        }};
+
+        processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, mininmal);
     }
 
     public void testCreateProcessorWithDuplicateFields() {
         InferenceProcessor.Factory processorFactory = new InferenceProcessor.Factory(client,
             clusterService,
-            Settings.EMPTY,
-            ingestService);
+            Settings.EMPTY);
 
         Map<String, Object> regression = new HashMap<>() {{
             put(InferenceProcessor.FIELD_MAP, Collections.emptyMap());
@@ -258,13 +287,10 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                 Collections.singletonMap(RegressionConfig.RESULTS_FIELD.getPreferredName(), "warning")));
         }};
 
-        try {
-            processorFactory.create(Collections.emptyMap(), "my_inference_processor", regression);
-            fail("should not have succeeded creating with duplicate fields");
-        } catch (Exception ex) {
-            assertThat(ex.getMessage(), equalTo("Cannot create processor as configured. " +
-                "More than one field is configured as [warning]"));
-        }
+        Exception ex = expectThrows(Exception.class, () ->
+            processorFactory.create(Collections.emptyMap(), "my_inference_processor", null, regression));
+        assertThat(ex.getMessage(), equalTo("Invalid inference config. " +
+            "More than one field is configured as [warning]"));
     }
 
     private static ClusterState buildClusterState(Metadata metadata) {
@@ -278,7 +304,8 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
     private static ClusterState builderClusterStateWithModelReferences(Version minNodeVersion, String... modelId) throws IOException {
         Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
         for (String id : modelId) {
-            configurations.put("pipeline_with_model_" + id, newConfigurationWithInferenceProcessor(id));
+            configurations.put("pipeline_with_model_" + id,
+                randomBoolean() ? newConfigurationWithInferenceProcessor(id) : newConfigurationWithForeachProcessorProcessor(id));
         }
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
@@ -298,17 +325,35 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
 
     private static PipelineConfiguration newConfigurationWithInferenceProcessor(String modelId) throws IOException {
         try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
-            Collections.singletonList(
-                Collections.singletonMap(InferenceProcessor.TYPE,
-                    new HashMap<>() {{
-                        put(InferenceProcessor.MODEL_ID, modelId);
-                        put(InferenceProcessor.INFERENCE_CONFIG,
-                                Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
-                        put(InferenceProcessor.TARGET_FIELD, "new_field");
-                        put(InferenceProcessor.FIELD_MAP, Collections.singletonMap("source", "dest"));
-                    }}))))) {
+            Collections.singletonList(inferenceProcessorForModel(modelId))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
         }
+    }
+
+    private static PipelineConfiguration newConfigurationWithForeachProcessorProcessor(String modelId) throws IOException {
+        try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(Collections.singletonMap("processors",
+            Collections.singletonList(forEachProcessorWithInference(modelId))))) {
+            return new PipelineConfiguration("pipeline_with_model_" + modelId, BytesReference.bytes(xContentBuilder), XContentType.JSON);
+        }
+    }
+
+    private static Map<String, Object> forEachProcessorWithInference(String modelId) {
+        return Collections.singletonMap("foreach",
+            new HashMap<>() {{
+                put("field", "foo");
+                put("processor", inferenceProcessorForModel(modelId));
+            }});
+    }
+
+    private static Map<String, Object> inferenceProcessorForModel(String modelId) {
+        return Collections.singletonMap(InferenceProcessor.TYPE,
+            new HashMap<>() {{
+                put(InferenceProcessor.MODEL_ID, modelId);
+                put(InferenceProcessor.INFERENCE_CONFIG,
+                    Collections.singletonMap(RegressionConfig.NAME.getPreferredName(), Collections.emptyMap()));
+                put(InferenceProcessor.TARGET_FIELD, "new_field");
+                put(InferenceProcessor.FIELD_MAP, Collections.singletonMap("source", "dest"));
+            }});
     }
 
 }

@@ -99,10 +99,11 @@ public class EElvis extends AExpression {
         if (userLeftNode instanceof ENull) {
             throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (userLeftNode instanceof EBoolean ||
-                userLeftNode instanceof ENumeric ||
-                userLeftNode instanceof EDecimal ||
-                userLeftNode instanceof EString) {
+        if (    userLeftNode instanceof EBooleanConstant ||
+                userLeftNode instanceof ENumeric         ||
+                userLeftNode instanceof EDecimal         ||
+                userLeftNode instanceof EString
+        ) {
             throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
         if (leftValueType.isPrimitive()) {

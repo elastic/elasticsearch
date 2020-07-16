@@ -283,7 +283,7 @@ public class EDot extends AExpression {
                                     || !getter.returnType.equals(setter.typeParameters.get(1)))) {
                                 throw userDotNode.createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
-
+                            
                             if ((read == false || getter != null) && (write == false || setter != null)) {
                                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {

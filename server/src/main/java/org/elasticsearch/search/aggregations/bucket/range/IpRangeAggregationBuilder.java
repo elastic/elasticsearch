@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -208,6 +209,10 @@ public final class IpRangeAggregationBuilder
             builder.endObject();
             return builder;
         }
+    }
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        BinaryRangeAggregatorFactory.registerAggregators(builder);
     }
 
     private boolean keyed = false;

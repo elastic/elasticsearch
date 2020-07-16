@@ -1,7 +1,7 @@
 [[modules-gateway]]
-== Local Gateway
+=== Local gateway settings
 
-The local gateway module stores the cluster state and shard data across full
+The local gateway stores the cluster state and shard data across full
 cluster restarts.
 
 The following _static_ settings, which must be set on every master node,
@@ -53,12 +53,32 @@ as long as the following conditions are met:
 
 NOTE: These settings only take effect on a full cluster restart.
 
-[[modules-gateway-dangling-indices]]
-=== Dangling indices
+[[dangling-indices]]
+==== Dangling indices
 
-When a node joins the cluster, any shards stored in its local data
-directory which do not already exist in the cluster will be imported into the
-cluster. This functionality is intended as a best effort to help users who
-lose all master nodes. If a new master node is started which is unaware of
-the other indices in the cluster, adding the old nodes will cause the old
-indices to be imported, instead of being deleted.
+When a node joins the cluster, if it finds any shards stored in its local data
+directory that do not already exist in the cluster, it will consider those
+shards to be "dangling". Importing dangling indices
+into the cluster using `gateway.auto_import_dangling_indices` is not safe.
+Instead, use the <<dangling-indices-api,Dangling indices API>>. Neither
+mechanism provides any guarantees as to whether the imported data truly
+represents the latest state of the data when the index was still part of
+the cluster.
+
+`gateway.auto_import_dangling_indices`::
+
+    deprecated:[7.9.0, This setting will be removed in 8.0. You should use the dedicated dangling indices API instead.]
+    Whether to automatically import dangling indices into the cluster
+    state, provided no indices already exist with the same name. Defaults
+    to `false`.
+
+WARNING: The auto-import functionality was intended as a best effort to help users
+who lose all master nodes. For example, if a new master node were to be
+started which was unaware of the other indices in the cluster, adding the
+old nodes would cause the old indices to be imported, instead of being
+deleted. However there are several issues with automatic importing, and
+its use is strongly discouraged in favour of the
+<<dangling-indices-api,dedicated API>.
+
+WARNING: Losing all master nodes is a situation that should be avoided at
+all costs, as it puts your cluster's metadata and data at risk.

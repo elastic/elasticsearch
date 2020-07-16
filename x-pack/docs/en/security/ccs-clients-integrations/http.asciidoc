@@ -12,7 +12,11 @@ Authorization: Basic <TOKEN> <1>
 --------------------------------------------------
 <1> The `<TOKEN>` is computed as `base64(USERNAME:PASSWORD)`
 
-[float]
+Alternatively, you can use
+<<token-authentication-services,token-based authentication services>>.
+
+[discrete]
+[[http-clients-examples]]
 ==== Client examples
 
 This example uses `curl` without basic auth to create an index:
@@ -46,7 +50,34 @@ curl --user rdeniro:taxidriver -XPUT 'localhost:9200/idx'
 }
 ---------------------------------------------------------
 
-[float]
+[discrete]
+[[http-clients-secondary-authorization]]
+==== Secondary authorization
+
+Some APIs support secondary authorization headers for situations where you want
+tasks to run with a different set of credentials. For example, you can send the
+following header in addition to the basic authentication header:
+
+[source,shell]
+--------------------------------------------------
+es-secondary-authorization: Basic <TOKEN> <1>
+--------------------------------------------------
+<1> The `<TOKEN>` is computed as `base64(USERNAME:PASSWORD)`
+
+The `es-secondary-authorization` header has the same syntax as the
+`Authorization` header. It therefore also supports the use of
+<<token-authentication-services,token-based authentication services>>. For
+example:
+
+[source,shell]
+--------------------------------------------------
+es-secondary-authorization: ApiKey <TOKEN> <1>
+--------------------------------------------------
+<1> The `<TOKEN>` is computed as `base64(API key ID:API key)`
+
+
+[discrete]
+[[http-clients-libraries]]
 ==== Client libraries over HTTP
 
 For more information about using {security-features} with the language

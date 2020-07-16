@@ -78,8 +78,8 @@ public class SWhile extends AStatement {
         SBlock userBlockNode = userWhileNode.getBlockNode();
         boolean continuous = false;
 
-        if (userConditionNode instanceof EBoolean) {
-            continuous = ((EBoolean)userConditionNode).getBool();
+        if (userConditionNode instanceof EBooleanConstant) {
+            continuous = ((EBooleanConstant)userConditionNode).getBool();
 
             if (continuous == false) {
                 throw userWhileNode.createError(new IllegalArgumentException("extraneous while loop"));

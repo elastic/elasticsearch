@@ -14,8 +14,8 @@
           ],
           "parts":{
             "name":{
-              "type":"string",
-              "description":"Role-Mapping name"
+              "type":"list",
+              "description":"A comma-separated list of role-mapping names"
             }
           }
         },

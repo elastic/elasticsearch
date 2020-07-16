@@ -1,0 +1,62 @@
+[role="xpack"]
+[[data-streams]]
+= Data streams
+++++
+<titleabbrev>Data streams</titleabbrev>
+++++
+
+A _data stream_ is a convenient, scalable way to ingest, search, and manage
+continuously generated time-series data.
+
+Time-series data, such as logs, tends to grow over time. While storing an entire
+time series in a single {es} index is simpler, it is often more efficient and
+cost-effective to store large volumes of data across multiple, time-based
+indices. Multiple indices let you move indices containing older, less frequently
+queried data to less expensive hardware and delete indices when they're no
+longer needed, reducing overhead and storage costs.
+
+A data stream is designed to give you the best of both worlds:
+
+* The simplicity of a single named resource you can use for requests
+* The storage, scalability, and cost-saving benefits of multiple indices
+
+You can submit indexing and search requests directly to a data stream. The
+stream automatically routes the requests to a collection of hidden,
+auto-generated indices that store the stream's data.
+
+You can use an <<indices-templates,index template>> and
+<<index-lifecycle-management,{ilm} ({ilm-init})>> to automate the management of
+these hidden indices. You can use {ilm-init} to spin up new indices, allocate
+indices to different hardware, delete old indices, and take other automatic
+actions based on age or size criteria you set. This lets you seamlessly scale
+your data storage based on your budget, performance, resiliency, and retention
+needs.
+
+
+[discrete]
+[[when-to-use-data-streams]]
+== When to use data streams
+
+We recommend using data streams if you:
+
+* Use {es} to ingest, search, and manage large volumes of time-series data
+* Want to scale and reduce costs by using {ilm-init} to automate the management
+  of your indices
+* Index large volumes of time-series data in {es} but rarely delete or update
+  individual documents
+
+
+[discrete]
+[[data-streams-toc]]
+== In this section
+
+* <<data-streams-overview>>
+* <<set-up-a-data-stream>>
+* <<use-a-data-stream>>
+* <<data-streams-change-mappings-and-settings>>
+
+
+include::data-streams-overview.asciidoc[]
+include::set-up-a-data-stream.asciidoc[]
+include::use-a-data-stream.asciidoc[]
+include::change-mappings-and-settings.asciidoc[]

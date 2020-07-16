@@ -99,7 +99,7 @@ If creating indices using {ls}, the
 {logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-index[index]
 property of the {es} output can be modified to a
 <<date-math-index-names,date math expression>> covering a longer time period.
-For example, use `logstash-%{+YYYY.MM}`` instead of `logstash-%{+YYYY.MM.dd}``
+For example, use `logstash-%{+YYYY.MM}` instead of `logstash-%{+YYYY.MM.dd}`
 to create monthly, rather than daily, indices. {beats} also lets you change the
 date math expression defined in the `index` property of the {es} output, such
 as for {filebeat-ref}/elasticsearch-output.html#index-option-es[Filebeat].

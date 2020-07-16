@@ -73,9 +73,9 @@ PUT _ml/anomaly_detectors/farequote
 ----------------------------------
 // TEST[skip:setup:farequote_data]
 
-<1> In this example, the `airline`, `responsetime`, and `time` fields are
-aggregations. Only the aggregated fields defined in the `analysis_config` object 
-are analyzed by the {anomaly-job}.
+<1> The `airline`, `responsetime`, and `time` fields are aggregations. Only the 
+aggregated fields defined in the `analysis_config` object are analyzed by the 
+{anomaly-job}.
 
 NOTE: When the `summary_count_field_name` property is set to a non-null value,
 the job expects to receive aggregated input. The property must be set to the
@@ -121,13 +121,12 @@ PUT _ml/datafeeds/datafeed-farequote
 ----------------------------------
 // TEST[skip:setup:farequote_job]
 
-<1> In this example, the aggregations have names that match the fields that they
-operate on. That is to say, the `max` aggregation is named `time` and its
-field also needs to be `time`.
-<2> Likewise, the `term` aggregation is named `airline` and its field is also 
-named `airline`.
-<3> Likewise, the `avg` aggregation is named `responsetime` and its field is 
-also named `responsetime`.
+<1> The aggregations have names that match the fields that they operate on. The 
+`max` aggregation is named `time` and its field also needs to be `time`.
+<2> The `term` aggregation is named `airline` and its field is also named 
+`airline`.
+<3> The `avg` aggregation is named `responsetime` and its field is also named 
+`responsetime`.
 
 Your {dfeed} can contain multiple aggregations, but only the ones with names 
 that match values in the job configuration are fed to the job.

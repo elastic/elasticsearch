@@ -1,0 +1,253 @@
+[[put-snapshot-repo-api]]
+=== Put snapshot repository API
+++++
+<titleabbrev>Put snapshot repository</titleabbrev>
+++++
+
+Registers or updates a <<snapshots-register-repository,snapshot repository>>.
+
+[source,console]
+----
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+----
+
+[[put-snapshot-repo-api-request]]
+==== {api-request-title}
+
+`PUT /_snapshot/<repository>`
+
+`POST /_snapshot/<repository>`
+
+[[put-snapshot-repo-api-desc]]
+==== {api-description-title}
+
+A snapshot repository must be registered before you can perform
+<<snapshot-restore,snapshot and restore>> operations. You can use the put
+snapshot repository API to register new repositories and update existing ones.
+See <<snapshots-register-repository>>.
+
+TIP: Because snapshot formats can change between major versions of
+{es}, we recommend registering a new snapshot repository for each major version.
+See <<snapshot-restore-version-compatibility>>.
+
+[[put-snapshot-repo-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Name of the snapshot repository to register or update.
+
+[[put-snapshot-repo-api-query-params]]
+==== {api-query-parms-title}
+
+IMPORTANT: Several options for this API can be specified using a query parameter
+or a request body parameter. If both parameters are specified, only the query
+parameter is used.
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
+`timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `30s`.
+
+`verify`::
+(Optional, boolean)
+If `true`, the request verifies the repository is functional on all master and
+data nodes in the cluster. If `false`, this verification is skipped. Defaults to
+`true`.
++
+You can manually perform this verification using the
+<<verify-snapshot-repo-api,verify snapshot repository API>>.
+
+[role="child_attributes"]
+[[put-snapshot-repo-api-request-body]]
+==== {api-request-body-title}
+
+`master_timeout`::
+(Optional, <<time-units, time units>>)
+Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
+`timeout`::
+(Optional, <<time-units, time units>>)
+Specifies the period of time to wait for
+a response. If no response is received before the timeout expires, the request
+fails and returns an error. Defaults to `30s`.
+
+[[put-snapshot-repo-api-request-type]]
+`type`::
++
+--
+(Required, string)
+Repository type.
+
+.Valid values for `type`
+[%collapsible%open]
+====
+`fs`::
+Shared file system repository. Repositories of this type use a shared file
+system to store snapshots. This file system must accessible to all master and
+data nodes in the cluster.
++
+IMPORTANT: To register a shared file system repository, you must mount the same
+shared filesystem to the same location on all master and data nodes. This
+location must be registered in the `path.repo` setting on all master and data
+nodes in the cluster.
++
+See <<snapshots-filesystem-repository>>.
+
+[xpack]#`source`#::
+Source-only repository. You can use source-only repositories to create minimal,
+source-only snapshots that take up to 50% less space on disk.
++
+Source-only snapshots are only supported if the <<mapping-source-field,`_source`
+field>> is enabled and no
+<<source-filtering,source-filtering>> is applied.
++
+WARNING: Source-only snapshots contain stored fields and index metadata. They do
+not include index or doc values structures and are not searchable when restored.
+After restoring a source-only snapshot, you must <<docs-reindex,reindex>> the
+data into a new index.
++
+See <<snapshots-source-only-repository>>.
+
+`url`::
+URL repository. Repositories of this type are read-only
+for the cluster. This means the cluster can retrieve or restore snapshots from
+the repository but cannot write or create snapshots in it.
++
+You can use URL repositories as an alternative way to give a cluster read-only
+access to a shared file system (`fs`) repository.
++
+See <<snapshots-read-only-repository>>.
+====
+
+More repository types are available through these official
+plugins:
+
+* {plugins}/repository-s3.html[repository-s3] for S3 repository support
+* {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in
+  Hadoop environments
+* {plugins}/repository-azure.html[repository-azure] for Azure storage
+  repositories
+* {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage
+  repositories
+--
+
+[[put-snapshot-repo-api-settings-param]]
+`settings`::
++
+--
+(Required, object)
+Contains settings for the repository. Valid properties for the `settings` object
+depend on the repository type, set using the
+<<put-snapshot-repo-api-request-type,`type`>> parameter.
+
+.Valid `settings` properties for `fs` repositories
+[%collapsible%open]
+====
+`chunk_size`::
+(Optional, <<byte-units,byte value>>)
+Maximum size of files in snapshots. In snapshots, files larger than this are
+broken down into chunks of this size or smaller. Defaults to `null` (unlimited
+file size).
+
+`compress`::
+(Optional, boolean)
+If `true`, metadata files, such as index mappings and settings, are compressed
+in snapshots. Data files are not compressed. Defaults to `true`.
+
+`location`::
+(Required, string)
+Location of the shared filesystem used to store and retrieve snapshots. This
+location must be registered in the `path.repo` setting on all master and data
+nodes in the cluster.
+
+`max_restore_bytes_per_sec`::
+(Optional, <<byte-units,byte value>>)
+Maximum snapshot restore rate per node. Defaults to unlimited. Note
+that restores are also throttled through <<recovery,recovery settings>>.
+
+`max_snapshot_bytes_per_sec`::
+(Optional, <<byte-units,byte value>>)
+Maximum snapshot creation rate per node. Defaults to `40mb` per second.
+
+`readonly`::
+(Optional, boolean)
+If `true`, the repository is read-only. The cluster can retrieve and restore
+snapshots from the repository but not write to the repository or create
+snapshots in it.
++
+If `false`, the cluster can write to the repository and create snapshots in it.
+Defaults to `false`.
++
+[TIP]
+=====
+If you register the same snapshot repository with multiple clusters, only
+one cluster should have write access to the repository. Having multiple clusters
+write to the repository at the same time risks corrupting the contents of the
+repository.
+
+Only a cluster with write access can create snapshots in the repository. All
+other clusters connected to the repository should have the `readonly` parameter
+set to `true`. This means those clusters can retrieve or restore snapshots from
+the repository but not create snapshots in it.
+=====
+====
+
+.Valid `settings` properties for `source` repositories
+[%collapsible%open]
+====
+`delegate_type`::
+(Optional, string)
+Delegated repository type. For valid values, see the
+<<put-snapshot-repo-api-request-type,`type` parameter>>.
++
+`source` repositories can use `settings` properties for its delegated repository
+type. See <<snapshots-source-only-repository>>.
+
+====
+
+.Valid `settings` properties for `url` repositories
+[%collapsible%open]
+====
+`url`::
+(Required, string)
+URL location of the root of the shared filesystem repository. The following
+protocols are supported:
+
+* `file`
+* `ftp`
+* `http`
+* `https`
+* `jar`
+
+URLs using the `file` protocol must point to the location of a shared filesystem
+accessible to all master and data nodes in the cluster. This location must be
+registered in the `path.repo` setting.
+
+URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed with the
+`repositories.url.allowed_urls` setting. This setting supports wildcards in the
+place of a host, path, query, or fragment in the URL.
+====
+--
+
+`verify`::
+(Optional, boolean)
+If `true`, the request verifies the repository is functional on all master and
+data nodes in the cluster. If `false`, this verification is skipped. Defaults to
+`true`.
++
+You can manually perform this verification using the
+<<snapshots-repository-verification,verify snapshot repository API>>.

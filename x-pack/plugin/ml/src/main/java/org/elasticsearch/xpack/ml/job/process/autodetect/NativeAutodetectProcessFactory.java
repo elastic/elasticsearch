@@ -77,7 +77,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                                                      Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AutodetectBuilder.AUTODETECT, job.getId(),
-                true, false, true, true, params.modelSnapshot() != null,
+                false, true, true, params.modelSnapshot() != null,
                 !AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
@@ -89,19 +89,20 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
             NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
-                job.getId(), nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields,
+                job.getId(), nativeController, processPipes, numberOfFields,
                 filesToDelete, resultsParser, onProcessCrash, processConnectTimeout);
         try {
-            autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
+            autodetect.start(executorService, stateProcessor);
             return autodetect;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to autodetect for job " + job.getId();
+            LOGGER.error(msg);
             try {
                 IOUtils.close(autodetect);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close autodetect", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
@@ -126,7 +127,6 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
             autodetectBuilder.build();
-            processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
             String msg = "Failed to launch autodetect for job " + job.getId();
             LOGGER.error(msg);

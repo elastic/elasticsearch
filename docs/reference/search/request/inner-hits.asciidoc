@@ -73,7 +73,7 @@ Inner hits also supports the following per document features:
 * <<request-body-search-explain,Explain>>
 * <<request-body-search-source-filtering,Source filtering>>
 * <<request-body-search-script-fields,Script fields>>
-* <<request-body-search-docvalue-fields,Doc value fields>>
+* <<docvalue-fields,Doc value fields>>
 * <<request-body-search-version,Include versions>>
 * <<request-body-search-seq-no-primary-term,Include Sequence Numbers and Primary Terms>>
 

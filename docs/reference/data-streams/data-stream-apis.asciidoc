@@ -1,0 +1,17 @@
+[role="xpack"]
+[[data-stream-apis]]
+== Data stream APIs
+
+The following APIs are available for managing <<data-streams,data streams>>:
+
+* <<indices-create-data-stream>>
+* <<indices-delete-data-stream>>
+* <<indices-get-data-stream>>
+
+For concepts and tutorials, see <<data-streams>>.
+
+include::{es-repo-dir}/indices/create-data-stream.asciidoc[]
+
+include::{es-repo-dir}/indices/delete-data-stream.asciidoc[]
+
+include::{es-repo-dir}/indices/get-data-stream.asciidoc[]

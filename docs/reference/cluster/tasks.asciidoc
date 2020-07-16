@@ -4,7 +4,7 @@
 <titleabbrev>Task management</titleabbrev>
 ++++
 
-beta::["The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{issue}51628]
+beta::["The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.",{es-issue}51628]
 
 Returns information about the tasks currently executing in the cluster.
 
@@ -27,25 +27,25 @@ on one or more nodes in the cluster.
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=task-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=task-id]
 
 
 [[tasks-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=actions]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=actions]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=group-by]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=group-by]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id-query-parm]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_completion]
 
     
 [[tasks-api-response-codes]]

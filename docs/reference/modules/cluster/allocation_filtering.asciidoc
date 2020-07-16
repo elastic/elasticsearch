@@ -1,10 +1,10 @@
-[[allocation-filtering]]
-=== Cluster-level shard allocation filtering
+[[cluster-shard-allocation-filtering]]
+==== Cluster-level shard allocation filtering
 
 You can use cluster-level shard allocation filters to control where {es}
 allocates shards from any index. These cluster wide filters are applied in
 conjunction with <<shard-allocation-filtering, per-index allocation filtering>>
-and <<allocation-awareness, allocation awareness>>.
+and <<shard-allocation-awareness, allocation awareness>>.
 
 Shard allocation filters can be based on custom node attributes or the built-in
 `_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host` and `_id` attributes.
@@ -28,9 +28,8 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 
-[float]
 [[cluster-routing-settings]]
-==== Cluster routing settings
+===== Cluster routing settings
 
 `cluster.routing.allocation.include.{attribute}`::
 

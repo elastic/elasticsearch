@@ -30,7 +30,7 @@ public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
     }
 
     @Override
-    protected void doWrite(StreamOutput out) {
+    protected void doWrite(StreamOutput out) throws IOException {
     }
 
     ZoneId zoneId() {

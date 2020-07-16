@@ -103,6 +103,10 @@ Example response:
          "available": true,
          "enabled": true
       },
+      "searchable_snapshots" : {
+         "available" : true,
+         "enabled" : true
+      },
       "security" : {
          "available" : true,
          "enabled" : false
@@ -138,6 +142,10 @@ Example response:
       "watcher" : {
          "available" : true,
          "enabled" : true
+      },
+      "data_streams" : {
+         "available" : true,
+         "enabled" : true,
       }
    },
    "tagline" : "You know, for X"

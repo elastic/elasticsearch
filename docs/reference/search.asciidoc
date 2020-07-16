@@ -1,7 +1,7 @@
 [[search]]
 == Search APIs
 
-Most search APIs are <<search-multi-index,multi-index>>, with the
+Most search APIs support <<search-multi-index,multi-target syntax>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]
@@ -152,11 +152,13 @@ high). This default value is `5`.
 
 include::search/search.asciidoc[]
 
+include::search/request-body.asciidoc[]
+
 include::search/async-search.asciidoc[]
 
-include::search/uri-request.asciidoc[]
+include::search/scroll-api.asciidoc[]
 
-include::search/request-body.asciidoc[]
+include::search/clear-scroll-api.asciidoc[]
 
 include::search/search-template.asciidoc[]
 
@@ -165,6 +167,12 @@ include::search/search-shards.asciidoc[]
 include::search/suggesters.asciidoc[]
 
 include::search/multi-search.asciidoc[]
+
+include::eql/eql-search-api.asciidoc[]
+
+include::eql/get-async-eql-search-api.asciidoc[]
+
+include::eql/delete-async-eql-search-api.asciidoc[]
 
 include::search/count.asciidoc[]
 

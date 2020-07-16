@@ -92,14 +92,20 @@ public final class AsyncExecutionId {
      * to retrieve the response of an async execution.
      */
     public static AsyncExecutionId decode(String id) {
+        final ByteBuffer byteBuffer;
+        try {
+            byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
+        }
         final AsyncExecutionId searchId;
-        try (StreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getUrlDecoder().decode(id)))) {
+        try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
             searchId = new AsyncExecutionId(in.readString(), new TaskId(in.readString()));
             if (in.available() > 0) {
-                throw new IllegalArgumentException("invalid id:[" + id + "]");
+                throw new IllegalArgumentException("invalid id: [" + id + "]");
             }
         } catch (IOException e) {
-            throw new IllegalArgumentException("invalid id:[" + id + "]");
+            throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
         return searchId;
     }

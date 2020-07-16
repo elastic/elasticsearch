@@ -21,13 +21,13 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
-import org.elasticsearch.xpack.core.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -172,8 +173,8 @@ class DatafeedJob {
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().getTime());
-            return flushResponse.getLastFinalizedBucketEnd().getTime();
+            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
+            return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
         return startTime;
     }
@@ -183,6 +184,7 @@ class DatafeedJob {
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setWaitForNormalization(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -223,19 +225,11 @@ class DatafeedJob {
                 auditor.warning(jobId, msg);
 
                 if (lastDataCheckAnnotationWithId == null) {
-                    lastDataCheckAnnotationWithId =
-                        annotationPersister.persistAnnotation(
-                            null,
-                            annotation,
-                            "[" + jobId + "] failed to create annotation for delayed data checker.");
+                    lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(null, annotation);
                 } else {
                     String annotationId = lastDataCheckAnnotationWithId.v1();
                     Annotation updatedAnnotation = updateAnnotation(annotation);
-                    lastDataCheckAnnotationWithId =
-                        annotationPersister.persistAnnotation(
-                            annotationId,
-                            updatedAnnotation,
-                            "[" + jobId + "] failed to update annotation for delayed data checker.");
+                    lastDataCheckAnnotationWithId = annotationPersister.persistAnnotation(annotationId, updatedAnnotation);
                 }
             }
         }
@@ -243,26 +237,28 @@ class DatafeedJob {
 
     private Annotation createDelayedDataAnnotation(Date startTime, Date endTime, String msg) {
        Date currentTime = new Date(currentTimeSupplier.get());
-       return new Annotation(
-           msg,
-           currentTime,
-           XPackUser.NAME,
-           startTime,
-           endTime,
-           jobId,
-           currentTime,
-           XPackUser.NAME,
-           "annotation");
+       return new Annotation.Builder()
+           .setAnnotation(msg)
+           .setCreateTime(currentTime)
+           .setCreateUsername(XPackUser.NAME)
+           .setTimestamp(startTime)
+           .setEndTimestamp(endTime)
+           .setJobId(jobId)
+           .setModifiedTime(currentTime)
+           .setModifiedUsername(XPackUser.NAME)
+           .setType(Annotation.Type.ANNOTATION)
+           .setEvent(Annotation.Event.DELAYED_DATA)
+           .build();
     }
 
     private Annotation updateAnnotation(Annotation annotation) {
-        Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotationWithId.v2());
-        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
-        updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
-        updatedAnnotation.setAnnotation(annotation.getAnnotation());
-        updatedAnnotation.setTimestamp(annotation.getTimestamp());
-        updatedAnnotation.setEndTimestamp(annotation.getEndTimestamp());
-        return updatedAnnotation;
+        return new Annotation.Builder(lastDataCheckAnnotationWithId.v2())
+            .setAnnotation(annotation.getAnnotation())
+            .setTimestamp(annotation.getTimestamp())
+            .setEndTimestamp(annotation.getEndTimestamp())
+            .setModifiedTime(new Date(currentTimeSupplier.get()))
+            .setModifiedUsername(XPackUser.NAME)
+            .build();
     }
 
     /**
@@ -388,9 +384,9 @@ class DatafeedJob {
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
         if (isRunning() && !isIsolated) {
-            Date lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+            Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
-                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.getTime();
+                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
             }
         }
 

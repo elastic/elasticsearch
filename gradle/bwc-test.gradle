@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.info.BuildParams
 
 ext.bwcTaskName = { Version version ->
   return "v${version}#bwcTest"
@@ -6,7 +7,7 @@ ext.bwcTaskName = { Version version ->
 
 def bwcTestSnapshots = tasks.register("bwcTestSnapshots") {
   if (project.bwc_tests_enabled) {
-    dependsOn tasks.matching { task -> bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
+    dependsOn tasks.matching { task -> BuildParams.bwcVersions.unreleased.any { version -> bwcTaskName(version) == task.name } }
   }
 }
 

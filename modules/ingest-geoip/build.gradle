@@ -19,19 +19,22 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
 esplugin {
   description 'Ingest processor that uses lookup geo data based on IP adresses using the MaxMind geo database'
   classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 }
 
 dependencies {
-  compile('com.maxmind.geoip2:geoip2:2.13.1')
+  api('com.maxmind.geoip2:geoip2:2.13.1')
   // geoip2 dependencies:
-  compile("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  compile("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
-  compile('com.maxmind.db:maxmind-db:1.3.1')
+  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  api('com.maxmind.db:maxmind-db:1.3.1')
 
-  testCompile 'org.elasticsearch:geolite2-databases:20191119'
+  testImplementation 'org.elasticsearch:geolite2-databases:20191119'
 }
 
 restResources {
@@ -40,8 +43,10 @@ restResources {
   }
 }
 
+integTest.enabled = false
+
 task copyDefaultGeoIp2DatabaseFiles(type: Copy) {
-  from { zipTree(configurations.testCompile.files.find { it.name.contains('geolite2-databases') }) }
+  from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
   into "${project.buildDir}/ingest-geoip"
   include "*.mmdb"
 }

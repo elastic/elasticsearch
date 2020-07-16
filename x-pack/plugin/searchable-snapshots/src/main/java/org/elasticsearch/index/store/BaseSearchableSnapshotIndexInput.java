@@ -7,11 +7,11 @@ package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -136,17 +136,16 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
             || threadName.contains('[' + ThreadPool.Names.SEARCH + ']')
             || threadName.contains('[' + ThreadPool.Names.SEARCH_THROTTLED + ']')
 
-            // Today processExistingRecoveries considers all shards and constructs a shard store snapshot on this thread, this needs
-            // addressing. TODO NORELEASE
-            || threadName.contains('[' + ThreadPool.Names.FETCH_SHARD_STORE + ']')
+            // Cache asynchronous fetching runs on a dedicated thread pool.
+            || threadName.contains('[' + SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']')
 
-            // Today for as-yet-unknown reasons we sometimes try and compute the snapshot size on the cluster applier thread, which needs
-            // addressing. TODO NORELEASE
-            || threadName.contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
+            // Cache prewarming also runs on a dedicated thread pool.
+            || threadName.contains('[' + SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
 
             // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
             // method somehow.
-            || threadName.startsWith("TEST-") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
+            || threadName.startsWith("TEST-")
+            || threadName.startsWith("LuceneTestCase") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
         return true;
     }
 

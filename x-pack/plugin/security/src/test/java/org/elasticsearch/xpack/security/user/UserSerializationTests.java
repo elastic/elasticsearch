@@ -10,6 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -124,5 +125,12 @@ public class UserSerializationTests extends ESTestCase {
         readFrom = User.readFrom(output.bytes().streamInput());
 
         assertEquals(kibanaUser, readFrom);
+
+        final KibanaSystemUser kibanaSystemUser = new KibanaSystemUser(true);
+        output = new BytesStreamOutput();
+        User.writeTo(kibanaSystemUser, output);
+        readFrom = User.readFrom(output.bytes().streamInput());
+
+        assertEquals(kibanaSystemUser, readFrom);
     }
 }

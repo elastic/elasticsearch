@@ -35,7 +35,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 `<transform_id>`::
 (Required, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[delete-transform-query-parms]]
 ==== {api-query-parms-title}

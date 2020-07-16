@@ -81,7 +81,7 @@ public class SIfElse extends AStatement {
 
         SBlock userIfBlockNode = userIfElseNode.getIfBlockNode();
 
-        if (userConditionNode instanceof EBoolean || userIfBlockNode == null) {
+        if (userConditionNode instanceof EBooleanConstant || userIfBlockNode == null) {
             throw userIfElseNode.createError(new IllegalArgumentException("extraneous if block"));
         }
 

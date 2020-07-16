@@ -22,6 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,17 +37,17 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IpFieldMapperTests extends ESSingleNodeTestCase {
+public class IpFieldMapperTests extends FieldMapperTestCase<IpFieldMapper.Builder> {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -53,6 +56,14 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("null_value", false, (a, b) -> {
+            a.nullValue(InetAddresses.forString("::1"));
+        });
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -132,6 +143,14 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField pointField = fields[0];
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), pointField.binaryValue());
+
+        fields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
+
+        FieldMapper m = (FieldMapper) mapper.mappers().getMapper("field");
+        Query existsQuery = m.fieldType().existsQuery(null);
+        assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), existsQuery);
     }
 
     public void testStore() throws Exception {
@@ -264,7 +283,6 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
         // it would be nice to check the entire serialized default mapper, but there are
         // a whole lot of bogus settings right now it picks up from calling super.doXContentBody...
-        assertTrue(got, got.contains("\"null_value\":null"));
         assertTrue(got, got.contains("\"ignore_malformed\":false"));
     }
 
@@ -277,5 +295,10 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    @Override
+    protected IpFieldMapper.Builder newBuilder() {
+        return new IpFieldMapper.Builder("ip");
     }
 }

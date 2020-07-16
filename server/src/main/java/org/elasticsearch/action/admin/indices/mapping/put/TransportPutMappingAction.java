@@ -43,7 +43,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -98,37 +100,60 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     protected void masterOperation(Task task, final PutMappingRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
-            final Index[] concreteIndices = request.getConcreteIndex() == null ?
-                indexNameExpressionResolver.concreteIndices(state, request)
-                : new Index[] {request.getConcreteIndex()};
+            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
-            PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
-                .indices(concreteIndices)
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-
-            metadataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
-
-                @Override
-                public void onResponse(ClusterStateUpdateResponse response) {
-                    listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
-                }
-
-                @Override
-                public void onFailure(Exception t) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
-                        Arrays.asList(concreteIndices)), t);
-                    listener.onFailure(t);
-                }
-            });
+            performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
                 Arrays.asList(request.indices())), ex);
             throw ex;
         }
+    }
+
+    static Index[] resolveIndices(final ClusterState state, PutMappingRequest request, final IndexNameExpressionResolver iner) {
+        if (request.getConcreteIndex() == null) {
+            if (request.writeIndexOnly()) {
+                List<Index> indices = new ArrayList<>();
+                for (String indexExpression : request.indices()) {
+                    indices.add(iner.concreteWriteIndex(state, request.indicesOptions(), indexExpression,
+                        request.indicesOptions().allowNoIndices(), request.includeDataStreams()));
+                }
+                return indices.toArray(Index.EMPTY_ARRAY);
+            } else {
+                return iner.concreteIndices(state, request);
+            }
+        } else {
+            return new Index[]{request.getConcreteIndex()};
+        }
+    }
+
+    static void performMappingUpdate(Index[] concreteIndices,
+                                     PutMappingRequest request,
+                                     ActionListener<AcknowledgedResponse> listener,
+                                     MetadataMappingService metadataMappingService) {
+        PutMappingClusterStateUpdateRequest updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
+            .indices(concreteIndices)
+            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+
+        metadataMappingService.putMapping(updateRequest, new ActionListener<>() {
+
+            @Override
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
+            }
+
+            @Override
+            public void onFailure(Exception t) {
+                logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
+                    Arrays.asList(concreteIndices)), t);
+                listener.onFailure(t);
+            }
+        });
     }
 
 }

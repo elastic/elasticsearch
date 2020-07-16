@@ -55,8 +55,8 @@ teardown:
         transform_id: "airline-transform-stats"
   - match:
       $body: |
-        /^  #id                           \s+ create_time \s+ version \s+ source_index \s+ dest_index              \s+ pipeline \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ state    \n
-            (airline\-transform\-stats    \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+          \s+ batch          \s+ 1m        \s+ 500                  \s+ STOPPED \n)+  $/
+        /^  #id                           \s+ create_time \s+ version \s+ source_index \s+ dest_index              \s+ pipeline \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state    \n
+            (airline\-transform\-stats    \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data \s+ airline-data-by-airline \s+          \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
 
 ---
 "Test cat transform stats with column selection":
@@ -95,8 +95,8 @@ teardown:
         v: true
   - match:
       $body: |
-        /^   id                        \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                    \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ state   \n
-            (airline\-transform\-batch \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-batch \s+          \s+ description \s+ batch          \s+ 1m        \s+ 500                  \s+ STOPPED \n)+  $/
+        /^   id                        \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                    \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state   \n
+            (airline\-transform\-batch \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-batch \s+          \s+ description \s+ batch          \s+ 1m        \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-batch"
@@ -131,8 +131,8 @@ teardown:
         v: true
   - match:
       $body: |
-        /^   id                             \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                         \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ state   \n
-            (airline\-transform\-continuous \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-continuous \s+          \s+ description \s+ continuous     \s+ 10s       \s+ 500                  \s+ STOPPED \n)+  $/
+        /^   id                             \s+ create_time \s+ version \s+ source_index                    \s+ dest_index                         \s+ pipeline \s+ description \s+ transform_type \s+ frequency \s+ max_page_search_size \s+ docs_per_second \s+ state   \n
+            (airline\-transform\-continuous \s+ [^\s]+      \s+ [^\s]+  \s+ airline-data,airline-data-other \s+ airline-data-by-airline-continuous \s+          \s+ description \s+ continuous     \s+ 10s       \s+ 500                  \s+ -               \s+ STOPPED \n)+  $/
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-continuous"

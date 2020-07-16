@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -14,6 +16,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.Arrays;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class MountSearchableSnapshotRequestTests extends AbstractWireSerializingTestCase<MountSearchableSnapshotRequest> {
 
@@ -167,5 +171,18 @@ public class MountSearchableSnapshotRequestTests extends AbstractWireSerializing
         } else {
             return Strings.EMPTY_ARRAY;
         }
+    }
+
+    public void testForbidsCustomDataPath() {
+        final ActionRequestValidationException validationException = new MountSearchableSnapshotRequest(
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, randomAlphaOfLength(5)).build(),
+            Strings.EMPTY_ARRAY,
+            randomBoolean()
+        ).validate();
+        assertThat(validationException.getMessage(), containsString(IndexMetadata.SETTING_DATA_PATH));
     }
 }

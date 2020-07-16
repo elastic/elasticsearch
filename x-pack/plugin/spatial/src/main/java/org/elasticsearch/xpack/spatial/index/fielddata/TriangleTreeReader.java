@@ -38,7 +38,7 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * -----------------------------------------
  * -----------------------------------------
  */
-class TriangleTreeReader {
+public class TriangleTreeReader {
     private final ByteArrayDataInput input;
     private final CoordinateEncoder coordinateEncoder;
     private final Tile2D tile2D;
@@ -46,7 +46,7 @@ class TriangleTreeReader {
     private int treeOffset;
     private int docValueOffset;
 
-    TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
+    public TriangleTreeReader(CoordinateEncoder coordinateEncoder) {
         this.coordinateEncoder = coordinateEncoder;
         this.tile2D = new Tile2D();
         this.extent = new Extent();

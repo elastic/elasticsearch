@@ -25,16 +25,16 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.http.HttpPipelinedRequest;
+import org.elasticsearch.http.HttpPipelinedResponse;
+import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -44,12 +44,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -172,7 +170,7 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
         assertFalse(embeddedChannel.isOpen());
     }
 
-    public void testPipeliningRequestsAreReleased() throws InterruptedException {
+    public void testPipeliningRequestsAreReleased() {
         final int numberOfRequests = 10;
         final EmbeddedChannel embeddedChannel =
             new EmbeddedChannel(new NioHttpPipeliningHandler(logger, numberOfRequests + 1));
@@ -181,8 +179,8 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
         }
 
-        HttpPipelinedRequest<FullHttpRequest> inbound;
-        ArrayList<HttpPipelinedRequest<FullHttpRequest>> requests = new ArrayList<>();
+        HttpPipelinedRequest inbound;
+        ArrayList<HttpPipelinedRequest> requests = new ArrayList<>();
         while ((inbound = embeddedChannel.readInbound()) != null) {
             requests.add(inbound);
         }
@@ -191,9 +189,8 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
         for (int i = 1; i < requests.size(); ++i) {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
-            HttpPipelinedRequest<FullHttpRequest> pipelinedRequest = requests.get(i);
-            NioHttpRequest nioHttpRequest = new NioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
-            NioHttpResponse resp = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
+            HttpPipelinedRequest pipelinedRequest = requests.get(i);
+            HttpPipelinedResponse resp = pipelinedRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -215,37 +212,20 @@ public class NioHttpPipeliningHandlerTests extends ESTestCase {
         assertThat(data, is(expectedContent));
     }
 
-    private FullHttpRequest createHttpRequest(String uri) {
-        return new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri);
+    private NioHttpRequest createHttpRequest(String uri) {
+        return new NioHttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri));
     }
 
-    private static class AggregateUrisAndHeadersHandler extends SimpleChannelInboundHandler<HttpRequest> {
-
-        static final Queue<String> QUEUE_URI = new LinkedTransferQueue<>();
+    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
 
         @Override
-        protected void channelRead0(ChannelHandlerContext ctx, HttpRequest request) throws Exception {
-            QUEUE_URI.add(request.uri());
-        }
-
-    }
-
-    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest<FullHttpRequest>> {
-
-        @Override
-        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> pipelinedRequest) {
-            LastHttpContent request = pipelinedRequest.getRequest();
-            final QueryStringDecoder decoder;
-            if (request instanceof FullHttpRequest) {
-                decoder = new QueryStringDecoder(((FullHttpRequest)request).uri());
-            } else {
-                decoder = new QueryStringDecoder(AggregateUrisAndHeadersHandler.QUEUE_URI.poll());
-            }
+        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest pipelinedRequest) {
+            final HttpRequest request = pipelinedRequest.getDelegateRequest();
+            final QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
 
             final String uri = decoder.path().replace("/", "");
             final BytesReference content = new BytesArray(uri.getBytes(StandardCharsets.UTF_8));
-            NioHttpRequest nioHttpRequest = new NioHttpRequest(pipelinedRequest.getRequest(), pipelinedRequest.getSequence());
-            NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, content);
+            HttpResponse httpResponse = pipelinedRequest.createResponse(RestStatus.OK, content);
             httpResponse.addHeader(CONTENT_LENGTH.toString(), Integer.toString(content.length()));
 
             final CountDownLatch waitingLatch = new CountDownLatch(1);

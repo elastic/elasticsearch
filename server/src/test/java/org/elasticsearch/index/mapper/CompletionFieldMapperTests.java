@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
+
     public void testDefaultConfiguration() throws IOException {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -83,7 +84,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(true));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("simple"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
@@ -116,13 +117,15 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
-        NamedAnalyzer searchAnalyzer = completionFieldType.searchAnalyzer();
+        NamedAnalyzer searchAnalyzer = completionFieldType.getTextSearchInfo().getSearchAnalyzer();
         assertThat(searchAnalyzer.name(), equalTo("standard"));
         assertThat(searchAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         analyzer = (CompletionAnalyzer) searchAnalyzer.analyzer();
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
+        assertEquals("{\"completion\":{\"type\":\"completion\",\"analyzer\":\"simple\",\"search_analyzer\":\"standard\"," +
+            "\"preserve_separators\":false,\"preserve_position_increments\":true,\"max_input_length\":50}}", Strings.toString(fieldMapper));
     }
 
     public void testTypeParsing() throws Exception {
@@ -144,7 +147,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
 
         XContentBuilder builder = jsonBuilder().startObject();
-        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+        fieldMapper.toXContent(builder, new ToXContent.MapParams(Map.of("include_defaults", "true"))).endObject();
         builder.close();
         Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder)).map();
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
@@ -945,9 +948,8 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             .and(Matchers.instanceOf(SortedSetDocValuesField.class));
     }
 
-    private CombinableMatcher<IndexableField> keywordField(String value) {
-        return Matchers.both(hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value))))
-            .and(hasProperty(IndexableField::fieldType, Matchers.instanceOf(KeywordFieldMapper.KeywordFieldType.class)));
+    private Matcher<IndexableField> keywordField(String value) {
+        return hasProperty(IndexableField::binaryValue, equalTo(new BytesRef(value)));
     }
 
     private <T, V> Matcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {
@@ -958,4 +960,5 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
             }
         };
     }
+
 }

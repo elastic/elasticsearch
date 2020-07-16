@@ -19,7 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -56,7 +57,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest> {
+public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -74,7 +77,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalPipeline;
     private String globalRouting;
     private String globalIndex;
-    private Boolean preferV2Templates;
 
     private long sizeInBytes = 0;
 
@@ -85,13 +87,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            requests.add(DocWriteRequest.readDocumentRequest(in));
+            requests.add(DocWriteRequest.readDocumentRequest(null, in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.preferV2Templates = in.readOptionalBoolean();
-        }
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -199,16 +198,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public List<DocWriteRequest<?>> requests() {
         return this.requests;
-    }
-
-    public BulkRequest preferV2Templates(@Nullable Boolean preferV2Templates) {
-        this.preferV2Templates = preferV2Templates;
-        return this;
-    }
-
-    @Nullable
-    public Boolean preferV2Templates() {
-        return this.preferV2Templates;
     }
 
     /**
@@ -371,9 +360,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalBoolean(preferV2Templates);
-        }
     }
 
     @Override
@@ -390,5 +376,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             return globalDefault;
         }
         return value;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

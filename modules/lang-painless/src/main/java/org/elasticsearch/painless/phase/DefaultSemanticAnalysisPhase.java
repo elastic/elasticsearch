@@ -25,8 +25,8 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
-import org.elasticsearch.painless.node.EBool;
-import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.EBooleanComp;
+import org.elasticsearch.painless.node.EBooleanConstant;
 import org.elasticsearch.painless.node.EBrace;
 import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
@@ -254,8 +254,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     }
 
     @Override
-    public Void visitBool(EBool userBoolNode, SemanticScope semanticScope) {
-        EBool.visitDefaultSemanticAnalysis(this, userBoolNode, semanticScope);
+    public Void visitBool(EBooleanComp userBoolNode, SemanticScope semanticScope) {
+        EBooleanComp.visitDefaultSemanticAnalysis(this, userBoolNode, semanticScope);
 
         return null;
     }
@@ -331,8 +331,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     }
 
     @Override
-    public Void visitBoolean(EBoolean userBooleanNode, SemanticScope semanticScope) {
-        EBoolean.visitDefaultSemanticAnalysis(this, userBooleanNode, semanticScope);
+    public Void visitBoolean(EBooleanConstant userBooleanNode, SemanticScope semanticScope) {
+        EBooleanConstant.visitDefaultSemanticAnalysis(this, userBooleanNode, semanticScope);
 
         return null;
     }

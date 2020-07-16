@@ -44,9 +44,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
-import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
-import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.ArrayList;
@@ -105,23 +104,18 @@ public class TransportGetDataFrameAnalyticsStatsAction
                                  ActionListener<QueryPage<Stats>> listener) {
         logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<StatsHolder> statsHolderListener = ActionListener.wrap(
-            statsHolder -> {
+        ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
+            aVoid -> {
                 Stats stats = buildStats(
                     task.getParams().getId(),
-                    statsHolder.getProgressTracker().report(),
-                    statsHolder.getDataCountsTracker().report(task.getParams().getId()),
-                    statsHolder.getMemoryUsage(),
-                    statsHolder.getAnalysisStats()
+                    task.getStatsHolder().getProgressTracker().report(),
+                    task.getStatsHolder().getDataCountsTracker().report(task.getParams().getId()),
+                    task.getStatsHolder().getMemoryUsage(),
+                    task.getStatsHolder().getAnalysisStats()
                 );
                 listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1,
                     GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
             }, listener::onFailure
-        );
-
-        ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
-            aVoid -> statsHolderListener.onResponse(task.getStatsHolder()),
-            listener::onFailure
         );
 
         task.updateReindexTaskProgress(reindexingProgressListener);
@@ -138,7 +132,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                     .collect(Collectors.toList());
                 request.setExpandedIds(expandedIds);
                 ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
-                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(request.getExpandedIds(), runningTasksStatsResponse,
+                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(getResponse.getResources().results(), runningTasksStatsResponse,
                         ActionListener.wrap(
                             finalResponse -> {
 
@@ -163,20 +157,20 @@ public class TransportGetDataFrameAnalyticsStatsAction
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, getRequest, getResponseListener);
     }
 
-    void gatherStatsForStoppedTasks(List<String> expandedIds, GetDataFrameAnalyticsStatsAction.Response runningTasksResponse,
+    void gatherStatsForStoppedTasks(List<DataFrameAnalyticsConfig> configs, GetDataFrameAnalyticsStatsAction.Response runningTasksResponse,
                                     ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
-        List<String> stoppedTasksIds = determineStoppedTasksIds(expandedIds, runningTasksResponse.getResponse().results());
-        if (stoppedTasksIds.isEmpty()) {
+        List<DataFrameAnalyticsConfig> stoppedConfigs = determineStoppedConfigs(configs, runningTasksResponse.getResponse().results());
+        if (stoppedConfigs.isEmpty()) {
             listener.onResponse(runningTasksResponse);
             return;
         }
 
-        AtomicInteger counter = new AtomicInteger(stoppedTasksIds.size());
-        AtomicArray<Stats> jobStats = new AtomicArray<>(stoppedTasksIds.size());
-        for (int i = 0; i < stoppedTasksIds.size(); i++) {
+        AtomicInteger counter = new AtomicInteger(stoppedConfigs.size());
+        AtomicArray<Stats> jobStats = new AtomicArray<>(stoppedConfigs.size());
+        for (int i = 0; i < stoppedConfigs.size(); i++) {
             final int slot = i;
-            String jobId = stoppedTasksIds.get(i);
-            searchStats(jobId, ActionListener.wrap(
+            DataFrameAnalyticsConfig config = stoppedConfigs.get(i);
+            searchStats(config, ActionListener.wrap(
                 stats -> {
                     jobStats.set(slot, stats);
                     if (counter.decrementAndGet() == 0) {
@@ -192,23 +186,24 @@ public class TransportGetDataFrameAnalyticsStatsAction
         }
     }
 
-    static List<String> determineStoppedTasksIds(List<String> expandedIds, List<Stats> runningTasksStats) {
+    static List<DataFrameAnalyticsConfig> determineStoppedConfigs(List<DataFrameAnalyticsConfig> configs, List<Stats> runningTasksStats) {
         Set<String> startedTasksIds = runningTasksStats.stream().map(Stats::getId).collect(Collectors.toSet());
-        return expandedIds.stream().filter(id -> startedTasksIds.contains(id) == false).collect(Collectors.toList());
+        return configs.stream().filter(config -> startedTasksIds.contains(config.getId()) == false).collect(Collectors.toList());
     }
 
-    private void searchStats(String configId, ActionListener<Stats> listener) {
-        logger.debug("[{}] Gathering stats for stopped task", configId);
+    private void searchStats(DataFrameAnalyticsConfig config, ActionListener<Stats> listener) {
+        logger.debug("[{}] Gathering stats for stopped task", config.getId());
 
-        RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder();
+        RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
+            ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report());
 
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        multiSearchRequest.add(buildStoredProgressSearch(configId));
-        multiSearchRequest.add(buildStatsDocSearch(configId, DataCounts.TYPE_VALUE));
-        multiSearchRequest.add(buildStatsDocSearch(configId, MemoryUsage.TYPE_VALUE));
-        multiSearchRequest.add(buildStatsDocSearch(configId, OutlierDetectionStats.TYPE_VALUE));
-        multiSearchRequest.add(buildStatsDocSearch(configId, ClassificationStats.TYPE_VALUE));
-        multiSearchRequest.add(buildStatsDocSearch(configId, RegressionStats.TYPE_VALUE));
+        multiSearchRequest.add(buildStoredProgressSearch(config.getId()));
+        multiSearchRequest.add(buildStatsDocSearch(config.getId(), DataCounts.TYPE_VALUE));
+        multiSearchRequest.add(buildStatsDocSearch(config.getId(), MemoryUsage.TYPE_VALUE));
+        multiSearchRequest.add(buildStatsDocSearch(config.getId(), OutlierDetectionStats.TYPE_VALUE));
+        multiSearchRequest.add(buildStatsDocSearch(config.getId(), ClassificationStats.TYPE_VALUE));
+        multiSearchRequest.add(buildStatsDocSearch(config.getId(), RegressionStats.TYPE_VALUE));
 
         executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, ActionListener.wrap(
             multiSearchResponse -> {
@@ -220,7 +215,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                         logger.error(
                             new ParameterizedMessage(
                                 "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
-                                configId, itemRequest.indices(), itemRequest.source(), itemResponse.getFailureMessage()),
+                                config.getId(), itemRequest.indices(), itemRequest.source(), itemResponse.getFailureMessage()),
                             itemResponse.getFailure());
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
                         return;
@@ -229,13 +224,13 @@ public class TransportGetDataFrameAnalyticsStatsAction
                         if (hits.length == 0) {
                             // Not found
                         } else if (hits.length == 1) {
-                            parseHit(hits[0], configId, retrievedStatsHolder);
+                            parseHit(hits[0], config.getId(), retrievedStatsHolder);
                         } else {
                             throw ExceptionsHelper.serverError("Found [" + hits.length + "] hits when just one was requested");
                         }
                     }
                 }
-                listener.onResponse(buildStats(configId,
+                listener.onResponse(buildStats(config.getId(),
                     retrievedStatsHolder.progress.get(),
                     retrievedStatsHolder.dataCounts,
                     retrievedStatsHolder.memoryUsage,
@@ -322,9 +317,13 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
     private static class RetrievedStatsHolder {
 
-        private volatile StoredProgress progress = new StoredProgress(new ProgressTracker().report());
+        private volatile StoredProgress progress;
         private volatile DataCounts dataCounts;
         private volatile MemoryUsage memoryUsage;
         private volatile AnalysisStats analysisStats;
+
+        private RetrievedStatsHolder(List<PhaseProgress> defaultProgress) {
+            progress = new StoredProgress(defaultProgress);
+        }
     }
 }

@@ -91,6 +91,10 @@ openssl pkcs12 -in dsa.p12 -nodes -nocerts | openssl pkcs8 -topk8 -nocrypt -outf
 ----
 [source,shell]
 ----
+openssl pkcs12 -in dsa.p12 -nodes -nokeys -cacerts -out testnode_dsa.crt
+----
+[source,shell]
+----
 keytool -importkeystore -srckeystore testnode.jks -destkeystore ec.p12 -deststoretype PKCS12 \
                 -srcalias testnode_ec -deststorepass testnode -destkeypass testnode
 ----
@@ -99,8 +103,10 @@ keytool -importkeystore -srckeystore testnode.jks -destkeystore ec.p12 -deststor
 openssl pkcs12 -in ec.p12 -nodes -nocerts | openssl pkcs8 -topk8 -nocrypt -outform pem \
                 -out ec_key_pkcs8_plain.pem
 ----
-
-
+[source,shell]
+----
+openssl pkcs12 -in ec.p12 -nodes -nokeys -cacerts -out testnode_ec.crt
+----
 
 Create `PKCS#8` encrypted key from the encrypted `PKCS#1` encoded `testnode.pem`
 [source,shell]

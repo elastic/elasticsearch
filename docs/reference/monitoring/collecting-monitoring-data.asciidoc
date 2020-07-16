@@ -1,16 +1,19 @@
 [role="xpack"]
 [testenv="gold"]
 [[collecting-monitoring-data]]
-== Collecting monitoring data
+== Collecting monitoring data using legacy collectors
+++++
+<titleabbrev>Legacy collection methods</titleabbrev>
+++++
 
 [IMPORTANT]
 =========================
 {metricbeat} is the recommended method for collecting and shipping monitoring
 data to a monitoring cluster.
 
-If you have previously configured internal collection, you should migrate to
-using {metricbeat} collection. Use either {metricbeat} collection or
-internal collection; do not use both.
+If you have previously configured legacy collection methods, you should migrate
+to using {metricbeat} collection methods. Use either {metricbeat} collection or
+legacy collection methods; do not use both.
 
 Learn more about <<configuring-metricbeat>>.
 =========================
@@ -29,10 +32,6 @@ monitoring indices. You can also adjust how monitoring data is displayed.
 To learn about monitoring in general, see <<monitor-elasticsearch-cluster>>.
 
 . Configure your cluster to collect monitoring data:
-
-.. Verify that the deprecated `xpack.monitoring.enabled` setting is not set to
-`false` on any node in the cluster. For more information, see
-<<monitoring-settings>>.
 
 .. Verify that the `xpack.monitoring.elasticsearch.collection.enabled` setting
 is `true`, which is its default value, on each node in the cluster.

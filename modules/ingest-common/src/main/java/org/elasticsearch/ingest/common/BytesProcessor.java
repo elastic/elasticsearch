@@ -31,8 +31,8 @@ public final class BytesProcessor extends AbstractStringProcessor<Long> {
 
     public static final String TYPE = "bytes";
 
-    BytesProcessor(String processorTag, String field, boolean ignoreMissing, String targetField) {
-        super(processorTag, field, ignoreMissing, targetField);
+    BytesProcessor(String processorTag, String description, String field, boolean ignoreMissing, String targetField) {
+        super(processorTag, description, ignoreMissing, targetField, field);
     }
 
     public static long apply(String value) {
@@ -56,9 +56,9 @@ public final class BytesProcessor extends AbstractStringProcessor<Long> {
         }
 
         @Override
-        protected BytesProcessor newProcessor(String tag, Map<String, Object> config, String field,
+        protected BytesProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
                                               boolean ignoreMissing, String targetField) {
-            return new BytesProcessor(tag, field, ignoreMissing, targetField);
+            return new BytesProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }
 }

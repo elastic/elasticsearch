@@ -47,10 +47,10 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
 
-        when(licenseState.isCcrAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isCcrAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.CCR)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
     }
 
@@ -96,8 +96,23 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         int numAutoFollowPatterns = randomIntBetween(0, 32);
         Map<String, AutoFollowMetadata.AutoFollowPattern> patterns = new HashMap<>(numAutoFollowPatterns);
         for (int i = 0; i < numAutoFollowPatterns; i++) {
-            AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern("remote_cluser",
-                Collections.singletonList("logs" + i + "*"), null, true, null, null, null, null, null, null, null, null, null, null);
+            AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern(
+                "remote_cluser",
+                Collections.singletonList("logs" + i + "*"),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
             patterns.put("pattern" + i, pattern);
         }
         metadata.putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()));

@@ -163,7 +163,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             }))
         );
 
-        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, service);
+        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service);
         httpContexts.forEach(httpContext -> httpServer.removeContext(httpContext));
 
         return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);

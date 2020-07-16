@@ -54,6 +54,8 @@ GET /_enrich/policy/my-policy
 
 `GET /_enrich/policy`
 
+`GET /_enrich/policy/policy1,policy2`
+
 
 [[get-enrich-policy-api-prereqs]]
 ==== {api-prereq-title}

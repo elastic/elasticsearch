@@ -25,6 +25,9 @@
                     }
                 }
             }
+        },
+        "long_field" : {
+            "type" : "long"
         }
     }
 }

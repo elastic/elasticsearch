@@ -53,12 +53,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         indicesCreated = true;
 
         // at random test the old deprecated roles, to be removed in 9.0.0
-        if (randomBoolean()) {
-            setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
-            setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
-        } else {
+        if (useDeprecatedEndpoints() && randomBoolean()) {
             setupUser(TEST_USER_NAME, Collections.singletonList("data_frame_transforms_user"));
             setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("data_frame_transforms_admin"));
+        } else {
+            setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
+            setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
         }
     }
 

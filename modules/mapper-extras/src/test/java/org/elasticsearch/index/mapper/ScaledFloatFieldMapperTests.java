@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -38,10 +37,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
+public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloatFieldMapper.Builder> {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -50,11 +50,25 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("scaling_factor", false, (a, b) -> {
+            a.scalingFactor(10);
+            b.scalingFactor(100);
+        });
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
+    }
+
+    @Override
+    protected ScaledFloatFieldMapper.Builder newBuilder() {
+        return new ScaledFloatFieldMapper.Builder("scaled-float").scalingFactor(1);
     }
 
     public void testDefaults() throws Exception {

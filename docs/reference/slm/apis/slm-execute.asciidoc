@@ -57,7 +57,9 @@ If successful, this request returns the generated snapshot name:
 --------------------------------------------------
 // TESTRESPONSE[skip:we can't handle snapshots from docs tests]
 
-The snapshot is taken in the background. 
-You can use the<<modules-snapshots,snapshot APIs>> to monitor the status of the snapshot.
+The snapshot is taken in the background. You can use the 
+<<snapshot-lifecycle-management-api,snapshot APIs>> to 
+<<snapshots-monitor-snapshot-restore,monitor the status of the snapshot>>.
 
-To see the status of a policy's most recent snapshot, you can use the <<slm-api-get-policy>>.
+To see the status of a policy's most recent snapshot, you can use the 
+<<slm-api-get-policy,get snapshot lifecycle policy API>>.

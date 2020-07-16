@@ -16,14 +16,19 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * A holder for the current state of the license for all xpack features.
@@ -36,6 +41,7 @@ public class XPackLicenseState {
      * Each value defines the licensed state necessary for the feature to be allowed.
      */
     public enum Feature {
+        SECURITY(OperationMode.BASIC, false),
         SECURITY_IP_FILTERING(OperationMode.GOLD, false),
         SECURITY_AUDITING(OperationMode.GOLD, false),
         SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
@@ -45,7 +51,54 @@ public class XPackLicenseState {
         SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
         SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
-        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true);
+        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
+        SECURITY_STATS_AND_HEALTH(OperationMode.MISSING, true),
+
+        WATCHER(OperationMode.STANDARD, true),
+        MONITORING(OperationMode.MISSING, true),
+        // TODO: should just check WATCHER directly?
+        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
+        MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
+
+        CCR(OperationMode.PLATINUM, true),
+
+        GRAPH(OperationMode.PLATINUM, true),
+
+        MACHINE_LEARNING(OperationMode.PLATINUM, true),
+
+        TRANSFORM(OperationMode.MISSING, true),
+
+        ROLLUP(OperationMode.MISSING, true),
+
+        VOTING_ONLY(OperationMode.MISSING, true),
+
+        LOGSTASH(OperationMode.STANDARD, true),
+
+        DEPRECATION(OperationMode.MISSING, true),
+
+        ILM(OperationMode.MISSING, true),
+
+        ENRICH(OperationMode.MISSING, true),
+
+        EQL(OperationMode.MISSING, true),
+
+        SQL(OperationMode.MISSING, true),
+
+        JDBC(OperationMode.PLATINUM, true),
+
+        ODBC(OperationMode.PLATINUM, true),
+
+        VECTORS(OperationMode.MISSING, true),
+
+        SPATIAL(OperationMode.MISSING, true),
+
+        SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
+
+        SPATIAL_GEO_GRID(OperationMode.GOLD, true),
+
+        ANALYTICS(OperationMode.MISSING, true),
+
+        SEARCHABLE_SNAPSHOTS(OperationMode.PLATINUM, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;
@@ -55,6 +108,14 @@ public class XPackLicenseState {
             this.needsActive = needsActive;
         }
     }
+
+    // temporarily non tracked feeatures which need rework in how they are checked
+    // so they are not tracked as always used
+    private static final Set<Feature> NON_TRACKED_FEATURES = Set.of(
+        Feature.SECURITY_IP_FILTERING,
+        Feature.SECURITY_ALL_REALMS,
+        Feature.SECURITY_STANDARD_REALMS
+    );
 
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
@@ -348,6 +409,8 @@ public class XPackLicenseState {
     private final List<LicenseStateListener> listeners;
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
+    private final Map<Feature, LongAccumulator> lastUsed;
+    private final LongSupplier epochMillisProvider;
 
     // Since Status is the only field that can be updated, we do not need to synchronize access to
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
@@ -355,19 +418,31 @@ public class XPackLicenseState {
     // is only read once.
     private volatile Status status = new Status(OperationMode.TRIAL, true);
 
-    public XPackLicenseState(Settings settings) {
+    public XPackLicenseState(Settings settings, LongSupplier epochMillisProvider) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
+
+        // prepopulate feature last used map with entries for non basic features, which are the ones we
+        // care to actually keep track of
+        Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
+        for (Feature feature : Feature.values()) {
+            if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 && NON_TRACKED_FEATURES.contains(feature) == false) {
+                lastUsed.put(feature, new LongAccumulator(Long::max, 0));
+            }
+        }
+        this.lastUsed = lastUsed;
+        this.epochMillisProvider = epochMillisProvider;
     }
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
-                              Status status) {
-
+                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider) {
         this.listeners = listeners;
         this.isSecurityEnabled = isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
         this.status = status;
+        this.lastUsed = lastUsed;
+        this.epochMillisProvider = epochMillisProvider;
     }
 
     private static boolean isSecurityExplicitlyEnabled(Settings settings) {
@@ -427,59 +502,40 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
+    /**
+     * Checks whether the given feature is allowed, tracking the last usage time.
+     */
+    public boolean checkFeature(Feature feature) {
+        boolean allowed = isAllowed(feature);
+        LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
+        if (maxEpochAccumulator != null) {
+            maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
+        }
+        return allowed;
+    }
+
+    /**
+     * Checks whether the given feature is allowed by the current license.
+     * <p>
+     * This method should only be used when serializing whether a feature is allowed for telemetry.
+     */
     public boolean isAllowed(Feature feature) {
         return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
 
-    public boolean isStatsAndHealthAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isWatcherAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD);
-    }
-
-    public boolean isMonitoringAllowed() {
-        return allowForAllLicenses();
-    }
-
     /**
-     * Monitoring Cluster Alerts requires the equivalent license to use Watcher.
+     * Returns a mapping of gold+ features to the last time that feature was used.
      *
-     * @return {@link #isWatcherAllowed()}
-     * @see #isWatcherAllowed()
+     * Note that if a feature has not been used, it will not appear in the map.
      */
-    public boolean isMonitoringClusterAlertsAllowed() {
-        return isWatcherAllowed();
-    }
-
-    /**
-     * Determine if the current license allows the retention of indices to be modified.
-     * <p>
-     * Only users with a non-{@link OperationMode#BASIC} license can update the retention period.
-     * <p>
-     * Note: This does not consider the <em>state</em> of the license so that any change is remembered for when they fix their license.
-     *
-     * @return {@code true} if the user is allowed to modify the retention. Otherwise {@code false}.
-     */
-    public boolean isUpdateRetentionAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD, false);
-    }
-
-    public boolean isGraphAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
-    public boolean isMachineLearningAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
+    public Map<Feature, Long> getLastUsed() {
+        return lastUsed.entrySet().stream()
+            .filter(e -> e.getValue().get() != 0) // feature was never used
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));
     }
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public boolean isTransformAllowed() {
-        return allowForAllLicenses();
     }
 
     public static boolean isTransformAllowedForOperationMode(final OperationMode operationMode) {
@@ -489,91 +545,6 @@ public class XPackLicenseState {
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public boolean isRollupAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isVotingOnlyAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isLogstashAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD);
-    }
-
-    public boolean isBeatsAllowed() {
-        return isAllowedByLicense(OperationMode.STANDARD);
-    }
-
-    public boolean isDeprecationAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isUpgradeAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isIndexLifecycleAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isEnrichAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isEqlAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isSqlAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isJdbcAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
-    public boolean isFlattenedAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isVectorsAllowed() {
-        return allowForAllLicenses();
-    }
-
-
-    /**
-     * Determine if Wildcard support should be enabled.
-     * <p>
-     *  Wildcard is available for all license types except {@link OperationMode#MISSING}
-     */
-    public synchronized boolean isWildcardAllowed() {
-        return status.active;
-    }
-
-    public boolean isOdbcAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
-    public boolean isSpatialAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isAnalyticsAllowed() {
-        return allowForAllLicenses();
-    }
-
-    public boolean isConstantKeywordAllowed() {
-        return allowForAllLicenses();
-    }
-
-    /**
-     * @return true if security is available to be used with the current license type
-     */
-    public boolean isSecurityAvailable() {
-        return checkAgainstStatus(status -> status.mode != OperationMode.MISSING);
     }
 
     /**
@@ -615,13 +586,6 @@ public class XPackLicenseState {
         }
     }
 
-    /**
-     * Determine if cross-cluster replication is allowed
-     */
-    public boolean isCcrAllowed() {
-        return isAllowedByLicense(OperationMode.PLATINUM);
-    }
-
     public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
@@ -642,7 +606,8 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status));
+        return executeAgainstStatus(status ->
+            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, lastUsed, epochMillisProvider));
     }
 
     /**

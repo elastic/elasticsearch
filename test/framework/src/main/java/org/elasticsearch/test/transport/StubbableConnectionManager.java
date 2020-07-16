@@ -27,6 +27,7 @@ import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -109,6 +110,11 @@ public class StubbableConnectionManager implements ConnectionManager {
     @Override
     public int size() {
         return delegate.size();
+    }
+
+    @Override
+    public Set<DiscoveryNode> getAllConnectedNodes() {
+        return delegate.getAllConnectedNodes();
     }
 
     @Override

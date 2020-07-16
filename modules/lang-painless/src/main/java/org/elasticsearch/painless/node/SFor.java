@@ -102,8 +102,8 @@ public class SFor extends AStatement {
             visitor.checkedVisit(userConditionNode, semanticScope);
             visitor.decorateWithCast(userConditionNode, semanticScope);
 
-            if (userConditionNode instanceof EBoolean) {
-                continuous = ((EBoolean)userConditionNode).getBool();
+            if (userConditionNode instanceof EBooleanConstant) {
+                continuous = ((EBooleanConstant)userConditionNode).getBool();
 
                 if (continuous == false) {
                     throw userForNode.createError(new IllegalArgumentException("extraneous for loop"));

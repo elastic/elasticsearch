@@ -122,7 +122,7 @@ that doesn't change frequently.
 [[enrich-prereqs]]
 ==== Prerequisites
 
-include::{docdir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+include::{es-repo-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 
 [[create-enrich-source-index]]
 ==== Add enrich data
@@ -134,8 +134,8 @@ You can manage source indices just like regular {es} indices using the
 <<docs,document>> and <<indices,index>> APIs.
 
 You also can set up {beats-ref}/getting-started.html[{beats}], such as a
-{filebeat-ref}/filebeat-getting-started.html[{filebeat}], to automatically send
-and index documents to your source indices. See
+{filebeat-ref}/filebeat-installation-configuration.html[{filebeat}], to
+automatically send and index documents to your source indices. See
 {beats-ref}/getting-started.html[Getting started with {beats}].
 
 [[create-enrich-policy]]
@@ -209,7 +209,7 @@ documents first and verifying enrich data was added correctly using the
 [[update-enrich-data]]
 ==== Update an enrich index
 
-include::{docdir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
+include::{es-repo-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
 
 If wanted, you can <<docs-reindex,reindex>>
 or <<docs-update-by-query,update>> any already ingested documents
@@ -247,7 +247,7 @@ following:
         "indices": ["..."],
         "match_field": "...",
         "enrich_fields": ["..."],
-        "query": "..."
+        "query": {...}
     }
   }
 }
@@ -297,9 +297,9 @@ Fields to add to matching incoming documents. These fields must be present in
 the source indices.
 
 `query`::
-(Optional, string)
-Query type used to filter documents in the enrich index for matching. Valid
-value is <<query-dsl-match-all-query,`match_all`>> (default).
+(Optional, <<query-dsl,Query DSL query object>>)
+Query used to filter documents in the enrich index for matching. Defaults to
+a <<query-dsl-match-all-query,`match_all`>> query.
 
 [role="xpack"]
 [testenv="basic"]

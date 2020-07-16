@@ -31,11 +31,13 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AnalyticsPercentilesAggregatorFactory;
+import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
+import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -71,13 +74,23 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
-        return singletonList(
-            new PipelineAggregationSpec(
-                CumulativeCardinalityPipelineAggregationBuilder.NAME,
-                CumulativeCardinalityPipelineAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                        checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER)))
-        );
+        List<PipelineAggregationSpec> pipelineAggs = new ArrayList<>();
+        pipelineAggs.add(new PipelineAggregationSpec(
+            CumulativeCardinalityPipelineAggregationBuilder.NAME,
+            CumulativeCardinalityPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
+                checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER))));
+        pipelineAggs.add(new PipelineAggregationSpec(
+            MovingPercentilesPipelineAggregationBuilder.NAME,
+            MovingPercentilesPipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES,
+                checkLicense(MovingPercentilesPipelineAggregationBuilder.PARSER))));
+        pipelineAggs.add(new PipelineAggregationSpec(
+            NormalizePipelineAggregationBuilder.NAME,
+            NormalizePipelineAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.NORMALIZE,
+                checkLicense(NormalizePipelineAggregationBuilder.PARSER))));
+        return pipelineAggs;
     }
 
     @Override
@@ -105,6 +118,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 TTestAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
                 .addResultReader(InternalTTest::new)
+                .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage)
         );
     }
 
@@ -128,8 +142,14 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return List.of(AnalyticsPercentilesAggregatorFactory::registerPercentilesAggregator,
-            AnalyticsPercentilesAggregatorFactory::registerPercentileRanksAggregator);
+            return List.of(
+                AnalyticsAggregatorFactory::registerPercentilesAggregator,
+                AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedValueCountAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
+                AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator
+            );
     }
 
     @Override
@@ -150,7 +170,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().isAnalyticsAllowed() == false) {
+            if (getLicenseState().checkFeature(XPackLicenseState.Feature.ANALYTICS) == false) {
                 throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
             }
             return realParser.parse(parser, name);

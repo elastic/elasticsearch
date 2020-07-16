@@ -184,7 +184,7 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                 final TimeValue snapshotAge = new TimeValue(nowSupplier.getAsLong() - si.startTime());
 
                 if (this.minimumSnapshotCount != null) {
-                    final long eligibleForExpiration = successfulSnapshotCount - minimumSnapshotCount;
+                    final long eligibleForExpiration = Math.max(0, successfulSnapshotCount - minimumSnapshotCount);
 
                     // Only the oldest N snapshots are actually eligible, since if we went below this we
                     // would fall below the configured minimum number of snapshots to keep

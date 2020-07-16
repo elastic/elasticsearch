@@ -80,7 +80,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_DATA_PATH_SETTING,
             IndexMetadata.INDEX_HIDDEN_SETTING,
             IndexMetadata.INDEX_FORMAT_SETTING,
-            IndexMetadata.PREFER_V2_TEMPLATES_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -89,12 +88,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
             SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
             IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -159,6 +156,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
             IndexModule.INDEX_STORE_TYPE_SETTING,
             IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
+            IndexModule.INDEX_RECOVERY_TYPE_SETTING,
             IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
             FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
             EngineConfig.INDEX_CODEC_SETTING,
@@ -166,7 +164,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.DEFAULT_PIPELINE,
             IndexSettings.FINAL_PIPELINE,
             MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
-            IndexSettings.ON_HEAP_ID_TERMS_INDEX,
             ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
 
             // validate that built-in similarities don't get redefined
@@ -211,6 +208,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         switch (key) {
             case IndexMetadata.SETTING_CREATION_DATE:
             case IndexMetadata.SETTING_INDEX_UUID:
+            case IndexMetadata.SETTING_HISTORY_UUID:
             case IndexMetadata.SETTING_VERSION_UPGRADED:
             case IndexMetadata.SETTING_INDEX_PROVIDED_NAME:
             case MergePolicyConfig.INDEX_MERGE_ENABLED:

@@ -30,6 +30,11 @@ class org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQl
   String nullSafeSortString(Object)
 
 #
+# ASCII Functions
+#
+  Boolean startsWith(String, String, Boolean)
+
+#
 # Comparison
 #
   Boolean eq(Object, Object)
@@ -66,7 +71,6 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
 # Conditional
 #
-  def caseFunction(java.util.List)
   def coalesce(java.util.List)
   def greatest(java.util.List)
   def least(java.util.List)
@@ -128,9 +132,11 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   ZonedDateTime dateAdd(String, Integer, Object, String)
   Integer dateDiff(String, Object, Object, String)
   def dateTrunc(String, Object, String)
+  def dateParse(String, String, String)
   Integer datePart(String, Object, String)
   String dateTimeFormat(Object, String, String)
   def dateTimeParse(String, String, String)
+  def timeParse(String, String, String)
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)
   ZonedDateTime asDateTime(Object)
@@ -159,6 +165,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  rtrim(String)
   String  space(Number)
   String  substring(String, Number, Number)
+  String  trim(String)
   String  ucase(String)
 
 #

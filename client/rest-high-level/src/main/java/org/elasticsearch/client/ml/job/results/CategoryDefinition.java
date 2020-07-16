@@ -38,6 +38,8 @@ public class CategoryDefinition implements ToXContentObject {
     public static final ParseField TYPE = new ParseField("category_definition");
 
     public static final ParseField CATEGORY_ID = new ParseField("category_id");
+    public static final ParseField PARTITION_FIELD_NAME = new ParseField("partition_field_name");
+    public static final ParseField PARTITION_FIELD_VALUE = new ParseField("partition_field_value");
     public static final ParseField TERMS = new ParseField("terms");
     public static final ParseField REGEX = new ParseField("regex");
     public static final ParseField MAX_MATCHING_LENGTH = new ParseField("max_matching_length");
@@ -55,6 +57,8 @@ public class CategoryDefinition implements ToXContentObject {
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
+        PARSER.declareString(CategoryDefinition::setPartitionFieldName, PARTITION_FIELD_NAME);
+        PARSER.declareString(CategoryDefinition::setPartitionFieldValue, PARTITION_FIELD_VALUE);
         PARSER.declareString(CategoryDefinition::setTerms, TERMS);
         PARSER.declareString(CategoryDefinition::setRegex, REGEX);
         PARSER.declareLong(CategoryDefinition::setMaxMatchingLength, MAX_MATCHING_LENGTH);
@@ -66,6 +70,8 @@ public class CategoryDefinition implements ToXContentObject {
 
     private final String jobId;
     private long categoryId = 0L;
+    private String partitionFieldName;
+    private String partitionFieldValue;
     private String terms = "";
     private String regex = "";
     private long maxMatchingLength = 0L;
@@ -88,6 +94,22 @@ public class CategoryDefinition implements ToXContentObject {
 
     void setCategoryId(long categoryId) {
         this.categoryId = categoryId;
+    }
+
+    public String getPartitionFieldName() {
+        return partitionFieldName;
+    }
+
+    public void setPartitionFieldName(String partitionFieldName) {
+        this.partitionFieldName = partitionFieldName;
+    }
+
+    public String getPartitionFieldValue() {
+        return partitionFieldValue;
+    }
+
+    public void setPartitionFieldValue(String partitionFieldValue) {
+        this.partitionFieldValue = partitionFieldValue;
     }
 
     public String getTerms() {
@@ -156,6 +178,12 @@ public class CategoryDefinition implements ToXContentObject {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(CATEGORY_ID.getPreferredName(), categoryId);
+        if (partitionFieldName != null) {
+            builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);
+        }
+        if (partitionFieldValue != null) {
+            builder.field(PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue);
+        }
         builder.field(TERMS.getPreferredName(), terms);
         builder.field(REGEX.getPreferredName(), regex);
         builder.field(MAX_MATCHING_LENGTH.getPreferredName(), maxMatchingLength);
@@ -182,6 +210,8 @@ public class CategoryDefinition implements ToXContentObject {
         CategoryDefinition that = (CategoryDefinition) other;
         return Objects.equals(this.jobId, that.jobId)
             && Objects.equals(this.categoryId, that.categoryId)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
             && Objects.equals(this.terms, that.terms)
             && Objects.equals(this.regex, that.regex)
             && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
@@ -193,6 +223,7 @@ public class CategoryDefinition implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, categoryId, terms, regex, maxMatchingLength, examples, preferredToCategories, numMatches, grokPattern);
+        return Objects.hash(jobId, categoryId, partitionFieldName, partitionFieldValue, terms, regex, maxMatchingLength, examples,
+            preferredToCategories, numMatches, grokPattern);
     }
 }

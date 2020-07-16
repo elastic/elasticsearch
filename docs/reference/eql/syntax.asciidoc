@@ -72,14 +72,42 @@ You can specify and combine these criteria using the following operators:
 <   <=   ==   !=   >=   >
 ----
 
+You cannot use comparison operators to compare a variable, such as a field
+value, to another variable, even if those variables are modified using a
+<<eql-functions,function>>.
+
+.*Example*
+[%collapsible]
+====
+The following EQL query compares the `process.parent_name` field
+value to a static value, `foo`. This comparison is supported.
+
+However, the query also compares the `process.parent.name` field value to the
+`process.name` field. This comparison is not supported and will return an
+error for the entire query.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.parent.name == process.name
+----
+
+Instead, you can rewrite the query to compare both the `process.parent.name`
+and `process.name` fields to static values.
+
+[source,eql]
+----
+process where process.parent.name == "foo" and process.name == "foo"
+----
+====
+
 [IMPORTANT]
 ====
-Avoid using the equal operator (`==`) to perform exact matching on `text` field
-values.
+Avoid using the equal operator (`==`) to perform exact matching on
+<<text,`text`>> field values.
 
-By default, {es} changes the values of <<text,`text`>> fields as part of
-<<analysis, analysis>>. This can make finding exact matches for `text` field
-values difficult.
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
 
 To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
 DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
@@ -185,6 +213,47 @@ Divides the value to the left of the operator by the value to the right.
 Divides the value to the left of the operator by the value to the right. Returns only the remainder.
 ====
 
+[[eql-divide-operator-float-rounding]]
+[WARNING]
+====
+If both the dividend and divisor are integers, the divide (`\`) operation
+_rounds down_ any returned floating point numbers to the nearest integer.
+
+EQL queries in {es} should account for this rounding. To avoid rounding, convert
+either the dividend or divisor to a float.
+
+[%collapsible]
+.**Example**
+=====
+The `process.args_count` field is a <<number,`long`>> integer field containing a
+count of process arguments.
+
+A user might expect the following EQL query to only match events with a
+`process.args_count` value of `4`.
+
+[source,eql]
+----
+process where ( 4 / process.args_count ) == 1
+----
+
+However, the EQL query matches events with a `process.args_count` value of `3`
+or `4`.
+
+For events with a `process.args_count` value of `3`, the divide operation
+returns a float of `1.333...`, which is rounded down to `1`.
+
+To match only events with a `process.args_count` value of `4`, convert
+either the dividend or divisor to a float.
+
+The following EQL query changes the integer `4` to the equivalent float `4.0`.
+
+[source,eql]
+----
+process where ( 4.0 / process.args_count ) == 1
+----
+=====
+====
+
 [discrete]
 [[eql-syntax-strings]]
 ==== Strings
@@ -281,8 +350,8 @@ the backslash remains in the resulting string.
 
 [NOTE]
 ====
-Raw strings cannot contain only a single backslash. Additionally, raw strings
-cannot end in an odd number of backslashes.
+Raw strings cannot contain only a single backslash or end in an odd number of
+backslashes.
 ====
 
 [discrete]
@@ -299,6 +368,233 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 `my-field`
 `my field`
 ----
+
+[discrete]
+[[eql-sequences]]
+=== Sequences
+
+You can use EQL sequences to describe and match an ordered series of events.
+Each item in a sequence is an event category and event condition,
+surrounded by square brackets (`[ ]`). Events are listed in ascending
+chronological order, with the most recent event listed last.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL sequence query matches this series of ordered events:
+
+. Start with an event with:
++
+--
+* An event category of `file`
+* A `file.extension` of `exe`
+--
+. Followed by an event with an event category of `process`
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+====
+
+[discrete]
+[[eql-with-maxspan-keywords]]
+==== `with maxspan` keywords
+
+You can use the `with maxspan` keywords to constrain a sequence to a specified
+timespan. All events in a matching sequence must occur within this duration,
+starting at the first event's timestamp.
+
+The `maxspan` keyword accepts <<time-units,time value>> arguments.
+
+[source,eql]
+----
+sequence with maxspan=30s
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses a `maxspan` value of `15m` (15 minutes).
+Events in a matching sequence must occur within 15 minutes of the first event's
+timestamp.
+
+[source,eql]
+----
+sequence with maxspan=15m
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+----
+====
+
+[discrete]
+[[eql-by-keyword]]
+==== `by` keyword
+
+You can use the `by` keyword with sequences to only match events that share the
+same field values. If a field value should be shared across all events, you
+can use `sequence by`.
+
+[source,eql]
+----
+sequence by field_foo
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses the `by` keyword to constrain matching events
+to:
+
+* Events with the same `user.name` value
+* `file` events with a `file.path` value equal to the following `process`
+   event's `process.path` value.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ] by user.name, file.path
+  [ process where true ] by user.name, process.path
+----
+
+Because the `user.name` field is shared across all events in the sequence, it
+can be included using `sequence by`. The following sequence is equivalent to the
+prior one.
+
+[source,eql]
+----
+sequence by user.name
+  [ file where file.extension == "exe" ] by file.path
+  [ process where true ] by process.path
+----
+====
+
+You can combine the `sequence by` and `with maxspan` keywords to constrain a
+sequence by both field values and a timespan.
+
+[source,eql]
+----
+sequence by field_foo with maxspan=30s
+  [ event_category_1 where condition_1 ] by field_baz
+  [ event_category_2 where condition_2 ] by field_bar
+  ...
+----
+
+.*Example*
+[%collapsible]
+====
+The following sequence query uses the `sequence by` keyword and `with maxspan`
+keywords to match only a sequence of events that:
+
+* Share the same `user.name` field values
+* Occur within `15m` (15 minutes) of the first matching event
+
+[source,eql]
+----
+sequence by user.name with maxspan=15m
+  [ file where file.extension == "exe" ] by file.path
+  [ process where true ] by process.path
+----
+====
+
+[discrete]
+[[eql-until-keyword]]
+==== `until` keyword
+
+You can use the `until` keyword to specify an expiration event for sequences.
+Matching sequences must end before this event, which is not included the
+results. If this event occurs within a sequence, the sequence is not considered
+a match.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+until [ event_category_2 where condition_2 ]
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL sequence query uses the `until` keyword to end sequences
+before a process termination event. Process termination events have an event
+category of `process` and `event.type` value of `termination`.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+until [ process where event.type == "termination" ]
+----
+====
+
+[TIP]
+====
+The `until` keyword can be helpful when searching for process sequences in
+Windows event logs, such as those ingested using
+{winlogbeat-ref}/index.html[Winlogbeat].
+
+In Windows, a process ID (PID) is unique only while a process is running. After
+a process terminates, its PID can be reused.
+
+You can search for a sequence of events with the same PID value using the `by`
+and `sequence by` keywords.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `sequence by` keyword to match a sequence of
+events that share the same `process.pid` value.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+----
+=====
+
+However, due to PID reuse, this can result in a matching sequence that
+contains events across unrelated processes. To prevent false positives, you can
+use the `until` keyword to end matching sequences before a process termination
+event.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `until` keyword to end sequences before
+`process` events with an `event.type` of `termination`. These events indicate a
+process has been terminated.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+until [ process where event.type == "termination" ]
+----
+=====
+
+====
 
 [discrete]
 [[eql-functions]]
@@ -354,3 +650,36 @@ file where file.extension in ("exe", "dll")
 We recommend testing and benchmarking any indexing changes before deploying them
 in production. See <<tune-for-indexing-speed>> and <<tune-for-search-speed>>.
 ====
+
+[discrete]
+[[eql-pipes]]
+=== Pipes
+
+EQL pipes filter, aggregate, and post-process events returned by
+an EQL query. You can use pipes to narrow down EQL query results or make them
+more specific.
+
+Pipes are delimited using the pipe (`|`) character.
+
+[source,eql]
+----
+event_category where condition | pipe
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL query uses the `tail` pipe to return only the 10 most recent
+events matching the query.
+
+[source,eql]
+----
+authentication where agent.id == 4624
+| tail 10
+----
+====
+
+You can pass the output of a pipe to another pipe. This lets you use multiple
+pipes with a single query.
+
+For a list of supported pipes, see <<eql-pipe-ref>>.

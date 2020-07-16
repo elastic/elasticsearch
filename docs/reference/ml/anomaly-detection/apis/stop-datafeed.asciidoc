@@ -41,14 +41,14 @@ comma-separated list of {dfeeds} or a wildcard expression. You can close all
 
 `<feed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 
 [[ml-stop-datafeed-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_datafeeds`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 [[ml-stop-datafeed-request-body]]
 ==== {api-request-body-title}

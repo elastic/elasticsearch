@@ -171,15 +171,20 @@ given in the query string.
 end::df[]
 
 tag::docs-count[]
-Number of non-deleted documents in the segment, such as `25`. This
-number is based on Lucene documents and may include documents from
-<<nested,nested>> fields.
+The number of documents as reported by Lucene. This excludes deleted documents
+and counts any <<nested,nested documents>> separately from their parents. It
+also excludes documents which were indexed recently and do not yet belong to a
+segment.
 end::docs-count[]
 
 tag::docs-deleted[]
-Number of deleted documents in the segment, such as `0`. This number
-is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
-documents when a segment is merged.
+The number of deleted documents as reported by Lucene, which may be higher or
+lower than the number of delete operations you have performed. This number
+excludes deletes that were performed recently and do not yet belong to a
+segment. Deleted documents are cleaned up by the
+<<index-modules-merge,automatic merge process>> if it makes sense to do so.
+Also, {es} creates extra deleted documents to internally track the recent
+history of operations on a shard.
 end::docs-deleted[]
 
 tag::docs-indexed[]
@@ -201,11 +206,12 @@ tag::expand-wildcards[]
 `expand_wildcards`::
 +
 --
-(Optional, string) Controls what kind of indices that wildcard
-expressions can expand to. Valid values are:
+(Optional, string) Controls what kind of indices that wildcard expressions can
+expand to. Multiple values are accepted when separated by a comma, as in
+`open,hidden`. Valid values are:
 
 `all`::
-Expand to open and closed indices.
+Expand to open and closed indices, including <<index-hidden,hidden indices>>.
 
 `open`::
 Expand only to open indices.
@@ -214,7 +220,8 @@ Expand only to open indices.
 Expand only to closed indices.
 
 `hidden`::
-Expansion of wildcards will include hidden indices.
+Expansion of wildcards will include <<index-hidden,hidden indices>>.
+Must be combined with `open`, `closed`, or both.
 
 `none`::
 Wildcard expressions are not accepted.
@@ -293,7 +300,7 @@ end::frequency[]
 
 tag::from[]
 `from`::
-(Optional, integer) Starting document offset. Defaults to `0`.
+(Optional, integer) Starting document offset. Needs to be non-negative and defaults to `0`.
 end::from[]
 
 tag::from-transforms[]
@@ -366,7 +373,7 @@ end::if_seq_no[]
 tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices are
-ignored when throttled.
+ignored when frozen.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -423,8 +430,8 @@ end::index-total[]
 tag::bulk-index[]
 `_index`::
 (Optional, string)
-The name of the target index.
-Required if not specified as a path parameter.
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
 end::bulk-index[]
 
 tag::index-metric[]
@@ -543,7 +550,7 @@ tag::mappings[]
 specified, this mapping can include:
 
 * Field names
-* <<mapping-types,Field datatypes>>
+* <<mapping-types,Field data types>>
 * <<mapping-params,Mapping parameters>>
 
 See <<mapping>>.
@@ -631,12 +638,13 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following composite aggregations
-are supported:
+Defines how to aggregate the grouped data. The following aggregations are 
+supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
-* <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
+* <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
+* <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
@@ -644,14 +652,16 @@ are supported:
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
+* <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
+* <<search-aggregations-bucket-terms-aggregation, Terms>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
-* <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
-* <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
+* <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
-IMPORTANT: {transforms-cap} support a subset of the functionality in
-composite aggregations. See <<transform-limitations>>.
+
+IMPORTANT: {transforms-cap} support a subset of the functionality in 
+aggregations. See <<transform-limitations>>.
 
 --
 end::pivot-aggs[]
@@ -661,18 +671,13 @@ Defines how to group the data. More than one grouping can be defined
   per pivot. The following groupings are supported:
 +
 --
-* <<_terms,Terms>>
-* <<_histogram,Histogram>>
 * <<_date_histogram,Date histogram>>
+* <<_geotile_grid,Geotile Grid>> 
+* <<_histogram,Histogram>>
+* <<_terms,Terms>>
+
 --
 end::pivot-group-by[]
-
-tag::pivot-max-page-search-size[]
-Defines the initial page size to use for the composite aggregation for each
-checkpoint. If circuit breaker exceptions occur, the page size is dynamically
-adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
-The default value is `500`.
-end::pivot-max-page-search-size[]
 
 tag::positions[]
 `positions`::
@@ -843,14 +848,26 @@ end::source[]
 
 tag::source_excludes[]
 `_source_excludes`::
-(Optional, string) A list of fields to exclude from the returned `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to exclude from
+the response.
++
+You can also use this parameter to exclude fields from the subset specified in
+`_source_includes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_excludes[]
 
 tag::source_includes[]
 `_source_includes`::
-(Optional, string) A list of fields to extract and return from the `_source`
-field.
+(Optional, string)
+A comma-separated list of <<mapping-source-field,source fields>> to
+include in the response.
++
+If this parameter is specified, only these source fields are returned. You can
+exclude fields from this subset using the `_source_excludes` query parameter.
++
+If the `_source` parameter is `false`, this parameter is ignored.
 end::source_includes[]
 
 tag::source-transforms[]
@@ -919,6 +936,23 @@ The time delay between the current time and the latest input data time. The
 default value is `60s`.
 end::sync-time-delay[]
 
+tag::transform-settings[]
+Defines optional {transform} settings.
+end::transform-settings[]
+
+tag::transform-settings-docs-per-second[]
+Specifies a limit on the number of input documents per second. This setting
+throttles the {transform} by adding a wait time between search requests. The
+default value is `null`, which disables throttling.
+end::transform-settings-docs-per-second[]
+
+tag::transform-settings-max-page-search-size[]
+Defines the initial page size to use for the composite aggregation for each
+checkpoint. If circuit breaker exceptions occur, the page size is dynamically
+adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+The default value is `500`.
+end::transform-settings-max-page-search-size[]
+
 tag::target-index[]
 `<target-index>`::
 +
@@ -926,7 +960,7 @@ tag::target-index[]
 (Required, string)
 Name of the target index to create.
 
-include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
 
@@ -984,7 +1018,7 @@ information for all {transforms}.
 end::transform-id-wildcard[]
 
 tag::trigger-count[]
-The number of times the {transform} has been triggered by the scheduler. For 
+The number of times the {transform} has been triggered by the scheduler. For
 example, the scheduler triggers the {transform} indexer to check for updates
 or ingest new data at an interval specified in the
 <<put-transform-request-body,`frequency` property>>.

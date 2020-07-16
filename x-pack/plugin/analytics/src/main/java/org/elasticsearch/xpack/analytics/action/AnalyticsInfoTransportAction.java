@@ -31,7 +31,7 @@ public class AnalyticsInfoTransportAction extends XPackInfoFeatureTransportActio
 
     @Override
     public boolean available() {
-        return licenseState.isAnalyticsAllowed();
+        return licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS);
     }
 
     @Override

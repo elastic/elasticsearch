@@ -40,27 +40,27 @@ import java.util.Objects;
 public class EConditional extends AExpression {
 
     private final AExpression conditionNode;
-    private final AExpression leftNode;
-    private final AExpression rightNode;
+    private final AExpression trueNode;
+    private final AExpression falseNode;
 
-    public EConditional(int identifier, Location location, AExpression conditionNode, AExpression leftNode, AExpression rightNode) {
+    public EConditional(int identifier, Location location, AExpression conditionNode, AExpression trueNode, AExpression falseNode) {
         super(identifier, location);
 
         this.conditionNode = Objects.requireNonNull(conditionNode);
-        this.leftNode = Objects.requireNonNull(leftNode);
-        this.rightNode = Objects.requireNonNull(rightNode);
+        this.trueNode = Objects.requireNonNull(trueNode);
+        this.falseNode = Objects.requireNonNull(falseNode);
     }
 
     public AExpression getConditionNode() {
         return conditionNode;
     }
 
-    public AExpression getLeftNode() {
-        return leftNode;
+    public AExpression getTrueNode() {
+        return trueNode;
     }
 
-    public AExpression getRightNode() {
-        return rightNode;
+    public AExpression getFalseNode() {
+        return falseNode;
     }
 
     @Override
@@ -87,21 +87,21 @@ public class EConditional extends AExpression {
         visitor.checkedVisit(userConditionNode, semanticScope);
         visitor.decorateWithCast(userConditionNode, semanticScope);
 
-        AExpression userLeftNode = userConditionalNode.getLeftNode();
-        semanticScope.setCondition(userLeftNode, Read.class);
-        semanticScope.copyDecoration(userConditionalNode, userLeftNode, TargetType.class);
-        semanticScope.replicateCondition(userConditionalNode, userLeftNode, Explicit.class);
-        semanticScope.replicateCondition(userConditionalNode, userLeftNode, Internal.class);
-        visitor.checkedVisit(userLeftNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(userLeftNode, ValueType.class).getValueType();
+        AExpression userTrueNode = userConditionalNode.getTrueNode();
+        semanticScope.setCondition(userTrueNode, Read.class);
+        semanticScope.copyDecoration(userConditionalNode, userTrueNode, TargetType.class);
+        semanticScope.replicateCondition(userConditionalNode, userTrueNode, Explicit.class);
+        semanticScope.replicateCondition(userConditionalNode, userTrueNode, Internal.class);
+        visitor.checkedVisit(userTrueNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(userTrueNode, ValueType.class).getValueType();
 
-        AExpression userRightNode = userConditionalNode.getRightNode();
-        semanticScope.setCondition(userRightNode, Read.class);
-        semanticScope.copyDecoration(userConditionalNode, userRightNode, TargetType.class);
-        semanticScope.replicateCondition(userConditionalNode, userRightNode, Explicit.class);
-        semanticScope.replicateCondition(userConditionalNode, userRightNode, Internal.class);
-        visitor.checkedVisit(userRightNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
+        AExpression userFalseNode = userConditionalNode.getFalseNode();
+        semanticScope.setCondition(userFalseNode, Read.class);
+        semanticScope.copyDecoration(userConditionalNode, userFalseNode, TargetType.class);
+        semanticScope.replicateCondition(userConditionalNode, userFalseNode, Explicit.class);
+        semanticScope.replicateCondition(userConditionalNode, userFalseNode, Internal.class);
+        visitor.checkedVisit(userFalseNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(userFalseNode, ValueType.class).getValueType();
 
         TargetType targetType = semanticScope.getDecoration(userConditionalNode, TargetType.class);
         Class<?> valueType;
@@ -115,15 +115,15 @@ public class EConditional extends AExpression {
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
             }
 
-            semanticScope.putDecoration(userLeftNode, new TargetType(promote));
-            semanticScope.putDecoration(userRightNode, new TargetType(promote));
+            semanticScope.putDecoration(userTrueNode, new TargetType(promote));
+            semanticScope.putDecoration(userFalseNode, new TargetType(promote));
             valueType = promote;
         } else {
             valueType = targetType.getTargetType();
         }
 
-        visitor.decorateWithCast(userLeftNode, semanticScope);
-        visitor.decorateWithCast(userRightNode, semanticScope);
+        visitor.decorateWithCast(userTrueNode, semanticScope);
+        visitor.decorateWithCast(userFalseNode, semanticScope);
 
         semanticScope.putDecoration(userConditionalNode, new ValueType(valueType));
     }

@@ -131,7 +131,6 @@ public class EBrace extends AExpression {
                         new TargetType(setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0)));
                 visitor.checkedVisit(userIndexNode, semanticScope);
                 visitor.decorateWithCast(userIndexNode, semanticScope);
-
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {
@@ -176,7 +175,6 @@ public class EBrace extends AExpression {
                 semanticScope.putDecoration(userIndexNode, new TargetType(int.class));
                 visitor.checkedVisit(userIndexNode, semanticScope);
                 visitor.decorateWithCast(userIndexNode, semanticScope);
-
                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
 
                 if (getter != null) {

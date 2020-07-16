@@ -32,6 +32,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
         assertEquals(0, stats.getModelBytes());
+        assertNull(stats.getPeakModelBytes());
         assertNull(stats.getModelBytesExceeded());
         assertNull(stats.getModelBytesMemoryLimit());
         assertEquals(0, stats.getTotalByFieldCount());
@@ -44,6 +45,7 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
         assertEquals(0, stats.getFrequentCategoryCount());
         assertEquals(0, stats.getRareCategoryCount());
         assertEquals(0, stats.getDeadCategoryCount());
+        assertEquals(0, stats.getFailedCategoryCount());
         assertEquals(CategorizationStatus.OK, stats.getCategorizationStatus());
     }
 
@@ -77,6 +79,9 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
             stats.setModelBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            stats.setPeakModelBytes(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             stats.setModelBytesExceeded(randomNonNegativeLong());
         }
         if (randomBoolean()) {
@@ -108,6 +113,9 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
         }
         if (randomBoolean()) {
             stats.setDeadCategoryCount(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            stats.setFailedCategoryCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             stats.setCategorizationStatus(randomFrom(CategorizationStatus.values()));

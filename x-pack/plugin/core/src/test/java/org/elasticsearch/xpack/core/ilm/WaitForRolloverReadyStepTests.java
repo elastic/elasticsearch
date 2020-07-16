@@ -17,7 +17,9 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -26,13 +28,17 @@ import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForRolloverReadyStep> {
 
@@ -88,11 +94,11 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             instance.getMaxSize(), instance.getMaxAge(), instance.getMaxDocs());
     }
 
-    private static void assertRolloverIndexRequest(RolloverRequest request, String alias, Set<Condition<?>> expectedConditions) {
+    private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget, Set<Condition<?>> expectedConditions) {
         assertNotNull(request);
         assertEquals(1, request.indices().length);
-        assertEquals(alias, request.indices()[0]);
-        assertEquals(alias, request.getRolloverTarget());
+        assertEquals(rolloverTarget, request.indices()[0]);
+        assertEquals(rolloverTarget, request.getRolloverTarget());
         assertEquals(expectedConditions.size(), request.getConditions().size());
         assertTrue(request.isDryRun());
         Set<Object> expectedConditionValues = expectedConditions.stream().map(Condition::value).collect(Collectors.toSet());
@@ -101,39 +107,19 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(expectedConditionValues, actualConditionValues);
     }
 
-
     public void testEvaluateCondition() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
-            .putAlias(AliasMetadata.builder(alias))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(randomFrom(true, null)))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        Mockito.doAnswer(invocation -> {
-            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            Set<Condition<?>> expectedConditions = new HashSet<>();
-            if (step.getMaxAge() != null) {
-                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
-            }
-            if (step.getMaxSize() != null) {
-                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
-            }
-            if (step.getMaxDocs() != null) {
-                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
-            }
-            assertRolloverIndexRequest(request, alias, expectedConditions);
-            Map<String, Boolean> conditionResults = expectedConditions.stream()
-                .collect(Collectors.toMap(Condition::toString, condition -> true));
-            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
-            return null;
-        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+        mockRolloverIndexCall(alias, step);
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
@@ -148,9 +134,67 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         assertEquals(true, conditionsMet.get());
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(client, Mockito.only()).admin();
+        verify(adminClient, Mockito.only()).indices();
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testEvaluateConditionOnDataStreamTarget() {
+        String dataStreamName = "test-datastream";
+        IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+
+        mockRolloverIndexCall(dataStreamName, step);
+
+        SetOnce<Boolean> conditionsMet = new SetOnce<>();
+        Metadata metadata = Metadata.builder().put(indexMetadata, true)
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                List.of(indexMetadata.getIndex()), 1L))
+            .build();
+        step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                conditionsMet.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        }, MASTER_TIMEOUT);
+
+        assertEquals(true, conditionsMet.get());
+
+        verify(client, Mockito.only()).admin();
+        verify(adminClient, Mockito.only()).indices();
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    private void mockRolloverIndexCall(String rolloverTarget, WaitForRolloverReadyStep step) {
+        Mockito.doAnswer(invocation -> {
+            RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            Set<Condition<?>> expectedConditions = new HashSet<>();
+            if (step.getMaxAge() != null) {
+                expectedConditions.add(new MaxAgeCondition(step.getMaxAge()));
+            }
+            if (step.getMaxSize() != null) {
+                expectedConditions.add(new MaxSizeCondition(step.getMaxSize()));
+            }
+            if (step.getMaxDocs() != null) {
+                expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
+            }
+            assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
+            Map<String, Boolean> conditionResults = expectedConditions.stream()
+                .collect(Collectors.toMap(Condition::toString, condition -> true));
+            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
+            return null;
+        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testEvaluateDoesntTriggerRolloverForIndexManuallyRolledOnLifecycleRolloverAlias() {
@@ -164,7 +208,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -177,7 +221,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
         }, MASTER_TIMEOUT);
 
-        Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testEvaluateTriggersRolloverForIndexManuallyRolledOnDifferentAlias() {
@@ -193,7 +237,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
 
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -206,7 +250,33 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             }
         }, MASTER_TIMEOUT);
 
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionWriteIndexIsFalse() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetadata.builder(alias).writeIndex(false))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        WaitForRolloverReadyStep step = createRandomInstance();
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                fail("expecting failure as the write index must be set to true or null");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e.getMessage(), is(String.format(Locale.ROOT, "index [%s] is not the write index for alias [%s]",
+                    indexMetadata.getIndex().getName(), alias)));
+            }
+        }, MASTER_TIMEOUT);
+
+        verify(client, times(0)).admin();
     }
 
     public void testPerformActionWithIndexingComplete() {
@@ -221,7 +291,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
@@ -249,7 +319,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Boolean> correctFailureCalled = new SetOnce<>();
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
@@ -296,7 +366,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
@@ -311,9 +381,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         assertEquals(false, actionCompleted.get());
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(client, Mockito.only()).admin();
+        verify(adminClient, Mockito.only()).indices();
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionFailure() {
@@ -345,7 +415,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
@@ -361,9 +431,9 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         assertEquals(true, exceptionThrown.get());
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+        verify(client, Mockito.only()).admin();
+        verify(adminClient, Mockito.only()).indices();
+        verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
     public void testPerformActionInvalidNullOrEmptyAlias() {
@@ -374,7 +444,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
                 throw new AssertionError("Unexpected method call");
@@ -399,7 +469,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
+        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject infomationContext) {
                 throw new AssertionError("Unexpected method call");

@@ -1,0 +1,32 @@
+// This file is auto-generated. Do not edit.
+
+
+[role="exclude",id="painless-api-reference-aggregation-selector-org-elasticsearch-xpack-sql-expression-literal-geo"]
+=== Aggregation Selector API for package org.elasticsearch.xpack.sql.expression.literal.geo
+See the <<painless-api-reference-aggregation-selector, Aggregation Selector API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-aggregation-selector-GeoShape]]
+==== GeoShape
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[role="exclude",id="painless-api-reference-aggregation-selector-org-elasticsearch-xpack-sql-expression-literal-interval"]
+=== Aggregation Selector API for package org.elasticsearch.xpack.sql.expression.literal.interval
+See the <<painless-api-reference-aggregation-selector, Aggregation Selector API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-aggregation-selector-IntervalDayTime]]
+==== IntervalDayTime
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggregation-selector-IntervalYearMonth]]
+==== IntervalYearMonth
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

@@ -25,18 +25,16 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.time.ZoneId;
+import java.util.Map;
 
 /**
  * {@link MappedFieldType} base impl for field types that are neither dates nor ranges.
  */
 public abstract class SimpleMappedFieldType extends MappedFieldType {
 
-    protected SimpleMappedFieldType() {
-        super();
-    }
-
-    protected SimpleMappedFieldType(MappedFieldType ref) {
-        super(ref);
+    protected SimpleMappedFieldType(String name, boolean isSearchable, boolean hasDocValues,
+                                    TextSearchInfo textSearchInfo, Map<String, String> meta) {
+        super(name, isSearchable, hasDocValues, textSearchInfo, meta);
     }
 
     @Override

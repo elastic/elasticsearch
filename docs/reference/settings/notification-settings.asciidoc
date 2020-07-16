@@ -7,6 +7,8 @@
 <titleabbrev>{watcher} settings</titleabbrev>
 ++++
 
+[[notification-settings-description]]
+// tag::notification-settings-description-tag[]
 You configure {watcher} settings to set up {watcher} and send notifications via
 <<email-notification-settings,email>>,
 <<slack-notification-settings,Slack>>, and
@@ -17,6 +19,7 @@ with the exception of the secure settings, which you add to the {es} keystore.
 For more information about creating and updating the {es} keystore, see
 <<secure-settings>>. Dynamic settings can also be updated across a cluster with the
 <<cluster-update-settings,cluster update settings API>>.
+// end::notification-settings-description-tag[]
 
 [float]
 [[general-notification-settings]]
@@ -24,17 +27,22 @@ For more information about creating and updating the {es} keystore, see
 `xpack.watcher.enabled`::
 Set to `false` to disable {watcher} on the node.
 
-`xpack.watcher.encrypt_sensitive_data`::
+[[xpack-watcher-encrypt-sensitive-data]]
+// tag::watcher-encrypt-sensitive-data-tag[]
+`xpack.watcher.encrypt_sensitive_data` {ess-icon}::
 Set to `true` to encrypt sensitive data. If this setting is enabled, you
 must also specify the `xpack.watcher.encryption_key` setting. For more
 information, see <<encrypting-data>>.
+// end::watcher-encrypt-sensitive-data-tag[]
 
 `xpack.watcher.encryption_key` (<<secure-settings,Secure>>)::
 Specifies the path to a file that contains a key for encrypting sensitive data.
 If `xpack.watcher.encrypt_sensitive_data` is set to `true`, this setting is
 required. For more information, see <<encrypting-data>>.
 
-`xpack.watcher.history.cleaner_service.enabled`::
+[[xpack-watcher-history-cleaner-service]]
+// tag::watcher-history-cleaner-service-tag[]
+`xpack.watcher.history.cleaner_service.enabled` {ess-icon}::
 added:[6.3.0,Default changed to `true`.]
 deprecated:[7.0.0,Watcher history indices are now managed by the `watch-history-ilm-policy` ILM policy]
 +
@@ -44,6 +52,7 @@ removes previous versions of {watcher} indices (for example,
 {watcher} indices is determined by the `xpack.monitoring.history.duration`
 setting, which defaults to 7 days. For more information about that setting,
 see <<monitoring-settings>>.
+// end::watcher-history-cleaner-service-tag[]
 
 `xpack.http.proxy.host`::
 Specifies the address of the proxy server to use to connect to HTTP services.
@@ -69,7 +78,7 @@ client is used in the HTTP input, the webhook, the slack, pagerduty,
 and jira actions. This setting can be updated dynamically.  It defaults to `*`
 allowing everything. Note: If you configure this setting and you are using one
 of the slack/pagerduty actions, you have to ensure that the
-corresponding endpoints are whitelisted as well.
+corresponding endpoints are explicitly allowed as well.
 
 [[ssl-notification-settings]]
 :ssl-prefix:             xpack.http

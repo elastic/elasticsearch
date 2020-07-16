@@ -537,19 +537,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.ingestFailed();
                             onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +
                                 "] can't change the target index"));
-                            return;
-                        }
-
-                        //Drain old it so it's not looped over
-                        it.forEachRemaining($ -> {
-                        });
-                        indexRequest.isPipelineResolved(false);
-                        resolvePipelines(null, indexRequest, state.metadata());
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
-                            newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
-                            newHasFinalPipeline = true;
                         } else {
-                            newIt = Collections.emptyIterator();
+
+                            //Drain old it so it's not looped over
+                            it.forEachRemaining($ -> {
+                            });
+                            indexRequest.isPipelineResolved(false);
+                            resolvePipelines(null, indexRequest, state.metadata());
+                            if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
+                                newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                                newHasFinalPipeline = true;
+                            } else {
+                                newIt = Collections.emptyIterator();
+                            }
                         }
                     }
 

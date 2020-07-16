@@ -181,10 +181,7 @@ regsvr32 misuse behavior.
             "domain": "ART-DESKTOP",
             "id": "ART-DESKTOP\\bob"
           }
-        },
-        "sort": [
-          131883573237130000
-        ]
+        }
       }
     ]
   }
@@ -255,10 +252,7 @@ The query matches an event, confirming that `scrobj.dll` was later loaded by
           "event": {
             "category": "file"
           }
-        },
-        "sort": [
-          131883573237450016
-        ]
+        }
       }
     ]
   }
@@ -323,6 +317,9 @@ The query matches a sequence, indicating the attack likely succeeded.
           {
             "_index": "sec_logs",
             "_id": "gl5MJXMBMk1dGnErnBW8",
+            "_version": 1,
+            "_seq_no": 1,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "process": {
@@ -349,14 +346,14 @@ The query matches a sequence, indicating the attack likely succeeded.
                 "domain": "ART-DESKTOP",
                 "id": "ART-DESKTOP\\bob"
               }
-            },
-            "sort": [
-              131883573237130000
-            ]
+            }
           },
           {
             "_index": "sec_logs",
             "_id": "ol5MJXMBMk1dGnErnBW8",
+            "_version": 1,
+            "_seq_no": 7,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "process": {
@@ -373,14 +370,14 @@ The query matches a sequence, indicating the attack likely succeeded.
               "event": {
                 "category": "file"
               }
-            },
-            "sort": [
-              131883573237450016
-            ]
+            }
           },
           {
             "_index": "sec_logs",
             "_id": "EF5MJXMBMk1dGnErnBa9",
+            "_version": 1,
+            "_seq_no": 29,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "process": {
@@ -410,10 +407,7 @@ The query matches a sequence, indicating the attack likely succeeded.
                 "domain": "ART-DESKTOP",
                 "id": "ART-DESKTOP\\bob"
               }
-            },
-            "sort": [
-              131883573238680000
-            ]
+            }
           }
         ]
       }
@@ -423,5 +417,8 @@ The query matches a sequence, indicating the attack likely succeeded.
 ----
 // TESTRESPONSE[s/"took": 25/"took": $body.took/]
 // TESTRESPONSE[s/"_id": "gl5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_seq_no": 1/"_seq_no": $body.hits.sequences.0.events.0._seq_no/]
 // TESTRESPONSE[s/"_id": "ol5MJXMBMk1dGnErnBW8"/"_id": $body.hits.sequences.0.events.1._id/]
+// TESTRESPONSE[s/"_seq_no": 7/"_seq_no": $body.hits.sequences.0.events.1._seq_no/]
 // TESTRESPONSE[s/"_id": "EF5MJXMBMk1dGnErnBa9"/"_id": $body.hits.sequences.0.events.2._id/]
+// TESTRESPONSE[s/"_seq_no": 29/"_seq_no": $body.hits.sequences.0.events.2._seq_no/]

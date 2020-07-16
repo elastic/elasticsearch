@@ -22,14 +22,14 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.VersionedSet
 import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.versionedSettings
 import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
 
-val developmentBranches = listOf("master", "7.x", "7.8", "6.8")
+val developmentBranches = listOf("master", "7.x", "7.8")
 
 open class VersionedProject(init: Project.() -> Unit) : Project(init) {
     init {
         features {
             versionedSettings {
                 mode = VersionedSettings.Mode.ENABLED
-                buildSettingsMode = VersionedSettings.BuildSettingsMode.USE_CURRENT_SETTINGS
+                buildSettingsMode = VersionedSettings.BuildSettingsMode.PREFER_SETTINGS_FROM_VCS
                 rootExtId = "KotlinDsl"
                 settingsFormat = VersionedSettings.Format.KOTLIN
                 storeSecureParamsOutsideOfVcs = true

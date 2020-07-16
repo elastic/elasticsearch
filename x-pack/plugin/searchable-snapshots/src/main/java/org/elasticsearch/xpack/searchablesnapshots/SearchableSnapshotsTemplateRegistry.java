@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
 
 public class SearchableSnapshotsTemplateRegistry extends IndexTemplateRegistry {
@@ -51,7 +52,7 @@ public class SearchableSnapshotsTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected String getOrigin() {
-        return "searchable_snapshots";
+        return SEARCHABLE_SNAPSHOTS_ORIGIN;
     }
 
     @Override

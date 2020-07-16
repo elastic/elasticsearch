@@ -32,7 +32,7 @@ object XpackChecks : BuildType({
     steps {
         gradle {
             useGradleWrapper = true
-            gradleParams = "%env.GRADLE_PARAMS%"
+            gradleParams = "%gradle.params%"
             tasks = "checkPart2"
         }
     }

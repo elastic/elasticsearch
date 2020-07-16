@@ -15,7 +15,11 @@ PUT /_snapshot/my_backup
   }
 }
 
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+
 PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
+
+PUT /_snapshot/my_backup/snapshot_3?wait_for_completion=true
 -----------------------------------
 // TESTSETUP
 
@@ -26,7 +30,7 @@ from the repository:
 
 [source,console]
 -----------------------------------
-DELETE /_snapshot/my_backup/snapshot_2
+DELETE /_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 When a snapshot is deleted from a repository, {es} deletes all files that are associated with the deleted
@@ -39,6 +43,6 @@ To delete multiple snapshots from a repository, separate snapshot names by comma
 
 [source,console]
 -----------------------------------
-DELETE /_snapshot/my_backup/my_backup,my_fs_backup
+DELETE /_snapshot/my_backup/snapshot_2,snapshot_3
 DELETE /_snapshot/my_backup/snap*
 -----------------------------------

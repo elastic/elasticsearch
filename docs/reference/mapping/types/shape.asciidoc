@@ -129,7 +129,7 @@ within coordinate arrays. This differs from many Geospatial APIs (e.g., `geo_sha
 typically use the colloquial latitude, longitude (Y, X) ordering.
 =============================================
 
-[[point]]
+[[point-shape]]
 [float]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 

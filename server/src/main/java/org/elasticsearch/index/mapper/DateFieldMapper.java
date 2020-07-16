@@ -175,7 +175,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
 
         private final Parameter<String> format
             = Parameter.stringParam("format", false, m -> toType(m).format, DEFAULT_DATE_TIME_FORMATTER.pattern());
-        private final Parameter<Locale> locale = new Parameter<>("locale", false, Locale.ROOT,
+        private final Parameter<Locale> locale = new Parameter<>("locale", false, () -> Locale.ROOT,
             (n, c, o) -> LocaleUtils.parse(o.toString()), m -> toType(m).locale);
 
         private final Parameter<String> nullValue

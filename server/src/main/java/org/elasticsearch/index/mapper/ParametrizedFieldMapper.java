@@ -168,7 +168,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Returns the default value of the parameter
          */
         public T getDefaultValue() {
-            return defaultValue;
+            return defaultValue.get();
         }
 
         /**

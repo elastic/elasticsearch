@@ -50,6 +50,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -71,7 +72,6 @@ public class RestRequest implements ToXContent.Params {
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
     private final HttpChannel httpChannel;
     private final long requestId;
-    private final Version compatibleApiVersion;
 
     private HttpRequest httpRequest;
     private boolean contentConsumed = false;
@@ -87,14 +87,8 @@ public class RestRequest implements ToXContent.Params {
     }
 
     private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
-                        Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel, long requestId) {
-        this(xContentRegistry, params, path, headers, httpRequest, httpChannel, requestId, true);
-
-    }
-
-    private RestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> params, String path,
                         Map<String, List<String>> headers, HttpRequest httpRequest, HttpChannel httpChannel,
-                        long requestId, boolean headersValidation) {
+                        long requestId) {
         final XContentType xContentType;
         try {
             xContentType = parseContentType(headers.get("Content-Type"));
@@ -111,7 +105,6 @@ public class RestRequest implements ToXContent.Params {
         this.rawPath = path;
         this.headers = Collections.unmodifiableMap(headers);
         this.requestId = requestId;
-        this.compatibleApiVersion = addCompatibleParameter(headersValidation);
     }
 
     protected RestRequest(RestRequest restRequest) {
@@ -145,63 +138,13 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    private Version addCompatibleParameter(boolean headersValidation) {
-        if (headersValidation && isRequestingCompatibility()) {
-            return Version.minimumRestCompatibilityVersion();
-        } else {
-            return Version.CURRENT;
-        }
-    }
-
-    private boolean isRequestingCompatibility() {
-        String acceptHeader = header(CompatibleConstants.COMPATIBLE_ACCEPT_HEADER);
-        String aVersion = XContentType.parseVersion(acceptHeader);
-        byte acceptVersion = aVersion == null ? Version.CURRENT.major : Integer.valueOf(aVersion).byteValue();
-        String contentTypeHeader = header(CompatibleConstants.COMPATIBLE_CONTENT_TYPE_HEADER);
-        String cVersion = XContentType.parseVersion(contentTypeHeader);
-        byte contentTypeVersion = cVersion == null ? Version.CURRENT.major : Integer.valueOf(cVersion).byteValue();
-
-        if(Version.CURRENT.major < acceptVersion || Version.CURRENT.major - acceptVersion > 1 ){
-            throw new CompatibleApiHeadersCombinationException(
-                String.format(Locale.ROOT, "Unsupported version provided. " +
-                        "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                    contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-        }
-        if (hasContent()) {
-            if(Version.CURRENT.major < contentTypeVersion || Version.CURRENT.major - contentTypeVersion > 1 ){
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Unsupported version provided. " +
-                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-
-            if (contentTypeVersion != acceptVersion) {
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Content-Type and Accept headers have to match when content is present. " +
-                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-            // both headers should be versioned or none
-            if ((cVersion == null && aVersion!=null) || (aVersion ==null && cVersion!=null) ){
-                throw new CompatibleApiHeadersCombinationException(
-                    String.format(Locale.ROOT, "Versioning is required on both Content-Type and Accept headers. " +
-                            "Accept=%s Content-Type=%s hasContent=%b path=%s params=%s method=%s", acceptHeader,
-                        contentTypeHeader, hasContent(), path(), params.toString(), method().toString()));
-            }
-
-            return contentTypeVersion < Version.CURRENT.major;
-        }
-
-        return acceptVersion < Version.CURRENT.major;
-    }
-
     /**
      * An http request can be accompanied with a compatible version indicating with what version a client is using.
      * Only a major Versions are supported. Internally we use Versions objects, but only use Version(major,0,0)
      * @return a version with what a client is compatible with.
      */
     public Version getCompatibleApiVersion() {
-        return this.compatibleApiVersion;
+        return Version.CURRENT;
     }
 
     private static Map<String, String> params(final String uri) {
@@ -239,7 +182,7 @@ public class RestRequest implements ToXContent.Params {
                                                        HttpChannel httpChannel) {
         Map<String, String> params = Collections.emptyMap();
         return new RestRequest(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel,
-            requestIdGenerator.incrementAndGet(), false);
+            requestIdGenerator.incrementAndGet());
     }
 
     public static RestRequest requestWithoutContentType(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest,
@@ -249,7 +192,7 @@ public class RestRequest implements ToXContent.Params {
         String path = path(httpRequest.uri());
         return new RestRequest(xContentRegistry, params, path, httpRequestWithoutContentType.getHeaders(),
             httpRequestWithoutContentType, httpChannel,
-            requestIdGenerator.incrementAndGet(), false);
+            requestIdGenerator.incrementAndGet());
     }
 
     /**
@@ -267,7 +210,7 @@ public class RestRequest implements ToXContent.Params {
 
         return new RestRequest(xContentRegistry, params, httpRequestWithoutContentType.uri(),
             httpRequestWithoutContentType.getHeaders(), httpRequestWithoutContentType, httpChannel,
-            requestIdGenerator.incrementAndGet(), false);
+            requestIdGenerator.incrementAndGet());
     }
 
 
@@ -638,7 +581,7 @@ public class RestRequest implements ToXContent.Params {
 
     public static class CompatibleApiHeadersCombinationException extends RuntimeException {
 
-        CompatibleApiHeadersCombinationException(String cause) {
+        public CompatibleApiHeadersCombinationException(String cause) {
             super(cause);
         }
 

@@ -60,6 +60,7 @@ import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
+import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.NettyAllocator;
@@ -147,8 +148,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                      NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings,
-                                     SharedGroupFactory sharedGroupFactory) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
+                                     SharedGroupFactory sharedGroupFactory, RestRequestFactory restRequestFactory) {
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings, restRequestFactory);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         this.sharedGroupFactory = sharedGroupFactory;
 

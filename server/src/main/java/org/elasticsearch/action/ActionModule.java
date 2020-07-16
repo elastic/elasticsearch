@@ -249,8 +249,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.TransportNodesListGatewayMetaState;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
+import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -264,6 +267,8 @@ import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -442,6 +447,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ClusterService clusterService;
+    private final RestRequestFactory restRequestFactory;
 
     public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
@@ -473,12 +479,29 @@ public class ActionModule extends AbstractModule {
                 restWrapper = newRestWrapper;
             }
         }
+
+        restRequestFactory = getRestRequestFactory(actionPlugins, restWrapper);
         mappingRequestValidators = new RequestValidators<>(
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+    }
+
+    private RestRequestFactory getRestRequestFactory(List<ActionPlugin> actionPlugins, UnaryOperator<RestHandler> restWrapper) {
+        RestRequestFactory restRequestFactory = null;
+        for (ActionPlugin plugin : actionPlugins) {
+            RestRequestFactory newRestRequestFactory = plugin.getRestRequestFactory();
+            if (newRestRequestFactory != null) {
+                logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
+                if (restRequestFactory != null) {
+                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
+                }
+                restRequestFactory = newRestRequestFactory;
+            }
+        }
+        return restRequestFactory != null ? restRequestFactory : RestRequest::request;
     }
 
 
@@ -854,5 +877,9 @@ public class ActionModule extends AbstractModule {
 
     public RestController getRestController() {
         return restController;
+    }
+
+    public RestRequestFactory getRestRequestFactory(){
+        return restRequestFactory;
     }
 }

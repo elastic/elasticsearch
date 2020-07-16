@@ -34,6 +34,8 @@ import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -119,7 +121,7 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher,
-                                                                                ClusterSettings clusterSettings) {
+                                                                                ClusterSettings clusterSettings, RestRequestFactory restRequestFactory) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -157,7 +159,7 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher,
-                                                                                ClusterSettings clusterSettings) {
+                                                                                ClusterSettings clusterSettings, RestRequestFactory restRequestFactory) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -193,7 +195,7 @@ public class NetworkModuleTests extends ESTestCase {
                                                                                 NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService,
                                                                                 HttpServerTransport.Dispatcher requestDispatcher,
-                                                                                ClusterSettings clusterSettings) {
+                                                                                ClusterSettings clusterSettings, RestRequestFactory restRequestFactory) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -259,6 +261,6 @@ public class NetworkModuleTests extends ESTestCase {
     private NetworkModule newNetworkModule(Settings settings, NetworkPlugin... plugins) {
         return new NetworkModule(settings, Arrays.asList(plugins), threadPool, null, null, null, null,
             xContentRegistry(), null, new NullDispatcher(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), RestRequest::request);
     }
 }

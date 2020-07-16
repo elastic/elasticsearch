@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequestFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -125,6 +126,17 @@ public interface ActionPlugin {
      * Note: Only one installed plugin may implement a rest wrapper.
      */
     default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+        return null;
+    }
+
+    /**
+     * TODO discuss
+     * only one plugin can override this.
+     * however if we allow some kind of wrapping/composition of factories, then more could override
+     * how about the order then?
+     * factory could be returning a builder so that chaining of factories can add more stuff to it?
+     */
+    default RestRequestFactory getRestRequestFactory() {
         return null;
     }
 

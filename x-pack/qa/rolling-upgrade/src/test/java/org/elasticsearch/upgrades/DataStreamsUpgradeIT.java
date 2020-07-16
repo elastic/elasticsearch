@@ -18,6 +18,7 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDataStreams() throws IOException {
+        assumeTrue("fail until #59503 is backported to 7.x and 7.9", false);
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = "{\n" +
                 "      \"index_patterns\":[\"logs-*\"],\n" +

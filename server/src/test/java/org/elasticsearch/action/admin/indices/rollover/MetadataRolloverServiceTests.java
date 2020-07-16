@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamTests;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -258,7 +257,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
     public void testDataStreamValidation() throws IOException {
         Metadata.Builder md = Metadata.builder();
-        DataStream randomDataStream = DataStreamTests.randomInstance();
+        DataStream randomDataStream = DataStreamTestHelper.randomInstance();
         for (Index index : randomDataStream.getIndices()) {
             md.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));
         }
@@ -332,7 +331,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     }
 
     public void testCreateIndexRequestForDataStream() {
-        DataStream dataStream = DataStreamTests.randomInstance();
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
         final String newWriteIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
         final RolloverRequest rolloverRequest = new RolloverRequest(dataStream.getName(), randomAlphaOfLength(10));
         final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
@@ -537,7 +536,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     }
 
     public void testRolloverClusterStateForDataStream() throws Exception {
-        final DataStream dataStream = DataStreamTests.randomInstance();
+        final DataStream dataStream = DataStreamTestHelper.randomInstance();
         ComposableIndexTemplate template = new ComposableIndexTemplate(List.of(dataStream.getName() + "*"), null, null, null, null, null,
             new ComposableIndexTemplate.DataStreamTemplate());
         Metadata.Builder builder = Metadata.builder();
@@ -551,7 +550,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             Mapper.BuilderContext builderContext = new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0));
-            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder("@timestamp").build(builderContext);
+            DateFieldMapper dateFieldMapper
+                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false).build(builderContext);
             MetadataFieldMapper mockedTimestampField = mock(MetadataFieldMapper.class);
             when(mockedTimestampField.name()).thenReturn("_data_stream_timestamp");
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
@@ -629,7 +629,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final boolean useDataStream = randomBoolean();
         final Metadata.Builder builder = Metadata.builder();
         if (useDataStream) {
-            DataStream dataStream = DataStreamTests.randomInstance();
+            DataStream dataStream = DataStreamTestHelper.randomInstance();
             rolloverTarget = dataStream.getName();
             sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
             defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
@@ -686,7 +686,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
     }
 
     public void testRolloverClusterStateForDataStreamNoTemplate() throws Exception {
-        final DataStream dataStream = DataStreamTests.randomInstance();
+        final DataStream dataStream = DataStreamTestHelper.randomInstance();
         Metadata.Builder builder = Metadata.builder();
         for (Index index : dataStream.getIndices()) {
             builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));

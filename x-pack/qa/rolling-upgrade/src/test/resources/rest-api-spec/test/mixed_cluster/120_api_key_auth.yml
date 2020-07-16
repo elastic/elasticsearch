@@ -2,15 +2,14 @@
 "Test API key authentication will work in a mixed cluster":
 
   - skip:
-      version: " - 7.99.99"
-      reason: "https://github.com/elastic/elasticsearch/issues/59425"
       features: headers
 
   - do:
       security.create_api_key:
         body:  >
           {
-            "name": "api-key-in-mixed-cluster"
+            "name": "api-key-in-mixed-cluster",
+            "role_descriptors": {}
           }
   - match: { name: "api-key-in-mixed-cluster" }
   - is_true: id

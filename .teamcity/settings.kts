@@ -47,7 +47,7 @@ project {
         features {
             notifications {
                 notifierSettings = slackNotifier {
-                    connection = "HOMER"
+                    connection = "PROJECT_EXT_7"
                     messageFormat = verboseMessageFormat()
                     sendTo = "#es-build-test"
                 }

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
@@ -37,7 +38,9 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new OneHotEncoding(randomAlphaOfLength(10), valueMap);
+        return new OneHotEncoding(randomAlphaOfLength(10),
+            valueMap,
+            randomBoolean() ? randomBoolean() : null);
     }
 
     @Override
@@ -49,7 +52,7 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         String field = "categorical";
         List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
         Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Object::toString, v -> "Column_" + v.toString()));
-        OneHotEncoding encoding = new OneHotEncoding(field, valueMap);
+        OneHotEncoding encoding = new OneHotEncoding(field, valueMap, false);
         Object fieldValue = randomFrom(values);
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
 
@@ -65,6 +68,16 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         fieldValues = randomFieldValues(field, "unknownValue");
         matchers.put("Column_" + fieldValue, equalTo(0));
         testProcess(encoding, fieldValues, matchers);
+    }
+
+    public void testInputOutputFields() {
+        String field = randomAlphaOfLength(10);
+        List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.0);
+        Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Object::toString, v -> "Column_" + v.toString()));
+        OneHotEncoding encoding = new OneHotEncoding(field, valueMap, false);
+        assertThat(encoding.inputFields(), containsInAnyOrder(field));
+        assertThat(encoding.outputFields(),
+            containsInAnyOrder(values.stream().map(v -> "Column_" + v.toString()).toArray(String[]::new)));
     }
 
 }

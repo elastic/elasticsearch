@@ -167,6 +167,50 @@ setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
 setupTwitter('huge_twitter', 1200)
 
+Closure setupMyLogs = { String name, int count ->
+  buildRestTests.setups[name] = '''
+  - do:
+        indices.create:
+          index: my_logs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                message:
+                  type: text
+                rating:
+                  type: long
+                "@timestamp":
+                  type: date
+                user:
+                  properties:
+                    name:
+                      type: keyword
+  - do:
+        bulk:
+          index: my_logs
+          refresh: true
+          body: |'''
+  for (int i = 0; i < count; i++) {
+    String user_name, message
+    if (i == 0) {
+      user_name = 'kimchy'
+      message = 'Login successful'
+    } else {
+      user_name = 'elkbee'
+      message = "Login attempt failed. Attempts: $i"
+    }
+    buildRestTests.setups[name] += """
+            { "index":{"_id": "$i"} }
+            { "message": "$message", "rating": $i, "@timestamp": "2999-11-15T14:12:12", "user": { "name": "$user_name" } }"""
+  }
+}
+setupMyLogs('my_logs', 5)
+setupMyLogs('my_logs_big', 120)
+setupMyLogs('my_logs_huge', 1200)
+
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.
   - do:

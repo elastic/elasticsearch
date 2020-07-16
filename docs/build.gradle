@@ -287,7 +287,7 @@ buildRestTests.setups['user_hits'] = '''
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
 
 
-// Dummy bank account data used by getting-started.asciidoc
+// Fake bank account data used by getting-started.asciidoc
 buildRestTests.setups['bank'] = '''
   - do:
         indices.create:
@@ -1400,7 +1400,7 @@ buildRestTests.setups['setup-repository'] = '''
             location: buildDir/cluster/shared/repo
 '''
 
-// Dummy sec_logs data used by EQL search
+// Fake sec logs data used by EQL search
 buildRestTests.setups['sec_logs'] = '''
   - do:
         indices.create:

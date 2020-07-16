@@ -46,6 +46,8 @@ project {
 
         features {
             notifications {
+                buildFailed = true
+                buildFinishedSuccessfully = true
                 notifierSettings = slackNotifier {
                     connection = "PROJECT_EXT_7"
                     messageFormat = verboseMessageFormat()

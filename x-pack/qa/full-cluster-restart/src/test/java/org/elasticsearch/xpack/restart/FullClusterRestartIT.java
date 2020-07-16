@@ -871,6 +871,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDataStreams() throws Exception {
+        assumeTrue("fail until #59503 is backported to 7.x and 7.9", false);
         assumeTrue("no data streams in versions before " + Version.V_7_9_0, getOldClusterVersion().onOrAfter(Version.V_7_9_0));
         if (isRunningAgainstOldCluster()) {
             createComposableTemplate(client(), "dst", "ds");

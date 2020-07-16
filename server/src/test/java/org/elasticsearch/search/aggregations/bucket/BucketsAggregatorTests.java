@@ -38,12 +38,10 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
-import org.junit.Before;
 
 import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
-import static org.hamcrest.Matchers.equalTo;
 
 public class BucketsAggregatorTests extends AggregatorTestCase{
 
@@ -62,7 +60,10 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
                     indexSearcher,
                     createIndexSettings(),
                     null,
-                    new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS, new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
+                    new MultiBucketConsumerService.MultiBucketConsumer(
+                        DEFAULT_MAX_BUCKETS,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                    ),
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
 

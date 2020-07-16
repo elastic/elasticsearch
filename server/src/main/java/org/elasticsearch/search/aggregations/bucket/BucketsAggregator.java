@@ -47,7 +47,6 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
-import java.util.function.UnaryOperator;
 
 public abstract class BucketsAggregator extends AggregatorBase {
 

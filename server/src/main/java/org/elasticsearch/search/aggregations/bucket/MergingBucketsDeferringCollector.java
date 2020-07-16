@@ -26,7 +26,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongUnaryOperator;
-import java.util.function.UnaryOperator;
 
 /**
  * A specialization of {@link BestBucketsDeferringCollector} that collects all

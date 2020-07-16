@@ -44,9 +44,8 @@ public class SemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope, Void> 
         String functionName = userFunctionNode.getFunctionName();
         List<String> canonicalTypeNameParameters = userFunctionNode.getCanonicalTypeNameParameters();
         List<String> parameterNames = userFunctionNode.getParameterNames();
-        int parameterCount = canonicalTypeNameParameters.size();
 
-        if (parameterCount != parameterNames.size()) {
+        if (canonicalTypeNameParameters.size() != parameterNames.size()) {
             throw userFunctionNode.createError(new IllegalStateException("invalid function definition: " +
                     "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
                     "parameter names size [" + parameterNames.size() + "] for function [" + functionName +"]"));

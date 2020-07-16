@@ -685,7 +685,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         boolean fullyRecovered() {
-            return reused == false && recovered() == 0;
+            return reused == false && recovered() == length;
         }
 
         @Override

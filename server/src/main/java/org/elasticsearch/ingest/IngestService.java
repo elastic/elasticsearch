@@ -95,7 +95,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
-    private ClusterState state;
+    private volatile ClusterState state;
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,

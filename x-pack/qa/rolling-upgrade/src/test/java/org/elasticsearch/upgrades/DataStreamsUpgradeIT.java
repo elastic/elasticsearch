@@ -6,6 +6,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
@@ -18,7 +19,7 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDataStreams() throws IOException {
-        assumeTrue("fail until #59503 is backported to 7.x and 7.9", false);
+        assumeTrue("no data streams in versions before " + Version.V_7_9_0, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = "{\n" +
                 "      \"index_patterns\":[\"logs-*\"],\n" +

@@ -522,7 +522,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
                 }
                 Pipeline pipeline = holder.pipeline;
-                String oldIndex = indexRequest.indices()[0];
+                String originalIndex = indexRequest.indices()[0];
                 innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                     if (e != null) {
                         onFailure.accept(slot, e);
@@ -532,7 +532,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     boolean newHasFinalPipeline = hasFinalPipeline;
                     String newIndex = indexRequest.indices()[0];
 
-                    if (Objects.equals(oldIndex, newIndex) == false) {
+                    if (Objects.equals(originalIndex, newIndex) == false) {
                         if (hasFinalPipeline && it.hasNext() == false) {
                             totalMetrics.ingestFailed();
                             onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +

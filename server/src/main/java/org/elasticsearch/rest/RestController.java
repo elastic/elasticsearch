@@ -76,11 +76,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<RestHeaderDefinition> headersToCopy;
     private final UsageService usageService;
+    private RestRequestFactory restRequestFactory;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, RestRequestFactory restRequestFactory) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
+        this.restRequestFactory = restRequestFactory;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -176,8 +178,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
             handleFavicon(request.method(), request.uri(), channel);
             return;
         }
+        RestRequest restRequest = restRequestFactory.createRestRequest(request);
+
         try {
-            tryAllHandlers(request, channel, threadContext);
+            tryAllHandlers(restRequest, channel, threadContext);
         } catch (Exception e) {
             try {
                 channel.sendResponse(new BytesRestResponse(channel, e));

@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequestFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -127,6 +128,8 @@ public interface ActionPlugin {
     default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
         return null;
     }
+
+    RestRequestFactory getRestRequestFactory();
 
     final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
         private final ActionType<Response> action;

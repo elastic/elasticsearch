@@ -638,7 +638,7 @@ public class RestRequest implements ToXContent.Params {
 
     public static class CompatibleApiHeadersCombinationException extends RuntimeException {
 
-        CompatibleApiHeadersCombinationException(String cause) {
+        public CompatibleApiHeadersCombinationException(String cause) {
             super(cause);
         }
 

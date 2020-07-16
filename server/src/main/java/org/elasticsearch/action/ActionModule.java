@@ -264,6 +264,7 @@ import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -477,10 +478,24 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
-
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        RestRequestFactory restRequestFactory = getRestRequestFactory(actionPlugins);
+        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restRequestFactory);
     }
 
+    private RestRequestFactory getRestRequestFactory(List<ActionPlugin> actionPlugins) {
+        RestRequestFactory restRequestFactory = null;
+        for (ActionPlugin plugin : actionPlugins) {
+            RestRequestFactory newRestRequestFactory = plugin.getRestRequestFactory();
+            if (newRestRequestFactory != null) {
+                logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
+                if (restRequestFactory != null) {
+                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
+                }
+                restRequestFactory = newRestRequestFactory;
+            }
+        }
+        return restRequestFactory != null ? restRequestFactory : r -> r;
+    }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;

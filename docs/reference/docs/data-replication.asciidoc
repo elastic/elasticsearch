@@ -20,12 +20,15 @@ responsible for replicating the operation to the other copies.
 This purpose of this section is to give a high level overview of the Elasticsearch replication model and discuss the implications
 it has for various interactions between write and read operations.
 
-[float]
+[float,id="basic-write-model"]
 ==== Basic write model
 
 Every indexing operation in Elasticsearch is first resolved to a replication group using <<index-routing,routing>>,
-typically based on the document ID. Once the replication group has been determined,
-the operation is forwarded internally to the current _primary shard_ of the group. The primary shard is responsible
+typically based on the document ID. Once the replication group has been determined, the operation is forwarded
+internally to the current _primary shard_ of the group. This stage of indexing is referred to as the coordinating
+stage.
+
+The next stage of indexing is the primary stage which is performed on the primary shard. The primary shard is responsible
 for validating the operation and forwarding it to the other replicas. Since replicas can be offline, the primary
 is not required to replicate to all replicas. Instead, Elasticsearch maintains a list of shard copies that should
 receive the operation. This list is called the _in-sync copies_ and is maintained by the master node. As the name implies,
@@ -41,6 +44,14 @@ The primary shard follows this basic flow:
 . Forward the operation to each replica in the current in-sync copies set. If there are multiple replicas, this is done in parallel.
 . Once all replicas have successfully performed the operation and responded to the primary, the primary acknowledges the successful
    completion of the request to the client.
+
+Each in-sync replica copy performs the indexing operation locally so that it has a copy. This stage of indexing is the replication
+stage.
+
+These indexing stages (coordinating, primary, and replication) are sequential. However, each upstream stage is inclusive of the
+downstream stages. The coordinating stage is not complete until each primary stage (which might be spread out across different
+primary shards) has completed. Each primary stage will not complete until the in-sync replicas have completed replication and
+responded to the replication requests.
 
 [float]
 ===== Failure handling

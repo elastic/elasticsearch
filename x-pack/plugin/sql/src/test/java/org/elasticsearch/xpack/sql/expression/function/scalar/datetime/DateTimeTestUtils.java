@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.OffsetTime;
 import java.time.LocalDateTime;
 import java.time.LocalTime;

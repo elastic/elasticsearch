@@ -68,6 +68,9 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
      * store at least that many entries.
      */
     protected final void resize(int newSize) {
+        count = newSize;
+        valuesCursor = 0;
+
         if (newSize <= values.length) {
             return;
         }
@@ -81,11 +84,9 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
         circuitBreakerConsumer.accept(newValuesLength * Long.BYTES);
 
         // resize
-        count = newSize;
         values = ArrayUtil.growExact(values, newValuesLength);
-        valuesCursor = 0;
 
-        // clean up old values array
+        // account for freeing the old values array
         circuitBreakerConsumer.accept(-oldValuesSizeInBytes);
     }
 

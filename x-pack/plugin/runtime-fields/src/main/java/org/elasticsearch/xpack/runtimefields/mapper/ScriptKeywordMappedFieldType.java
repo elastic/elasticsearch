@@ -9,15 +9,10 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -31,7 +26,6 @@ import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldTermQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldTermsQuery;
 import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldWildcardQuery;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
@@ -39,17 +33,21 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
+public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFieldType {
 
     private final Script script;
     private final StringScriptFieldScript.Factory scriptFactory;
 
-    RuntimeKeywordMappedFieldType(String name, Script script, StringScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
-        super(name, false, false, TextSearchInfo.NONE, meta);
+    ScriptKeywordMappedFieldType(String name, Script script, StringScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
+        super(name, script, meta);
         this.script = script;
         this.scriptFactory = scriptFactory;
+    }
+
+    @Override
+    protected String runtimeType() {
+        return "keyword";
     }
 
     @Override
@@ -63,13 +61,6 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
     }
 
     @Override
-    public String typeName() {
-        // TODO not sure what we should return here: the runtime type or the field type?
-        // why is the same string returned from three different methods?
-        return ScriptFieldMapper.CONTENT_TYPE;
-    }
-
-    @Override
     public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
         return new ScriptBinaryFieldData.Builder(scriptFactory);
@@ -77,18 +68,6 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
 
     private StringScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {
         return scriptFactory.newFactory(script.getParams(), context.lookup());
-    }
-
-    private void checkAllowExpensiveQueries(QueryShardContext context) {
-        if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException(
-                "queries cannot be executed against ["
-                    + ScriptFieldMapper.CONTENT_TYPE
-                    + "] fields while ["
-                    + ALLOW_EXPENSIVE_QUERIES.getKey()
-                    + "] is set to [false]."
-            );
-        }
     }
 
     @Override
@@ -170,10 +149,5 @@ public final class RuntimeKeywordMappedFieldType extends MappedFieldType {
     public Query wildcardQuery(String value, RewriteMethod method, QueryShardContext context) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value);
-    }
-
-    void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        builder.field("runtime_type", "keyword");
-        builder.field("script", script.getIdOrCode()); // TODO For some reason this doesn't allow us to do the full xcontent of the script.
     }
 }

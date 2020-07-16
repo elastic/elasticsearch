@@ -16,6 +16,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
@@ -58,8 +59,8 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        RuntimeKeywordMappedFieldType fieldType = (RuntimeKeywordMappedFieldType) fieldType();
-        fieldType.doXContentBody(builder, includeDefaults, params);
+        AbstractScriptMappedFieldType fieldType = (AbstractScriptMappedFieldType) fieldType();
+        fieldType.mapperXContentBody(builder, params);
     }
 
     @Override
@@ -112,23 +113,37 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScriptFieldMapper build(BuilderContext context) {
-            MappedFieldType mappedFieldType;
-            if (runtimeType.getValue().equals("keyword")) {
-                StringScriptFieldScript.Factory factory = scriptCompiler.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
-                mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script.getValue(), factory, meta.getValue());
-            } else {
-                throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
-            }
             // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
             return new ScriptFieldMapper(
                 name,
-                mappedFieldType,
+                buildType(buildFullName(context)),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 runtimeType.getValue(),
                 script.getValue(),
                 scriptCompiler
             );
+        }
+
+        private MappedFieldType buildType(String fullName) {
+            switch (runtimeType.getValue()) {
+                case "keyword":
+                    return new ScriptKeywordMappedFieldType(
+                        fullName,
+                        script.getValue(),
+                        scriptCompiler.compile(script.getValue(), StringScriptFieldScript.CONTEXT),
+                        meta.getValue()
+                    );
+                case "long":
+                    return new ScriptLongMappedFieldType(
+                        fullName,
+                        script.getValue(),
+                        scriptCompiler.compile(script.getValue(), LongScriptFieldScript.CONTEXT),
+                        meta.getValue()
+                    );
+                default:
+                    throw new IllegalArgumentException("runtime_type [" + runtimeType.getValue() + "] not supported");
+            }
         }
 
         static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {

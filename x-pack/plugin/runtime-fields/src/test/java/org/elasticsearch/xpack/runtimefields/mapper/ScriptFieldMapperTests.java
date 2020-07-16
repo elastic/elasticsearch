@@ -19,9 +19,11 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -93,27 +95,43 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testDefaultMapping() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("field")
-            .field("type", "script")
-            .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
-            .startObject("script")
-            .field("source", "value('test')")
-            .field("lang", "test")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-
-        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
+    public void testKeyword() throws IOException {
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("keyword")).mapperService();
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(ScriptFieldMapper.class));
-        assertEquals(Strings.toString(mapping), Strings.toString(mapperService.documentMapper()));
+        assertEquals(Strings.toString(mapping("keyword")), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testLong() throws IOException {
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("long")).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(ScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping("long")), Strings.toString(mapperService.documentMapper()));
+    }
+
+    private XContentBuilder mapping(String type) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("field");
+                    {
+                        mapping.field("type", "script").field("runtime_type", type);
+                        mapping.startObject("script");
+                        {
+                            mapping.field("source", "dummy_source").field("lang", "test");
+                        }
+                        mapping.endObject();
+                    }
+                    mapping.endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        return mapping.endObject();
     }
 
     public static class TestScriptPlugin extends Plugin implements ScriptPlugin {
@@ -132,27 +150,41 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
                     ScriptContext<FactoryType> context,
                     Map<String, String> paramsMap
                 ) {
-                    if ("value('test')".equals(code)) {
-                        StringScriptFieldScript.Factory factory = (params, lookup) -> ctx -> new StringScriptFieldScript(
+                    if ("dummy_source".equals(code)) {
+                        @SuppressWarnings("unchecked")
+                        FactoryType castFactory = (FactoryType) dummyScriptFactory(context);
+                        return castFactory;
+                    }
+                    throw new IllegalArgumentException("No test script for [" + code + "]");
+                }
+
+                private Object dummyScriptFactory(ScriptContext<?> context) {
+                    if (context == StringScriptFieldScript.CONTEXT) {
+                        return (StringScriptFieldScript.Factory) (params, lookup) -> ctx -> new StringScriptFieldScript(
                             params,
                             lookup,
                             ctx
                         ) {
                             @Override
                             public void execute() {
-                                this.results.add("test");
+                                results.add("test");
                             }
                         };
-                        @SuppressWarnings("unchecked")
-                        FactoryType castFactory = (FactoryType) factory;
-                        return castFactory;
                     }
-                    throw new IllegalArgumentException("No test script for [" + code + "]");
+                    if (context == LongScriptFieldScript.CONTEXT) {
+                        return (LongScriptFieldScript.Factory) (params, lookup) -> ctx -> new LongScriptFieldScript(params, lookup, ctx) {
+                            @Override
+                            public void execute() {
+                                add(1);
+                            }
+                        };
+                    }
+                    throw new IllegalArgumentException("No test script for [" + context + "]");
                 }
 
                 @Override
                 public Set<ScriptContext<?>> getSupportedContexts() {
-                    return Set.of(StringScriptFieldScript.CONTEXT);
+                    return Set.of(StringScriptFieldScript.CONTEXT, LongScriptFieldScript.CONTEXT);
                 }
             };
         }

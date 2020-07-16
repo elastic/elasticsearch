@@ -13,6 +13,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,9 +48,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -350,19 +355,8 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(restoredIndexName);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59287")
     public void testMaxRestoreBytesPerSecIsUsed() throws Exception {
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
-        final boolean useRateLimits = randomBoolean();
-        if (useRateLimits) {
-            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(10, ByteSizeUnit.KB));
-        } else {
-            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
-        }
-        assertAcked(
-            client().admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repositorySettings)
-        );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
@@ -383,6 +377,22 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .collect(Collectors.toList())
         );
         refresh(indexName);
+        forceMerge();
+
+        final Settings.Builder repositorySettings = Settings.builder().put("location", randomRepoPath());
+        final boolean useRateLimits = randomBoolean();
+        if (useRateLimits) {
+            // we compute the min across all the max shard sizes by node in order to
+            // trigger the rate limiter in all nodes. We could just use the min shard size
+            // but that would make this test too slow.
+            long rateLimitInBytes = getMaxShardSizeByNodeInBytes(indexName).values().stream().min(Long::compareTo).get();
+            repositorySettings.put("max_restore_bytes_per_sec", new ByteSizeValue(rateLimitInBytes, ByteSizeUnit.BYTES));
+        } else {
+            repositorySettings.put("max_restore_bytes_per_sec", ByteSizeValue.ZERO);
+        }
+        assertAcked(
+            client().admin().cluster().preparePutRepository(repositoryName).setType(FsRepository.TYPE).setSettings(repositorySettings)
+        );
 
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -425,6 +435,23 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 );
             }
         }
+    }
+
+    private Map<String, Long> getMaxShardSizeByNodeInBytes(String indexName) {
+        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats(indexName).get();
+        IndexStats indexStats = indicesStats.getIndex(indexName);
+        Map<String, Long> maxShardSizeByNode = new HashMap<>();
+        for (ShardStats shard : indexStats.getShards()) {
+            long sizeInBytes = shard.getStats().getStore().getSizeInBytes();
+            if (sizeInBytes > 0) {
+                maxShardSizeByNode.compute(
+                    shard.getShardRouting().currentNodeId(),
+                    (nodeId, maxSize) -> Math.max(maxSize == null ? 0L : maxSize, sizeInBytes)
+                );
+            }
+        }
+
+        return maxShardSizeByNode;
     }
 
     public void testMountedSnapshotHasNoReplicasByDefault() throws Exception {

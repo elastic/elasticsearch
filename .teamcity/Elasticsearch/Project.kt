@@ -19,13 +19,10 @@
 
 package Elasticsearch
 
-import VersionedProject
-import includeDevelopmentBranchProjects
+import TeamLevelProject
 
-object Elasticsearch : VersionedProject({
+object Elasticsearch : TeamLevelProject({
     uuid = "7ec11a10-4663-40da-8b01-bb9bcc3c82c7"
-    id("Elasticsearch")
-    parentId("_Root")
     name = "Elasticsearch"
 
     includeDevelopmentBranchProjects()

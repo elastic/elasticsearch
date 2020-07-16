@@ -50,8 +50,12 @@ project {
                 buildFinishedSuccessfully = true
                 notifierSettings = slackNotifier {
                     connection = "PROJECT_EXT_7"
-                    messageFormat = verboseMessageFormat()
                     sendTo = "#es-build-test"
+                    messageFormat = verboseMessageFormat {
+                        addStatusText = true
+                        addChanges = true
+                        addBranch = true
+                    }
                 }
             }
         }

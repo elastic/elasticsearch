@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -99,7 +100,9 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
         }
 
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
-        if (indexAccessControl != null && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()) {
+        if (null == indexAccessControl) {
+            throw new ElasticsearchSecurityException("Missing index access control for [" + indexName + "]");
+        } else if (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()) {
             if (cachingIsSafe(weight, indexAccessControl)) {
                 logger.trace("not opting out of the query cache. request for index [{}] is safe to cache", indexName);
                 return indicesQueryCache.doCache(weight, policy);

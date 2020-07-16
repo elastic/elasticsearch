@@ -21,10 +21,13 @@ import java.util.Set;
  */
 public class IndicesAccessControl {
 
-    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, Collections.emptyMap());
-    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true,
-            Collections.singletonMap(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER,
-                    new IndicesAccessControl.IndexAccessControl(true, new FieldPermissions(), DocumentPermissions.allowAll())));
+    public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, null) {
+        @Override
+        public IndexAccessControl getIndexPermissions(String index) {
+            return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
+        }
+    };
+    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true, Collections.emptyMap());
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
 
     private final boolean granted;
@@ -55,6 +58,8 @@ public class IndicesAccessControl {
      * Encapsulates the field and document permissions for an index.
      */
     public static class IndexAccessControl {
+
+        public static final IndexAccessControl PROMISCUOUS_ACCESS_CONTROL = new IndexAccessControl(true, null, null);
 
         private final boolean granted;
         private final FieldPermissions fieldPermissions;

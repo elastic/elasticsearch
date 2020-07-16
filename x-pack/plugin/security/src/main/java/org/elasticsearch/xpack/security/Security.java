@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -1045,7 +1046,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                    throw new ElasticsearchSecurityException("Missing index access control for [" + index + "]");
                 }
                 if (indexPermissions.isGranted() == false) {
                     throw new IllegalStateException("unexpected call to getFieldFilter for index [" + index + "] which is not granted");

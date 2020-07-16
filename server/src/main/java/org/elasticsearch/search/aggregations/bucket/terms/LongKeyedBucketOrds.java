@@ -197,12 +197,12 @@ public abstract class LongKeyedBucketOrds implements Releasable {
         @Override
         public long add(long owningBucketOrd, long value) {
             // This is in the critical path for collecting most aggs. Be careful of performance.
-            return ords.add(value, owningBucketOrd);
+            return ords.add(owningBucketOrd, value);
         }
 
         @Override
         public long find(long owningBucketOrd, long value) {
-            return ords.find(value, owningBucketOrd);
+            return ords.find(owningBucketOrd, value);
         }
 
         @Override
@@ -210,7 +210,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             // TODO it'd be faster to count the number of buckets in a list of these ords rather than one at a time
             long count = 0;
             for (long i = 0; i < ords.size(); i++) {
-                if (ords.getKey2(i) == owningBucketOrd) {
+                if (ords.getKey1(i) == owningBucketOrd) {
                     count++;
                 }
             }
@@ -227,7 +227,7 @@ public abstract class LongKeyedBucketOrds implements Releasable {
             // TODO this is fairly expensive to compute. Can we avoid needing it?
             long max = -1;
             for (long i = 0; i < ords.size(); i++) {
-                max = Math.max(max, ords.getKey2(i));
+                max = Math.max(max, ords.getKey1(i));
             }
             return max;
         }
@@ -246,8 +246,8 @@ public abstract class LongKeyedBucketOrds implements Releasable {
                         if (ord >= ords.size()) {
                             return false;
                         }
-                        if (ords.getKey2(ord) == owningBucketOrd) {
-                            value = ords.getKey1(ord);
+                        if (ords.getKey1(ord) == owningBucketOrd) {
+                            value = ords.getKey2(ord);
                             return true;
                         }
                     }

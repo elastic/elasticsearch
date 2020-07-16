@@ -160,6 +160,37 @@ public class FinalPipelineIT extends ESIntegTestCase {
         assertEquals(true, target.getHits().getAt(0).getSourceAsMap().get("final"));
     }
 
+    public void testDefaultPipelineOfNewDestinationIsNotInvoked(){
+        Settings settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build();
+        createIndex("index", settings);
+
+        settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
+        createIndex("target", settings);
+
+        BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
+            .actionGet();
+
+        BytesReference targetPipeline = new BytesArray("{\"processors\": [{\"final\": {}}]}");
+        client().admin()
+            .cluster()
+            .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
+            .actionGet();
+
+        IndexResponse indexResponse = client()
+            .prepareIndex("index")
+            .setId("1")
+            .setSource(Map.of("field", "value"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        assertEquals(RestStatus.CREATED, indexResponse.status());
+        SearchResponse target = client().prepareSearch("target").get();
+        assertEquals(1, target.getHits().getTotalHits().value);
+        assertFalse(target.getHits().getAt(0).getSourceAsMap().containsKey("final"));
+    }
+
     public void testFinalPipeline() {
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);

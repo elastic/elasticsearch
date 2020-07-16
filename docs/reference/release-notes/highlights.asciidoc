@@ -100,7 +100,7 @@ end::notable-highlights[]
 [float]
 === Allow index filtering in field capabilities API
 
-You can now supply an `index_filter` to the <<search-field-cpas,field
+You can now supply an `index_filter` to the <<search-field-caps,field
 capabilities API>>. Indices are filtered from the response if the provided
 query rewrites to `match_none` on every shard.
 

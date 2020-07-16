@@ -1,0 +1,32 @@
+// This file is auto-generated. Do not edit.
+
+
+[role="exclude",id="painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-literal-geo"]
+=== Aggs API for package org.elasticsearch.xpack.sql.expression.literal.geo
+See the <<painless-api-reference-aggs, Aggs API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-aggs-GeoShape]]
+==== GeoShape
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[role="exclude",id="painless-api-reference-aggs-org-elasticsearch-xpack-sql-expression-literal-interval"]
+=== Aggs API for package org.elasticsearch.xpack.sql.expression.literal.interval
+See the <<painless-api-reference-aggs, Aggs API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-aggs-IntervalDayTime]]
+==== IntervalDayTime
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-aggs-IntervalYearMonth]]
+==== IntervalYearMonth
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

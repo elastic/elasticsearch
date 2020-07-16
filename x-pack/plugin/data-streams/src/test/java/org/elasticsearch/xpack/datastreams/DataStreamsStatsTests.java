@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
@@ -78,6 +79,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
         assertEquals(1, stats.getDataStreams().length);
         assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(1, stats.getDataStreams()[0].getBackingIndices());
         assertEquals(0L, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
@@ -95,6 +97,45 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
         assertEquals(1, stats.getDataStreams().length);
         assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(1, stats.getDataStreams()[0].getBackingIndices());
+        assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+    }
+
+    public void testStatsClosedBackingIndexDataStream() throws Exception {
+        String dataStreamName = createDataStream();
+        createDocument(dataStreamName);
+        assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
+        assertTrue(
+            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-000001")).actionGet().isAcknowledged()
+        );
+
+        DataStreamsStatsAction.Response stats = getDataStreamsStats();
+        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(0, stats.getFailedShards());
+        assertEquals(1, stats.getDataStreamCount());
+        assertEquals(2, stats.getBackingIndices());
+        assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(2, stats.getDataStreams()[0].getBackingIndices());
+        assertEquals(0L, stats.getDataStreams()[0].getMaximumTimestamp());
+        assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
+        assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
+
+        // Call stats again after writing a new event into the write index
+        long timestamp = createDocument(dataStreamName);
+
+        stats = getDataStreamsStats();
+        assertEquals(2, stats.getSuccessfulShards());
+        assertEquals(0, stats.getFailedShards());
+        assertEquals(1, stats.getDataStreamCount());
+        assertEquals(2, stats.getBackingIndices());
+        assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
+        assertEquals(1, stats.getDataStreams().length);
+        assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(2, stats.getDataStreams()[0].getBackingIndices());
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());
@@ -114,6 +155,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertNotEquals(0L, stats.getTotalStoreSize().getBytes());
         assertEquals(1, stats.getDataStreams().length);
         assertEquals(dataStreamName, stats.getDataStreams()[0].getDataStream());
+        assertEquals(2, stats.getDataStreams()[0].getBackingIndices());
         assertEquals(timestamp, stats.getDataStreams()[0].getMaximumTimestamp());
         assertNotEquals(0L, stats.getDataStreams()[0].getStoreSize().getBytes());
         assertEquals(stats.getTotalStoreSize().getBytes(), stats.getDataStreams()[0].getStoreSize().getBytes());

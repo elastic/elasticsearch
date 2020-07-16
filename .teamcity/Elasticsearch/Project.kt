@@ -32,7 +32,15 @@ object Elasticsearch : VersionedProject({
 
     cleanup {
         baseRule {
-            artifacts(builds = 5)
+            all(builds = 1)
+        }
+        keepRule {
+            days(7)
+            historyAndStatistics()
+        }
+        keepRule {
+            builds(5)
+            logs()
         }
     }
 })

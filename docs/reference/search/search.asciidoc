@@ -642,7 +642,7 @@ The API returns the following response:
 
 [source,console]
 ----
-GET /my_logs,my_logs_2/_search?q=user:kimchy
+GET /my_logs,my_logs_2/_search?q=user.name:kimchy
 ----
 // TEST[setup:my_logs]
 // TEST[s/^/PUT my_logs_2\n/]

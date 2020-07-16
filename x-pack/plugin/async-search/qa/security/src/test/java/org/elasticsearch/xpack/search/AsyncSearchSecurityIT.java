@@ -21,15 +21,19 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -49,6 +53,8 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     public void indexDocuments() throws IOException {
         createIndex("index", Settings.EMPTY);
         index("index", "0", "foo", "bar");
+        index("index", "1", "bar", "baz");
+        index("index", "2", "baz", "boo");
         refresh("index");
 
         createIndex("index-user1", Settings.EMPTY);
@@ -57,7 +63,62 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
 
         createIndex("index-user2", Settings.EMPTY);
         index("index-user2", "0", "foo", "bar");
+        index("index-user2", "1", "bar", "baz");
         refresh("index-user2");
+    }
+
+    public void testWithDlsAndFls() throws Exception {
+        Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user_dls");
+        assertOK(submitResp);
+        Map<String, Object> submitRespMap = toMap(submitResp);
+        List<Map<String, Map<String, Object>>> hits = extractHits(submitRespMap);
+        assertThat(hits, contains(new BaseMatcher<>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean matches(Object actual) {
+                if (actual instanceof Map) {
+                    Map<String, Object> searchHit = (Map<String, Object>) actual;
+                    return "index".equals(searchHit.get("_index")) &&
+                            "1".equals(searchHit.get("_id")) &&
+                            ((Map<String, Object>) searchHit.get("_source")).isEmpty();
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo(Description description) { }
+        }, new BaseMatcher<>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean matches(Object actual) {
+                if (actual instanceof Map) {
+                    Map<String, Object> searchHit = (Map<String, Object>) actual;
+                    return "index".equals(searchHit.get("_index")) &&
+                            "2".equals(searchHit.get("_id")) &&
+                            ((Map<String, Object>) searchHit.get("_source")).size() == 1 &&
+                            "boo".equals(((Map<String, Object>) searchHit.get("_source")).get("baz"));
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo(Description description) {}
+        }, new BaseMatcher<>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean matches(Object actual) {
+                if (actual instanceof Map) {
+                    Map<String, Object> searchHit = (Map<String, Object>) actual;
+                    return "index-user2".equals(searchHit.get("_index")) &&
+                            "1".equals(searchHit.get("_id")) &&
+                            ((Map<String, Object>) searchHit.get("_source")).isEmpty();
+                }
+                return false;
+            }
+
+            @Override
+            public void describeTo(Description description) { }
+        }));
     }
 
     public void testWithUsers() throws Exception {
@@ -101,6 +162,12 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     static String extractResponseId(Response response) throws IOException {
         Map<String, Object> map = toMap(response);
         return (String) map.get("id");
+    }
+
+    @SuppressWarnings("unchecked")
+    static List<Map<String, Map<String, Object>>> extractHits(Map<String, Object> respMap) {
+        Map<String, Object> response = ((Map<String, Object>) respMap.get("response"));
+        return ((List<Map<String, Map<String, Object>>>)((Map<String, Object>) response.get("hits")).get("hits"));
     }
 
     static void index(String index, String id, Object... fields) throws IOException {

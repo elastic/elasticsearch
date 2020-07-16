@@ -17,6 +17,9 @@ Mapping::
 * Dynamic mappings in indices created on 8.0 and later have stricter validation at mapping update time.
   (e.g. incorrect analyzer settings or unknown field types). {es-pull}51233[#51233]
 
+Update by query::
+* Unsupported fields provided as part of the script section of the update by query API are now rejected.
+
 Deprecations::
 * Remove undocumented endpoints of hot threads API {es-pull}55109[#55109]
 

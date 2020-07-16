@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCase {
 
-    protected void assertAccessIsAllowed(String user, Request request) throws IOException {
+    protected Response assertAccessIsAllowed(String user, Request request) throws IOException {
         setUser(request, user);
         Response response = getRestClient().performRequest(request);
         StatusLine statusLine = response.getStatusLine();
@@ -37,12 +37,13 @@ public abstract class AbstractPrivilegeTestCase extends SecuritySingleNodeTestCa
                 request.getMethod(), request.getEndpoint(), statusLine.getStatusCode(),
                 statusLine.getReasonPhrase(), EntityUtils.toString(response.getEntity()));
         assertThat(message, statusLine.getStatusCode(), is(not(greaterThanOrEqualTo(400))));
+        return response;
     }
 
-    protected void assertAccessIsAllowed(String user, String method, String uri, String body) throws IOException {
+    protected Response assertAccessIsAllowed(String user, String method, String uri, String body) throws IOException {
         Request request = new Request(method, uri);
         request.setJsonEntity(body);
-        assertAccessIsAllowed(user, request);
+        return assertAccessIsAllowed(user, request);
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri) throws IOException {

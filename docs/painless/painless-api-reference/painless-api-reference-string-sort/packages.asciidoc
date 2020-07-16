@@ -1,0 +1,32 @@
+// This file is auto-generated. Do not edit.
+
+
+[role="exclude",id="painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-geo"]
+=== String Sort API for package org.elasticsearch.xpack.sql.expression.literal.geo
+See the <<painless-api-reference-string-sort, String Sort API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-string-sort-GeoShape]]
+==== GeoShape
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[role="exclude",id="painless-api-reference-string-sort-org-elasticsearch-xpack-sql-expression-literal-interval"]
+=== String Sort API for package org.elasticsearch.xpack.sql.expression.literal.interval
+See the <<painless-api-reference-string-sort, String Sort API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-string-sort-IntervalDayTime]]
+==== IntervalDayTime
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+
+[[painless-api-reference-string-sort-IntervalYearMonth]]
+==== IntervalYearMonth
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

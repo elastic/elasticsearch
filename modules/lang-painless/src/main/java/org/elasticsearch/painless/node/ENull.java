@@ -20,8 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NullNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
@@ -44,7 +42,7 @@ public class ENull extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
         }
@@ -54,8 +52,6 @@ public class ENull extends AExpression {
         }
 
         TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
-
-        Output output = new Output();
         Class<?> valueType;
 
         if (targetType != null) {
@@ -70,12 +66,5 @@ public class ENull extends AExpression {
         }
 
         semanticScope.putDecoration(this, new ValueType(valueType));
-
-        NullNode nullNode = new NullNode();
-        nullNode.setLocation(getLocation());
-        nullNode.setExpressionType(valueType);
-        output.expressionNode = nullNode;
-
-        return output;
     }
 }

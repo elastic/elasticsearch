@@ -35,12 +35,12 @@ public class FunctionRegistry {
 
     // Translation table for error messaging in the following function
     private static final String[] NUM_NAMES = {
-            "zero",
-            "one",
-            "two",
-            "three",
-            "four",
-            "five",
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
     };
 
     // list of functions grouped by type of functions (aggregate, statistics, math etc) and ordered alphabetically inside each group
@@ -49,7 +49,8 @@ public class FunctionRegistry {
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
 
-    public FunctionRegistry() {}
+    public FunctionRegistry() {
+    }
 
     /**
      * Register the given function definitions with this registry.
@@ -73,16 +74,16 @@ public class FunctionRegistry {
                 Object old = batchMap.put(alias, f);
                 if (old != null || defs.containsKey(alias)) {
                     throw new QlIllegalArgumentException("alias [" + alias + "] is used by "
-                            + "[" + (old != null ? old : defs.get(alias).name()) + "] and [" + f.name() + "]");
+                        + "[" + (old != null ? old : defs.get(alias).name()) + "] and [" + f.name() + "]");
                 }
                 aliases.put(alias, f.name());
             }
         }
         // sort the temporary map by key name and add it to the global map of functions
         defs.putAll(batchMap.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.<Entry<String, FunctionDefinition>, String,
-                        FunctionDefinition, LinkedHashMap<String, FunctionDefinition>> toMap(Map.Entry::getKey, Map.Entry::getValue,
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.<Entry<String, FunctionDefinition>, String,
+                FunctionDefinition, LinkedHashMap<String, FunctionDefinition>>toMap(Map.Entry::getKey, Map.Entry::getValue,
                 (oldValue, newValue) -> oldValue, LinkedHashMap::new)));
     }
 
@@ -118,10 +119,10 @@ public class FunctionRegistry {
         // It is worth double checking if we need this copy. These are immutable anyway.
         Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
         return defs.entrySet().stream()
-                .filter(e -> p == null || p.matcher(e.getKey()).matches())
-                .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
-                .collect(toList());
+            .filter(e -> p == null || p.matcher(e.getKey()).matches())
+            .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
+                e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
+            .collect(toList());
     }
 
     /**
@@ -129,7 +130,7 @@ public class FunctionRegistry {
      * is not aware of time zone and does not support {@code DISTINCT}.
      */
     protected static <T extends Function> FunctionDefinition def(Class<T> function,
-            java.util.function.Function<Source, T> ctorRef, String... names) {
+                                                                 java.util.function.Function<Source, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
@@ -149,7 +150,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")
     protected static <T extends Function> FunctionDefinition def(Class<T> function,
-            ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
+                                                                 ConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
@@ -167,13 +168,13 @@ public class FunctionRegistry {
     }
 
     /**
-    * Build a {@linkplain FunctionDefinition} for a one-argument function that
-    * is not aware of time zone, does not support {@code DISTINCT} and needs
-    * the configuration object.
-    */
+     * Build a {@linkplain FunctionDefinition} for a one-argument function that
+     * is not aware of time zone, does not support {@code DISTINCT} and needs
+     * the configuration object.
+     */
     @SuppressWarnings("overloads")
     protected static <T extends Function> FunctionDefinition def(Class<T> function,
-            UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
+                                                                 UnaryConfigurationAwareFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() > 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
@@ -198,7 +199,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function,
-            BiFunction<Source, Expression, T> ctorRef, String... names) {
+                                                                 BiFunction<Source, Expression, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
@@ -217,7 +218,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-            MultiFunctionBuilder<T> ctorRef, String... names) {
+                                                              MultiFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (distinct) {
                 throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
@@ -237,7 +238,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-            DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
+                                                              DistinctAwareUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
@@ -257,7 +258,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-            DatetimeUnaryFunctionBuilder<T> ctorRef, String... names) {
+                                                              DatetimeUnaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
@@ -280,7 +281,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeBinaryFunctionBuilder<T> ctorRef,
-            String... names) {
+                                                              String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");
@@ -303,7 +304,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function, DatetimeThreeArgsFunctionBuilder<T> ctorRef,
-            String... names) {
+                                                              String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 3) {
                 throw new QlIllegalArgumentException("expects three arguments");
@@ -326,7 +327,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-            BinaryFunctionBuilder<T> ctorRef, String... names) {
+                                                              BinaryFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
@@ -349,12 +350,12 @@ public class FunctionRegistry {
 
     /**
      * Main method to register a function/
-     * @param names Must always have at least one entry which is the method's primary name
      *
+     * @param names Must always have at least one entry which is the method's primary name
      */
     @SuppressWarnings("overloads")
     public static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
-                                          boolean datetime, String... names) {
+                                         boolean datetime, String... names) {
         Check.isTrue(names.length > 0, "At least one name must be provided for the function");
         String primaryName = names[0];
         List<String> aliases = Arrays.asList(names).subList(1, names.length);
@@ -374,7 +375,7 @@ public class FunctionRegistry {
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-            ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
+                                                              ThreeParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
@@ -418,7 +419,7 @@ public class FunctionRegistry {
 
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-            FourParametersFunctionBuilder<T> ctorRef, String... names) {
+                                                              FourParametersFunctionBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 4) {
                 throw new QlIllegalArgumentException("expects exactly four arguments");
@@ -449,7 +450,8 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(source, children.get(0), children.get(1), children.get(2), children.size() == 4 ? children.get(3) : null, cfg);
+            return ctorRef.build(source, children.get(0), children.get(1), children.get(2),
+                children.size() == 4 ? children.get(3) : null, cfg);
         };
         return def(function, builder, false, names);
     }
@@ -467,7 +469,7 @@ public class FunctionRegistry {
             boolean hasOptionalParams = OptionalArgument.class.isAssignableFrom(function);
             if (hasOptionalParams && (children.size() > NUM_TOTAL_PARAMS || children.size() < NUM_TOTAL_PARAMS - numOptionalParams)) {
                 throw new QlIllegalArgumentException("expects between " + NUM_NAMES[NUM_TOTAL_PARAMS - numOptionalParams]
-                        + " and " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
+                    + " and " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
             } else if (hasOptionalParams == false && children.size() != NUM_TOTAL_PARAMS) {
                 throw new QlIllegalArgumentException("expects exactly " + NUM_NAMES[NUM_TOTAL_PARAMS] + " arguments");
             }
@@ -475,11 +477,11 @@ public class FunctionRegistry {
                 throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
             return ctorRef.build(source,
-                    children.size() > 0 ? children.get(0) : null,
-                    children.size() > 1 ? children.get(1) : null,
-                    children.size() > 2 ? children.get(2) : null,
-                    children.size() > 3 ? children.get(3) : null,
-                    children.size() > 4 ? children.get(4) : null);
+                children.size() > 0 ? children.get(0) : null,
+                children.size() > 1 ? children.get(1) : null,
+                children.size() > 2 ? children.get(2) : null,
+                children.size() > 3 ? children.get(3) : null,
+                children.size() > 4 ? children.get(4) : null);
         };
         return def(function, builder, false, names);
     }
@@ -496,8 +498,8 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-                                                               CastFunctionBuilder<T> ctorRef,
-                                                               String... names) {
+                                                              CastFunctionBuilder<T> ctorRef,
+                                                              String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) ->
             ctorRef.build(source, children.get(0), children.get(0).dataType());
         return def(function, builder, false, names);
@@ -534,7 +536,7 @@ public class FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     public static <T extends Function> FunctionDefinition def(Class<T> function,
-        ScalarBiFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
+                                                              ScalarBiFunctionConfigurationAwareBuilder<T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");

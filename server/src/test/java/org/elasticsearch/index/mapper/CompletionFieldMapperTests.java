@@ -126,6 +126,8 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(analyzer.preservePositionIncrements(), equalTo(true));
         assertThat(analyzer.preserveSep(), equalTo(false));
 
+        assertEquals("{\"completion\":{\"type\":\"completion\",\"analyzer\":\"simple\",\"search_analyzer\":\"standard\"," +
+            "\"preserve_separators\":false,\"preserve_position_increments\":true,\"max_input_length\":50}}", Strings.toString(fieldMapper));
     }
 
     public void testTypeParsing() throws Exception {

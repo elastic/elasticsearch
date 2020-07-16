@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -100,7 +99,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         final Parameter<String> variable
             = Parameter.stringParam("variable", true, m -> toType(m).variable, "default").acceptsNull();
         final Parameter<StringWrapper> wrapper
-            = new Parameter<>("wrapper", true, new StringWrapper("default"),
+            = new Parameter<>("wrapper", true, () -> new StringWrapper("default"),
             (n, c, o) -> {
                 if (o == null) return null;
                 return new StringWrapper(o.toString());
@@ -113,7 +112,10 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 }
             });
         final Parameter<NamedAnalyzer> analyzer
-            = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, Lucene.KEYWORD_ANALYZER);
+            = Parameter.analyzerParam("analyzer", true, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
+        final Parameter<NamedAnalyzer> searchAnalyzer
+            = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
+
         final Parameter<Boolean> index = Parameter.boolParam("index", false, m -> toType(m).index, true);
 
         protected Builder(String name) {
@@ -122,7 +124,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(fixed, fixed2, variable, index, wrapper, intValue, analyzer);
+            return Arrays.asList(fixed, fixed2, variable, index, wrapper, intValue, analyzer, searchAnalyzer);
         }
 
         @Override
@@ -150,6 +152,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         private final StringWrapper wrapper;
         private final int intValue;
         private final NamedAnalyzer analyzer;
+        private final NamedAnalyzer searchAnalyzer;
         private final boolean index;
 
         protected TestMapper(String simpleName, String fullName, MultiFields multiFields, CopyTo copyTo,
@@ -161,6 +164,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
             this.wrapper = builder.wrapper.getValue();
             this.intValue = builder.intValue.getValue();
             this.analyzer = builder.analyzer.getValue();
+            this.searchAnalyzer = builder.searchAnalyzer.getValue();
             this.index = builder.index.getValue();
         }
 
@@ -224,7 +228,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         builder.endObject();
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed\":true," +
                 "\"fixed2\":false,\"variable\":\"default\",\"index\":true," +
-                "\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"_keyword\"}}",
+                "\"wrapper\":\"default\",\"int_value\":5,\"analyzer\":\"_keyword\",\"search_analyzer\":\"_keyword\"}}",
             Strings.toString(builder));
     }
 
@@ -371,6 +375,27 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
         assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"index\":false}}", Strings.toString(mapper));
+    }
+
+    public void testLinkedAnalyzers() {
+        String mapping = "{\"type\":\"test_mapper\",\"analyzer\":\"_standard\"}";
+        TestMapper mapper = fromMapping(mapping);
+        assertEquals("_standard", mapper.analyzer.name());
+        assertEquals("_standard", mapper.searchAnalyzer.name());
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
+
+        String mappingWithSA = "{\"type\":\"test_mapper\",\"search_analyzer\":\"_standard\"}";
+        mapper = fromMapping(mappingWithSA);
+        assertEquals("_keyword", mapper.analyzer.name());
+        assertEquals("_standard", mapper.searchAnalyzer.name());
+        assertEquals("{\"field\":" + mappingWithSA + "}", Strings.toString(mapper));
+
+        String mappingWithBoth = "{\"type\":\"test_mapper\",\"analyzer\":\"default\",\"search_analyzer\":\"_standard\"}";
+        mapper = fromMapping(mappingWithBoth);
+        assertEquals("default", mapper.analyzer.name());
+        assertEquals("_standard", mapper.searchAnalyzer.name());
+        assertEquals("{\"field\":" + mappingWithBoth + "}", Strings.toString(mapper));
+
     }
 
 }

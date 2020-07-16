@@ -21,8 +21,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.FieldType;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,9 +40,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Defines how a particular field should be indexed and searched
@@ -132,7 +133,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
-        private final T defaultValue;
+        private final Supplier<T> defaultValue;
         private final TriFunction<String, ParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private final boolean updateable;
@@ -140,6 +141,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         private Consumer<T> validator = null;
         private Serializer<T> serializer = XContentBuilder::field;
         private T value;
+        private boolean isSet;
 
         /**
          * Creates a new Parameter
@@ -149,11 +151,11 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * @param parser        a function that converts an object to a parameter value
          * @param initializer   a function that reads a parameter value from an existing mapper
          */
-        public Parameter(String name, boolean updateable, T defaultValue,
+        public Parameter(String name, boolean updateable, Supplier<T> defaultValue,
                          TriFunction<String, ParserContext, Object, T> parser, Function<FieldMapper, T> initializer) {
             this.name = name;
-            this.defaultValue = defaultValue;
-            this.value = defaultValue;
+            this.defaultValue = Objects.requireNonNull(defaultValue);
+            this.value = null;
             this.parser = parser;
             this.initializer = initializer;
             this.updateable = updateable;
@@ -163,13 +165,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Returns the current value of the parameter
          */
         public T getValue() {
-            return value;
+            return isSet ? value : defaultValue.get();
         }
 
         /**
          * Sets the current value of the parameter
          */
         public void setValue(T value) {
+            this.isSet = true;
             this.value = value;
         }
 
@@ -209,7 +212,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void validate() {
-            if (validator != null) {
+            if (validator != null && isSet) {
                 validator.accept(value);
             }
         }
@@ -224,7 +227,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
             T value = initializer.apply(toMerge);
-            if (updateable == false && Objects.equals(this.value, value) == false) {
+            if (updateable == false && isSet && Objects.equals(this.value, value) == false) {
                 conflicts.addConflict(name, this.value.toString(), value.toString());
             } else {
                 setValue(value);
@@ -232,8 +235,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
-            if (includeDefaults || (Objects.equals(defaultValue, value) == false)) {
-                serializer.serialize(builder, name, value);
+            if (includeDefaults || Objects.equals(getValue(), defaultValue.get()) == false) {
+                serializer.serialize(builder, name, getValue());
             }
         }
 
@@ -246,7 +249,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<Boolean> boolParam(String name, boolean updateable,
                                                    Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeBooleanValue(o), initializer);
         }
 
         /**
@@ -258,7 +261,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<Float> floatParam(String name, boolean updateable,
                                                   Function<FieldMapper, Float> initializer, float defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeFloatValue(o), initializer);
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeFloatValue(o), initializer);
         }
 
         /**
@@ -270,7 +273,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<Integer> intParam(String name, boolean updateable,
                                                   Function<FieldMapper, Integer> initializer, int defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), initializer);
+            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), initializer);
         }
 
         /**
@@ -282,7 +285,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<String> stringParam(String name, boolean updateable,
                                                     Function<FieldMapper, String> initializer, String defaultValue) {
-            return new Parameter<>(name, updateable, defaultValue,
+            return new Parameter<>(name, updateable, () -> defaultValue,
                 (n, c, o) -> XContentMapValues.nodeStringValue(o), initializer);
         }
 
@@ -295,7 +298,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          */
         public static Parameter<NamedAnalyzer> analyzerParam(String name, boolean updateable,
                                                              Function<FieldMapper, NamedAnalyzer> initializer,
-                                                             NamedAnalyzer defaultAnalyzer) {
+                                                             Supplier<NamedAnalyzer> defaultAnalyzer) {
             return new Parameter<>(name, updateable, defaultAnalyzer, (n, c, o) -> {
                 String analyzerName = o.toString();
                 NamedAnalyzer a = c.getIndexAnalyzers().get(analyzerName);
@@ -310,7 +313,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
          * Declares a metadata parameter
          */
         public static Parameter<Map<String, String>> metaParam() {
-            return new Parameter<>("meta", true, Collections.emptyMap(),
+            return new Parameter<>("meta", true, Collections::emptyMap,
                 (n, c, o) -> TypeParsers.parseMeta(n, o), m -> m.fieldType().meta());
         }
 
@@ -400,7 +403,10 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             return context.path().pathAsText(name);
         }
 
-        private void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        /**
+         * Writes the current builder parameter values as XContent
+         */
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }

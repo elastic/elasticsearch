@@ -39,6 +39,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -56,6 +57,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -129,7 +131,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
             m -> toType(m).preserveSeparators, Defaults.DEFAULT_PRESERVE_SEPARATORS);
         private final Parameter<Boolean> preservePosInc = Parameter.boolParam("preserve_position_increments", false,
             m -> toType(m).preservePosInc, Defaults.DEFAULT_POSITION_INCREMENTS);
-        private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, null,
+        private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, () -> null,
             (n, c, o) -> ContextMappings.load(o, c.indexVersionCreated()), m -> toType(m).contexts)
             .setSerializer((b, n, c) -> {
                 if (c == null) {
@@ -155,8 +157,9 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         public Builder(String name, NamedAnalyzer defaultAnalyzer) {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
-            this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, defaultAnalyzer);
-            this.searchAnalyzer = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, defaultAnalyzer);
+            this.analyzer = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> defaultAnalyzer);
+            this.searchAnalyzer
+                = Parameter.analyzerParam("search_analyzer", true, m -> toType(m).searchAnalyzer, analyzer::getValue);
         }
 
         private static void validateInputLength(int maxInputLength) {
@@ -168,6 +171,22 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
         @Override
         protected List<Parameter<?>> getParameters() {
             return Arrays.asList(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, contexts, maxInputLength, meta);
+        }
+
+        @Override
+        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+            builder.field("analyzer", this.analyzer.getValue().name());
+            if (Objects.equals(this.analyzer.getValue().name(), this.searchAnalyzer.getValue().name()) == false) {
+                builder.field("search_analyzer", this.searchAnalyzer.getValue().name());
+            }
+            builder.field(this.preserveSeparators.name, this.preserveSeparators.getValue());
+            builder.field(this.preservePosInc.name, this.preservePosInc.getValue());
+            builder.field(this.maxInputLength.name, this.maxInputLength.getValue());
+            if (this.contexts.getValue() != null) {
+                builder.startArray(this.contexts.name);
+                this.contexts.getValue().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endArray();
+            }
         }
 
         @Override
@@ -545,5 +564,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+
 
 }

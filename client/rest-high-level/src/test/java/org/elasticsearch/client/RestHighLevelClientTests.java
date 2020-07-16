@@ -688,6 +688,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         // Explicitly check for metrics from the analytics module because they aren't in InternalAggregationTestCase
         assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("string_stats")));
         assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("top_metrics")));
+        assertTrue(namedXContents.removeIf(e -> e.name.getPreferredName().equals("inference")));
 
         assertEquals(expectedInternalAggregations + expectedSuggestions, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
@@ -915,7 +916,11 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("async_search") == false &&
                                 // IndicesClientIT.getIndexTemplate should be renamed "getTemplate" in version 8.0 when we
                                 // can get rid of 7.0's deprecated "getTemplate"
-                                apiName.equals("indices.get_index_template") == false) {
+                                apiName.equals("indices.get_index_template") == false &&
+                                List.of("indices.data_streams_stats",
+                                    "indices.delete_data_stream",
+                                    "indices.create_data_stream",
+                                    "indices.get_data_stream").contains(apiName) == false) {
                                 apiNotFound.add(apiName);
                             }
                         }

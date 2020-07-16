@@ -2,7 +2,7 @@
 [testenv="basic"]
 
 [[flattened]]
-=== Flattened datatype
+=== Flattened data type
 ++++
 <titleabbrev>Flattened</titleabbrev>
 ++++

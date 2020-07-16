@@ -69,6 +69,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
         }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
+        }
         return builder.build();
     }
 

@@ -550,7 +550,7 @@ tag::mappings[]
 specified, this mapping can include:
 
 * Field names
-* <<mapping-types,Field datatypes>>
+* <<mapping-types,Field data types>>
 * <<mapping-params,Mapping parameters>>
 
 See <<mapping>>.
@@ -638,29 +638,30 @@ The method for transforming the data. These objects define the pivot function
 end::pivot[]
 
 tag::pivot-aggs[]
-Defines how to aggregate the grouped data. The following composite aggregations
-are supported:
+Defines how to aggregate the grouped data. The following aggregations are 
+supported:
 +
 --
 * <<search-aggregations-metrics-avg-aggregation,Average>>
-* <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
+* <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
+* <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
-* <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
-* <<search-aggregations-bucket-terms-aggregation, Terms>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
 * <<search-aggregations-metrics-max-aggregation,Max>>
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
+* <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
+* <<search-aggregations-bucket-terms-aggregation, Terms>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
-* <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
-* <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
+* <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
-IMPORTANT: {transforms-cap} support a subset of the functionality in
-composite aggregations. See <<transform-limitations>>.
+
+IMPORTANT: {transforms-cap} support a subset of the functionality in 
+aggregations. See <<transform-limitations>>.
 
 --
 end::pivot-aggs[]
@@ -670,10 +671,11 @@ Defines how to group the data. More than one grouping can be defined
   per pivot. The following groupings are supported:
 +
 --
-* <<_terms,Terms>>
-* <<_histogram,Histogram>>
 * <<_date_histogram,Date histogram>>
-* <<_geotile_grid,Geotile Grid>>
+* <<_geotile_grid,Geotile Grid>> 
+* <<_histogram,Histogram>>
+* <<_terms,Terms>>
+
 --
 end::pivot-group-by[]
 

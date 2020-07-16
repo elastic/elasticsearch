@@ -91,14 +91,6 @@ public class FakeStringFieldMapper extends FieldMapper {
             setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
         }
 
-        protected FakeStringFieldType(FakeStringFieldType ref) {
-            super(ref);
-        }
-
-        public FakeStringFieldType clone() {
-            return new FakeStringFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;

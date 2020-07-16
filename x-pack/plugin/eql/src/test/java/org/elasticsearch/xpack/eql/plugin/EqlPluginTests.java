@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 public class EqlPluginTests extends ESTestCase {
     public void testEnabledSettingRegisteredInSnapshotBuilds() {
@@ -34,6 +33,6 @@ public class EqlPluginTests extends ESTestCase {
             }
 
         };
-        assertThat(plugin.getSettings(), not(hasItem(EqlPlugin.EQL_ENABLED_SETTING)));
+        assertThat(plugin.getSettings(), hasItem(EqlPlugin.EQL_ENABLED_SETTING));
     }
 }

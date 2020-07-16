@@ -1,0 +1,240 @@
+[[get-snapshot-api]]
+=== Get snapshot API
+++++
+<titleabbrev>Get snapshot</titleabbrev>
+++++
+
+Retrieves information about one or more snapshots.
+
+////
+[source,console]
+----
+PUT /_snapshot/my_repository
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+
+PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+
+PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+GET /_snapshot/my_repository/my_snapshot
+----
+
+[[get-snapshot-api-request]]
+==== {api-request-title}
+
+`GET /_snapshot/<repository>/<snapshot>`
+
+[[get-snapshot-api-desc]]
+==== {api-description-title}
+
+Use the get snapshot API to return information about one or more snapshots, including:
+
+* Start and end time values
+* Version of {es} that created the snapshot
+* List of included indices
+* Current state of the snapshot
+* List of failures that occurred during the snapshot
+
+[[get-snapshot-api-path-params]]
+==== {api-path-parms-title}
+
+`<repository>`::
+(Required, string)
+Comma-separated list of snapshot repository names used to limit the request.
+Wildcard (`*`) expressions are supported.
++
+To get information about all snapshot repositories registered in the
+cluster, omit this parameter or use `*` or `_all`.
+
+`<snapshot>`::
+(Required, string)
+Comma-separated list of snapshot names to retrieve. Also accepts wildcards (`*`).
++
+* To get information about all snapshots in a registered repository, use a wildcard (`*`) or `_all`.
+* To get information about any snapshots that are currently running, use `_current`.
++
+NOTE: Using `_all` in a request fails if any snapshots are unavailable.
+Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
+
+[role="child_attributes"]
+[[get-snapshot-api-request-body]]
+==== {api-request-body-title}
+
+[[get-snapshot-api-ignore-unavailable]]
+`ignore_unavailable`::
+(Optional, boolean)
+If `false`, the request returns an error for any snapshots that are unavailable. Defaults to `false`.
++
+If `true`, the request ignores snapshots that are unavailable, such as those that are corrupted or temporarily cannot be returned.
+
+`verbose`::
+(Optional, boolean)
+If `true`, returns all available information about a snapshot. Defaults to `true`.
++
+If `false`, omits additional information about the snapshot, such as version information, start and end times, and the number of snapshotted shards.
+
+[role="child_attributes"]
+[[get-snapshot-api-response-body]]
+==== {api-response-body-title}
+
+`snapshot`::
+(string)
+Name of the snapshot.
+
+`uuid`::
+(string)
+Universally unique identifier (UUID) of the snapshot.
+
+`version_id`::
+(int)
+Build ID of the {es} version used to create the snapshot.
+
+`version`::
+(float)
+{es} version used to create the snapshot.
+
+`indices`::
+(array)
+List of indices included in the snapshot.
+
+`data_streams`::
+(array)
+List of <<data-streams,data streams>> included in the snapshot.
+
+`include_global_state`::
+(boolean)
+Indicates whether the current cluster state is included in the snapshot.
+
+`start_time`::
+(string)
+Date timestamp of when the snapshot creation process started.
+
+`start_time_in_millis`::
+(long)
+The time, in milliseconds, when the snapshot creation process started.
+
+`end_time`::
+(string)
+Date timestamp of when the snapshot creation process ended.
+
+`end_time_in_millis`::
+(long)
+The time, in milliseconds, when the snapshot creation process ended.
+
+`duration_in_millis`::
+(long)
+How long, in milliseconds, it took to create the snapshot.
+
+[[get-snapshot-api-response-failures]]
+`failures`::
+(array)
+Lists any failures that occurred when creating the snapshot.
+
+`shards`::
+(object)
+Contains a count of shards in the snapshot.
++
+.Properties of `shards`
+[%collapsible%open]
+====
+`total`::
+(integer)
+Total number of shards included in the snapshot.
+
+`successful`::
+(integer)
+Number of shards that were successfully included in the snapshot.
+
+`failed`::
+(integer)
+Number of shards that failed to be included in the snapshot.
+====
+
+`state`::
++
+--
+(string)
+The snapshot `state` can be one of the following values:
+
+.Values for `state`
+[%collapsible%open]
+====
+`IN_PROGRESS`::
+  The snapshot is currently running.
+
+`SUCCESS`::
+  The snapshot finished and all shards were stored successfully.
+
+`FAILED`::
+  The snapshot finished with an error and failed to store any data.
+
+`PARTIAL`::
+  The global cluster state was stored, but data of at least one shard was not stored successfully.
+  The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
+  that were not processed correctly.
+====
+--
+
+[[get-snapshot-api-example]]
+==== {api-examples-title}
+
+The following request returns information for `snapshot_2` in the `my_repository` repository.
+
+[source,console]
+----
+GET /_snapshot/my_repository/snapshot_2
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "responses": [
+    {
+      "repository": "my_repository",
+      "snapshots": [
+        {
+          "snapshot": "snapshot_2",
+          "uuid": "vdRctLCxSketdKb54xw67g",
+          "version_id": <version_id>,
+          "version": <version>,
+          "indices": [],
+          "data_streams": [],
+          "include_global_state": true,
+          "state": "SUCCESS",
+          "start_time": "2020-07-06T21:55:18.129Z",
+          "start_time_in_millis": 1593093628850,
+          "end_time": "2020-07-06T21:55:18.129Z",
+          "end_time_in_millis": 1593094752018,
+          "duration_in_millis": 0,
+          "failures": [],
+          "shards": {
+            "total": 0,
+            "failed": 0,
+            "successful": 0
+          }
+        }
+      ]
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.responses.0.snapshots.0.uuid/]
+// TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.responses.0.snapshots.0.version_id/]
+// TESTRESPONSE[s/"version": <version>/"version": $body.responses.0.snapshots.0.version/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.responses.0.snapshots.0.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.responses.0.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.responses.0.snapshots.0.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.responses.0.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.responses.0.snapshots.0.duration_in_millis/]

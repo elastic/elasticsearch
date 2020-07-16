@@ -565,7 +565,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final TriConsumer<String, byte[], SearchableSnapshotDirectory> test
     ) {
         executeTestCase(
-            new CacheService(cacheSize, cacheRangeSize),
+            new CacheService(TestUtils::noOpCacheCleaner, cacheSize, cacheRangeSize),
             Settings.builder()
                 .put(SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                 .put(SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey(), false) // disable prewarming as it impacts the stats
@@ -588,7 +588,7 @@ public class SearchableSnapshotDirectoryStatsTests extends ESIndexInputTestCase 
         final ShardId shardId = new ShardId("_name", "_uuid", 0);
         final AtomicLong fakeClock = new AtomicLong();
         final LongSupplier statsCurrentTimeNanos = () -> fakeClock.addAndGet(FAKE_CLOCK_ADVANCE_NANOS);
-        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName(), SearchableSnapshots.executorBuilder());
+        final ThreadPool threadPool = new TestThreadPool(getTestClass().getSimpleName(), SearchableSnapshots.executorBuilders());
 
         final Long seekingThreshold = randomBoolean() ? randomLongBetween(1L, fileContent.length) : null;
 

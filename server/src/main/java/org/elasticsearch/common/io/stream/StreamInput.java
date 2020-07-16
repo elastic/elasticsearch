@@ -35,6 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
@@ -676,6 +677,25 @@ public abstract class StreamInput extends InputStream {
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
         return (Map<String, Object>) readGenericValue();
+    }
+
+    /**
+     * Read {@link ImmutableOpenMap} using given key and value readers.
+     *
+     * @param keyReader   key reader
+     * @param valueReader value reader
+     */
+    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return ImmutableOpenMap.of();
+        }
+        final ImmutableOpenMap.Builder<K,V> builder = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            builder.put(keyReader.read(this), valueReader.read(this));
+        }
+        return builder.build();
     }
 
     /**

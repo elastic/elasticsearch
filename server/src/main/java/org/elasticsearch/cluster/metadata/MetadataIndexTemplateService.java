@@ -958,7 +958,7 @@ public class MetadataIndexTemplateService {
             // Only if template has data stream definition this should be added and
             // adding this template last, since _timestamp field should have highest precedence:
             Optional.ofNullable(template.getDataStreamTemplate())
-                .map(ComposableIndexTemplate.DataStreamTemplate::getDataSteamMappingSnippet)
+                .map(ComposableIndexTemplate.DataStreamTemplate::getDataStreamMappingSnippet)
                 .map(mapping -> {
                     try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                         builder.value(mapping);

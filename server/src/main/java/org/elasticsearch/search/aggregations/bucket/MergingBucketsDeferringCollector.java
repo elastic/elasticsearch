@@ -139,4 +139,19 @@ public class MergingBucketsDeferringCollector extends BestBucketsDeferringCollec
             bucketsBuilder = newBuckets;
         }
     }
+
+    /**
+     * Utility method for testing (see MergingBucketsDeferringCollectorTests)
+     * @return ordered list of bucket ordinals being stored
+     */
+    List<Long> getBuckets(){
+        List<Long> buckets = new ArrayList<>();
+        for (Entry sourceEntry : entries) {
+            for (PackedLongValues.Iterator itr = sourceEntry.buckets.iterator(); itr.hasNext(); ) {
+                long bucket = itr.next();
+                buckets.add(bucket);
+            }
+        }
+        return buckets;
+    }
 }

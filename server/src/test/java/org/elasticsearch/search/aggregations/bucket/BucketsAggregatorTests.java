@@ -48,17 +48,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class BucketsAggregatorTests extends AggregatorTestCase{
 
     public BucketsAggregator buildMergeAggregator() throws IOException{
-
         try(Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                final Document document = new Document();
+                Document document = new Document();
                 document.add(new SortedNumericDocValuesField("numeric", 0));
                 indexWriter.addDocument(document);
-                indexWriter.commit();
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
                 SearchContext searchContext = createSearchContext(
                     indexSearcher,
@@ -67,8 +65,6 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
                     new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS, new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)),
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
-
-                searchContext.bigArrays().breakerService();
 
                 return new BucketsAggregator("test", AggregatorFactories.EMPTY, searchContext, null, null, null) {
                     @Override

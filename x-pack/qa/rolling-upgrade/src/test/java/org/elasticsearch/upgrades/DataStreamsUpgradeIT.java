@@ -35,6 +35,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "    }";
             Request request = new Request("PUT", "/_index_template/1");
             request.setJsonEntity(requestBody);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(request);
             client().performRequest(request);
 
             StringBuilder b = new StringBuilder();

@@ -25,7 +25,7 @@ seconds).
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-timeouts]
 --------------------------------------------------
 
-timeouts also can set by RequestOptions per request.this will override RestClient customizeRequestConfig.
+Timeouts also can set per request with RequestOptions. This will override RestClient customizeRequestConfig.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

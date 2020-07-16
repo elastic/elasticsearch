@@ -41,7 +41,7 @@ snapshots in the cluster:
 GET /_snapshot/my_backup/_current
 -----------------------------------
 
-Including a snapshot name in the get snapshot request retrieves information about a single snapshot:
+Including a snapshot name in the request retrieves information about a single snapshot:
 
 [source,console]
 -----------------------------------
@@ -52,7 +52,7 @@ This request retrieves basic information about the snapshot, including start and
 {es} that created the snapshot, the list of included data streams and indices, the current state of the
 snapshot and the list of failures that occurred during the snapshot.
 
-Similar to repositories, information about multiple snapshots can be queried in a single request, supporting wildcards as well:
+Similar to repositories, you can retrieve information about multiple snapshots in a single request, and wildcards are supported:
 
 [source,console]
 -----------------------------------
@@ -117,13 +117,9 @@ to limit the results to a particular repository:
 GET /_snapshot/my_backup/_status
 -----------------------------------
 
-[source,console]
------------------------------------
-GET /_snapshot/my_backup/snapshot_1/_status
------------------------------------
-
-If both repository name and snapshot id are specified, this command will return detailed status information for the given snapshot even
-if it's not currently running:
+If both repository name and snapshot name are specified, the request
+returns detailed status information for the given snapshot, even
+if not currently running:
 
 [source,console]
 -----------------------------------
@@ -150,8 +146,8 @@ detailed insight into the current state of the recovery process by using <<indic
 === Stop snapshot and restore operations
 
 The snapshot and restore framework allows running only one snapshot or one restore operation at a time. If a currently
-running snapshot was executed by mistake, or takes unusually long, it can be terminated using the snapshot delete operation.
-The snapshot delete operation checks if the deleted snapshot is currently running and if it does, the delete operation stops
+running snapshot was started by mistake, or takes unusually long, it can be stopped using the <<delete-snapshot-api,Delete snapshot API>>.
+This operation checks whether the deleted snapshot is currently running. If it is, the delete snapshot operation stops
 that snapshot before deleting the snapshot data from the repository.
 
 [source,console]
@@ -160,15 +156,15 @@ DELETE /_snapshot/my_backup/snapshot_1
 -----------------------------------
 
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
-be canceled by deleting data streams and indices that are being restored. Please note that data for all deleted data streams and indices will be removed
+be canceled by deleting data streams and indices that are being restored. Data for all deleted data streams and indices will be removed
 from the cluster as a result of this operation.
 
 [discrete]
 === Effect of cluster blocks on snapshot and restore
 
 Many snapshot and restore operations are affected by cluster and index blocks. For example, registering and unregistering
-repositories require write global metadata access. The snapshot operation requires that all indices, backing indices, and their metadata as
-well as the global metadata be readable. The restore operation requires the global metadata to be writable, however
+repositories require global metadata write access. The snapshot operation requires that all indices, backing indices, and their metadata (including
+global metadata) are readable. The restore operation requires the global metadata to be writable. However,
 the index level blocks are ignored during restore because indices are essentially recreated during restore.
-Please note that a repository content is not part of the cluster and therefore cluster blocks don't affect internal
+A repository content is not part of the cluster and therefore cluster blocks do not affect internal
 repository operations such as listing or deleting snapshots from an already registered repository.

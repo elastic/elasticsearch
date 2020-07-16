@@ -35,8 +35,8 @@ DELETE /_snapshot/my_backup/snapshot_1
 
 When a snapshot is deleted from a repository, {es} deletes all files that are associated with the deleted
 snapshot and not used by any other snapshots. If the deleted snapshot operation is started while the snapshot is being
-created, the snapshotting process halts and all files created as part of the snapshotting process are
-removed. You can use the <<delete-snapshot-api,Delete snapshot API>> to cancel long running snapshot operations that were
+created, the snapshot process halts and all files created as part of the snapshotting process are
+removed. Use the <<delete-snapshot-api,Delete snapshot API>> to cancel long running snapshot operations that were
 started by mistake.
 
 To delete multiple snapshots from a repository, separate snapshot names by commas or use wildcards:

@@ -61,7 +61,7 @@ object DefaultTemplate : Template({
             name = "Setup Build Environment"
 
             conditions {
-                contains("teamcity.agent.jvm.os.name", "Linux")
+                doesNotContain("teamcity.agent.jvm.os.name", "Windows")
             }
 
             scriptContent = """

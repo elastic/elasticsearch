@@ -22,6 +22,7 @@ import builds.OssChecks
 import builds.SanityCheck
 import builds.XpackChecks
 import jetbrains.buildServer.configs.kotlin.v2019_2.*
+import jetbrains.buildServer.configs.kotlin.v2019_2.buildFeatures.notifications
 import jetbrains.buildServer.configs.kotlin.v2019_2.triggers.vcs
 import templates.DefaultTemplate
 
@@ -41,6 +42,16 @@ project {
         dependsOn(OssChecks, XpackChecks, BwcChecks) {
             onDependencyFailure = FailureAction.ADD_PROBLEM
             onDependencyCancel = FailureAction.ADD_PROBLEM
+        }
+
+        features {
+            notifications {
+                slackNotifier {
+                    connection = "HOMER"
+                    messageFormat = verboseMessageFormat()
+                    sendTo = "#es-build-test"
+                }
+            }
         }
 
         triggers {

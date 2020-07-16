@@ -5,6 +5,8 @@
 ++++
 
 Creates or updates an index template.
+Index templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, 
+and <<indices-aliases,aliases>> that can be applied automatically to new indices. 
 
 [source,console]
 --------------------------------------------------
@@ -19,6 +21,17 @@ PUT /_index_template/template_1
   }
 }
 --------------------------------------------------
+// TESTSETUP
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/template_*
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
 
 [[put-index-template-api-request]]
 ==== {api-request-title}
@@ -29,18 +42,17 @@ PUT /_index_template/template_1
 [[put-index-template-api-desc]]
 ==== {api-description-title}
 
-Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>> that you can
-automatically apply when creating new indices. 
-
-For data streams, these settings and mappings are applied to the stream's backing indices when created.
-
 {es} applies templates to new indices based on an
 index pattern that matches the index name.
 
-Index templates are only applied during data stream or index creation. Changes to index templates do not affect
+Index templates are applied during data stream or index creation. 
+For data streams, these settings and mappings are applied when the stream's backing indices are created.
+
+Settings and mappings specified in a <<indices-create-index, create index>>
+request override any settings or mappings specified in an index template.
+
+Changes to index templates do not affect
 existing indices, including the existing backing indices of a data stream.
-Settings and mappings specified in <<indices-create-index, create index>> API
-requests override any settings or mappings specified in an index template.
 
 ===== Comments in index templates
 You can use C-style /* */ block comments in index templates. You can include comments anywhere in

@@ -5,36 +5,50 @@ Since templates can be composed not only of multiple component templates, but al
 template itself, there are two simulation APIs to determine what the resulting index settings will
 be.
 
-To simulate the settings that would be applied to a matching index name:
+To simulate the settings that would be applied to a particular index name:
+
+////
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns" : ["my*"],
+  "priority" : 1,
+  "template": {
+    "settings" : {
+      "number_of_shards" : 2
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE /_index_template/template_1
+--------------------------------------------------
+// TEARDOWN
+
+////
 
 [source,console]
 --------------------------------------------------
 POST /_index_template/_simulate_index/myindex
 --------------------------------------------------
 
-To simulate the settings that would be applied from a particular template:
+To simulate the settings that would be applied from an existing template:
 
 [source,console]
 --------------------------------------------------
 POST /_index_template/_simulate/template_1
-
-POST /_index_template/_simulate
-{
-  "index_patterns": ["foo"],
-  "template": {
-    "settings": {
-      "number_of_replicas": 0
-    }
-  }
-}
 --------------------------------------------------
 
-
-Here's an example demonstrating simulating both an index name and template name:
+You can also specify a template definition in the simulate request. 
+This enables you to verify that settings will be applied as expected before you add a new template.
 
 [source,console]
 --------------------------------------------------
-PUT /_component_template/ct1 <1>
+PUT /_component_template/ct1 
 {
   "template": {
     "settings": {
@@ -43,7 +57,7 @@ PUT /_component_template/ct1 <1>
   }
 }
 
-PUT /_component_template/ct2 <2>
+PUT /_component_template/ct2 
 {
   "template": {
     "settings": {
@@ -59,37 +73,22 @@ PUT /_component_template/ct2 <2>
   }
 }
 
-PUT /_index_template/final-template <3>
+POST /_index_template/_simulate
 {
-  "index_patterns": ["logdata-*"],
-  "composed_of": ["ct1", "ct2"],
-  "priority": 5
-}
-
-POST /_index_template/_simulate_index/logdata-2019-02-01 <4>
-
-POST /_index_template/_simulate/final-template <5>
-
-POST /_index_template/_simulate <6>
-{
-  "index_patterns": ["logdata-*"],
-  "composed_of": ["ct2"],
-  "priority": 10,
+  "index_patterns": ["my*"],
   "template": {
-    "settings": {
-      "index.number_of_replicas": 1
+    "settings" : {
+        "index.number_of_shards" : 3
     }
-  }
+  },
+  "composed_of": ["ct1", "ct2"]
 }
 --------------------------------------------------
-<1> Creating a component template (ct1) setting the number of shards to two
-<2> Creating another component template (ct2) setting the number of replicas to zero with mappings
-<3> Creating an index template called "final" template using ct1 and ct2
-<4> Simulate the settings that would be applied for a new index "logdata-2019-02-01"
-<5> Simulate the settings composed using the "final-template" index template
-<6> Simulate the settings composed using a custom specified template
 
-The output of the simulate API from the last example call looks like:
+
+The response shows the settings, mappings, and aliases that would be applied to matching indices,
+and any overlapping templates whose configuration would be superseded by the simulated template body 
+or higher-priority templates.
 
 [source,console-result]
 ---------------------------------------------------------
@@ -97,31 +96,37 @@ The output of the simulate API from the last example call looks like:
   "template" : {
     "settings" : {
       "index" : {
-        "number_of_replicas" : "1" <1>
+        "number_of_shards" : "3",   <1>
+        "number_of_replicas" : "0"
       }
     },
     "mappings" : {
       "properties" : {
-        "@timestamp" : { <2>
-          "type" : "date"
+        "@timestamp" : {
+          "type" : "date"           <2>
         }
       }
     },
     "aliases" : { }
   },
-  "overlapping" : [ <3>
+  "overlapping" : [
     {
-      "name" : "final-template",
+      "name" : "template_1",        <3>
       "index_patterns" : [
-        "logdata-*"
+        "my*"
       ]
     }
   ]
 }
 ---------------------------------------------------------
-<1> The number of replicas from the simulated template body
-<2> The `@timestamp` field inherited from the "ct2" component template
+<1> The number of shards from the simulated template body
+<2> The `@timestamp` field inherited from the `ct2` component template
 <3> Any overlapping templates that would have matched, but have lower priority
 
-When simulating a template and specifying a template in the body of the request, the simulated
-template is not added to the existing templates, it is only used for the simulation.
+////
+[source,console]
+---------------------------------------------------------
+DELETE /_component_template/ct1
+DELETE /_component_template/ct2
+---------------------------------------------------------
+////

@@ -4,9 +4,10 @@
 <titleabbrev>Put component template</titleabbrev>
 ++++
 
-Component templates are building blocks that specify mappings, settings, or alias configuration, but
-don't apply to a set of indices themselves. To be used a component template must be specified in the
-`composed_of` of an <<indices-templates,index template>>.
+Creates or updates a component template. 
+Component templates are building blocks for constructing <<indices-templates,index templates>>  
+that specify index <<mapping,mappings>>, <<index-modules-settings,settings>>, 
+and <<indices-aliases,aliases>>. 
 
 [source,console]
 --------------------------------------------------
@@ -54,22 +55,18 @@ DELETE _component_template/template_*
 [[put-component-template-api-desc]]
 ==== {api-description-title}
 
-Use the PUT component template API to create or update a component template.
+An index template can be composed of multiple component templates. 
+To use a component template, you specify it the index template's `composed_of` list.
+You cannot use component templates independently, 
+they are only applied to new data streams and indices if they are part of a matching index template. 
 
-// tag::component-template-def[]
-Component templates define <<index-modules-settings,settings>>, <<mapping,mappings>>, and
-<<indices-aliases,aliases>> that you can automatically apply when creating new data streams and indices. On their own
-component templates are not matched or applied to a data stream or index, instead they are used in the
-`composed_of` definition of an <<indices-templates,index template>>.
-// end::component-template-def[]
+Settings and mappings specified directly in the index template or the <<indices-create-index, create index>>
+request override any settings or mappings specified in a component template.
 
 Component templates are only used during index creation. For data streams, this
 includes data stream creation and the creation of a stream's backing indices.
 Changes to component templates do not
 affect existing indices, including a stream's backing indices.
-Settings and mappings specified in <<indices-create-index, create index>>
-API requests and <<indices-templates,index templates>> override any settings or mappings specified
-in a component template.
 
 ===== Comments in component templates
 You can use C-style /* */ block comments in component templates.

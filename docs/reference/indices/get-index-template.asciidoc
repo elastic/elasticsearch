@@ -6,6 +6,31 @@
 
 Returns information about one or more index templates.
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /_index_template/template_1
+{
+  "index_patterns" : ["te*"],
+  "priority" : 1,
+  "template": {
+    "settings" : {
+      "number_of_shards" : 2
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _index_template/template_*
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
 [source,console]
 --------------------------------------------------
 GET /_index_template/template_1

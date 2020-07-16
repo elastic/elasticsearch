@@ -59,6 +59,7 @@ include::glossary.asciidoc[tag=index-template-def-short]
 * <<indices-delete-template>>
 * <<indices-component-template>>
 * <<getting-component-templates>>
+* <<indices-delete-component-template>>
 * <<indices-template-exists>>
 * <<indices-simulate-index>>
 * <<indices-simulate-template>>
@@ -103,6 +104,8 @@ include::indices/create-index.asciidoc[]
 include::indices/delete-index.asciidoc[]
 
 include::indices/delete-alias.asciidoc[]
+
+include::indices/delete-component-template.asciidoc[]
 
 include::indices/delete-index-template.asciidoc[]
 

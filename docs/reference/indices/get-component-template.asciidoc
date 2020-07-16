@@ -6,6 +6,36 @@
 
 Returns information about one or more component templates.
 
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+PUT /_component_template/template_1 
+{
+  "template": {
+    "settings": {
+      "index.number_of_replicas": 0
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE /_component_template/template_*
+--------------------------------------------------
+// TEARDOWN
+
+//////////////////////////
+
 [source,console]
 --------------------------------------------------
 GET /_component_template/template_1

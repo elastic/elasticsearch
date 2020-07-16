@@ -33,8 +33,7 @@ import org.elasticsearch.common.lease.Releasables;
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 public final class LongLongHash extends AbstractHash {
 
-    private LongArray keys1;
-    private LongArray keys2;
+    private LongArray keys;
 
     // Constructor with configurable capacity and default maximum load factor.
     public LongLongHash(long capacity, BigArrays bigArrays) {
@@ -44,8 +43,7 @@ public final class LongLongHash extends AbstractHash {
     //Constructor with configurable capacity and load factor.
     public LongLongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        keys1 = bigArrays.newLongArray(capacity, false);
-        keys2 = bigArrays.newLongArray(capacity, false);
+        keys = bigArrays.newLongArray(2 * capacity, false);
     }
 
     /**
@@ -53,7 +51,7 @@ public final class LongLongHash extends AbstractHash {
      * result is undefined if the slot is unused.
      */
     public long getKey1(long id) {
-        return keys1.get(id);
+        return keys.get(2 * id);
     }
 
     /**
@@ -61,7 +59,7 @@ public final class LongLongHash extends AbstractHash {
      * result is undefined if the slot is unused.
      */
     public long getKey2(long id) {
-        return keys2.get(id);
+        return keys.get(2 * id + 1);
     }
 
     /**
@@ -71,7 +69,8 @@ public final class LongLongHash extends AbstractHash {
         final long slot = slot(hash(key1, key2), mask);
         for (long index = slot; ; index = nextSlot(index, mask)) {
             final long id = id(index);
-            if (id == -1 || (keys1.get(id) == key1 && keys2.get(id) == key2)) {
+            long keyOffset = 2 * id;
+            if (id == -1 || (keys.get(keyOffset) == key1 && keys.get(keyOffset + 1) == key2)) {
                 return id;
             }
         }
@@ -87,17 +86,20 @@ public final class LongLongHash extends AbstractHash {
                 append(id, key1, key2);
                 ++size;
                 return id;
-            } else if (keys1.get(curId) == key1 && keys2.get(curId) == key2) {
-                return -1 - curId;
+            } else {
+                long keyOffset = 2 * curId;
+                if (keys.get(keyOffset) == key1 && keys.get(keyOffset + 1) == key2) {
+                    return -1 - curId;
+                }
             }
         }
     }
 
     private void append(long id, long key1, long key2) {
-        keys1 = bigArrays.grow(keys1, id + 1);
-        keys1.set(id, key1);
-        keys2 = bigArrays.grow(keys2, id + 1);
-        keys2.set(id, key2);
+        long keyOffset = 2 * id;
+        keys = bigArrays.grow(keys, keyOffset + 2);
+        keys.set(keyOffset, key1);
+        keys.set(keyOffset + 1, key2);
     }
 
     private void reset(long key1, long key2, long id) {
@@ -129,14 +131,15 @@ public final class LongLongHash extends AbstractHash {
     protected void removeAndAdd(long index) {
         final long id = id(index, -1);
         assert id >= 0;
-        final long key1 = keys1.set(id, 0);
-        final long key2 = keys2.set(id, 0);
+        long keyOffset = id * 2;
+        final long key1 = keys.set(keyOffset, 0);
+        final long key2 = keys.set(keyOffset + 1, 0);
         reset(key1, key2, id);
     }
 
     @Override
     public void close() {
-        Releasables.close(keys1, keys2, () -> super.close());
+        Releasables.close(keys, () -> super.close());
     }
 
     static long hash(long key1, long key2) {

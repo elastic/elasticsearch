@@ -72,7 +72,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public OneHotEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
         this.hotMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             this.custom = in.readBoolean();
         } else {
             this.custom = false;
@@ -139,7 +139,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeMap(hotMap, StreamOutput::writeString, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(custom);
         }
     }

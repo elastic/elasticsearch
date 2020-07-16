@@ -79,7 +79,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         this.field = in.readString();
         this.featureName = in.readString();
         this.frequencyMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             this.custom = in.readBoolean();
         } else {
             this.custom = false;
@@ -151,7 +151,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         out.writeString(field);
         out.writeString(featureName);
         out.writeMap(frequencyMap, StreamOutput::writeString, StreamOutput::writeDouble);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(custom);
         }
     }

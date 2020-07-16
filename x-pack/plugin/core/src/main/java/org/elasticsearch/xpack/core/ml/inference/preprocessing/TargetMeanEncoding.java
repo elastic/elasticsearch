@@ -83,7 +83,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         this.featureName = in.readString();
         this.meanMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
         this.defaultValue = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             this.custom = in.readBoolean();
         } else {
             this.custom = false;
@@ -163,7 +163,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         out.writeString(featureName);
         out.writeMap(meanMap, StreamOutput::writeString, StreamOutput::writeDouble);
         out.writeDouble(defaultValue);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(custom);
         }
     }

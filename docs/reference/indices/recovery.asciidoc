@@ -102,9 +102,6 @@ to a different node in the same cluster.
 Recovery stage.
 Returned values include:
 
-`ON_DEMAND`::
-The shard will be recovered on demand as searches hit the shard.
-
 `DONE`::
 Complete.
 
@@ -116,6 +113,11 @@ Reading index metadata and copying bytes from source to destination.
 
 `INIT`::
 Recovery has not started.
+
+`ON_DEMAND`::
+A completed recovery that will pull index files on demand as
+searches hit the shard. It's also possible that the files
+will be evicted as the underlying cache is filled.
 
 `START`::
 Starting the recovery process; opening the index for use.

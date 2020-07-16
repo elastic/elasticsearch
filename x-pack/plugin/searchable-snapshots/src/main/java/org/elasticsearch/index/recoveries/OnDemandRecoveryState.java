@@ -9,27 +9,12 @@ package org.elasticsearch.index.recoveries;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.indices.recovery.RecoveryState;
-
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 
 public final class OnDemandRecoveryState extends RecoveryState {
 
     public OnDemandRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, @Nullable DiscoveryNode sourceNode) {
-        super(shardRouting, targetNode, sourceNode);
-    }
-
-    @Override
-    protected RecoveryState.Index createIndex() {
-        return new Index();
-    }
-
-    @Override
-    protected RecoveryState.Index createIndex(StreamInput in) throws IOException {
-        return new Index(in);
+        super(shardRouting, targetNode, sourceNode, new Index());
     }
 
     @Override
@@ -46,71 +31,34 @@ public final class OnDemandRecoveryState extends RecoveryState {
 
     public static class Index extends RecoveryState.Index {
         public Index() {
-            super(new SearchableSnapshotsRecoveryFiles());
+            super(new SearchableSnapshotsRecoveryFiles(), UNKNOWN, UNKNOWN);
         }
 
-        public Index(StreamInput in) throws IOException {
-            super(in, SearchableSnapshotsRecoveryFiles::new);
-        }
-
-        public synchronized void addSnapshotFile(String name, long bytes) {
-            SearchableSnapshotsRecoveryFiles fd = (SearchableSnapshotsRecoveryFiles) fileDetails;
-            fd.addSnapshotFileDetails(name, bytes);
-        }
-
-        public synchronized void resetRecoveredBytesOfFile(String name) {
-            File fileDetails = getFileDetails(name);
-            assert fileDetails != null;
-            fileDetails.resetRecovered();
+        public void resetRecoveredBytesOfFile(String name) {
+            fileDetails.resetRecoveredBytesOfFile(name);
         }
 
         @Override
-        public synchronized void addRecoveredBytesToFile(String name, long bytes) {
-            File fileDetails = getFileDetails(name);
-            assert fileDetails != null : "Unknown file " + name;
-            // It's possible that a read on the cache on an overlapping range triggers
-            // multiple concurrent writes for the same range, in that case we need to
-            // track the minimal amount of written data
-            bytes = Math.min(bytes, fileDetails.length() - fileDetails.recovered());
-            super.addRecoveredBytesToFile(name, bytes);
-        }
-
-        @Override
-        public synchronized void stop() {
+        public void stop() {
             // Since this is an on demand recovery,
             // the timer will remain open forever.
         }
     }
 
     static class SearchableSnapshotsRecoveryFiles extends RecoveryFilesDetails {
-        private final Set<String> snapshotFiles = new HashSet<>();
-
-        SearchableSnapshotsRecoveryFiles() {}
-
-        SearchableSnapshotsRecoveryFiles(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        void addSnapshotFileDetails(String name, long length) {
-            addFileDetails(name, length, false);
-            snapshotFiles.add(name);
-        }
-
         @Override
         public void addFileDetails(String name, long length, boolean reused) {
-            if (snapshotFiles.contains(name)) {
-                return;
-            }
-            super.addFileDetails(name, length, reused);
+            // We allow reporting the same file details multiple times as we populate the file
+            // details before the recovery is executed and therefore we ignore the rest
+            // of the calls for the same files.
+            fileDetails.computeIfAbsent(name, n -> new FileDetail(name, length, reused));
         }
 
         @Override
         public void clear() {
-            // During peer recovery it's possible that the recovery is retried until the shard
-            // is active, the file details are cleared during those retries, but we should only
-            // clear the files that don't belong to the snapshot
-            fileDetails.entrySet().removeIf(entry -> snapshotFiles.contains(entry.getKey()) == false);
-            complete = false;
+            // Since we don't want to remove the recovery information that might have been
+            // populated during cache pre-warming we just ignore clearing the file details.
+            complete.set(false);
         }
     }
 }

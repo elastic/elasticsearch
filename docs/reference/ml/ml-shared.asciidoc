@@ -1320,7 +1320,7 @@ When supplied, only {infer} models that contain all the supplied tags are
 returned.
 end::tags[]
 
-ag::time-format[]
+tag::time-format[]
 The time format, which can be `epoch`, `epoch_ms`, or a custom pattern. The
 default value is `epoch`, which refers to UNIX or Epoch time (the number of
 seconds since 1 Jan 1970). The value `epoch_ms` indicates that time is measured

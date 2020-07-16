@@ -36,13 +36,8 @@ object Elasticsearch : VersionedProject({
         }
         keepRule {
             id = "keepHistory"
-            days(7)
-            historyAndStatistics()
-        }
-        keepRule {
-            id = "keepLogs"
-            builds(5)
-            logs()
+            keepAtLeast = days(7)
+            dataToKeep = historyAndStatistics()
         }
     }
 })

@@ -29,15 +29,4 @@ object Elasticsearch : VersionedProject({
     name = "Elasticsearch"
 
     includeDevelopmentBranchProjects()
-
-    cleanup {
-        baseRule {
-            all(builds = 1)
-        }
-        keepRule {
-            id = "keepHistory"
-            keepAtLeast = days(7)
-            dataToKeep = historyAndStatistics()
-        }
-    }
 })

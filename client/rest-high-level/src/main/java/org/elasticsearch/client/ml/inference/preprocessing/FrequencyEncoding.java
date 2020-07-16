@@ -140,6 +140,7 @@ public class FrequencyEncoding implements PreProcessor {
         private String field;
         private String featureName;
         private Map<String, Double> frequencyMap = new HashMap<>();
+        private Boolean custom;
 
         public Builder(String field) {
             this.field = field;
@@ -165,8 +166,13 @@ public class FrequencyEncoding implements PreProcessor {
             return this;
         }
 
+        public Builder setCustom(boolean custom) {
+            this.custom = custom;
+            return this;
+        }
+
         public FrequencyEncoding build() {
-            return new FrequencyEncoding(field, featureName, frequencyMap, null);
+            return new FrequencyEncoding(field, featureName, frequencyMap, custom);
         }
     }
 

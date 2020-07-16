@@ -154,6 +154,7 @@ public class TargetMeanEncoding implements PreProcessor {
         private String featureName;
         private Map<String, Double> meanMap = new HashMap<>();
         private double defaultValue;
+        private Boolean custom;
 
         public Builder(String field) {
             this.field = field;
@@ -188,8 +189,13 @@ public class TargetMeanEncoding implements PreProcessor {
             return this;
         }
 
+        public Builder setCustom(boolean custom) {
+            this.custom = custom;
+            return this;
+        }
+
         public TargetMeanEncoding build() {
-            return new TargetMeanEncoding(field, featureName, meanMap, defaultValue, null);
+            return new TargetMeanEncoding(field, featureName, meanMap, defaultValue, custom);
         }
     }
 }

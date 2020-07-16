@@ -74,7 +74,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
             .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
             .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false   )))
+                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
                 .setTrainedModel(buildClassification(true)))
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())

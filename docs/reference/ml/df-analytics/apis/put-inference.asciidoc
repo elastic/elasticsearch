@@ -96,12 +96,8 @@ The field name to encode.
 Object that maps the field value to the frequency encoded value.
 
 `custom`::
-(Optional, boolean)
-Boolean value indicating if the analytics job created the preprocessor
-or if a user provided it. This adjusts the feature importance calculation.
-When `true`, the feature importance calculation returns importance for the
-processed feature. When `false`, the total importance of the original field
-is returned. Default is `false`.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
 ======
 //End frequency encoding
 
@@ -122,12 +118,8 @@ The field name to encode.
 String map of "field_value: one_hot_column_name".
 
 `custom`::
-(Optional, boolean)
-Boolean value indicating if the analytics job created the preprocessor
-or if a user provided it. This adjusts the feature importance calculation.
-When `true`, the feature importance calculation returns importance for the
-processed feature. When `false`, the total importance of the original field
-is returned. Default is `false`.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
 ======
 //End one hot encoding
 
@@ -156,12 +148,8 @@ The field name to encode.
 Object that maps the field value to the target mean value.
 
 `custom`::
-(Optional, boolean)
-Boolean value indicating if the analytics job created the preprocessor
-or if a user provided it. This adjusts the feature importance calculation.
-When `true`, the feature importance calculation returns importance for the
-processed feature. When `false`, the total importance of the original field
-is returned. Default is `false`.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
 ======
 //End target mean encoding
 =====

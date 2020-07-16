@@ -122,6 +122,7 @@ public class OneHotEncoding implements PreProcessor {
 
         private String field;
         private Map<String, String> hotMap = new HashMap<>();
+        private Boolean custom;
 
         public Builder(String field) {
             this.field = field;
@@ -142,8 +143,13 @@ public class OneHotEncoding implements PreProcessor {
             return this;
         }
 
+        public Builder setCustom(boolean custom) {
+            this.custom = custom;
+            return this;
+        }
+
         public OneHotEncoding build() {
-            return new OneHotEncoding(field, hotMap, null);
+            return new OneHotEncoding(field, hotMap, custom);
         }
     }
 }

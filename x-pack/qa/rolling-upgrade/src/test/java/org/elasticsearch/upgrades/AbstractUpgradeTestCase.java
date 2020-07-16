@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.io.Streams;
@@ -25,6 +26,9 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE =
             basicAuthHeaderValue("test_user", SecuritySettingsSourceField.TEST_PASSWORD);
+
+    protected static final Version UPGRADE_FROM_VERSION =
+        Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

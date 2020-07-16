@@ -32,7 +32,12 @@ import org.elasticsearch.common.lease.Releasables;
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 public final class LongLongHash extends AbstractHash {
-
+    /**
+     * The keys of the hash, stored one after another. So the keys for an id
+     * are stored in {@code 2 * id} and {@code 2 * id + 1}. This arrangement
+     * makes {@link #add(long, long)} about 17% faster which seems worth it
+     * because it is in the critical path for aggregations.
+     */
     private LongArray keys;
 
     // Constructor with configurable capacity and default maximum load factor.
@@ -115,8 +120,9 @@ public final class LongLongHash extends AbstractHash {
     }
 
     /**
-     * Try to add <code>key</code>. Return its newly allocated id if it wasn't in the hash table yet, or <code>-1-id</code>
-     * if it was already present in the hash table.
+     * Try to add {@code key}. Return its newly allocated id if it wasn't in
+     * the hash table yet, or {@code -1-id} if it was already present in
+     * the hash table.
      */
     public long add(long key1, long key2) {
         if (size >= maxSize) {

@@ -1222,6 +1222,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics":
             case "metrics-settings":
             case "metrics-mappings":
+            case ".snapshots":
                 return true;
             default:
                 return false;

@@ -186,6 +186,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            SearchableSnapshotsTemplateRegistry.register(settings, clusterService, threadPool, client, xContentRegistry);
             final CacheService cacheService = new CacheService(new NodeEnvironmentCacheCleaner(nodeEnvironment), settings);
             this.cacheService.set(cacheService);
             this.repositoriesServiceSupplier = repositoriesServiceSupplier;

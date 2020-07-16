@@ -1,0 +1,25 @@
+{
+  "index_patterns": [
+    ".snapshots-${xpack.searchable_snapshots.template.version}"
+  ],
+  "order": 2147483647,
+  "version": ${xpack.searchable_snapshots.template.version},
+  "aliases": {
+    ".snapshots": {}
+  },
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 0,
+    "index.auto_expand_replicas": "0-1"
+  },
+  "mappings": {
+    "_doc": {
+      "_meta": {
+        "searchable-snapshot-version": "${xpack.searchable_snapshots.version}"
+      },
+      "dynamic": false,
+      "properties": {
+      }
+    }
+  }
+}

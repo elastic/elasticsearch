@@ -9,6 +9,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -210,6 +211,24 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         });
     }
 
+    public void testTemplate() throws Exception {
+        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+            final Map<String, Object> indexTemplate = indexTemplate(SearchableSnapshotsTemplateRegistry.SNAPSHOTS_CACHE_TEMPLATE_NAME);
+            assertThat("Expected searchable snapshots index template to exist", indexTemplate.size(), greaterThan(0));
+
+            logger.fatal(indexTemplate);
+            final int templateVersion = extractValue(indexTemplate, "version");
+            assertThat(
+                "Searchable snapshots index template version is not up to date",
+                templateVersion,
+                equalTo(SearchableSnapshotsTemplateRegistry.INDEX_TEMPLATE_VERSION)
+            );
+
+            final Version version = Version.fromString(extractValue(indexTemplate, "mappings._doc._meta.searchable-snapshot-version"));
+            assertThat("Searchable snapshots index template plugin version is not up to date", version, equalTo(Version.CURRENT));
+        });
+    }
+
     private void clearCache(String restoredIndexName) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_searchable_snapshots/cache/clear");
         assertOK(client().performRequest(request));
@@ -404,6 +423,16 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             equalTo(RestStatus.OK.getStatus())
         );
         return extractValue(responseAsMap(response), index + ".settings");
+    }
+
+    protected static Map<String, Object> indexTemplate(String template) throws IOException {
+        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_template/" + template));
+        assertThat(
+            "Failed to get index template [" + template + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
+        return extractValue(responseAsMap(response), ".snapshots");
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {

@@ -32,7 +32,7 @@ object XpackChecks : BuildType({
     steps {
         gradle {
             useGradleWrapper = true
-            gradleParams = "%gradle.params%"
+            gradleParams = "%gradle.params% -Dignore.tests.seed"
             tasks = "checkPart2"
         }
     }

@@ -623,7 +623,7 @@ The API returns the following response:
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "rating": 0,
+          "login_attempts": 0,
           "@timestamp": "2099-11-15T14:12:12",
           "message": "Login successful",
           "user": {
@@ -715,7 +715,7 @@ The API returns the following response:
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "rating": 0,
+          "login_attempts": 0,
           "@timestamp": "2099-11-15T14:12:12",
           "message": "Login successful",
           "user": {

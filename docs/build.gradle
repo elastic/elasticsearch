@@ -180,7 +180,7 @@ Closure setupMyLogs = { String name, int count ->
               properties:
                 message:
                   type: text
-                rating:
+                login_attempts:
                   type: long
                 "@timestamp":
                   type: date
@@ -204,7 +204,7 @@ Closure setupMyLogs = { String name, int count ->
     }
     buildRestTests.setups[name] += """
             { "index":{"_id": "$i"} }
-            { "message": "$message", "rating": $i, "@timestamp": "2099-11-15T14:12:12", "user": { "name": "$user_name" } }"""
+            { "message": "$message", "login_attempts": $i, "@timestamp": "2099-11-15T14:12:12", "user": { "name": "$user_name" } }"""
   }
 }
 setupMyLogs('my_logs', 5)

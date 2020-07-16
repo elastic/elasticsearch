@@ -8,16 +8,12 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest.Item;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
@@ -29,8 +25,6 @@ import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -92,12 +86,6 @@ public class BasicQueryClient implements QueryClient {
             List<List<SearchHit>> hits = new ArrayList<>(r.getResponses().length / listSize);
             
             List<SearchHit> sequence = new ArrayList<>(listSize);
-            
-            // copy streams - reused across the whole loop
-            PipedInputStream in = new PipedInputStream();
-            PipedOutputStream out = new PipedOutputStream(in);
-            StreamOutput so = new OutputStreamStreamOutput(out);
-            StreamInput si = new InputStreamStreamInput(in);
 
             int counter = 0;
             for (MultiGetItemResponse mgr : r.getResponses()) {
@@ -105,18 +93,15 @@ public class BasicQueryClient implements QueryClient {
                     listener.onFailure(mgr.getFailure().getFailure());
                     return;
                 }
-                // HACK: the only way to get GetResult is to serialize it and then load it back :(
-                mgr.getResponse().writeTo(so);
-                GetResult result = new GetResult(si);
 
-                SearchHit hit = new SearchHit(-1, result.getId(), result.getDocumentFields(), result.getMetadataFields());
-                hit.sourceRef(result.internalSourceRef());
+                GetResponse response = mgr.getResponse();
+                SearchHit hit = new SearchHit(-1, response.getId(), null, null);
+                hit.sourceRef(response.getSourceInternal());
                 // need to create these objects to set the index
-                hit.shard(new SearchShardTarget(null, new ShardId(result.getIndex(), "", -1), null, null));
-
-                hit.setSeqNo(result.getSeqNo());
-                hit.setPrimaryTerm(result.getPrimaryTerm());
-                hit.version(result.getVersion());
+                hit.shard(new SearchShardTarget(null, new ShardId(response.getIndex(), "", -1), null, null));
+                hit.setSeqNo(response.getSeqNo());
+                hit.setPrimaryTerm(response.getPrimaryTerm());
+                hit.version(response.getVersion());
 
 
                 sequence.add(hit);

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -63,6 +64,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
+    @Nullable // if any snapshot UUID will do
+    private String snapshotUuid;
+
     public RestoreSnapshotRequest() {
     }
 
@@ -91,6 +95,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeAliases = in.readBoolean();
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
+        snapshotUuid = in.readOptionalString();
     }
 
     @Override
@@ -108,6 +113,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeAliases);
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
+        out.writeOptionalString(snapshotUuid);
     }
 
     @Override
@@ -429,6 +435,28 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
+     * Sometimes a client has identified precisely which snapshot is to be restored via a separate mechanism and wishes to guarantee that
+     * this is the snapshot that this request restores. If the client can only identify a snapshot by its name then there is a risk that the
+     * desired snapshot may be deleted and replaced by a new snapshot with the same name which is inconsistent with the original one. This
+     * method lets us fail the restore if the precise snapshot we want is not available.
+     *
+     * This is for internal use only and is not exposed in the REST layer.
+     */
+    public RestoreSnapshotRequest snapshotUuid(String snapshotUuid) {
+        this.snapshotUuid = snapshotUuid;
+        return this;
+    }
+
+    /**
+     * @return the UUID that identifies the specific snapshot in the repository to be restored, or {@code null} if the snapshot name is
+     * a sufficient identifier.
+     */
+    @Nullable
+    public String snapshotUuid() {
+        return snapshotUuid;
+    }
+
+    /**
      * Parses restore definition
      *
      * @param source restore definition
@@ -544,13 +572,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             Objects.equals(renamePattern, that.renamePattern) &&
             Objects.equals(renameReplacement, that.renameReplacement) &&
             Objects.equals(indexSettings, that.indexSettings) &&
-            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings);
+            Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings) &&
+            Objects.equals(snapshotUuid, that.snapshotUuid);
     }
 
     @Override
     public int hashCode() {
         int result = Objects.hash(snapshot, repository, indicesOptions, renamePattern, renameReplacement, waitForCompletion,
-            includeGlobalState, partial, includeAliases, indexSettings);
+            includeGlobalState, partial, includeAliases, indexSettings, snapshotUuid);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);
         return result;

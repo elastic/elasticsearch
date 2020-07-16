@@ -2,8 +2,8 @@
 
 [cols="<3,^3,^3"]
 |====
-|Aggregation Selector | <<painless-api-reference-shared, Shared API>> | 
-|Aggs | <<painless-api-reference-shared, Shared API>> | 
+|Aggregation Selector | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggregation-selector, Specialized API>>
+|Aggs | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-aggs, Specialized API>>
 |Aggs Combine | <<painless-api-reference-shared, Shared API>> | 
 |Aggs Init | <<painless-api-reference-shared, Shared API>> | 
 |Aggs Map | <<painless-api-reference-shared, Shared API>> | 
@@ -11,18 +11,18 @@
 |Analysis | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-analysis, Specialized API>>
 |Bucket Aggregation | <<painless-api-reference-shared, Shared API>> | 
 |Field | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-field, Specialized API>>
-|Filter | <<painless-api-reference-shared, Shared API>> | 
+|Filter | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-filter, Specialized API>>
 |Ingest | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-ingest, Specialized API>>
 |Interval | <<painless-api-reference-shared, Shared API>> | 
 |Moving Function | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-moving-function, Specialized API>>
-|Number Sort | <<painless-api-reference-shared, Shared API>> | 
+|Number Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-number-sort, Specialized API>>
 |Painless Test | <<painless-api-reference-shared, Shared API>> | 
 |Processor Conditional | <<painless-api-reference-shared, Shared API>> | 
 |Score | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-score, Specialized API>>
 |Script Heuristic | <<painless-api-reference-shared, Shared API>> | 
 |Similarity | <<painless-api-reference-shared, Shared API>> | 
 |Similarity Weight | <<painless-api-reference-shared, Shared API>> | 
-|String Sort | <<painless-api-reference-shared, Shared API>> | 
+|String Sort | <<painless-api-reference-shared, Shared API>> | <<painless-api-reference-string-sort, Specialized API>>
 |Template | <<painless-api-reference-shared, Shared API>> | 
 |Terms Set | <<painless-api-reference-shared, Shared API>> | 
 |Update | <<painless-api-reference-shared, Shared API>> | 
@@ -32,8 +32,13 @@
 |====
 
 include::painless-api-reference-shared/index.asciidoc[]
+include::painless-api-reference-aggregation-selector/index.asciidoc[]
+include::painless-api-reference-aggs/index.asciidoc[]
 include::painless-api-reference-analysis/index.asciidoc[]
 include::painless-api-reference-field/index.asciidoc[]
+include::painless-api-reference-filter/index.asciidoc[]
 include::painless-api-reference-ingest/index.asciidoc[]
 include::painless-api-reference-moving-function/index.asciidoc[]
+include::painless-api-reference-number-sort/index.asciidoc[]
 include::painless-api-reference-score/index.asciidoc[]
+include::painless-api-reference-string-sort/index.asciidoc[]

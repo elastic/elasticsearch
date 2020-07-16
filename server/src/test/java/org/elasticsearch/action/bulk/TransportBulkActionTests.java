@@ -32,10 +32,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -43,10 +40,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -199,7 +194,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
-            .patterns(Collections.singletonList("id*"))
+            .patterns(List.of("id*"))
             .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
@@ -235,7 +230,7 @@ public class TransportBulkActionTests extends ESTestCase {
 
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
-            .patterns(Collections.singletonList("id*"))
+            .patterns(List.of("id*"))
             .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");

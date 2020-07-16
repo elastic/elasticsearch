@@ -53,20 +53,16 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -187,7 +183,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
-                boolean indexRequestHasPipeline = resolvePipelines(actionRequest, indexRequest, metadata);
+                boolean indexRequestHasPipeline = IngestService.resolvePipelines(actionRequest, indexRequest, metadata);
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
             }
 
@@ -394,8 +390,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
                         // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
-                    indexRequest.setPipeline(defaultPipeline == null ? IngestService.NOOP_PIPELINE_NAME : defaultPipeline);
-                    indexRequest.setFinalPipeline(finalPipeline == null ? IngestService.NOOP_PIPELINE_NAME : finalPipeline);
+                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, IngestService.NOOP_PIPELINE_NAME));
+                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, IngestService.NOOP_PIPELINE_NAME));
                 } else {
                     List<IndexTemplateMetadata> templates =
                             MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
@@ -416,8 +412,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             break;
                         }
                     }
-                    indexRequest.setPipeline(defaultPipeline == null ? IngestService.NOOP_PIPELINE_NAME : defaultPipeline);
-                    indexRequest.setFinalPipeline(finalPipeline == null ? IngestService.NOOP_PIPELINE_NAME : finalPipeline);
+                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, IngestService.NOOP_PIPELINE_NAME));
+                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, IngestService.NOOP_PIPELINE_NAME));
                 }
             }
 

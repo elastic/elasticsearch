@@ -39,9 +39,16 @@ project {
         name = "Intake"
         type = BuildTypeSettings.Type.COMPOSITE
 
-        dependsOn(OssChecks, XpackChecks, BwcChecks) {
-            onDependencyFailure = FailureAction.ADD_PROBLEM
-            onDependencyCancel = FailureAction.ADD_PROBLEM
+        listOf(OssChecks, XpackChecks, BwcChecks).forEach { dependency ->
+            params {
+                val gradleParams = dependency.reverseDepParamRefs.get("gradle.params")
+                param(gradleParams.name, "${gradleParams.ref} -Dignore.tests.seed")
+            }
+
+            dependsOn(dependency) {
+                onDependencyFailure = FailureAction.ADD_PROBLEM
+                onDependencyCancel = FailureAction.ADD_PROBLEM
+            }
         }
 
         features {

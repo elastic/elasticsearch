@@ -95,6 +95,7 @@ public class IndexingIT extends AbstractRollingTestCase {
             }
             Request createTestIndex = new Request("PUT", "/test_index");
             createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createTestIndex);
             client().performRequest(createTestIndex);
             allowedWarnings("index [test_index] matches multiple legacy templates [global, prevent-bwc-deprecation-template], " +
                 "composable templates will only match a single template");

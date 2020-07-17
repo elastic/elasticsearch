@@ -31,6 +31,8 @@ PUT /_snapshot/my_fs_backup
 }
 
 PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+
+PUT /_snapshot/my_backup/some_other_snapshot?wait_for_completion=true
 -----------------------------------
 // TESTSETUP
 
@@ -68,7 +70,7 @@ Separate repository names with commas or use wildcards to retrieve snapshots fro
 -----------------------------------
 GET /_snapshot/_all
 GET /_snapshot/my_backup,my_fs_backup
-GET /_snapshot/my*/snap*
+GET /_snapshot/my*
 -----------------------------------
 
 Add the `_all` parameter to the request to list all snapshots currently stored in the repository:

@@ -62,24 +62,20 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     public void testAvailable() throws Exception {
         AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        assertThat(featureSet.available(), is(true));
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class), clusterService, null,
             mock(ActionFilters.class), null, licenseState, client);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(task, null, clusterState, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
-        assertThat(usage.available(), is(available));
+        assertThat(usage.available(), is(true));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new AnalyticsFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.available(), is(available));
-        if (available) {
-            verify(client, times(1)).execute(any(), any(), any());
-        }
+        assertThat(serializedUsage.available(), is(true));
+        verify(client, times(1)).execute(any(), any(), any());
         verifyNoMoreInteractions(client);
     }
 
@@ -88,8 +84,6 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS)).thenReturn(available);
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(mock(TransportService.class),
             clusterService, null, mock(ActionFilters.class), null, licenseState, client);
@@ -102,9 +96,7 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new AnalyticsFeatureSetUsage(out.bytes().streamInput());
         assertTrue(serializedUsage.enabled());
-        if (available) {
-            verify(client, times(1)).execute(any(), any(), any());
-        }
+        verify(client, times(1)).execute(any(), any(), any());
         verifyNoMoreInteractions(client);
     }
 

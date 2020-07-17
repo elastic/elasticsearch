@@ -79,17 +79,17 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             CumulativeCardinalityPipelineAggregationBuilder.NAME,
             CumulativeCardinalityPipelineAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY,
-                checkLicense(CumulativeCardinalityPipelineAggregationBuilder.PARSER))));
+                CumulativeCardinalityPipelineAggregationBuilder.PARSER)));
         pipelineAggs.add(new PipelineAggregationSpec(
             MovingPercentilesPipelineAggregationBuilder.NAME,
             MovingPercentilesPipelineAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.MOVING_PERCENTILES,
-                checkLicense(MovingPercentilesPipelineAggregationBuilder.PARSER))));
+                MovingPercentilesPipelineAggregationBuilder.PARSER)));
         pipelineAggs.add(new PipelineAggregationSpec(
             NormalizePipelineAggregationBuilder.NAME,
             NormalizePipelineAggregationBuilder::new,
             usage.track(AnalyticsStatsAction.Item.NORMALIZE,
-                checkLicense(NormalizePipelineAggregationBuilder.PARSER))));
+                NormalizePipelineAggregationBuilder.PARSER)));
         return pipelineAggs;
     }
 
@@ -99,24 +99,24 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.STRING_STATS, checkLicense(StringStatsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.STRING_STATS, StringStatsAggregationBuilder.PARSER))
                 .addResultReader(InternalStringStats::new)
                 .setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 BoxplotAggregationBuilder.NAME,
                 BoxplotAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.BOXPLOT, checkLicense(BoxplotAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.BOXPLOT, BoxplotAggregationBuilder.PARSER))
                 .addResultReader(InternalBoxplot::new)
                 .setAggregatorRegistrar(BoxplotAggregationBuilder::registerAggregators),
             new AggregationSpec(
                 TopMetricsAggregationBuilder.NAME,
                 TopMetricsAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, checkLicense(TopMetricsAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.TOP_METRICS, TopMetricsAggregationBuilder.PARSER))
                 .addResultReader(InternalTopMetrics::new),
             new AggregationSpec(
                 TTestAggregationBuilder.NAME,
                 TTestAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.T_TEST, checkLicense(TTestAggregationBuilder.PARSER)))
+                usage.track(AnalyticsStatsAction.Item.T_TEST, TTestAggregationBuilder.PARSER))
                 .addResultReader(InternalTTest::new)
                 .setAggregatorRegistrar(TTestAggregationBuilder::registerUsage)
         );
@@ -170,9 +170,6 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     private static <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser) {
         return (parser, name) -> {
-            if (getLicenseState().checkFeature(XPackLicenseState.Feature.ANALYTICS) == false) {
-                throw LicenseUtils.newComplianceException(XPackField.ANALYTICS);
-            }
             return realParser.parse(parser, name);
         };
     }

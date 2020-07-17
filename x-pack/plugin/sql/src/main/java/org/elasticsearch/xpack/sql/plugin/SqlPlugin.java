@@ -65,9 +65,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                     break;
                 case PLAIN:
                 case CLI:
-                    if (licenseState.checkFeature(XPackLicenseState.Feature.SQL) == false) {
-                        throw LicenseUtils.newComplianceException(XPackField.SQL);
-                    }
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown SQL mode " + mode);

@@ -46,9 +46,7 @@ public final class EnrichStatsCollector extends Collector {
 
     @Override
     protected boolean shouldCollect(final boolean isElectedMaster) {
-        return isElectedMaster
-            && super.shouldCollect(isElectedMaster)
-            && licenseState.checkFeature(XPackLicenseState.Feature.ENRICH);
+        return isElectedMaster && super.shouldCollect(isElectedMaster);
     }
 
     @Override

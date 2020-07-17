@@ -61,7 +61,6 @@ public final class StatsCollector extends Collector {
     protected boolean shouldCollect(final boolean isElectedMaster) {
         // this can only run when monitoring is allowed and CCR is enabled and allowed, but also only on the elected master node
         return isElectedMaster
-                && super.shouldCollect(isElectedMaster)
                 && XPackSettings.CCR_ENABLED_SETTING.get(settings)
                 && licenseState.checkFeature(XPackLicenseState.Feature.CCR);
     }

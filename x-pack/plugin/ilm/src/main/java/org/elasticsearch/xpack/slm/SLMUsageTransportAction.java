@@ -38,9 +38,8 @@ public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ILM);
         final SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-        final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(available, slmMeta == null ? null : slmMeta.getStats());
+        final SLMFeatureSetUsage usage = new SLMFeatureSetUsage(true, slmMeta == null ? null : slmMeta.getStats());
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

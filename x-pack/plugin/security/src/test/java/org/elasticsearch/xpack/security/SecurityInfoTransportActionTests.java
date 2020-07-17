@@ -71,11 +71,7 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     public void testAvailable() {
         SecurityInfoTransportAction featureSet = new SecurityInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         assertThat(featureSet.available(), is(true));
-
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
-        assertThat(featureSet.available(), is(false));
     }
 
     public void testEnabled() {
@@ -91,10 +87,8 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        final boolean authcAuthzAvailable = randomBoolean();
         final boolean explicitlyDisabled = randomBoolean();
         final boolean enabled = explicitlyDisabled == false && randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(authcAuthzAvailable);
         when(licenseState.isSecurityEnabled()).thenReturn(enabled);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
@@ -172,18 +166,14 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             assertThat(usage, is(notNullValue()));
             assertThat(usage.name(), is(XPackField.SECURITY));
             assertThat(usage.enabled(), is(enabled));
-            assertThat(usage.available(), is(authcAuthzAvailable));
+            assertThat(usage.available(), is(true));
             XContentSource source = getXContentSource(usage);
 
             if (enabled) {
-                if (authcAuthzAvailable) {
-                    for (int i = 0; i < 5; i++) {
-                        assertThat(source.getValue("realms.type" + i + ".key1"), contains("value" + i));
-                        assertThat(source.getValue("realms.type" + i + ".key2"), contains(i));
-                        assertThat(source.getValue("realms.type" + i + ".key3"), contains(i % 2 == 0));
-                    }
-                } else {
-                    assertThat(source.getValue("realms"), is(notNullValue()));
+                for (int i = 0; i < 5; i++) {
+                    assertThat(source.getValue("realms.type" + i + ".key1"), contains("value" + i));
+                    assertThat(source.getValue("realms.type" + i + ".key2"), contains(i));
+                    assertThat(source.getValue("realms.type" + i + ".key3"), contains(i % 2 == 0));
                 }
 
                 // check SSL
@@ -248,7 +238,6 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageOnTrialLicenseWithSecurityDisabledByDefault() throws Exception {
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         Settings.Builder settings = Settings.builder().put(this.settings);

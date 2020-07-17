@@ -79,8 +79,6 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
-
         PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = taskMetadata == null
             ? Collections.emptyList()
@@ -96,7 +94,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         }
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(statSummations -> {
-            var usage = new TransformFeatureSetUsage(available, transformsCountByState, statSummations);
+            var usage = new TransformFeatureSetUsage(true, transformsCountByState, statSummations);
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }, listener::onFailure);
 
@@ -109,7 +107,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             }
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
-                var usage = new TransformFeatureSetUsage(available, transformsCountByState, new TransformIndexerStats());
+                var usage = new TransformFeatureSetUsage(true, transformsCountByState, new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
                 return;
             }

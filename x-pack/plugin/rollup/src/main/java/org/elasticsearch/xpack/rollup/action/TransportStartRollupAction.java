@@ -44,17 +44,6 @@ public class TransportStartRollupAction extends TransportTasksAction<RollupJobTa
         TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
     }
 
-    @Override
-    protected void doExecute(Task task, StartRollupJobAction.Request request, ActionListener<StartRollupJobAction.Response> listener) {
-
-        if (!licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
-            return;
-        }
-
-        super.doExecute(task, request, listener);
-    }
-
 
     @Override
     protected void taskOperation(StartRollupJobAction.Request request,

@@ -166,11 +166,6 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licenseState.checkFeature(Feature.MONITORING) == false) {
-                logger.debug("cleaning service is disabled due to invalid license");
-                return;
-            }
-
             // fetch the retention, which is depends on a bunch of rules
             TimeValue retention = getRetention();
 

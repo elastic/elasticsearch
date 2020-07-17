@@ -41,9 +41,7 @@ public class TransformInfoTransportActionTests extends ESTestCase {
             mock(ActionFilters.class),
             licenseState
         );
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabledDefault() {

@@ -95,12 +95,6 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     @Override
     protected void masterOperation(Task task, PutRollupJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
-
-        if (!licenseState.checkFeature(XPackLicenseState.Feature.ROLLUP)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
-            return;
-        }
-
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 

@@ -5,12 +5,14 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -19,6 +21,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.user.User;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,6 +42,7 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
      */
     public void testBodyConsumed() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
@@ -45,15 +51,18 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
                 .withContent(new BytesArray(bodyBuilder.toString()), XContentType.JSON)
                 .build();
             final RestChannel channel = new FakeRestChannel(request, true, 1);
-            action.handleRequest(request, channel, mock(NodeClient.class));
+            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
+                action.handleRequest(request, channel, mock(NodeClient.class)));
+            assertThat(e.getMessage(), equalTo("there is no authenticated user"));
         }
     }
 
-    public void testBasicLicense() throws Exception {
+    public void testSecurityDisabled() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(false);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject()) {
             final RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
                 .withPath("/_security/user/_has_privileges/")
@@ -62,11 +71,10 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
             final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
             action.handleRequest(request, channel, mock(NodeClient.class));
             assertThat(channel.capturedResponse(), notNullValue());
-            assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
             assertThat(
                 channel.capturedResponse().content().utf8ToString(),
-                containsString("current license is non-compliant for [security]"));
+                containsString("Security must be explicitly enabled when using a [basic] license"));
         }
     }
-
 }

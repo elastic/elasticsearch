@@ -52,7 +52,6 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.EQL);
         if (enabled) {
             EqlStatsRequest eqlRequest = new EqlStatsRequest();
             eqlRequest.includeStats(true);
@@ -64,11 +63,11 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
                 Counters mergedCounters = Counters.merge(countersPerNode);
-                EqlFeatureSetUsage usage = new EqlFeatureSetUsage(available, enabled, mergedCounters.toNestedMap());
+                EqlFeatureSetUsage usage = new EqlFeatureSetUsage(true, enabled, mergedCounters.toNestedMap());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             }, listener::onFailure));
         } else {
-            EqlFeatureSetUsage usage = new EqlFeatureSetUsage(available, enabled, Collections.emptyMap());
+            EqlFeatureSetUsage usage = new EqlFeatureSetUsage(true, enabled, Collections.emptyMap());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

@@ -158,7 +158,6 @@ public class CleanerServiceTests extends ESTestCase {
 
         logger.debug("--> creates a cleaner service that cleans every second");
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         CleanerService service = new CleanerService(Settings.EMPTY, clusterSettings, licenseState, threadPool,
                 new TestExecutionScheduler(1_000));
 

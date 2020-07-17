@@ -43,29 +43,10 @@ import static org.mockito.Mockito.when;
  */
 public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
-        final boolean mlAllowed = randomBoolean();
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        // this controls the blockage
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(mlAllowed);
-
-        final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
         // regardless of ML being enabled
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(randomBoolean());
         when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
@@ -79,7 +60,6 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = mlDisabledSettings();
 
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(randomBoolean());
         when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
@@ -88,16 +68,11 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(Feature.MONITORING);
-        }
     }
 
     public void testShouldCollectReturnsFalseIfMLIsNotAllowed() {
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(randomBoolean());
         // this is controls the blockage
         when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
@@ -106,24 +81,17 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
-
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(Feature.MONITORING);
-        }
     }
 
     public void testShouldCollectReturnsTrue() {
         final Settings settings = mlEnabledSettings();
 
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
-
-        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {

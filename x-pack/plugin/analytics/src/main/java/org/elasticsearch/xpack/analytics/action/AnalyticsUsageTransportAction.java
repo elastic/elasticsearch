@@ -42,17 +42,10 @@ public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAct
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ANALYTICS);
-        if (available) {
-            AnalyticsStatsAction.Request statsRequest = new AnalyticsStatsAction.Request();
-            statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-            client.execute(AnalyticsStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
-                    listener.onResponse(new XPackUsageFeatureResponse(new AnalyticsFeatureSetUsage(true, true, r))),
-                listener::onFailure));
-        } else {
-            AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(false, true,
-                new AnalyticsStatsAction.Response(state.getClusterName(), Collections.emptyList(), Collections.emptyList()));
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }
+        AnalyticsStatsAction.Request statsRequest = new AnalyticsStatsAction.Request();
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        client.execute(AnalyticsStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
+                listener.onResponse(new XPackUsageFeatureResponse(new AnalyticsFeatureSetUsage(true, true, r))),
+            listener::onFailure));
     }
 }

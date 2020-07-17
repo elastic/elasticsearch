@@ -51,7 +51,6 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ENRICH);
-        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage(available)));
+        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage(true)));
     }
 }

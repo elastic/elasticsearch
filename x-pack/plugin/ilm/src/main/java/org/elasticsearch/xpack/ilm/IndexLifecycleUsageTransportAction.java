@@ -46,7 +46,6 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ILM);
         Metadata metadata = state.metadata();
         IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
@@ -69,9 +68,9 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
-            usage = new IndexLifecycleFeatureSetUsage(available, policyStats);
+            usage = new IndexLifecycleFeatureSetUsage(true, policyStats);
         } else {
-            usage = new IndexLifecycleFeatureSetUsage(available);
+            usage = new IndexLifecycleFeatureSetUsage(true);
         }
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

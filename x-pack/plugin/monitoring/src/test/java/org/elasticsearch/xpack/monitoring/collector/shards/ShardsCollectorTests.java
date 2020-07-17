@@ -42,22 +42,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
     /** Used to match no indices when collecting shards information **/
     private static final String[] NONE = new String[]{"_none"};
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        // this controls the blockage
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        final ShardsCollector collector = new ShardsCollector(clusterService, licenseState);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         // this controls the blockage
         whenLocalNodeElectedMaster(false);
 
@@ -67,13 +52,11 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
         final ShardsCollector collector = new ShardsCollector(clusterService, licenseState);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollectWhenNoClusterState() throws Exception {

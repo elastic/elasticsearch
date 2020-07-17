@@ -157,11 +157,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (!licenseState.checkFeature(XPackLicenseState.Feature.TRANSFORM)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
-            return;
-        }
-
         final ClusterState clusterState = clusterService.state();
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 

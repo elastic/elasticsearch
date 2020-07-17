@@ -701,23 +701,7 @@ public class NumberFieldMapper extends FieldMapper {
         LONG("long", NumericType.LONG) {
             @Override
             public Long parse(Object value, boolean coerce) {
-                if (value instanceof Long) {
-                    return (Long)value;
-                }
-
-                double doubleValue = objectToDouble(value);
-                // this check does not guarantee that value is inside MIN_VALUE/MAX_VALUE because values up to 9223372036854776832 will
-                // be equal to Long.MAX_VALUE after conversion to double. More checks ahead.
-                if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
-                    throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
-                }
-                if (!coerce && doubleValue % 1 != 0) {
-                    throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
-                }
-
-                // longs need special handling so we don't lose precision while parsing
-                String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
-                return Numbers.toLong(stringValue, coerce);
+                return objectToLong(value, coerce);
             }
 
             @Override
@@ -854,7 +838,7 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Returns true if the object is a number and has a decimal part
          */
-        boolean hasDecimalPart(Object number) {
+        public static boolean hasDecimalPart(Object number) {
             if (number instanceof Number) {
                 double doubleValue = ((Number) number).doubleValue();
                 return doubleValue % 1 != 0;
@@ -897,6 +881,30 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             return doubleValue;
+        }
+
+        /**
+         * Converts and Object to a {@code long} by checking it against known
+         * types and checking its range.
+         */
+        public static long objectToLong(Object value, boolean coerce) {
+            if (value instanceof Long) {
+                return (Long)value;
+            }
+
+            double doubleValue = objectToDouble(value);
+            // this check does not guarantee that value is inside MIN_VALUE/MAX_VALUE because values up to 9223372036854776832 will
+            // be equal to Long.MAX_VALUE after conversion to double. More checks ahead.
+            if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
+                throw new IllegalArgumentException("Value [" + value + "] is out of range for a long");
+            }
+            if (!coerce && doubleValue % 1 != 0) {
+                throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+            }
+
+            // longs need special handling so we don't lose precision while parsing
+            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            return Numbers.toLong(stringValue, coerce);
         }
     }
 

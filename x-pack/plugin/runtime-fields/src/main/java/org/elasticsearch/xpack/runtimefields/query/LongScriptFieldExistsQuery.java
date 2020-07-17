@@ -7,18 +7,16 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 
-import java.util.List;
-
-public class StringScriptFieldExistsQuery extends AbstractStringScriptFieldQuery {
-    public StringScriptFieldExistsQuery(Script script, StringScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+public class LongScriptFieldExistsQuery extends AbstractLongScriptFieldQuery {
+    public LongScriptFieldExistsQuery(Script script, LongScriptFieldScript.LeafFactory leafFactory, String fieldName) {
         super(script, leafFactory, fieldName);
     }
 
     @Override
-    protected boolean matches(List<String> values) {
-        return false == values.isEmpty();
+    protected boolean matches(long[] values, int count) {
+        return count > 0;
     }
 
     @Override

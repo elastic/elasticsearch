@@ -35,7 +35,7 @@ public abstract class StringScriptFieldScript extends AbstractScriptFieldScript 
         StringScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    protected final List<String> results = new ArrayList<>();
+    private final List<String> results = new ArrayList<>();
 
     public StringScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);

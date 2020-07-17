@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.PainlessScriptEngine;
@@ -35,8 +34,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.RuntimeFieldsPainlessExtension;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -50,10 +47,8 @@ import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
+public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -61,7 +56,7 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                RuntimeKeywordMappedFieldType ft = build(
+                ScriptKeywordMappedFieldType ft = build(
                     "for (def v : source.foo) {value(v.toString() + params.param)}",
                     Map.of("param", "-suffix")
                 );
@@ -113,7 +108,7 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
     }
 
     public void testExistsQueryIsExpensive() throws IOException {
-        checkExpensiveQuery(RuntimeKeywordMappedFieldType::existsQuery);
+        checkExpensiveQuery(ScriptKeywordMappedFieldType::existsQuery);
     }
 
     public void testFuzzyQuery() throws IOException {
@@ -219,7 +214,7 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                RuntimeKeywordMappedFieldType fieldType = build("value(source.foo.toString() + params.param)", Map.of("param", "-suffix"));
+                ScriptKeywordMappedFieldType fieldType = build("value(source.foo.toString() + params.param)", Map.of("param", "-suffix"));
                 assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
@@ -261,15 +256,15 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
         checkExpensiveQuery((ft, ctx) -> ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
     }
 
-    private RuntimeKeywordMappedFieldType build(String code) throws IOException {
+    private ScriptKeywordMappedFieldType build(String code) throws IOException {
         return build(new Script(code));
     }
 
-    private RuntimeKeywordMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private ScriptKeywordMappedFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, PainlessScriptEngine.NAME, code, params));
     }
 
-    private RuntimeKeywordMappedFieldType build(Script script) throws IOException {
+    private ScriptKeywordMappedFieldType build(Script script) throws IOException {
         PainlessPlugin painlessPlugin = new PainlessPlugin();
         painlessPlugin.loadExtensions(new ExtensionLoader() {
             @Override
@@ -281,24 +276,12 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(painlessPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             StringScriptFieldScript.Factory factory = scriptService.compile(script, StringScriptFieldScript.CONTEXT);
-            return new RuntimeKeywordMappedFieldType("test", script, factory, emptyMap());
+            return new ScriptKeywordMappedFieldType("test", script, factory, emptyMap());
         }
     }
 
-    private QueryShardContext mockContext() {
-        return mockContext(true);
-    }
-
-    private QueryShardContext mockContext(boolean allowExpensiveQueries) {
-        MapperService mapperService = mock(MapperService.class);
-        QueryShardContext context = mock(QueryShardContext.class);
-        when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        when(context.lookup()).thenReturn(new SearchLookup(mapperService, mft -> null));
-        return context;
-    }
-
-    private void checkExpensiveQuery(BiConsumer<RuntimeKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        RuntimeKeywordMappedFieldType ft = build("value('cat')");
+    private void checkExpensiveQuery(BiConsumer<ScriptKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+        ScriptKeywordMappedFieldType ft = build("value('cat')");
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),

@@ -12,11 +12,13 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
@@ -60,8 +62,8 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        RuntimeKeywordMappedFieldType fieldType = (RuntimeKeywordMappedFieldType) fieldType();
-        fieldType.doXContentBody(builder, includeDefaults, params);
+        AbstractScriptMappedFieldType fieldType = (AbstractScriptMappedFieldType) fieldType();
+        fieldType.mapperXContentBody(builder, params);
     }
 
     @Override
@@ -78,7 +80,20 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
                     builder.script.getValue(),
                     StringScriptFieldScript.CONTEXT
                 );
-                return new RuntimeKeywordMappedFieldType(
+                return new ScriptKeywordMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            },
+            NumberType.LONG.typeName(),
+            (builder, context) -> {
+                LongScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    LongScriptFieldScript.CONTEXT
+                );
+                return new ScriptLongMappedFieldType(
                     builder.buildFullName(context),
                     builder.script.getValue(),
                     factory,
@@ -136,11 +151,10 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
             if (fieldTypeResolver == null) {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType.getValue() + "] not supported");
             }
-            MappedFieldType mappedFieldType = fieldTypeResolver.apply(this, context);
             // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
             return new ScriptFieldMapper(
                 name,
-                mappedFieldType,
+                fieldTypeResolver.apply(this, context),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 runtimeType.getValue(),

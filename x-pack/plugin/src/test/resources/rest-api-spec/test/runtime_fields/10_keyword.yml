@@ -14,7 +14,7 @@ setup:
               temperature:
                 type: long
               voltage:
-                type: float
+                type: double
               node:
                 type: keyword
               day_of_week:

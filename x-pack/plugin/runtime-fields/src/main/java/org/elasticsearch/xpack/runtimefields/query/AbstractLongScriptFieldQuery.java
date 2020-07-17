@@ -11,24 +11,25 @@ import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Abstract base class for building queries based on {@link StringScriptFieldScript}.
  */
-abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery {
-    private final StringScriptFieldScript.LeafFactory leafFactory;
+abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery {
+    private final LongScriptFieldScript.LeafFactory leafFactory;
 
-    AbstractStringScriptFieldQuery(Script script, StringScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    AbstractLongScriptFieldQuery(Script script, LongScriptFieldScript.LeafFactory leafFactory, String fieldName) {
         super(script, fieldName);
         this.leafFactory = Objects.requireNonNull(leafFactory);
     }
@@ -36,7 +37,7 @@ abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery {
     /**
      * Does the value match this query?
      */
-    protected abstract boolean matches(List<String> values);
+    protected abstract boolean matches(long[] values, int count);
 
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -48,12 +49,13 @@ abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery {
 
             @Override
             public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                StringScriptFieldScript script = leafFactory.newInstance(ctx);
+                LongScriptFieldScript script = leafFactory.newInstance(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() throws IOException {
-                        return AbstractStringScriptFieldQuery.this.matches(script.resultsForDoc(approximation().docID()));
+                        script.runForDoc(approximation().docID());
+                        return AbstractLongScriptFieldQuery.this.matches(script.values(), script.count());
                     }
 
                     @Override
@@ -64,5 +66,13 @@ abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery {
                 return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
             }
         };
+    }
+
+    @Override
+    public final void visit(QueryVisitor visitor) {
+        // No subclasses contain any Terms because those have to be strings.
+        if (visitor.acceptField(fieldName())) {
+            visitor.visitLeaf(this);
+        }
     }
 }

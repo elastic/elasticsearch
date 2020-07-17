@@ -7,73 +7,63 @@
 package org.elasticsearch.xpack.runtimefields.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.sort.BucketedSort;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 
 import java.io.IOException;
 
-public final class ScriptBinaryFieldData extends AbstractIndexComponent
-    implements
-        IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>,
-        SearchLookupAware {
+public final class ScriptLongFieldData extends IndexNumericFieldData implements SearchLookupAware {
 
     public static class Builder implements IndexFieldData.Builder {
 
         private final Script script;
-        private final StringScriptFieldScript.Factory scriptFactory;
+        private final LongScriptFieldScript.Factory scriptFactory;
 
-        public Builder(Script script, StringScriptFieldScript.Factory scriptFactory) {
+        public Builder(Script script, LongScriptFieldScript.Factory scriptFactory) {
             this.script = script;
             this.scriptFactory = scriptFactory;
         }
 
         @Override
-        public ScriptBinaryFieldData build(
+        public ScriptLongFieldData build(
             IndexSettings indexSettings,
             MappedFieldType fieldType,
             IndexFieldDataCache cache,
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            return new ScriptBinaryFieldData(indexSettings, fieldType.name(), script, scriptFactory);
+            return new ScriptLongFieldData(indexSettings.getIndex(), fieldType.name(), script, scriptFactory);
         }
     }
 
+    private final Index index;
     private final String fieldName;
     private final Script script;
-    private final StringScriptFieldScript.Factory scriptFactory;
-    private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
+    private final LongScriptFieldScript.Factory scriptFactory;
+    private final SetOnce<LongScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
 
-    private ScriptBinaryFieldData(
-        IndexSettings indexSettings,
-        String fieldName,
-        Script script,
-        StringScriptFieldScript.Factory scriptFactory
-    ) {
-        super(indexSettings);
+    private ScriptLongFieldData(Index index, String fieldName, Script script, LongScriptFieldScript.Factory scriptFactory) {
+        this.index = index;
         this.fieldName = fieldName;
         this.script = script;
         this.scriptFactory = scriptFactory;
@@ -91,11 +81,11 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
     @Override
     public ValuesSourceType getValuesSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override
-    public ScriptBinaryLeafFieldData load(LeafReaderContext context) {
+    public ScriptLongLeafFieldData load(LeafReaderContext context) {
         try {
             return loadDirect(context);
         } catch (Exception e) {
@@ -104,49 +94,52 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     }
 
     @Override
-    public ScriptBinaryLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new ScriptBinaryLeafFieldData(new ScriptBinaryDocValues(leafFactory.get().newInstance(context)));
+    public ScriptLongLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
+        return new ScriptLongLeafFieldData(new ScriptLongDocValues(leafFactory.get().newInstance(context)));
     }
 
     @Override
-    public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
-        final XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-        return new SortField(getFieldName(), source, reverse);
+    public NumericType getNumericType() {
+        return NumericType.LONG;
     }
 
     @Override
-    public BucketedSort newBucketedSort(
-        BigArrays bigArrays,
-        Object missingValue,
-        MultiValueMode sortMode,
-        XFieldComparatorSource.Nested nested,
-        SortOrder sortOrder,
-        DocValueFormat format,
-        int bucketSize,
-        BucketedSort.ExtraData extra
-    ) {
-        throw new IllegalArgumentException("only supported on numeric fields");
+    protected boolean sortRequiresCustomComparator() {
+        return true;
     }
 
     @Override
-    public void clear() {
+    public void clear() {}
 
+    @Override
+    public Index index() {
+        return index;
     }
 
-    public static class ScriptBinaryLeafFieldData implements LeafFieldData {
-        private final ScriptBinaryDocValues scriptBinaryDocValues;
+    public static class ScriptLongLeafFieldData implements LeafNumericFieldData {
+        private final ScriptLongDocValues scriptBinaryDocValues;
 
-        ScriptBinaryLeafFieldData(ScriptBinaryDocValues scriptBinaryDocValues) {
+        ScriptLongLeafFieldData(ScriptLongDocValues scriptBinaryDocValues) {
             this.scriptBinaryDocValues = scriptBinaryDocValues;
         }
 
         @Override
         public ScriptDocValues<?> getScriptValues() {
-            return new ScriptDocValues.Strings(getBytesValues());
+            return new ScriptDocValues.Longs(getLongValues());
         }
 
         @Override
         public SortedBinaryDocValues getBytesValues() {
+            return FieldData.toString(scriptBinaryDocValues);
+        }
+
+        @Override
+        public SortedNumericDoubleValues getDoubleValues() {
+            return FieldData.castToDouble(getLongValues());
+        }
+
+        @Override
+        public SortedNumericDocValues getLongValues() {
             return scriptBinaryDocValues;
         }
 

@@ -169,6 +169,13 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         /**
+         * Returns the default value of the parameter
+         */
+        public T getDefaultValue() {
+            return defaultValue.get();
+        }
+
+        /**
          * Sets the current value of the parameter
          */
         public void setValue(T value) {
@@ -315,6 +322,22 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         public static Parameter<Map<String, String>> metaParam() {
             return new Parameter<>("meta", true, Collections::emptyMap,
                 (n, c, o) -> TypeParsers.parseMeta(n, o), m -> m.fieldType().meta());
+        }
+
+        public static Parameter<Boolean> indexParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return Parameter.boolParam("index", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return Parameter.boolParam("store", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Float> boostParam() {
+            return Parameter.floatParam("boost", true, m -> m.fieldType().boost(), 1.0f);
         }
 
     }

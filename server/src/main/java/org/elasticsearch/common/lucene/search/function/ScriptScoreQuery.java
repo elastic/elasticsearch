@@ -169,6 +169,14 @@ public class ScriptScoreQuery extends Query {
         };
     }
 
+    public Query getSubQuery() {
+        return subQuery;
+    }
+
+    public Float getMinScore() {
+        return minScore;
+    }
+
     @Override
     public void visit(QueryVisitor visitor) {
         // Highlighters must visit the child query to extract terms

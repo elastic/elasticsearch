@@ -382,18 +382,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     remapGlobalOrds = REMAP_GLOBAL_ORDS.booleanValue();
                 } else {
                     remapGlobalOrds = true;
-                    if (includeExclude == null &&
-                            cardinality == CardinalityUpperBound.ONE &&
-                            (factories == AggregatorFactories.EMPTY ||
-                                (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
+                    if (context.matchAllDocs() && includeExclude == null &&
+                        cardinality == CardinalityUpperBound.ONE &&
+                        (factories == AggregatorFactories.EMPTY ||
+                            (isAggregationSort(order) == false && subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST))) {
                         /*
-                         * We don't need to remap global ords iff this aggregator:
+                         * We don't need to remap global ords iff
+                         * this query matches all docs and this aggregator:
                          *    - has no include/exclude rules AND
                          *    - only collects from a single bucket AND
                          *    - has no sub-aggregator or only sub-aggregator that can be deferred
                          *      ({@link SubAggCollectionMode#BREADTH_FIRST}).
                          */
-                         remapGlobalOrds = false;
+                        remapGlobalOrds = false;
                     }
                 }
                 return new GlobalOrdinalsStringTermsAggregator(

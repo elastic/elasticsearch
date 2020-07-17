@@ -19,14 +19,14 @@
 package org.elasticsearch.search.internal;
 
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -346,6 +346,36 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
+
+    /**
+     * query matches all docs.
+     * @return true if the query is a MatchAllDocsQuery OR has no minimum score filter.
+     */
+    public boolean matchAllDocs() {
+        Query query = query();
+        if (query instanceof BoostQuery) {
+            query = ((BoostQuery) query).getQuery();
+        }
+        if (query instanceof FunctionScoreQuery) {
+            if(((FunctionScoreQuery) query).getMinScore() != null){
+                return false;
+            }
+            query = ((FunctionScoreQuery) query).getSubQuery();
+        }
+        if (query instanceof ScriptScoreQuery) {
+            if (((ScriptScoreQuery) query).getMinScore() != null) {
+                return false;
+            }
+            query = ((ScriptScoreQuery) query).getSubQuery();
+        }
+        if (query instanceof ConstantScoreQuery) {
+            query = ((ConstantScoreQuery) query).getQuery();
+        }
+        if (query instanceof MatchAllDocsQuery) {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object

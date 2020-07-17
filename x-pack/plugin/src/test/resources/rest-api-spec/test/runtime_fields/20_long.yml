@@ -20,10 +20,13 @@ setup:
               voltage_times_ten:
                 type: script
                 runtime_type: long
-                script: |
-                  for (double v : doc['voltage']) {
-                    value((long)(v * 10));
-                  }
+                script:
+                  source: |
+                    for (double v : doc['voltage']) {
+                      value((long)(v * params.multiplier));
+                    }
+                  params:
+                    multiplier: 10
               even_voltage_times_ten:
                 type: script
                 runtime_type: long
@@ -51,6 +54,31 @@ setup:
           {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
           {"index":{}}
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: {sensor.mappings.properties.voltage_times_ten.type: script }
+  - match: {sensor.mappings.properties.voltage_times_ten.runtime_type: long }
+  - match:
+      sensor.mappings.properties.voltage_times_ten.script.source: |
+        for (double v : doc['voltage']) {
+          value((long)(v * params.multiplier));
+        }
+  - match: {sensor.mappings.properties.voltage_times_ten.script.params: {multiplier: 10} }
+  - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }
+  - match: {sensor.mappings.properties.even_voltage_times_ten.type: script }
+  - match: {sensor.mappings.properties.even_voltage_times_ten.runtime_type: long }
+  - match:
+      sensor.mappings.properties.even_voltage_times_ten.script.source: |
+        for (long tenV: doc['voltage_times_ten']) {
+          if (tenV % 2 == 0) {
+            value(tenV);
+          }
+        }
+  - match: {sensor.mappings.properties.even_voltage_times_ten.script.lang: painless }
 
 ---
 "docvalue_fields":

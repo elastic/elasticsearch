@@ -34,7 +34,7 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
 
     void mapperXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("runtime_type", runtimeType());
-        builder.field("script", script.getIdOrCode()); // TODO For some reason this doesn't allow us to do the full xcontent of the script.
+        builder.field("script", script, params);
     }
 
     @Override

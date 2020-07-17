@@ -38,7 +38,7 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
 
         UpdateByQueryRequest request = new UpdateByQueryRequest();
         request.indices(indices);
-        request.setIndicesOptions(indicesOptions);
+         request.indicesOptions(indicesOptions);
         for (int i = 0; i < numIndices; i++) {
             assertEquals(indices[i], request.indices()[i]);
         }

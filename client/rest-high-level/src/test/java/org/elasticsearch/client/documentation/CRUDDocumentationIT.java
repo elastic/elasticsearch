@@ -1055,7 +1055,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setRouting("=cat"); // <1>
             // end::update-by-query-request-routing
             // tag::update-by-query-request-indicesOptions
-            request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
+            request.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
             // end::update-by-query-request-indicesOptions
 
             // tag::update-by-query-execute
@@ -1167,7 +1167,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setRouting("=cat"); // <1>
             // end::delete-by-query-request-routing
             // tag::delete-by-query-request-indicesOptions
-            request.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
+            request.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // <1>
             // end::delete-by-query-request-indicesOptions
 
             // tag::delete-by-query-execute

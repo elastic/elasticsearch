@@ -263,21 +263,21 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     public void testWritingExpandWildcards() throws IOException {
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "all");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "all");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, false, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "open,closed");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "open,closed");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "open,hidden");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "open,hidden");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, false, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "open");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "open");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, true, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "closed,hidden");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "closed,hidden");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, true, false, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "closed");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "closed");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, true, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "hidden");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "hidden");
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), false, false, false, randomBoolean(),
-            randomBoolean(), randomBoolean(), randomBoolean()), "none");
+            randomBoolean(), randomBoolean(), randomBoolean(), false), "none");
     }
 
     private void assertExpandWildcardsValue(IndicesOptions options, String expectedValue) throws IOException {
@@ -339,8 +339,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 randomlyGenerated.ignoreUnavailable(), randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(),
                 randomlyGenerated.expandWildcardsClosed(), msearchDefault.expandWildcardsHidden(),
                 msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(),
-                msearchDefault.ignoreThrottled()
-            ));
+                msearchDefault.ignoreThrottled(), msearchDefault.allowSystemIndices()));
 
             request.add(searchRequest);
         }

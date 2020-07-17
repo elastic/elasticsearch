@@ -458,7 +458,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 if (requiredMatches.isOnlyExact()) {
                     foundIdsListener.onResponse(new Tuple<>((long) ids.size(), new ArrayList<>(ids)));
                 } else {
-                    foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));    
+                    foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));
                 }
             }, foundIdsListener::onFailure),
             client::search
@@ -744,7 +744,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         deleteByQuery.setAbortOnVersionConflict(false)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+            .indicesOptions(IndicesOptions.lenientExpandOpen());
 
         // disable scoring by using index order
         deleteByQuery.getSearchRequest().source().sort(SINGLE_MAPPING_NAME);

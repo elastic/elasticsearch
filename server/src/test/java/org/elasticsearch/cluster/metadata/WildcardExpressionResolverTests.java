@@ -262,7 +262,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         {
             IndicesOptions indicesAliasesAndExpandHiddenOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false,
-                true, true, false, false, false);
+                true, true, false, false, false, false);
             IndexNameExpressionResolver.Context indicesAliasesDataStreamsAndHiddenIndices = new IndexNameExpressionResolver.Context(state,
                 indicesAliasesAndExpandHiddenOptions, false, false, true);
 

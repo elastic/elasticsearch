@@ -98,6 +98,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this.names = indices;
             return this;
         }
+
+        @Override
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            return this; //G-> Is this the right behavior?
+        }
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

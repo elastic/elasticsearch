@@ -69,6 +69,12 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
         }
 
         @Override
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            this.options = options;
+            return this;
+        }
+
+        @Override
         public String[] indices() {
             return indices;
         }

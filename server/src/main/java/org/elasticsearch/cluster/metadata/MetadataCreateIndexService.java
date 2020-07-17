@@ -184,15 +184,19 @@ public class MetadataCreateIndexService {
      * @param isHidden Whether or not this is a hidden index
      */
     public void validateDotIndex(String index, ClusterState state, @Nullable Boolean isHidden) {
+        if (index.charAt(0) == '.' && isSystemIndex(index) == false && (isHidden == null || isHidden == Boolean.FALSE)) {
+            deprecationLogger.deprecate("index_name_starts_with_dot",
+                "index name [{}] starts with a dot '.', in the next major version, index names " +
+                    "starting with a dot are reserved for hidden indices and system indices", index);
+        }
+    }
+
+    private boolean isSystemIndex(String index) {
         if (index.charAt(0) == '.') {
             List<SystemIndexDescriptor> matchingDescriptors = systemIndexDescriptors.stream()
                 .filter(descriptor -> descriptor.matchesIndexPattern(index))
                 .collect(toList());
-            if (matchingDescriptors.isEmpty() && (isHidden == null || isHidden == Boolean.FALSE)) {
-                deprecationLogger.deprecate("index_name_starts_with_dot",
-                    "index name [{}] starts with a dot '.', in the next major version, index names " +
-                    "starting with a dot are reserved for hidden indices and system indices", index);
-            } else if (matchingDescriptors.size() > 1) {
+            if (matchingDescriptors.size() > 1) {
                 // This should be prevented by erroring on overlapping patterns at startup time, but is here just in case.
                 StringBuilder errorMessage = new StringBuilder()
                     .append("index name [")
@@ -205,6 +209,9 @@ public class MetadataCreateIndexService {
                 assert false : errorMessage.toString();
                 throw new IllegalStateException(errorMessage.toString());
             }
+            return matchingDescriptors.size() == 1; // if there's a matching descriptor, this is a system index
+        } else {
+            return false;
         }
     }
 
@@ -440,6 +447,9 @@ public class MetadataCreateIndexService {
         // remove the setting it's temporary and is only relevant once we create the index
         final Settings.Builder settingsBuilder = Settings.builder().put(aggregatedIndexSettings);
         settingsBuilder.remove(IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey());
+        if (isSystemIndex(request.index())) {
+            settingsBuilder.put(IndexMetadata.SETTING_INDEX_SYSTEM, true);
+        }
         final Settings indexSettings = settingsBuilder.build();
 
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());

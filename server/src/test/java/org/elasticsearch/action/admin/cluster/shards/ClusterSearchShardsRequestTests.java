@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.EnumSet;
+
 public class ClusterSearchShardsRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
@@ -65,8 +67,22 @@ public class ClusterSearchShardsRequestTests extends ESTestCase {
                 // indices options are not equivalent when sent to an older version and re-read due
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
-                if (version.onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
-                    assertEquals(request.indicesOptions(), deserialized.indicesOptions());
+                // Options changes in 8.0.0 (for now, fix on backport!)
+                if (out.getVersion().before(Version.V_8_0_0)) {
+                    EnumSet<IndicesOptions.Option> expectedOptions = request.indicesOptions().getOptions();
+                    expectedOptions.add(IndicesOptions.Option.ALLOW_SYSTEM_INDEX_ACCESS);
+                    assertEquals(expectedOptions, deserialized.indicesOptions().getOptions());
+                } else {
+                    assertEquals(request.indicesOptions().getOptions(), deserialized.indicesOptions().getOptions());
+                }
+
+                // Wildcard states changed in 7.7.0
+                if (out.getVersion().before(Version.V_7_7_0)) {
+                    EnumSet<IndicesOptions.WildcardStates> expectedWildcardOptions = request.indicesOptions().getExpandWildcards();
+                    expectedWildcardOptions.add(IndicesOptions.WildcardStates.HIDDEN);
+                    assertEquals(expectedWildcardOptions, deserialized.indicesOptions().getExpandWildcards());
+                } else {
+                    assertEquals(request.indicesOptions().getExpandWildcards(), deserialized.indicesOptions().getExpandWildcards());
                 }
                 assertEquals(request.routing(), deserialized.routing());
                 assertEquals(request.preference(), deserialized.preference());

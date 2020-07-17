@@ -301,7 +301,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             equalTo("cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and " +
                 "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, " +
                 "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, " +
-                "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true]] " +
+                "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true, allow_system=false]] " +
                 "with exception [no such index [not_foo]]"));
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
@@ -315,8 +315,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 + "[cannot start datafeed [datafeed_id] because it failed resolving " +
             "indices given [not_foo] and indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, " +
             "expand_wildcards_open=true, expand_wildcards_closed=false, expand_wildcards_hidden=false, " +
-            "allow_aliases_to_multiple_indices=true, forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true" +
-            "]] with exception [no such index [not_foo]]]"));
+            "allow_aliases_to_multiple_indices=true, forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true, " +
+            "allow_system=false]] with exception [no such index [not_foo]]]"));
     }
 
     public void testRemoteIndex() {
@@ -414,7 +414,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                 + "[cannot start datafeed [datafeed_id] because it failed resolving indices given [not_foo] and " +
             "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, " +
             "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, " +
-            "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true]] " +
+            "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true, allow_system=false]] " +
             "with exception [no such index [not_foo]]]"));
     }
 

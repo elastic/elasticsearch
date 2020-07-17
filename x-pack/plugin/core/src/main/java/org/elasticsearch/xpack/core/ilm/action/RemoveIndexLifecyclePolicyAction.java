@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
@@ -132,8 +132,10 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             return indices;
         }
 
-        public void indicesOptions(IndicesOptions indicesOptions) {
+        @Override
+        public IndicesRequest indicesOptions(IndicesOptions indicesOptions) {
             this.indicesOptions = indicesOptions;
+            return this;
         }
 
         public IndicesOptions indicesOptions() {

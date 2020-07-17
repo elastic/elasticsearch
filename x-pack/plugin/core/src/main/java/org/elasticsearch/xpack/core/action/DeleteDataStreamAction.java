@@ -97,6 +97,12 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             this.names = indices;
             return this;
         }
+
+        @Override
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            // G-> Is this the right behavior?
+            return this;
+        }
     }
 
 }

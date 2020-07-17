@@ -26,11 +26,13 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context.SystemIndexStrategy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -48,10 +50,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_SYSTEM_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -896,8 +900,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final String dottedHiddenAlias = ".hidden_alias";
         final String dottedHiddenIndex = ".hidden_index";
 
-        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false, true, false, false, false);
-        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true, true, false, false, false);
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, false,
+            true, false, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, false, true, false, true,
+            true, false, false, false, false);
 
         {
             // A visible index with a visible alias and a hidden index with a hidden alias
@@ -1030,8 +1036,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final String hiddenAlias = "my-hidden-alias";
         final String visibleAlias = "my-visible-alias";
 
-        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false);
-        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false);
+        IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false, false);
+        IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false, false);
 
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(indexBuilder(hiddenIndex,  Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build())
@@ -1111,6 +1117,101 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(context, allIndices));
                 }
             }
+        }
+    }
+
+    public void testSystemIndexResolutionWhenAllowed() {
+        Settings systemIndexSettings = Settings.builder().put(INDEX_SYSTEM_SETTING.getKey(), true).build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder(".ml-meta", systemIndexSettings).state(State.OPEN))
+            .put(indexBuilder(".watches", systemIndexSettings).state(State.OPEN))
+            .put(indexBuilder(".ml-stuff", systemIndexSettings).state(State.OPEN))
+            .put(indexBuilder("some-other-index").state(State.OPEN));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // Single name
+        {
+            SearchRequest request = new SearchRequest(".ml-meta");
+            EnumSet<IndicesOptions.Option> opts = request.indicesOptions().getOptions();
+            opts.add(IndicesOptions.Option.ALLOW_SYSTEM_INDEX_ACCESS);
+            request.indicesOptions(new IndicesOptions(opts, request.indicesOptions().getExpandWildcards()));
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request, SystemIndexStrategy.INCLUDE))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, containsInAnyOrder(".ml-meta"));
+        }
+
+        // Wildcard that should match multiple
+        {
+            SearchRequest request = new SearchRequest(".ml-*");
+            EnumSet<IndicesOptions.Option> opts = request.indicesOptions().getOptions();
+            opts.add(IndicesOptions.Option.ALLOW_SYSTEM_INDEX_ACCESS);
+            request.indicesOptions(new IndicesOptions(opts, request.indicesOptions().getExpandWildcards()));
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request, SystemIndexStrategy.INCLUDE))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, containsInAnyOrder(".ml-meta", ".ml-stuff"));
+        }
+
+        // Wildcard that just matches one
+        {
+            SearchRequest request = new SearchRequest(".w*");
+            EnumSet<IndicesOptions.Option> opts = request.indicesOptions().getOptions();
+            opts.add(IndicesOptions.Option.ALLOW_SYSTEM_INDEX_ACCESS);
+            request.indicesOptions(new IndicesOptions(opts, request.indicesOptions().getExpandWildcards()));
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request, SystemIndexStrategy.INCLUDE))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, containsInAnyOrder(".watches"));
+        }
+    }
+
+    public void testSystemIndexResolutionBlockedByDefault() {
+        Settings systemIndexSettings = Settings.builder().put(INDEX_SYSTEM_SETTING.getKey(), true).build();
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(indexBuilder(".ml-meta", systemIndexSettings).state(State.OPEN))
+            .put(indexBuilder(".watches", systemIndexSettings).state(State.OPEN))
+            .put(indexBuilder(".ml-stuff", systemIndexSettings).state(State.OPEN))
+            .put(indexBuilder("some-other-index").state(State.OPEN));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        // Wildcard that might match multiple
+        {
+            SearchRequest request = new SearchRequest(".ml-*");
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, empty());
+        }
+
+        // Wilcard that might match a single index
+        {
+            SearchRequest request = new SearchRequest(".w*");
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, empty());
+        }
+
+        // A specific index name
+        {
+            SearchRequest request = new SearchRequest(".ml-meta");
+
+            List<String> indexNames = Arrays
+                .stream(indexNameExpressionResolver.concreteIndices(state, request))
+                .map(i -> i.getName())
+                .collect(Collectors.toList());
+            assertThat(indexNames, empty());
         }
     }
 

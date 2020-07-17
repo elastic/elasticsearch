@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -47,6 +49,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
 class IndicesAndAliasesResolver {
+    private static final Logger logger = LogManager.getLogger(IndicesAndAliasesResolver.class);
 
     //`*,-*` what we replace indices and aliases with if we need Elasticsearch to return empty responses without throwing exception
     static final String[] NO_INDICES_OR_ALIASES_ARRAY = new String[] { "*", "-*" };
@@ -219,7 +222,8 @@ class IndicesAndAliasesResolver {
                 aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
             }
         }
-        return resolvedIndicesBuilder.build();
+        final ResolvedIndices finalResolvedIndices = resolvedIndicesBuilder.build();
+        return finalResolvedIndices;
     }
 
     /**

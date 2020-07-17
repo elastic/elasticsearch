@@ -39,6 +39,7 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.SystemIndexClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
@@ -503,10 +504,20 @@ public class Node implements Closeable {
 
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
-                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptService, xContentRegistry, environment, nodeEnvironment,
-                                                 namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
-                                                 repositoriesServiceReference::get).stream())
+                .flatMap(p -> {
+                    NodeClient pluginClient;
+                    if (p instanceof SystemIndexPlugin) {
+                        Collection<SystemIndexDescriptor> ownedDescriptors = ((SystemIndexPlugin) p).getSystemIndexDescriptors(settings);
+                        pluginClient = new SystemIndexClient(client, ownedDescriptors, clusterService::state,
+                            clusterModule.getIndexNameExpressionResolver());
+                    } else {
+                        pluginClient = client;
+                    }
+                    return p.createComponents(pluginClient, clusterService, threadPool, resourceWatcherService,
+                        scriptService, xContentRegistry, environment, nodeEnvironment,
+                        namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
+                        repositoriesServiceReference::get).stream();
+                })
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),

@@ -102,7 +102,8 @@ public class IndicesOptions implements ToXContentFragment {
         ALLOW_NO_INDICES,
         FORBID_ALIASES_TO_MULTIPLE_INDICES,
         FORBID_CLOSED_INDICES,
-        IGNORE_THROTTLED;
+        IGNORE_THROTTLED,
+        ALLOW_SYSTEM_INDEX_ACCESS;
 
         public static final EnumSet<Option> NONE = EnumSet.noneOf(Option.class);
     }
@@ -137,6 +138,9 @@ public class IndicesOptions implements ToXContentFragment {
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED =
         new IndicesOptions(EnumSet.of(Option.FORBID_ALIASES_TO_MULTIPLE_INDICES, Option.FORBID_CLOSED_INDICES),
             EnumSet.noneOf(WildcardStates.class));
+    public static final IndicesOptions LENIENT_EXPAND_OPEN_ALLOW_SYSTEM =
+        new IndicesOptions(EnumSet.of(Option.ALLOW_NO_INDICES, Option.IGNORE_UNAVAILABLE, Option.ALLOW_SYSTEM_INDEX_ACCESS),
+            EnumSet.of(WildcardStates.OPEN));
 
     private final EnumSet<Option> options;
     private final EnumSet<WildcardStates> expandWildcards;
@@ -220,6 +224,21 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     /**
+     * @return whether system indices are allowed to be accessed by this request
+     */
+    public boolean allowSystemIndices() {
+        return options.contains(Option.ALLOW_SYSTEM_INDEX_ACCESS);
+    }
+
+    /**
+     *
+     * @return a copy of the {@link Option}s that these indices options have set
+     */
+    public EnumSet<Option> getOptions() {
+        return EnumSet.copyOf(options);
+    }
+
+    /**
      * @return a copy of the {@link WildcardStates} that these indices options will expand to
      */
     public EnumSet<WildcardStates> getExpandWildcards() {
@@ -227,7 +246,13 @@ public class IndicesOptions implements ToXContentFragment {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.writeEnumSet(options);
+        if (out.getVersion().before(Version.V_8_0_0) && options.contains(Option.ALLOW_SYSTEM_INDEX_ACCESS)) { // G-> Fix the version
+            final EnumSet<Option> finalOptions = EnumSet.copyOf(options);
+            finalOptions.remove(Option.ALLOW_SYSTEM_INDEX_ACCESS);
+            out.writeEnumSet(finalOptions);
+        } else {
+            out.writeEnumSet(options);
+        }
         if (out.getVersion().before(Version.V_7_7_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
             final EnumSet<WildcardStates> states = EnumSet.copyOf(expandWildcards);
             states.remove(WildcardStates.HIDDEN);
@@ -239,6 +264,9 @@ public class IndicesOptions implements ToXContentFragment {
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
+        if (in.getVersion().before(Version.V_8_0_0)) { // G-> Fix the version
+            options.add(Option.ALLOW_SYSTEM_INDEX_ACCESS);
+        }
         EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
         if (in.getVersion().before(Version.V_7_7_0)) {
             states.add(WildcardStates.HIDDEN);
@@ -254,14 +282,15 @@ public class IndicesOptions implements ToXContentFragment {
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, boolean expandToHiddenIndices) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, expandToHiddenIndices, true,
-            false, false, false);
+            false, false, false, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, IndicesOptions defaultOptions) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices,
             defaultOptions.expandWildcardsHidden(), defaultOptions.allowAliasesToMultipleIndices(),
-            defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases(), defaultOptions.ignoreThrottled());
+            defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases(), defaultOptions.ignoreThrottled(),
+            defaultOptions.allowSystemIndices());
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
@@ -269,13 +298,13 @@ public class IndicesOptions implements ToXContentFragment {
                                              boolean forbidClosedIndices, boolean ignoreAliases,
                                              boolean ignoreThrottled) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, false,
-            allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled);
+            allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases, ignoreThrottled, false);
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
                                              boolean expandToClosedIndices, boolean expandToHiddenIndices,
                                              boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases,
-                                             boolean ignoreThrottled) {
+                                             boolean ignoreThrottled, boolean allowSystemIndexAccess) {
         final EnumSet<Option> opts = EnumSet.noneOf(Option.class);
         final EnumSet<WildcardStates> wildcards = EnumSet.noneOf(WildcardStates.class);
 
@@ -306,6 +335,10 @@ public class IndicesOptions implements ToXContentFragment {
         if (ignoreThrottled) {
             opts.add(Option.IGNORE_THROTTLED);
         }
+        if (allowSystemIndexAccess) {
+            opts.add(Option.ALLOW_SYSTEM_INDEX_ACCESS);
+        }
+
         return new IndicesOptions(opts, wildcards);
     }
 
@@ -356,7 +389,7 @@ public class IndicesOptions implements ToXContentFragment {
                 defaultSettings.allowAliasesToMultipleIndices(),
                 defaultSettings.forbidClosedIndices(),
                 defaultSettings.ignoreAliases(),
-                nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled()));
+                nodeBooleanValue(ignoreThrottled, "ignore_throttled", defaultSettings.ignoreThrottled()), false);
     }
 
     @Override
@@ -486,6 +519,7 @@ public class IndicesOptions implements ToXContentFragment {
                 ", forbid_closed_indices=" + forbidClosedIndices() +
                 ", ignore_aliases=" + ignoreAliases() +
                 ", ignore_throttled=" + ignoreThrottled() +
-                ']';
+                ", allow_system=" + allowSystemIndices() +
+            ']';
     }
 }

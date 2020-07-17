@@ -322,6 +322,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Boolean> INDEX_HIDDEN_SETTING =
         Setting.boolSetting(SETTING_INDEX_HIDDEN, false, Property.Dynamic, Property.IndexScope);
 
+    public static final String SETTING_INDEX_SYSTEM = "index.system";
+    /**
+     * Whether the index is a system index or not. A system index is managed by a plugin or module,
+     * and can only be accessed externally via REST APIs provided by that plugin.
+     */
+    public static final Setting<Boolean> INDEX_SYSTEM_SETTING = Setting.boolSetting(SETTING_INDEX_SYSTEM, false,
+        Property.IndexScope, Property.InternalIndex);
+
     /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */

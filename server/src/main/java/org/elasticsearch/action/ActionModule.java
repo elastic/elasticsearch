@@ -257,9 +257,11 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.SystemIndexRestHandler;
 import org.elasticsearch.rest.action.RestFieldCapabilitiesAction;
 import org.elasticsearch.rest.action.RestMainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionAction;
@@ -786,7 +788,14 @@ public class ActionModule extends AbstractModule {
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
                     settingsFilter, indexNameExpressionResolver, nodesInCluster)) {
-                registerHandler.accept(handler);
+                RestHandler wrappedHandler;
+                if (plugin instanceof SystemIndexPlugin) {
+                    wrappedHandler = new SystemIndexRestHandler(((SystemIndexPlugin) plugin).getSystemIndexDescriptors(settings),
+                        clusterService::state, indexNameExpressionResolver, handler);
+                } else {
+                    wrappedHandler = handler;
+                }
+                registerHandler.accept(wrappedHandler);
             }
         }
         registerHandler.accept(new RestCatAction(catActions));

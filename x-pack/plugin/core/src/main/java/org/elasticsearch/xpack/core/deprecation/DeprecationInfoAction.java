@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
@@ -240,6 +240,12 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         @Override
         public IndicesOptions indicesOptions() {
             return INDICES_OPTIONS;
+        }
+
+        @Override
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            //G-> Is this the right behavior?
+            return this;
         }
 
         @Override

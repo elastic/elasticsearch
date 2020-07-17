@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -58,7 +60,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_SYSTEM_SETTING;
+
 public class IndexNameExpressionResolver {
+    private static final Logger logger = LogManager.getLogger(IndexNameExpressionResolver.class);
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
@@ -79,6 +84,13 @@ public class IndexNameExpressionResolver {
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
         Context context = new Context(state, request.indicesOptions(), false, false, request.includeDataStreams());
+        return concreteIndices(context, request.indices());
+    }
+
+    public Index[] concreteIndices(ClusterState state, IndicesRequest request, Context.SystemIndexStrategy systemIndexStrategy) {
+        // G-> this should probably be done a different way
+        Context context = new Context(state, request.indicesOptions(), System.currentTimeMillis(), false, false, false, false,
+            systemIndexStrategy);
         return concreteIndices(context, request.indices());
     }
 
@@ -160,7 +172,8 @@ public class IndexNameExpressionResolver {
      * indices options in the context don't allow such a case.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
-        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false);
+        Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(),
+            false, Context.SystemIndexStrategy.ALLOW);
         return concreteIndices(context, request.indices());
     }
 
@@ -278,6 +291,10 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, IndexMetadata index) {
+        if (options.allowSystemIndices() == false && INDEX_SYSTEM_SETTING.get(index.getSettings())) {
+            return false;
+        }
+
         if (index.getState() == IndexMetadata.State.CLOSE) {
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index.getIndex());
@@ -359,7 +376,7 @@ public class IndexNameExpressionResolver {
         IndicesOptions combinedOptions = IndicesOptions.fromOptions(options.ignoreUnavailable(), allowNoIndices,
             options.expandWildcardsOpen(), options.expandWildcardsClosed(), options.expandWildcardsHidden(),
             options.allowAliasesToMultipleIndices(), options.forbidClosedIndices(), options.ignoreAliases(),
-            options.ignoreThrottled());
+            options.ignoreThrottled(), options.allowSystemIndices());
 
         Context context = new Context(state, combinedOptions, false, true, includeDataStreams);
         Index[] indices = concreteIndices(context, index);
@@ -490,7 +507,7 @@ public class IndexNameExpressionResolver {
      */
     public Map<String, Set<String>> resolveSearchRouting(ClusterState state, @Nullable String routing, String... expressions) {
         List<String> resolvedExpressions = expressions != null ? Arrays.asList(expressions) : Collections.emptyList();
-        Context context = new Context(state, IndicesOptions.lenientExpandOpen(), false, false, true);
+        Context context = new Context(state, IndicesOptions.LENIENT_EXPAND_OPEN_ALLOW_SYSTEM, false, false, true);
         for (ExpressionResolver expressionResolver : expressionResolvers) {
             resolvedExpressions = expressionResolver.resolve(context, resolvedExpressions);
         }
@@ -651,6 +668,21 @@ public class IndexNameExpressionResolver {
         private final boolean resolveToWriteIndex;
         private final boolean includeDataStreams;
         private final boolean preserveDataStreams;
+        private final SystemIndexStrategy systemIndexStrategy;
+
+        /**
+         * Specifies the strategy used to handle system indices when resolving index
+         * patterns that include system indices.
+         *
+         * {@code INCLUDE} will cause system indices to be included in the name resolution.
+         * {@code ALLOW} will allow system indices if they are specified by name, but will not be included in wildcard resolution.
+         * {@code OMIT} will cause system indices that would have been resolved to be omitted.
+         * {@code ERROR} will always throw an error when a system index would be resolved.
+         */
+        public enum SystemIndexStrategy {
+            INCLUDE,
+            ALLOW
+        }
 
         Context(ClusterState state, IndicesOptions options) {
             this(state, options, System.currentTimeMillis());
@@ -658,20 +690,22 @@ public class IndexNameExpressionResolver {
 
         Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex,
                 boolean includeDataStreams) {
-            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, false);
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, false,
+                    SystemIndexStrategy.ALLOW);
         }
 
         Context(ClusterState state, IndicesOptions options, boolean preserveAliases, boolean resolveToWriteIndex,
                 boolean includeDataStreams, boolean preserveDataStreams) {
-            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, preserveDataStreams);
+            this(state, options, System.currentTimeMillis(), preserveAliases, resolveToWriteIndex, includeDataStreams, preserveDataStreams,
+                SystemIndexStrategy.ALLOW);
         }
 
         Context(ClusterState state, IndicesOptions options, long startTime) {
-           this(state, options, startTime, false, false, false, false);
+           this(state, options, startTime, false, false, false, false, SystemIndexStrategy.ALLOW);
         }
 
         protected Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex,
-                          boolean includeDataStreams, boolean preserveDataStreams) {
+                          boolean includeDataStreams, boolean preserveDataStreams, SystemIndexStrategy systemIndexStrategy) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
@@ -679,6 +713,7 @@ public class IndexNameExpressionResolver {
             this.resolveToWriteIndex = resolveToWriteIndex;
             this.includeDataStreams = includeDataStreams;
             this.preserveDataStreams = preserveDataStreams;
+            this.systemIndexStrategy = systemIndexStrategy;
         }
 
         public ClusterState getState() {
@@ -716,6 +751,13 @@ public class IndexNameExpressionResolver {
 
         public boolean isPreserveDataStreams() {
             return preserveDataStreams;
+        }
+
+        /**
+         * Specifies the strategy used for system indices for this request.
+         */
+        public SystemIndexStrategy getSystemIndexStrategy() {
+            return systemIndexStrategy;
         }
     }
 
@@ -940,12 +982,36 @@ public class IndexNameExpressionResolver {
             }
         }
 
+        private static boolean shouldIncludeSystemIndex(Context context, IndexAbstraction indexAbstraction, String expression) {
+            if (context.getOptions().allowSystemIndices() == false || indexAbstraction == null) {
+                return false;
+            }
+            if (indexAbstraction.isSystem() == false) {
+                return true;
+            }
+
+            switch (context.getSystemIndexStrategy()) {
+                case INCLUDE:
+                    // Continue processing as normal
+                    return true;
+                case ALLOW:
+                    return IndexAbstraction.Type.CONCRETE_INDEX.equals(indexAbstraction.getType())
+                        && indexAbstraction.getName().equals(expression);
+                default:
+                    assert false : "unknown system index strategy";
+                    throw new IllegalArgumentException("unknown system index strategy");// G-> Needs a better error message
+            }
+        }
+
         private static Set<String> expand(Context context, IndexMetadata.State excludeState, Map<String, IndexAbstraction> matches,
                                           String expression, boolean includeHidden) {
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, IndexAbstraction> entry : matches.entrySet()) {
                 String aliasOrIndexName = entry.getKey();
                 IndexAbstraction indexAbstraction = entry.getValue();
+                if (indexAbstraction.isSystem() && shouldIncludeSystemIndex(context, indexAbstraction, expression) == false) {
+                    continue;
+                }
 
                 if (indexAbstraction.isHidden() == false || includeHidden || implicitHiddenMatch(aliasOrIndexName, expression)) {
                     if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {

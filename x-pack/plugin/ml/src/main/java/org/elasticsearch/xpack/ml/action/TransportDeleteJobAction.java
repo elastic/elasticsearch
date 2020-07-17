@@ -318,7 +318,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                             new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
                         DeleteByQueryRequest request = new DeleteByQueryRequest(indexNames.get())
                             .setQuery(query)
-                            .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
+                            .indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
                             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
                             .setAbortOnVersionConflict(false)
                             .setRefresh(true);
@@ -452,7 +452,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(query)
-            .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
+            .indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
 
@@ -479,7 +479,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
             .setQuery(query)
-            .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
+            .indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
 

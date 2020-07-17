@@ -117,7 +117,7 @@ public interface ActionPlugin {
      *          throw new IllegalStateException("only GET requests are allowed");
      *        }
      *        originalHandler.handleRequest(request, channel, client);
-     *      };
+     *      }
      *    }
      * }
      * </pre>

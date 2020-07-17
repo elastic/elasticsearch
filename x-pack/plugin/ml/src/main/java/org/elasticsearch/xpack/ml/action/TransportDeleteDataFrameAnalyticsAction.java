@@ -270,7 +270,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                                       ActionListener<BulkByScrollResponse> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest(index);
         request.setQuery(query);
-        request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
+        request.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);

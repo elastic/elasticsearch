@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_SYSTEM_SETTING;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
@@ -77,6 +78,8 @@ public interface IndexAbstraction {
      * @return whether this index abstraction is hidden or not
      */
     boolean isHidden();
+
+    boolean isSystem();
 
     /**
      * An index abstraction type.
@@ -160,6 +163,11 @@ public interface IndexAbstraction {
         public boolean isHidden() {
             return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
         }
+
+        @Override
+        public boolean isSystem() {
+            return INDEX_SYSTEM_SETTING.get(concreteIndex.getSettings());
+        }
     }
 
     /**
@@ -208,6 +216,13 @@ public interface IndexAbstraction {
         @Override
         public boolean isHidden() {
             return isHidden;
+        }
+
+        @Override
+        public boolean isSystem() {
+            //G-> This is probably not the best way to tell if an alias is a system-index-alias
+            // this should probably be checked on the alias layer and added as a property in the AliasMetadata
+            return referenceIndexMetadatas.stream().allMatch(indexMetadata -> INDEX_SYSTEM_SETTING.get(indexMetadata.getSettings()));
         }
 
         /**
@@ -323,6 +338,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isHidden() {
             return false;
+        }
+
+        @Override
+        public boolean isSystem() {
+            return false; //G-> No system data streams, right?
         }
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {

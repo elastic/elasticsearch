@@ -104,7 +104,8 @@ public class UpdateByQueryRequest extends AbstractBulkIndexByScrollRequest<Updat
     /**
      * Set the IndicesOptions for controlling unavailable indices
      */
-    public UpdateByQueryRequest setIndicesOptions(IndicesOptions indicesOptions) {
+    @Override
+    public UpdateByQueryRequest indicesOptions(IndicesOptions indicesOptions) {
         getSearchRequest().indicesOptions(indicesOptions);
         return this;
     }

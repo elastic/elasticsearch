@@ -1330,7 +1330,7 @@ public class JobResultsProvider {
 
         UpdateByQueryRequest request = new UpdateByQueryRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
             .setQuery(forecastQuery)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setMaxRetries(3)
             .setRefresh(true)

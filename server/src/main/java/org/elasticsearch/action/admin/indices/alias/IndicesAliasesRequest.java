@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -507,6 +508,12 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         @Override
         public IndicesOptions indicesOptions() {
             return INDICES_OPTIONS;
+        }
+
+        @Override
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            // G-> Is this the right behavior?
+            return this;
         }
 
         @Override

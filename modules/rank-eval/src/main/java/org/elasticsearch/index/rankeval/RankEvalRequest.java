@@ -114,8 +114,10 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         return indicesOptions;
     }
 
-    public void indicesOptions(IndicesOptions indicesOptions) {
+    @Override
+    public IndicesRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = Objects.requireNonNull(indicesOptions, "indicesOptions must not be null");
+        return this;
     }
 
     /**

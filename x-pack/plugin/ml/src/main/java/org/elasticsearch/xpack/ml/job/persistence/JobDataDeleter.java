@@ -83,7 +83,7 @@ public class JobDataDeleter {
 
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0]))
             .setRefresh(true)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(idsToDelete.toArray(new String[0])));
 
         // _doc is the most efficient sort order and will also disable scoring
@@ -125,7 +125,7 @@ public class JobDataDeleter {
         QueryBuilder query = QueryBuilders.constantScoreQuery(boolQuery);
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME)
             .setQuery(query)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
@@ -153,7 +153,7 @@ public class JobDataDeleter {
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
             .setQuery(query)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
@@ -176,7 +176,7 @@ public class JobDataDeleter {
         QueryBuilder query = QueryBuilders.constantScoreQuery(QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true));
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
             .setQuery(query)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
@@ -199,7 +199,7 @@ public class JobDataDeleter {
     public void deleteDatafeedTimingStats(ActionListener<BulkByScrollResponse> listener) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
             .setRefresh(true)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
 
         // _doc is the most efficient sort order and will also disable scoring

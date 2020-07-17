@@ -54,5 +54,12 @@ public interface IndicesRequest {
          * Sets the indices that the action relates to.
          */
         IndicesRequest indices(String... indices);
+
+        /**
+         * Sets the indices options for this request
+         * @param options the new options
+         * @return the modified request
+         */
+        IndicesRequest indicesOptions(IndicesOptions options);
     }
 }

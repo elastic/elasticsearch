@@ -135,7 +135,7 @@ public class UnusedStateRemover implements MlDataRemover {
         LOGGER.info("Found [{}] unused state documents; attempting to delete",
                 unusedDocIds.size());
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .indicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRequestsPerSecond(requestsPerSec)
             .setQuery(QueryBuilders.idsQuery().addIds(unusedDocIds.toArray(new String[0])));

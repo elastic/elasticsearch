@@ -133,6 +133,12 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         @Override
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            this.indicesOptions = options;
+            return this;
+        }
+
+        @Override
         public IndicesRequest indices(String... indices) {
             this.names = indices;
             return this;

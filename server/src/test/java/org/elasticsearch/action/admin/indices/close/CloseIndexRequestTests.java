@@ -28,6 +28,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.EnumSet;
+
 public class CloseIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
@@ -66,9 +68,25 @@ public class CloseIndexRequestTests extends ESTestCase {
                     // to the addition of hidden indices as expand to hidden indices is always true when
                     // read from a prior version
                     // TODO update version on backport!
-                    if (out.getVersion().onOrAfter(Version.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
-                        assertEquals(request.indicesOptions(), indicesOptions);
+
+                    // Options changes in 8.0.0 (for now, fix on backport!)
+                    if (out.getVersion().before(Version.V_8_0_0)) {
+                        EnumSet<IndicesOptions.Option> expectedOptions = request.indicesOptions().getOptions();
+                        expectedOptions.add(IndicesOptions.Option.ALLOW_SYSTEM_INDEX_ACCESS);
+                        assertEquals(expectedOptions, indicesOptions.getOptions());
+                    } else {
+                        assertEquals(request.indicesOptions().getOptions(), indicesOptions.getOptions());
                     }
+
+                    // Wildcard states changed in 7.7.0
+                    if (out.getVersion().before(Version.V_7_7_0)) {
+                        EnumSet<IndicesOptions.WildcardStates> expectedWildcardOptions = request.indicesOptions().getExpandWildcards();
+                        expectedWildcardOptions.add(IndicesOptions.WildcardStates.HIDDEN);
+                        assertEquals(expectedWildcardOptions, indicesOptions.getExpandWildcards());
+                    } else {
+                        assertEquals(request.indicesOptions().getExpandWildcards(), indicesOptions.getExpandWildcards());
+                    }
+
                     if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
                         assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
                     } else {
@@ -104,9 +122,26 @@ public class CloseIndexRequestTests extends ESTestCase {
                 // to the addition of hidden indices as expand to hidden indices is always true when
                 // read from a prior version
                 // TODO change version on backport
-                if (out.getVersion().onOrAfter(Version.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
-                    assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
+
+                // Options changes in 8.0.0 (for now, fix on backport!)
+                if (out.getVersion().before(Version.V_8_0_0)) {
+                    EnumSet<IndicesOptions.Option> expectedOptions = sample.indicesOptions().getOptions();
+                    expectedOptions.add(IndicesOptions.Option.ALLOW_SYSTEM_INDEX_ACCESS);
+                    assertEquals(expectedOptions, deserializedRequest.indicesOptions().getOptions());
+                } else {
+                    assertEquals(sample.indicesOptions().getOptions(), deserializedRequest.indicesOptions().getOptions());
                 }
+
+                // Wildcard states changed in 7.7.0
+                if (out.getVersion().before(Version.V_7_7_0)) {
+                    EnumSet<IndicesOptions.WildcardStates> expectedWildcardOptions =
+                        deserializedRequest.indicesOptions().getExpandWildcards();
+                    expectedWildcardOptions.add(IndicesOptions.WildcardStates.HIDDEN);
+                    assertEquals(expectedWildcardOptions, deserializedRequest.indicesOptions().getExpandWildcards());
+                } else {
+                    assertEquals(sample.indicesOptions().getExpandWildcards(), deserializedRequest.indicesOptions().getExpandWildcards());
+                }
+
                 if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
                     assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
                 } else {

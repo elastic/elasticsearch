@@ -55,8 +55,10 @@ public class IndexUpgradeInfoRequest extends MasterNodeReadRequest<IndexUpgradeI
         return indicesOptions;
     }
 
-    public void indicesOptions(IndicesOptions indicesOptions) {
+    @Override
+    public IndicesRequest indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
+        return this;
     }
 
     @Override

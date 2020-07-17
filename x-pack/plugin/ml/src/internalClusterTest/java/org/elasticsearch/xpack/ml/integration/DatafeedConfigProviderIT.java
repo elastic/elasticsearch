@@ -11,14 +11,22 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.SystemIndexClient;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.hamcrest.core.IsInstanceOf;
@@ -54,6 +62,16 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry());
         waitForMlTemplates();
+    }
+
+    @Override
+    public Client wrapClient(Client client) {
+        assert client instanceof NodeClient;
+        return new SystemIndexClient((NodeClient) client, List.of(
+            new SystemIndexDescriptor(MlMetaIndex.indexName(), "Contains scheduling and anomaly tracking metadata"),
+            new SystemIndexDescriptor(MlConfigIndex.indexName(), "Contains ML configuration data"),
+            new SystemIndexDescriptor(InferenceIndexConstants.INDEX_PATTERN, "Contains ML model configuration and statistics")
+        ), getInstanceFromNode(ClusterService.class)::state, getInstanceFromNode(IndexNameExpressionResolver.class));
     }
 
     public void testCrud() throws InterruptedException {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -52,6 +54,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
     implements IndicesRequest.Replaceable, ToXContentObject {
+    private static final Logger logger = LogManager.getLogger(DeleteByQueryRequest.class);
 
     public DeleteByQueryRequest() {
         this(new SearchRequest());
@@ -108,7 +111,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     /**
      * Set the IndicesOptions for controlling unavailable indices
      */
-    public DeleteByQueryRequest setIndicesOptions(IndicesOptions indicesOptions) {
+    @Override
+    public DeleteByQueryRequest indicesOptions(IndicesOptions indicesOptions) {
         getSearchRequest().indicesOptions(indicesOptions);
         return this;
     }

@@ -28,10 +28,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.PainlessPlugin;
+import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.RuntimeFieldsPainlessExtension;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
@@ -53,7 +56,10 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType ft = build("for (def v : source.foo) {value(v.toString())}");
+                ScriptKeywordMappedFieldType ft = build(
+                    "for (def v : source.foo) {value(v.toString() + params.param)}",
+                    Map.of("param", "-suffix")
+                );
                 IndexMetadata imd = IndexMetadata.builder("test")
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT))
                     .numberOfShards(1)
@@ -68,11 +74,11 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                     }
 
                     @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    public LeafCollector getLeafCollector(LeafReaderContext context) {
                         SortedBinaryDocValues dv = ifd.load(context).getBytesValues();
                         return new LeafCollector() {
                             @Override
-                            public void setScorer(Scorable scorer) throws IOException {}
+                            public void setScorer(Scorable scorer) {}
 
                             @Override
                             public void collect(int doc) throws IOException {
@@ -85,7 +91,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of("1", "1", "2")));
+                assertThat(results, equalTo(List.of("1-suffix", "1-suffix", "2-suffix")));
             }
         }
     }
@@ -208,7 +214,8 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(build("value(source.foo.toString())").termQuery("1", mockContext())), equalTo(1));
+                ScriptKeywordMappedFieldType fieldType = build("value(source.foo.toString() + params.param)", Map.of("param", "-suffix"));
+                assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
     }
@@ -250,7 +257,14 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     private ScriptKeywordMappedFieldType build(String code) throws IOException {
-        Script script = new Script(code);
+        return build(new Script(code));
+    }
+
+    private ScriptKeywordMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+        return build(new Script(ScriptType.INLINE, PainlessScriptEngine.NAME, code, params));
+    }
+
+    private ScriptKeywordMappedFieldType build(Script script) throws IOException {
         PainlessPlugin painlessPlugin = new PainlessPlugin();
         painlessPlugin.loadExtensions(new ExtensionLoader() {
             @Override

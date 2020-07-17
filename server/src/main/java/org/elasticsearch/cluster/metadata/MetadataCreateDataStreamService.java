@@ -179,10 +179,11 @@ public class MetadataCreateDataStreamService {
 
         Map<String, Object> parsedTemplateMapping =
             MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
-        String configuredPath = ObjectPath.eval("_doc._data_stream_timestamp.path", parsedTemplateMapping);
-        if (timestampFieldName.equals(configuredPath) == false) {
-            throw new IllegalArgumentException("[_data_stream_timestamp] meta field doesn't point to data stream timestamp field [" +
-                timestampFieldName + "]");
+        Boolean enabled = ObjectPath.eval("_doc._data_stream_timestamp.enabled", parsedTemplateMapping);
+        // Sanity check: if this fails then somehow the mapping for _data_stream_timestamp has been overwritten and
+        // that would be a bug.
+        if (enabled == null || enabled == false) {
+            throw new IllegalStateException("[_data_stream_timestamp] meta field has been disabled");
         }
 
         // Sanity check (this validation logic should already have been executed when merging mappings):

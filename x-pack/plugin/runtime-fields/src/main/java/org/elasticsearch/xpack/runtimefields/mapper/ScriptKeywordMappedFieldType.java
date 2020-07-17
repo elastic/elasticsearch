@@ -13,6 +13,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -61,9 +62,14 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     }
 
     @Override
+    public String familyTypeName() {
+        return KeywordFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
     public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptBinaryFieldData.Builder(scriptFactory);
+        return new ScriptBinaryFieldData.Builder(script, scriptFactory);
     }
 
     private StringScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {

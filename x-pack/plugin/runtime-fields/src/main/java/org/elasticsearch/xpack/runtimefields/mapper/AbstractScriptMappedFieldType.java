@@ -35,6 +35,16 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         return ScriptFieldMapper.CONTENT_TYPE;
     }
 
+    @Override
+    public final boolean isSearchable() {
+        return true;
+    }
+
+    @Override
+    public final boolean isAggregatable() {
+        return true;
+    }
+
     protected final void checkAllowExpensiveQueries(QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(

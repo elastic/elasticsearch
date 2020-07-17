@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,21 +26,29 @@ import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
 
-    private static final String[] SUPPORTED_RUNTIME_TYPES = new String[] { "keyword" };
+    private final String[] runtimeTypes;
+
+    public ScriptFieldMapperTests() {
+        this.runtimeTypes = ScriptFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
+        Arrays.sort(runtimeTypes);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class, RuntimeFields.class, TestScriptPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "needs to be fixed upstream")
     public void testRuntimeTypeIsRequired() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -46,7 +56,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("my_field")
             .field("type", "script")
-            .field("script", "value('test')")
+            .field("script", "keyword('test')")
             .endObject()
             .endObject()
             .endObject()
@@ -56,6 +66,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("Failed to parse mapping: runtime_type must be specified for script field [my_field]", exception.getMessage());
     }
 
+    @AwaitsFix(bugUrl = "needs to be fixed upstream")
     public void testScriptIsRequired() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -63,7 +74,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("my_field")
             .field("type", "script")
-            .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
+            .field("runtime_type", randomFrom(runtimeTypes))
             .endObject()
             .endObject()
             .endObject()
@@ -80,7 +91,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("my_field")
             .field("type", "script")
-            .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
+            .field("runtime_type", randomFrom(runtimeTypes))
             .startObject("script")
             .field("id", "test")
             .endObject()
@@ -95,6 +106,14 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testUnsupportedRuntimeType() throws Exception {
+        MapperParsingException exc = expectThrows(
+            MapperParsingException.class,
+            () -> createIndex("test", Settings.EMPTY, mapping("unsupported"))
+        );
+        assertEquals("Failed to parse mapping: runtime_type [unsupported] not supported", exc.getMessage());
+    }
+
     public void testKeyword() throws IOException {
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("keyword")).mapperService();
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
@@ -107,6 +126,38 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper, instanceOf(ScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("long")), Strings.toString(mapperService.documentMapper()));
+    }
+
+    public void testFieldCaps() throws Exception {
+        for (String runtimeType : runtimeTypes) {
+            String scriptIndex = "test_" + runtimeType + "_script";
+            String concreteIndex = "test_" + runtimeType + "_concrete";
+            createIndex(scriptIndex, Settings.EMPTY, mapping(runtimeType));
+            {
+                XContentBuilder mapping = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", runtimeType)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject();
+                createIndex(concreteIndex, Settings.EMPTY, mapping);
+            }
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("test_" + runtimeType + "_*").setFields("field").get();
+            assertThat(response.getIndices(), arrayContainingInAnyOrder(scriptIndex, concreteIndex));
+            Map<String, FieldCapabilities> field = response.getField("field");
+            assertEquals(1, field.size());
+            FieldCapabilities fieldCapabilities = field.get(runtimeType);
+            assertTrue(fieldCapabilities.isSearchable());
+            assertTrue(fieldCapabilities.isAggregatable());
+            assertEquals(runtimeType, fieldCapabilities.getType());
+            assertNull(fieldCapabilities.nonAggregatableIndices());
+            assertNull(fieldCapabilities.nonSearchableIndices());
+            assertEquals("field", fieldCapabilities.getName());
+        }
     }
 
     private XContentBuilder mapping(String type) throws IOException {

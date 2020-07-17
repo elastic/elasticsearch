@@ -59,7 +59,7 @@ PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 
 PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
 {
-  "indices": [],
+  "indices": ["index_1"],
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
@@ -392,5 +392,6 @@ GET /_snapshot/my_repository/snapshot_2/_status
 // TESTRESPONSE[s/"start_time_in_millis" : 1594829326691/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
 // TESTRESPONSE[s/"time_in_millis" : 205/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
 // TESTRESPONSE[s/"file_count" : 3/"file_count" : $body.snapshots.0.stats.incremental.file_count/]
+// TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.stats.total.file_count/]
 // TESTRESPONSE[s/"size_in_bytes" : 5969/"size_in_bytes" : $body.snapshots.0.stats.incremental.size_in_bytes/]
 // TESTRESPONSE[s/"start_time_in_millis" : 1594829326896/"start_time_in_millis" : $body.snapshots.0.indices.index_1.stats.start_time_in_millis/]

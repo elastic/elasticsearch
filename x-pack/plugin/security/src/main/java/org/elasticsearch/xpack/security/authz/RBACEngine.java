@@ -494,7 +494,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static List<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
-        Predicate<String> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
+        Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
@@ -503,15 +503,15 @@ public class RBACEngine implements AuthorizationEngine {
         Set<String> indicesAndAliases = new HashSet<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
         for (Map.Entry<String, IndexAbstraction> entry : lookup.entrySet()) {
-            String indexAbstraction = entry.getKey();
+            IndexAbstraction indexAbstraction = entry.getValue();
             if (predicate.test(indexAbstraction)) {
-                if (entry.getValue().getType() != IndexAbstraction.Type.DATA_STREAM) {
-                    indicesAndAliases.add(indexAbstraction);
+                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+                    indicesAndAliases.add(indexAbstraction.getName());
                 } else if (includeDataStreams) {
                     // add data stream and its backing indices for any authorized data streams
-                    indicesAndAliases.addAll(entry.getValue().getIndices().stream()
+                    indicesAndAliases.add(indexAbstraction.getName());
+                    indicesAndAliases.addAll(indexAbstraction.getIndices().stream()
                         .map(i -> i.getIndex().getName()).collect(Collectors.toList()));
-                    indicesAndAliases.add(indexAbstraction);
                 }
             }
         }

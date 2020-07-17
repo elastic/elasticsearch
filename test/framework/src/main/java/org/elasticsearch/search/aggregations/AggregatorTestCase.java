@@ -867,7 +867,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, null, null);
+            super(null, null, null, null, null, null);
+        }
+
+        @Override
+        public Settings getSettings() {
+            return Settings.EMPTY;
         }
 
         @Override
@@ -895,10 +900,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Make a {@linkplain DateFieldMapper.DateFieldType} for a {@code date}.
      */
     protected DateFieldMapper.DateFieldType dateField(String name, DateFieldMapper.Resolution resolution) {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
-        builder.withResolution(resolution);
-        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT.id).build();
-        return builder.build(new BuilderContext(settings, new ContentPath())).fieldType();
+        return new DateFieldMapper.DateFieldType(name, resolution);
     }
 
     /**

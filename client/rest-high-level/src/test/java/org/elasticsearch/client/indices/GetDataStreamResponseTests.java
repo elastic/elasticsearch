@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction;
-import org.elasticsearch.action.admin.indices.datastream.GetDataStreamAction.Response.DataStreamInfo;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -55,7 +55,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
         long generation = indices.size() + randomLongBetween(1, 128);
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField(randomAlphaOfLength(10)), indices, generation);
+        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
         return new DataStreamInfo(dataStream, ClusterHealthStatus.YELLOW, randomAlphaOfLengthBetween(2, 10),
             randomAlphaOfLengthBetween(2, 10));
     }

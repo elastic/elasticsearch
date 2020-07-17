@@ -146,6 +146,10 @@ Example response:
       "watcher" : {
          "available" : true,
          "enabled" : true
+      },
+      "data_streams" : {
+         "available" : true,
+         "enabled" : true,
       }
    },
    "tagline" : "You know, for X"

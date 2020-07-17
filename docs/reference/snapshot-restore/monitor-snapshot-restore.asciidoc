@@ -76,15 +76,15 @@ DELETE /_snapshot/my_backup/snapshot_1
 // TEST[continued]
 
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
-be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed
+be canceled by deleting data streams and indices that are being restored. Please note that data for all deleted data streams and indices will be removed
 from the cluster as a result of this operation.
 
 [float]
 === Effect of cluster blocks on snapshot and restore 
 
 Many snapshot and restore operations are affected by cluster and index blocks. For example, registering and unregistering
-repositories require write global metadata access. The snapshot operation requires that all indices and their metadata as
-well as the global metadata were readable. The restore operation requires the global metadata to be writable, however
+repositories require write global metadata access. The snapshot operation requires that all indices, backing indices, and their metadata as
+well as the global metadata be readable. The restore operation requires the global metadata to be writable, however
 the index level blocks are ignored during restore because indices are essentially recreated during restore.
 Please note that a repository content is not part of the cluster and therefore cluster blocks don't affect internal
 repository operations such as listing or deleting snapshots from an already registered repository.

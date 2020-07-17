@@ -20,10 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.SemanticScope;
@@ -47,13 +46,12 @@ public class EString extends AExpression {
         return string;
     }
 
-    @Override
     public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
         return userTreeVisitor.visitString(this, input);
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to string constant [" + string + "]"));
@@ -63,16 +61,7 @@ public class EString extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
         }
 
-        Output output = new Output();
         semanticScope.putDecoration(this, new ValueType(String.class));
-
-        ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(String.class);
-        constantNode.setConstant(string);
-
-        output.expressionNode = constantNode;
-
-        return output;
+        semanticScope.putDecoration(this, new StandardConstant(string));
     }
 }

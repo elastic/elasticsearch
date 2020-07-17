@@ -3,16 +3,18 @@
 [[eql-search]]
 == Run an EQL search
 
-dev::[]
+experimental::[]
 
 To start using EQL in {es}, first ensure your event data meets
 <<eql-requirements,EQL requirements>>. You can then use the <<eql-search-api,EQL
-search API>> to search event data stored in one or more {es} indices.
+search API>> to search event data stored in one or more {es} data streams or
+indices. The API requires a query written in {es}'s supported <<eql-syntax,EQL
+syntax>>.
 
 .*Example*
 [%collapsible]
 ====
-To get started, ingest or add the data to an {es} index.
+To get started, ingest or add the data to an {es} data stream or index.
 
 The following <<docs-bulk,bulk API>> request adds some example log data to the
 `sec_logs` index. This log data follows the {ecs-ref}[Elastic Common Schema
@@ -21,16 +23,18 @@ The following <<docs-bulk,bulk API>> request adds some example log data to the
 [source,console]
 ----
 PUT /sec_logs/_bulk?refresh
-{"index":{"_index" : "sec_logs", "_id" : "1"}}
-{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD","sequence": 1 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "sec_logs", "_id" : "2"}}
-{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "sec_logs", "_id" : "3"}}
-{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "sec_logs", "_id" : "4"}}
-{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe" } }
-{"index":{"_index" : "sec_logs", "_id" : "5"}}
-{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "path": "C:\\Windows\\System32\\regsvr32.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-06T11:04:05.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-06T11:04:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:06:07.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:07:08.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "file", "id": "bYA7gPay", "sequence": 4 }, "file": { "accessed": "2020-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\Windows\\System32\\cmd.exe", "type": "file", "size": 16384 }, "process": { "name": "cmd.exe", "executable": "C:\\Windows\\System32\\cmd.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:07:09.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "aR3NWVOs", "sequence": 5 }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
+{"index":{ }}
+{ "@timestamp": "2020-12-07T11:07:10.000Z", "agent": { "id": "8a4f500d" }, "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "name": "regsvr32.exe", "executable": "C:\\Windows\\System32\\regsvr32.exe" } }
 ----
 // TESTSETUP
 
@@ -81,9 +85,9 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
       "relation": "eq"
     },
     "events": [
-      {
+       {
         "_index": "sec_logs",
-        "_id": "1",
+        "_id": "OQmfCaduce8zoHT93o4H",
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-06T11:04:05.000Z",
@@ -97,16 +101,13 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
           },
           "process": {
             "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
-        },      
-        "sort": [
-          1607252645000
-        ]
+        }
       },
       {
         "_index": "sec_logs",
-        "_id": "3",
+        "_id": "xLkCaj4EujzdNSxfYLbO",
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:06:07.000Z",
@@ -120,18 +121,17 @@ https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
           },
           "process": {
             "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607339167000
-        ]
+        }
       }
     ]
   }
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 ====
 
 [discrete]
@@ -170,7 +170,6 @@ GET /sec_logs/_eql/search
   """
 }
 ----
-// TEST[s/search/search\?filter_path\=\-\*\.sequences\.events\.\*fields/]
 
 The API returns the following response. Matching events in
 the `hits.sequences.events` property are sorted by
@@ -194,7 +193,10 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
         "events": [
           {
             "_index": "sec_logs",
-            "_id": "4",
+            "_id": "AtOJ4UjUBAAx3XR5kcCM",
+            "_version" : 1,
+            "_seq_no" : 3,
+            "_primary_term" : 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -215,16 +217,16 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
               },
               "process": {
                 "name": "cmd.exe",
-                "path": "C:\\Windows\\System32\\cmd.exe"
+                "executable": "C:\\Windows\\System32\\cmd.exe"
               }
-            },
-            "sort": [
-              1607339228000
-            ]
+            }
           },
           {
             "_index": "sec_logs",
-            "_id": "5",
+            "_id": "yDwnGIJouOYGBzP0ZE9n",
+            "_version" : 1,
+            "_seq_no" : 4,
+            "_primary_term" : 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -238,12 +240,9 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
               },
               "process": {
                 "name": "regsvr32.exe",
-                "path": "C:\\Windows\\System32\\regsvr32.exe"
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "sort": [
-              1607339229000
-            ]
+            }
           }
         ]
       }
@@ -252,8 +251,30 @@ the https://en.wikipedia.org/wiki/Unix_time[Unix epoch], in ascending order.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
 
-You can further constrain matching event sequences using the `by` keyword.
+You can use the <<eql-with-maxspan-keywords,`with maxspan` keywords>> to
+constrain a sequence to a specified timespan.
+
+The following EQL search request adds `with maxspan=1h` to the previous query.
+This ensures all events in a matching sequence occur within one hour (`1h`) of
+the first event's timestamp.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    sequence with maxspan=1h
+      [ file where file.name == "cmd.exe" ]
+      [ process where stringContains(process.name, "regsvr32") ]
+  """
+}
+----
+
+You can further constrain matching event sequences using the
+<<eql-by-keyword,`by` keyword>>.
 
 The following EQL search request adds `by agent.id` to each event item. This
 ensures events matching the sequence share the same `agent.id` field value.
@@ -263,7 +284,7 @@ ensures events matching the sequence share the same `agent.id` field value.
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence
+    sequence with maxspan=1h
       [ file where file.name == "cmd.exe" ] by agent.id
       [ process where stringContains(process.name, "regsvr32") ] by agent.id
   """
@@ -279,13 +300,12 @@ prior one.
 GET /sec_logs/_eql/search
 {
   "query": """
-    sequence by agent.id
+    sequence by agent.id with maxspan=1h
       [ file where file.name == "cmd.exe" ]
       [ process where stringContains(process.name, "regsvr32") ]
   """
 }
 ----
-// TEST[s/search/search\?filter_path\=\-\*\.sequences\.\*events\.\*fields/]
 
 The API returns the following response. The `hits.sequences.join_keys` property
 contains the shared `agent.id` value for each matching event.
@@ -310,7 +330,10 @@ contains the shared `agent.id` value for each matching event.
         "events": [
           {
             "_index": "sec_logs",
-            "_id": "4",
+            "_id": "AtOJ4UjUBAAx3XR5kcCM",
+            "_version": 1,
+            "_seq_no": 3,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:08.000Z",
@@ -331,16 +354,16 @@ contains the shared `agent.id` value for each matching event.
               },
               "process": {
                 "name": "cmd.exe",
-                "path": "C:\\Windows\\System32\\cmd.exe"
+                "executable": "C:\\Windows\\System32\\cmd.exe"
               }
-            },
-            "sort": [
-              1607339228000
-            ]
+            }
           },
           {
             "_index": "sec_logs",
-            "_id": "5",
+            "_id": "yDwnGIJouOYGBzP0ZE9n",
+            "_version": 1,
+            "_seq_no": 4,
+            "_primary_term": 1,
             "_score": null,
             "_source": {
               "@timestamp": "2020-12-07T11:07:09.000Z",
@@ -354,12 +377,9 @@ contains the shared `agent.id` value for each matching event.
               },
               "process": {
                 "name": "regsvr32.exe",
-                "path": "C:\\Windows\\System32\\regsvr32.exe"
+                "executable": "C:\\Windows\\System32\\regsvr32.exe"
               }
-            },
-            "sort": [
-              1607339229000
-            ]
+            }
           }
         ]
       }
@@ -368,14 +388,36 @@ contains the shared `agent.id` value for each matching event.
 }
 ----
 // TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_id": "AtOJ4UjUBAAx3XR5kcCM"/"_id": $body.hits.sequences.0.events.0._id/]
+// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
+
+You can use the <<eql-until-keyword,`until` keyword>> to specify an expiration
+event for sequences. Matching sequences must end before this event.
+
+The following request adds
+`until [ process where event.type == "termination" ]` to the previous EQL query.
+This ensures matching sequences end before a process termination event.
+
+[source,console]
+----
+GET /sec_logs/_eql/search
+{
+  "query": """
+    sequence by agent.id with maxspan=1h
+      [ file where file.name == "cmd.exe" ]
+      [ process where stringContains(process.name, "regsvr32") ]
+    until [ process where event.type == "termination" ]
+  """
+}
+----
 ====
 
 [discrete]
 [[eql-search-specify-event-category-field]]
 === Specify an event category field
 
-The EQL search API uses `event.category` as the required
-<<eql-required-fields,event category field>> by default. You can use the
+By default, the EQL search API uses `event.category` as the
+<<eql-required-fields,event category field>>. You can use the
 `event_category_field` parameter to specify another event category field.
 
 .*Example*
@@ -400,9 +442,9 @@ GET /sec_logs/_eql/search
 [[eql-search-specify-timestamp-field]]
 === Specify a timestamp field
 
-The EQL search API uses `@timestamp` as the required <<eql-required-fields,event
-timestamp field>> by default. You can use the `timestamp_field` parameter to
-specify another timestamp field.
+By default, EQL searches use `@timestamp` as the <<eql-required-fields,event
+timestamp field>>. You can use the EQL search API's `timestamp_field` parameter
+to specify another timestamp field.
 
 .*Example*
 [%collapsible]
@@ -444,21 +486,13 @@ GET /sec_logs/_eql/search
 {
   "tiebreaker_field": "event.id",
   "query": """
-    process where process.name == "cmd.exe" and stringContains(process.path, "System32")
+    process where process.name == "cmd.exe" and stringContains(process.executable, "System32")
   """
 }
 ----
 // TEST[s/search/search\?filter_path\=\-\*\.events\.\*fields/]
 
-The API returns the following response. Note the `sort` property of each
-matching event contains an array of two items:
-
-* The first item is the event's <<eql-search-api-timestamp-field,timestamp>>,
-converted to milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
-epoch].
-
-* The second item is the event's `event.id` value. This value is used as a sort
-tiebreaker for events with the same timestamp.
+The API returns the following response.
 
 [source,console-result]
 ----
@@ -475,7 +509,7 @@ tiebreaker for events with the same timestamp.
     "events": [
       {
         "_index": "sec_logs",
-        "_id": "1",
+        "_id": "OQmfCaduce8zoHT93o4H",
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-06T11:04:05.000Z",
@@ -489,17 +523,13 @@ tiebreaker for events with the same timestamp.
           },
           "process": {
             "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607252645000,                                <1>
-          "edwCRnyD"                                    <2>
-          ]
-        },
-            {
+        }
+      },
+      {
         "_index": "sec_logs",
-        "_id": "3",
+        "_id": "xLkCaj4EujzdNSxfYLbO",
         "_score": null,
         "_source": {
           "@timestamp": "2020-12-07T11:06:07.000Z",
@@ -513,23 +543,17 @@ tiebreaker for events with the same timestamp.
           },
           "process": {
             "name": "cmd.exe",
-            "path": "C:\\Windows\\System32\\cmd.exe"
+            "executable": "C:\\Windows\\System32\\cmd.exe"
           }
-        },
-        "sort": [
-          1607339167000,                                <1>
-          "cMyt5SZ2"                                    <2>
-        ]
+        }
       }
     ]
   }
 }
 ----
 // TESTRESPONSE[s/"took": 34/"took": $body.took/]
-<1> The event's <<eql-search-api-timestamp-field,timestamp>>, converted to 
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix
-epoch]
-<2> The event's `event.id` value.
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 ====
 
 
@@ -834,11 +858,11 @@ search API's `case_sensitive` parameter to toggle case sensitivity on or off.
 [%collapsible]
 ====
 The following search request contains a query that matches `process` events
-with a `process.path` containing `System32`.
+with a `process.executable` containing `System32`.
 
 Because the `case_sensitive` parameter is `true`, this query only matches
-`process.path` values containing `System32` with the exact same capitalization.
-A `process.path` value containing `system32` or `SYSTEM32` would not match this
+`process.executable` values containing `System32` with the exact same capitalization.
+A `process.executable` value containing `system32` or `SYSTEM32` would not match this
 query.
 
 [source,console]
@@ -848,7 +872,7 @@ GET /sec_logs/_eql/search
   "keep_on_completion": true,
   "case_sensitive": true,
   "query": """
-    process where stringContains(process.path, "System32")
+    process where stringContains(process.executable, "System32")
   """
 }
 ----

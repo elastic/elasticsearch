@@ -23,9 +23,8 @@ import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetr
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase<AggregateDoubleMetricFieldType> {
+public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
-    @Override
     protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta) {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, false, meta);
         for (AggregateDoubleMetricFieldMapper.Metric m : List.of(

@@ -60,7 +60,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -292,34 +291,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         public AggregateDoubleMetricFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
             super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
-        }
-
-        AggregateDoubleMetricFieldType(AggregateDoubleMetricFieldType other) {
-            super(other);
-            this.metricFields = other.metricFields;
-            this.defaultMetric = other.defaultMetric;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new AggregateDoubleMetricFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            if (super.equals(o) == false) {
-                return false;
-            }
-            AggregateDoubleMetricFieldType other = (AggregateDoubleMetricFieldType) o;
-            return Objects.equals(metricFields, other.metricFields) && defaultMetric == other.defaultMetric;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), metricFields, defaultMetric);
         }
 
         /**

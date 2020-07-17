@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
@@ -292,7 +293,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     @Override
-    public final FieldMapper merge(Mapper mergeWith) {
+    public FieldMapper merge(Mapper mergeWith) {
         FieldMapper merged = clone();
         List<String> conflicts = new ArrayList<>();
         if (mergeWith instanceof FieldMapper == false) {
@@ -323,7 +324,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         FieldType other = mergeWith.fieldType;
         MappedFieldType otherm = mergeWith.mappedFieldType;
-        this.mappedFieldType.updateMeta(otherm.meta());
 
         boolean indexed =  fieldType.indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
@@ -487,7 +487,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected abstract String contentType();
 
-    public static class MultiFields {
+    public static class MultiFields implements Iterable<Mapper> {
 
         public static MultiFields empty() {
             return new MultiFields(ImmutableOpenMap.<String, FieldMapper>of());
@@ -502,8 +502,29 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return this;
             }
 
+            public Builder add(Mapper mapper) {
+                mapperBuilders.put(mapper.simpleName(), new Mapper.Builder(mapper.simpleName()) {
+                    @Override
+                    public Mapper build(BuilderContext context) {
+                        return mapper;
+                    }
+                });
+                return this;
+            }
+
+            public Builder update(Mapper toMerge, ContentPath contentPath) {
+                if (mapperBuilders.containsKey(toMerge.simpleName()) == false) {
+                    add(toMerge);
+                } else {
+                    Mapper.Builder builder = mapperBuilders.get(toMerge.simpleName());
+                    Mapper existing = builder.build(new BuilderContext(Settings.EMPTY, contentPath));
+                    add(existing.merge(toMerge));
+                }
+                return this;
+            }
+
             @SuppressWarnings("unchecked")
-            public MultiFields build(FieldMapper.Builder mainFieldBuilder, BuilderContext context) {
+            public MultiFields build(Mapper.Builder mainFieldBuilder, BuilderContext context) {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
@@ -568,6 +589,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return new MultiFields(mappers);
         }
 
+        @Override
         public Iterator<Mapper> iterator() {
             return StreamSupport.stream(mappers.values().spliterator(), false).map((p) -> (Mapper)p.value).iterator();
         }
@@ -633,6 +655,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     return EMPTY;
                 }
                 return new CopyTo(Collections.unmodifiableList(copyToBuilders));
+            }
+
+            public void reset(CopyTo copyTo) {
+                copyToBuilders.clear();
+                copyToBuilders.addAll(copyTo.copyToFields);
             }
         }
 

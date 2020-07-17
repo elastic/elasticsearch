@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BaseDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -200,7 +201,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private void loadFileDetails() {
         for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
-            recoveryStateIndex.addFileDetail(file.physicalName(), file.length(), false);
+            recoveryStateIndex.addSnapshotFile(file.physicalName(), file.length());
         }
     }
 
@@ -320,7 +321,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void clearCache() {
         cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
-        files().forEach(fileInfo -> recoveryStateIndex.resetRecoveredBytesOfFile(fileInfo.physicalName()));
     }
 
     protected IndexInputStats createIndexInputStats(final long fileLength) {
@@ -358,6 +358,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache && isExcludedFromCache(name) == false) {
+            registerEvictionListener(fileInfo);
             return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize());
         } else {
             return new DirectBlobContainerIndexInput(
@@ -368,6 +369,41 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 getUncachedChunkSize(),
                 bufferSize(context)
             );
+        }
+    }
+
+    private void registerEvictionListener(BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
+        if (recoveryStateRegisteredEvictionListeners.add(fileInfo.physicalName())) {
+            try {
+                CacheFile cacheFile = getCacheFile(createCacheKey(fileInfo.physicalName()), fileInfo.length());
+                RecoveryStateEvictionListener listener = new RecoveryStateEvictionListener(fileInfo.physicalName());
+                cacheFile.acquire(listener);
+            } catch (AlreadyClosedException e) {
+                // The file was evicted in between
+                boolean removed = recoveryStateRegisteredEvictionListeners.remove(fileInfo.physicalName());
+                assert removed;
+            } catch (Exception e) {
+                throw new IOException("Unable to acquire a CacheFile for " + fileInfo.physicalName(), e);
+            }
+        }
+    }
+
+    private class RecoveryStateEvictionListener implements CacheFile.EvictionListener {
+        private final String fileName;
+        private final AtomicBoolean notified = new AtomicBoolean(false);
+
+        RecoveryStateEvictionListener(String fileName) {
+            this.fileName = fileName;
+        }
+
+        @Override
+        public void onEviction(CacheFile evictedCacheFile) {
+            if (notified.compareAndSet(false, true)) {
+                evictedCacheFile.release(this);
+                recoveryStateIndex.resetRecoveredBytesOfFile(fileName);
+                boolean removed = recoveryStateRegisteredEvictionListeners.remove(fileName);
+                assert removed;
+            }
         }
     }
 
@@ -459,10 +495,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void trackPersistedBytesForFile(String name, long bytes) {
         recoveryStateIndex.addRecoveredBytesToFile(name, bytes);
-    }
-
-    public void trackFileEviction(String name) {
-        recoveryStateIndex.resetRecoveredBytesOfFile(name);
     }
 
     public static Directory create(

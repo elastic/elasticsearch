@@ -30,7 +30,7 @@ public class SearchableSnapshotsConstants {
 
     public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
-    public static final String SNAPSHOT_RECOVERY_STATE_FACTORY_KEY = "on_demand";
+    public static final String SNAPSHOT_RECOVERY_STATE_FACTORY_KEY = "lazy";
 
     public static boolean isSearchableSnapshotStore(Settings indexSettings) {
         return SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED

@@ -24,7 +24,7 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.projectFeatures.versionedSet
 import jetbrains.buildServer.configs.kotlin.v2019_2.vcs.GitVcsRoot
 
 open class TeamLevelProject(init: TeamLevelProject.() -> Unit) : Project() {
-    private val developmentBranches = listOf("master", "7.x", "7.8", "6.8")
+    private val developmentBranches = listOf("master", "7.x", "7.9", "7.8", "6.8")
 
     init {
         parentId("_Root")

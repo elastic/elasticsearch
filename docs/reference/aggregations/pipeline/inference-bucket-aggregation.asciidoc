@@ -1,10 +1,13 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-inference-bucket-aggregation]]
-=== Inference Bucket Aggregation
+=== {infer-cap} Bucket Aggregation
 
-A parent pipeline aggregation which loads a pre-trained model and performs inference on the
-collated result field from the parent bucket aggregation.
+A parent pipeline aggregation which loads a pre-trained model and performs 
+{infer} on the collated result fields from the parent bucket aggregation.
+
+To use the {infer} bucket aggregation, you need to have the same security 
+privileges that are required for using the <<get-inference>>.
 
 [[inference-bucket-agg-syntax]]
 ==== Syntax
@@ -33,6 +36,7 @@ A `inference` aggregation looks like this in isolation:
 <2> The optional inference config which overrides the model's default settings
 <3> Map the value of `avg_agg` to the model's input field `avg_cost`
 
+
 [[inference-bucket-params]]
 .`inference` Parameters
 [options="header"]
@@ -46,8 +50,10 @@ See <<buckets-path-syntax>> for more details | Required       | -
 
 
 ==== Configuration options for {infer} models
-The `inference_config` setting is optional and usaully isn't required as the pre-trained models come equipped with sensible defaults.
-In the context of aggregations some options can overridden for each of the 2 types of model.
+
+The `inference_config` setting is optional and usually isn't required as the 
+pre-trained models come equipped with sensible defaults. In the context of 
+aggregations some options can overridden for each of the 2 types of model.
 
 [discrete]
 [[inference-agg-regression-opt]]

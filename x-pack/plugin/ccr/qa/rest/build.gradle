@@ -2,10 +2,18 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'info'
+    includeXpack 'ccr'
+  }
+}
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('ccr'))
 }
 
 task restTest(type: RestIntegTestTask) {
@@ -19,7 +27,6 @@ testClusters.restTest {
   // that is thrown in production when indexing a document directly in a follower index.
   jvmArgs '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   // TODO: reduce the need for superuser here

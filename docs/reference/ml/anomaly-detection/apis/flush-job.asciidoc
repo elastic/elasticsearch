@@ -38,7 +38,7 @@ opened again before analyzing further data.
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-flush-job-query-parms]]
 ==== {api-query-parms-title}
@@ -67,16 +67,14 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[ml-flush-job-example]]
 ==== {api-examples-title}
 
-The following example flushes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_flush
+POST _ml/anomaly_detectors/low_request_rate/_flush
 {
   "calc_interim": true
 }
 --------------------------------------------------
-// TEST[skip:setup:server_metrics_openjob]
+// TEST[skip:Kibana sample data]
 
 When the operation succeeds, you receive the following results:
 
@@ -100,7 +98,7 @@ on January 1, 2018:
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_flush
 {
-  "advance_time": "1514804400"
+  "advance_time": "1514804400000"
 }
 --------------------------------------------------
 // TEST[skip:setup:server_metrics_openjob]

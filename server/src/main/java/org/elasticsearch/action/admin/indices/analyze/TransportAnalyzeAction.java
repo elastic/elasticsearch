@@ -49,8 +49,8 @@ import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -177,9 +177,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (indexService == null) {
                 throw new IllegalArgumentException("analysis based on a specific field requires an index");
             }
-            MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
+            MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
             if (fieldType != null) {
-                if (fieldType.tokenized() || fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                if (fieldType instanceof StringFieldType) {
                     return fieldType.indexAnalyzer();
                 } else {
                     throw new IllegalArgumentException("Can't process field [" + request.field() +

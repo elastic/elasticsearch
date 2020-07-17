@@ -6,14 +6,13 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
+import org.elasticsearch.example.realm.CustomRoleMappingRealm;
 import org.elasticsearch.example.role.CustomInMemoryRolesProvider;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.security.AccessController;
@@ -43,19 +42,22 @@ public class ExampleSecurityExtension implements SecurityExtension {
     }
 
     @Override
-    public Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
-        return Collections.singletonMap(CustomRealm.TYPE, CustomRealm::new);
+    public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
+        return Map.ofEntries(
+            Map.entry(CustomRealm.TYPE, CustomRealm::new),
+            Map.entry(CustomRoleMappingRealm.TYPE,
+                config -> new CustomRoleMappingRealm(config, components.roleMapper()))
+        );
     }
 
     @Override
-    public AuthenticationFailureHandler getAuthenticationFailureHandler() {
+    public AuthenticationFailureHandler getAuthenticationFailureHandler(SecurityComponents components) {
         return new CustomAuthenticationFailureHandler();
     }
 
-
     @Override
     public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-    getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
+    getRolesProviders(SecurityComponents components) {
         CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(Collections.singletonMap(ROLE_A, "read"));
         Map<String, String> roles = new HashMap<>();
         roles.put(ROLE_A, "all");

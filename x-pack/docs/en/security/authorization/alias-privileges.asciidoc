@@ -1,10 +1,107 @@
 [role="xpack"]
 [[securing-aliases]]
-=== Granting privileges for indices and aliases
+=== Granting privileges for data streams and index aliases
 
-Elasticsearch allows to execute operations against
-<<indices-aliases,index aliases>>,
-which are effectively virtual indices. An alias points to one or more indices,
+{es} {security-features} allow you to secure operations executed against
+<<data-streams,data streams>> and <<indices-aliases,index aliases>>.
+
+[[data-stream-privileges]]
+==== Data stream privileges
+
+A data stream consists of one or more backing indices, which store the stream's
+data. Most requests sent to a data stream are routed to one or more of these
+backing indices.
+
+Similar to an index, you can use <<privileges-list-indices,indices privileges>>
+to control access to a data stream. Any role or user granted privileges to a
+data stream are automatically granted the same privileges to its backing
+indices.
+
+.*Example*
+[%collapsible]
+====
+`logs` is a data stream that consists of two backing indices: `.ds-logs-000001`
+and `.ds-logs-000002`.
+
+A user is granted the `read` privilege to the `logs` data stream.
+
+[source,js]
+--------------------------------------------------
+{
+  "names" : [ "logs" ],
+  "privileges" : [ "read" ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Because the user is automatically granted the same privileges to the stream's
+backing indices, the user can retrieve a document directly from `.ds-logs-000002`:
+
+////
+[source,console]
+----
+PUT /_index_template/logs_data_stream
+{
+  "index_patterns": [ "logs*" ],
+  "data_stream": { }
+}
+
+PUT /_data_stream/logs
+
+POST /logs/_rollover/
+
+PUT /logs/_create/2?refresh=wait_for
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z"
+}
+----
+////
+
+[source,console]
+----
+GET /.ds-logs-000002/_doc/2
+----
+// TEST[continued]
+
+Later the `logs` data stream <<manually-roll-over-a-data-stream,rolls over>>.
+This creates a new backing index: `.ds-logs-000003`. Because the user still has
+the `read` privilege for the `logs` data stream, the user can retrieve documents
+directly from `.ds-logs-000003`:
+
+////
+[source,console]
+----
+POST /logs/_rollover/
+
+PUT /logs/_create/2?refresh=wait_for
+{
+  "@timestamp": "2020-12-07T11:06:07.000Z"
+}
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+GET /.ds-logs-000003/_doc/2
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_data_stream/*
+
+DELETE /_index_template/*
+----
+// TEST[continued]
+////
+====
+
+[[index-alias-privileges]]
+==== Index alias privileges
+
+An index alias points to one or more indices,
 holds metadata and potentially a filter. The {es} {security-features} treat
 aliases and indices
 the same. Privileges for indices actions are granted on specific indices or

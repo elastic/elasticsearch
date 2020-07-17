@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.LeafReader;
@@ -33,11 +35,13 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -45,36 +49,48 @@ import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
-
+    private static final Logger logger = LogManager.getLogger(PagedBytesIndexFieldData.class);
 
     public static class Builder implements IndexFieldData.Builder {
 
         private final double minFrequency, maxFrequency;
         private final int minSegmentSize;
+        private final ValuesSourceType valuesSourceType;
 
-        public Builder(double minFrequency, double maxFrequency, int minSegmentSize) {
+        public Builder(double minFrequency, double maxFrequency, int minSegmentSize, ValuesSourceType valuesSourceType) {
             this.minFrequency = minFrequency;
             this.maxFrequency = maxFrequency;
             this.minSegmentSize = minSegmentSize;
+            this.valuesSourceType = valuesSourceType;
         }
 
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
                 IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), cache, breakerService,
+            return new PagedBytesIndexFieldData(fieldType.name(), valuesSourceType, cache, breakerService,
                     minFrequency, maxFrequency, minSegmentSize);
         }
     }
 
-    public PagedBytesIndexFieldData(IndexSettings indexSettings, String fieldName,
-                                    IndexFieldDataCache cache, CircuitBreakerService breakerService,
-                                    double minFrequency, double maxFrequency, int minSegmentSize) {
-        super(indexSettings, fieldName, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
+    public PagedBytesIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        IndexFieldDataCache cache,
+        CircuitBreakerService breakerService,
+        double minFrequency,
+        double maxFrequency,
+        int minSegmentSize
+    ) {
+        super(fieldName, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
     }
 
     @Override
@@ -85,15 +101,21 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
+            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        throw new IllegalArgumentException("only supported on numeric fields");
+    }
+
+    @Override
+    public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
         LeafReader reader = context.reader();
-        AtomicOrdinalsFieldData data = null;
+        LeafOrdinalsFieldData data = null;
 
         PagedBytesEstimator estimator =
             new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
-            data = AbstractAtomicOrdinalsFieldData.empty();
+            data = AbstractLeafOrdinalsFieldData.empty();
             estimator.afterLoad(null, data.ramBytesUsed());
             return data;
         }
@@ -124,7 +146,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             final Ordinals ordinals = builder.build();
 
-            data = new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals);
+            data = new PagedBytesLeafFieldData(bytesReader, termOrdToBytesOffset.build(), ordinals);
             success = true;
             return data;
         } finally {

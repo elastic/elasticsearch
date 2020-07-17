@@ -1,0 +1,146 @@
+# Integration tests for ScriptScoreQuery using Painless
+
+setup:
+- skip:
+    version: " - 7.1.99"
+    reason: "random score function of script score was added in 7.2"
+
+---
+"Random score function with _seq_no field":
+    - do:
+        indices.create:
+            index: test
+            body:
+                settings:
+                    number_of_shards: 2
+                mappings:
+                    properties:
+                        f1:
+                            type: keyword
+
+    - do:
+        bulk:
+            refresh: true
+            body:
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v0"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v1"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v2"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v3"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v4"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v5"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v6"}'
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "randomScore(100, '_seq_no')"
+    # stash ids to check for reproducibility of ranking
+    - set: { hits.hits.0._id: id0 }
+    - set: { hits.hits.1._id: id1 }
+    - set: { hits.hits.2._id: id2 }
+    - set: { hits.hits.3._id: id3 }
+    - set: { hits.hits.4._id: id4 }
+    - set: { hits.hits.5._id: id5 }
+    - set: { hits.hits.6._id: id6 }
+
+    # check that ranking is reproducible
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "randomScore(100, '_seq_no')"
+    - match: { hits.hits.0._id: $id0 }
+    - match: { hits.hits.1._id: $id1 }
+    - match: { hits.hits.2._id: $id2 }
+    - match: { hits.hits.3._id: $id3 }
+    - match: { hits.hits.4._id: $id4 }
+    - match: { hits.hits.5._id: $id5 }
+    - match: { hits.hits.6._id: $id6 }
+
+---
+"Random score function with internal doc Ids":
+    - do:
+        indices.create:
+            index: test
+            body:
+                settings:
+                    number_of_shards: 1
+                mappings:
+                    properties:
+                        f1:
+                            type: keyword
+
+    - do:
+        bulk:
+            refresh: true
+            body:
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v0"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v1"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v2"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v3"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v4"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v5"}'
+                - '{"index": {"_index": "test"}}'
+                - '{"f1": "v6"}'
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "randomScore(100)"
+    # stash ids to check for reproducibility of ranking
+    - set: { hits.hits.0._id: id0 }
+    - set: { hits.hits.1._id: id1 }
+    - set: { hits.hits.2._id: id2 }
+    - set: { hits.hits.3._id: id3 }
+    - set: { hits.hits.4._id: id4 }
+    - set: { hits.hits.5._id: id5 }
+    - set: { hits.hits.6._id: id6 }
+
+    # check that ranking is reproducible
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            index: test
+            body:
+                query:
+                    script_score:
+                        query: {match_all: {} }
+                        script:
+                            source: "randomScore(100)"
+    - match: { hits.hits.0._id: $id0 }
+    - match: { hits.hits.1._id: $id1 }
+    - match: { hits.hits.2._id: $id2 }
+    - match: { hits.hits.3._id: $id3 }
+    - match: { hits.hits.4._id: $id4 }
+    - match: { hits.hits.5._id: $id5 }
+    - match: { hits.hits.6._id: $id6 }

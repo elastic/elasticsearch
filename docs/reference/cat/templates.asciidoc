@@ -28,19 +28,19 @@ the request. Accepts wildcard expressions.
 [[cat-templates-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-templates-api-example]]
@@ -65,9 +65,21 @@ The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
-name      index_patterns order version
+name      index_patterns order version composed_of
 template0 [te*]          0
 template1 [tea*]         1
 template2 [teak*]        2     7
 --------------------------------------------------
 // TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_template/template0
+DELETE /_template/template1
+DELETE /_template/template2
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

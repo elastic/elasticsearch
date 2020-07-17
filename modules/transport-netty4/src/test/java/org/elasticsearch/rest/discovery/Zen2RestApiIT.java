@@ -26,9 +26,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -36,11 +36,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.core.Is.is;
 
@@ -61,10 +62,14 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         createIndex("test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build());
         ensureGreen("test");
+
+        final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+        final Map<String,String> nodeIdsByName = new HashMap<>(discoveryNodes.getSize());
+        discoveryNodes.forEach(n -> nodeIdsByName.put(n.getName(), n.getId()));
 
         RestClient restClient = getRestClient();
 
@@ -72,9 +77,17 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
             @Override
             public void doAfterNodes(int n, Client client) throws IOException {
                 ensureGreen("test");
-                Response response =
-                    restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" +
-                        internalCluster().getNodeNames()[n]));
+                final Request request = new Request("POST", "/_cluster/voting_config_exclusions");
+                final String nodeName = internalCluster().getNodeNames()[n];
+                if (randomBoolean()) {
+                    request.addParameter("node_names", nodeName);
+                } else {
+                    final String nodeId = nodeIdsByName.get(nodeName);
+                    assertNotNull(nodeName, nodeId);
+                    request.addParameter("node_ids", nodeId);
+                }
+
+                final Response response = restClient.performRequest(request);
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
             }
 
@@ -120,7 +133,9 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodes.get(2)));
+        final Request request = new Request("POST", "/_cluster/voting_config_exclusions");
+        request.addParameter("node_names", nodes.get(2));
+        final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         Response deleteResponse = restClient.performRequest(
@@ -135,7 +150,9 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
         String nodeToWithdraw = nodes.get(randomIntBetween(0, 2));
-        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" + nodeToWithdraw));
+        final Request request = new Request("POST", "/_cluster/voting_config_exclusions");
+        request.addParameter("node_names", nodeToWithdraw);
+        final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToWithdraw));
@@ -144,30 +161,14 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
     }
 
-    public void testFailsOnUnknownNode() throws Exception {
-        internalCluster().setBootstrapMasterNodeIndex(2);
-        internalCluster().startNodes(3);
-        ensureStableCluster(3);
-        RestClient restClient = getRestClient();
-        try {
-            restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/invalid"));
-            fail("Invalid node name should throw.");
-        } catch (ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(400));
-            assertThat(
-                e.getMessage(),
-                Matchers.containsString("add voting config exclusions request for [invalid] matched no master-eligible nodes")
-            );
-        }
-    }
-
     public void testRemoveTwoNodesAtOnce() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
         List<String> nodes = internalCluster().startNodes(3);
         ensureStableCluster(3);
         RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" +
-            nodes.get(2) + "," + nodes.get(0)));
+        final Request request = new Request("POST", "/_cluster/voting_config_exclusions");
+        request.addParameter("node_names", nodes.get(2) + "," + nodes.get(0));
+        final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));

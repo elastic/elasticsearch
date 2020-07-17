@@ -47,7 +47,7 @@ public class GeoJsonSerializationTests extends ESTestCase {
     private static class GeometryWrapper implements ToXContentObject {
 
         private Geometry geometry;
-        private static GeoJson PARSER = new GeoJson(true, false, new GeographyValidator(true));
+        private static final GeoJson PARSER = new GeoJson(true, false, new GeographyValidator(true));
 
         GeometryWrapper(Geometry geometry) {
             this.geometry = geometry;

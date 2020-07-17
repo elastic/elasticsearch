@@ -77,7 +77,7 @@ final class Ec2ClientSettings {
 
     private static final Logger logger = LogManager.getLogger(Ec2ClientSettings.class);
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Ec2ClientSettings.class);
 
     /** Credentials to authenticate with ec2. */
     final AWSCredentials credentials;
@@ -135,11 +135,13 @@ final class Ec2ClientSettings {
                 return null;
             } else {
                 if (key.length() == 0) {
-                    deprecationLogger.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                    deprecationLogger.deprecate("ec2_invalid_settings",
+                        "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         SECRET_KEY_SETTING.getKey(), ACCESS_KEY_SETTING.getKey());
                 }
                 if (secret.length() == 0) {
-                    deprecationLogger.deprecated("Setting [{}] is set but [{}] is not, which will be unsupported in future",
+                    deprecationLogger.deprecate("ec2_invalid_settings",
+                        "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         ACCESS_KEY_SETTING.getKey(), SECRET_KEY_SETTING.getKey());
                 }
 

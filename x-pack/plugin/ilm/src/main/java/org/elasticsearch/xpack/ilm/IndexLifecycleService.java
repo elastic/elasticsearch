@@ -16,8 +16,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.io.Closeable;
 import java.time.Clock;
@@ -59,21 +61,24 @@ public class IndexLifecycleService
     private final Clock clock;
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
+    private final ILMHistoryStore ilmHistoryStore;
     private final Settings settings;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool, Clock clock,
-                                 LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry) {
+                                 LongSupplier nowSupplier, NamedXContentRegistry xContentRegistry,
+                                 ILMHistoryStore ilmHistoryStore) {
         super();
         this.settings = settings;
         this.clusterService = clusterService;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
+        this.ilmHistoryStore = ilmHistoryStore;
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client);
-        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, clusterService, threadPool, nowSupplier);
+        this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);
@@ -82,9 +87,9 @@ public class IndexLifecycleService
             this::updatePollInterval);
     }
 
-    public void maybeRunAsyncAction(ClusterState clusterState, IndexMetaData indexMetaData, StepKey nextStepKey) {
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetaData.getSettings());
-        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetaData, policyName, nextStepKey);
+    public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
+        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, policyName, nextStepKey);
     }
 
     /**
@@ -101,7 +106,7 @@ public class IndexLifecycleService
         // when moving to an arbitrary step key (to avoid race conditions between the
         // check-and-set). moveClusterStateToStep also does its own validation, but doesn't take
         // the user-input for the current step (which is why we validate here for a passed in step)
-        IndexLifecycleTransition.validateTransition(currentState.getMetaData().index(index),
+        IndexLifecycleTransition.validateTransition(currentState.getMetadata().index(index),
             currentStepKey, newStepKey, policyRegistry);
         return IndexLifecycleTransition.moveClusterStateToStep(index, currentState, newStepKey,
             nowSupplier, policyRegistry, true);
@@ -122,7 +127,7 @@ public class IndexLifecycleService
         maybeScheduleJob();
 
         ClusterState clusterState = clusterService.state();
-        IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
             OperationMode currentMode = currentMetadata.getOperationMode();
             if (OperationMode.STOPPED.equals(currentMode)) {
@@ -133,8 +138,8 @@ public class IndexLifecycleService
 
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
-            for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
-                IndexMetaData idxMeta = cursor.value;
+            for (ObjectCursor<IndexMetadata> cursor : clusterState.metadata().indices().values()) {
+                IndexMetadata idxMeta = cursor.value;
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
                     final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
@@ -232,7 +237,7 @@ public class IndexLifecycleService
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        IndexLifecycleMetadata lifecycleMetadata = event.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
         if (this.isMaster && lifecycleMetadata != null) {
             triggerPolicies(event.state(), true);
         }
@@ -242,7 +247,7 @@ public class IndexLifecycleService
     public void applyClusterState(ClusterChangedEvent event) {
         if (event.localNodeMaster()) { // only act if we are master, otherwise
             // keep idle until elected
-            if (event.state().metaData().custom(IndexLifecycleMetadata.TYPE) != null) {
+            if (event.state().metadata().custom(IndexLifecycleMetadata.TYPE) != null) {
                 policyRegistry.update(event.state());
             }
         }
@@ -277,7 +282,7 @@ public class IndexLifecycleService
      * @param fromClusterStateChange whether things are triggered from the cluster-state-listener or the scheduler
      */
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
-        IndexLifecycleMetadata currentMetadata = clusterState.metaData().custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
         if (currentMetadata == null) {
             return;
@@ -294,8 +299,8 @@ public class IndexLifecycleService
         // loop through all indices in cluster state and filter for ones that are
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
-        for (ObjectCursor<IndexMetaData> cursor : clusterState.metaData().indices().values()) {
-            IndexMetaData idxMeta = cursor.value;
+        for (ObjectCursor<IndexMetadata> cursor : clusterState.metadata().indices().values()) {
+            IndexMetadata idxMeta = cursor.value;
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
                 final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
@@ -309,7 +314,7 @@ public class IndexLifecycleService
                             if (fromClusterStateChange) {
                                 lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
                             } else {
-                                lifecycleRunner.runPeriodicStep(policyName, idxMeta);
+                                lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
                             }
                             // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
                             safeToStop = false;
@@ -321,7 +326,7 @@ public class IndexLifecycleService
                         if (fromClusterStateChange) {
                             lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
                         } else {
-                            lifecycleRunner.runPeriodicStep(policyName, idxMeta);
+                            lifecycleRunner.runPeriodicStep(policyName, clusterState.metadata(), idxMeta);
                         }
                     }
                 } catch (Exception e) {
@@ -359,7 +364,13 @@ public class IndexLifecycleService
     }
 
     public void submitOperationModeUpdate(OperationMode mode) {
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update", OperationModeUpdateTask.ilmMode(mode));
+        OperationModeUpdateTask ilmOperationModeUpdateTask;
+        if (mode == OperationMode.STOPPING || mode == OperationMode.STOPPED) {
+            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, mode);
+        } else {
+            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.NORMAL, mode);
+        }
+        clusterService.submitStateUpdateTask("ilm_operation_mode_update {OperationMode " + mode.name() + "}", ilmOperationModeUpdateTask);
     }
 
     /**

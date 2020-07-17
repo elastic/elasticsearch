@@ -23,8 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -47,16 +47,16 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).build();
 
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
         assertThat(routingTable.index("test").shard(0).size(), equalTo(2));

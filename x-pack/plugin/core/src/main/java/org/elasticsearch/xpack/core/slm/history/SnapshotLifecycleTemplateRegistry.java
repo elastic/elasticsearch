@@ -35,12 +35,18 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_IND
 public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial
-    public static final String INDEX_TEMPLATE_VERSION = "1";
+    // version 2: converted to hidden index
+    public static final int INDEX_TEMPLATE_VERSION = 2;
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history";
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
+
+    @Override
+    protected boolean requiresMasterNode() {
+        return true;
+    }
 
     public static final IndexTemplateConfig TEMPLATE_SLM_HISTORY = new IndexTemplateConfig(
         SLM_TEMPLATE_NAME,
@@ -63,7 +69,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IndexTemplateConfig> getTemplateConfigs() {
+    protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }
@@ -84,12 +90,12 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public boolean validate(ClusterState state) {
-        boolean allTemplatesPresent = getTemplateConfigs().stream()
+        boolean allTemplatesPresent = getLegacyTemplateConfigs().stream()
             .map(IndexTemplateConfig::getTemplateName)
-            .allMatch(name -> state.metaData().getTemplates().containsKey(name));
+            .allMatch(name -> state.metadata().getTemplates().containsKey(name));
 
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional
-            .<IndexLifecycleMetadata>ofNullable(state.metaData().custom(IndexLifecycleMetadata.TYPE))
+            .<IndexLifecycleMetadata>ofNullable(state.metadata().custom(IndexLifecycleMetadata.TYPE))
             .map(IndexLifecycleMetadata::getPolicies);
         Set<String> policyNames = getPolicyConfigs().stream()
             .map(LifecyclePolicyConfig::getPolicyName)

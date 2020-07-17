@@ -11,9 +11,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.mock.orig.Mockito;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -33,6 +34,7 @@ import java.util.Date;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,6 +49,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
     private Client client;
     private AnomalyDetectionAuditor auditor;
+    private AnnotationPersister annotationPersister;
     private Consumer<Exception> taskHandler;
     private JobResultsProvider jobResultsProvider;
     private JobConfigProvider jobConfigProvider;
@@ -64,6 +67,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.settings()).thenReturn(Settings.EMPTY);
         auditor = mock(AnomalyDetectionAuditor.class);
+        annotationPersister = mock(AnnotationPersister.class);
         taskHandler = mock(Consumer.class);
         jobResultsPersister = mock(JobResultsPersister.class);
 
@@ -90,6 +94,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 client,
                 xContentRegistry(),
                 auditor,
+                annotationPersister,
                 System::currentTimeMillis,
                 jobConfigProvider,
                 jobResultsProvider,
@@ -120,7 +125,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -148,7 +153,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -176,7 +181,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
 
         assertBusy(() -> wasHandlerCalled.get());
     }
@@ -201,24 +206,24 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
 
-        datafeedJobBuilder.build("datafeed1", ActionListener.wrap(datafeedJob -> fail(), taskHandler));
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), ActionListener.wrap(datafeedJob -> fail(), taskHandler));
 
         verify(taskHandler).accept(error);
     }
 
     public void testBuildGivenRemoteIndicesButNoRemoteSearching() throws Exception {
-        Settings settings = Settings.builder().put(RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(), false).build();
         datafeedJobBuilder =
             new DatafeedJobBuilder(
                 client,
                 xContentRegistry(),
                 auditor,
+                annotationPersister,
                 System::currentTimeMillis,
                 jobConfigProvider,
                 jobResultsProvider,
                 datafeedConfigProvider,
                 jobResultsPersister,
-                settings,
+                nonRemoteClusterClientNode(),
                 "test_node");
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
@@ -242,7 +247,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
 
         givenJob(jobBuilder);
         givenDatafeed(datafeed);
-        datafeedJobBuilder.build("datafeed1", datafeedJobHandler);
+        datafeedJobBuilder.build("datafeed1", new TaskId(""), datafeedJobHandler);
         assertBusy(() -> wasHandlerCalled.get());
     }
 

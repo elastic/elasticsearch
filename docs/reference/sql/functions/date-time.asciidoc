@@ -106,9 +106,7 @@ CURDATE()
 
 *Output*: date
 
-.Description:
-
-Returns the date (no time part) when the current query reached the server.
+*Description*: Returns the date (no time part) when the current query reached the server.
 It can be used both as a keyword: `CURRENT_DATE` or as a function with no arguments: `CURRENT_DATE()`.
 
 [NOTE]
@@ -156,9 +154,7 @@ CURTIME
 
 *Output*: time
 
-.Description:
-
-Returns the time when the current query reached the server.
+*Description*: Returns the time when the current query reached the server.
 As a function, `CURRENT_TIME()` accepts _precision_ as an optional
 parameter for rounding the second fractional digits (nanoseconds). The default _precision_ is 3,
 meaning a milliseconds precision current time will be returned.
@@ -212,9 +208,7 @@ CURRENT_TIMESTAMP([precision]) <1>
 
 *Output*: date/time
 
-.Description:
-
-Returns the date/time when the current query reached the server.
+*Description*: Returns the date/time when the current query reached the server.
 As a function, `CURRENT_TIMESTAMP()` accepts _precision_ as an optional
 parameter for rounding the second fractional digits (nanoseconds). The default _precision_ is 3,
 meaning a milliseconds precision current date/time will be returned.
@@ -269,9 +263,7 @@ if a negative value is used it results to a subtraction from the date/datetime
 
 *Output*: datetime
 
-.Description:
-
-Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
+*Description*: Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
 the date/datetime. If any of the three arguments is `null` a `null` is returned.
 
 [WARNING]
@@ -346,9 +338,7 @@ DATE_DIFF(
 
 *Output*: integer
 
-.Description:
-
-Subtract the second argument from the third argument and return their difference in multiples of the unit
+*Description*: Subtract the second argument from the third argument and return their difference in multiples of the unit
 specified in the first argument. If the second argument (start) is greater than the third argument (end),
 then negative values are returned. If any of the three arguments is `null`, a `null` is returned.
 
@@ -414,6 +404,192 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 --------------------------------------------------
 
+[[sql-functions-datetime-dateparse]]
+==== `DATE_PARSE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_PARSE(
+    string_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date expression as a string
+<2> parsing pattern
+
+*Output*: date
+
+*Description*: Returns a date by parsing the 1st argument using the format specified in the 2nd argument. The parsing
+format pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or an empty string, then `null` is returned.
+
+[NOTE]
+If the parsing pattern does not contain all valid date units (e.g. 'HH:mm:ss', 'dd-MM HH:mm:ss', etc.) an error is returned
+as the function needs to return a value of `date` type which will contain date part.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateParse1]
+--------------------------------------------------
+
+[NOTE]
+====
+The resulting `date` will have the time zone specified by the user through the 
+<<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+with no conversion applied.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateParse2]
+--------------------------------------------------
+====
+
+[[sql-functions-datetime-datetimeformat]]
+==== `DATETIME_FORMAT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATETIME_FORMAT(
+    date_exp/datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression
+<2> format pattern
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
+pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+
+[NOTE]
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeFormatTime]
+--------------------------------------------------
+
+[[sql-functions-datetime-datetimeparse]]
+==== `DATETIME_PARSE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATETIME_PARSE(
+    string_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> datetime expression as a string
+<2> parsing pattern
+
+*Output*: datetime
+
+*Description*: Returns a datetime by parsing the 1st argument using the format specified in the 2nd argument. The parsing
+format pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or an empty string `null` is returned.
+
+
+[NOTE]
+If the parsing pattern contains only date or only time units (e.g. 'dd/MM/uuuu', 'HH:mm:ss', etc.) an error is returned
+as the function needs to return a value of `datetime` type which must contain both.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse1]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse2]
+--------------------------------------------------
+
+[NOTE]
+====
+If timezone is not specified in the datetime string expression and the parsing pattern, the resulting `datetime` will have the
+time zone specified by the user through the <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
+with no conversion applied.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateTimeParse3]
+--------------------------------------------------
+====
+
+[[sql-functions-datetime-timeparse]]
+==== `TIME_PARSE`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TIME_PARSE(
+    string_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> time expression as a string
+<2> parsing pattern
+
+*Output*: time
+
+*Description*: Returns a time by parsing the 1st argument using the format specified in the 2nd argument. The parsing
+format pattern used is the one from
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
+If any of the two arguments is `null` or an empty string `null` is returned.
+
+[NOTE]
+If the parsing pattern contains only date units (e.g. 'dd/MM/uuuu') an error is returned
+as the function needs to return a value of `time` type which will contain only time.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse1]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse2]
+--------------------------------------------------
+
+[NOTE]
+====
+If timezone is not specified in the time string expression and the parsing pattern, 
+the resulting `time` will have the offset of the time zone specified by the user through the
+ <<sql-rest-fields-timezone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver 
+parameters at the Unix epoch date (`1970-01-01`) with no conversion applied.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[timeParse3]
+--------------------------------------------------
+====
+
 [[sql-functions-datetime-part]]
 ==== `DATE_PART/DATEPART`
 
@@ -432,9 +608,7 @@ DATE_PART(
 
 *Output*: integer
 
-.Description:
-
-Extract the specified unit from a date/datetime. If any of the two arguments is `null` a `null` is returned.
+*Description*: Extract the specified unit from a date/datetime. If any of the two arguments is `null` a `null` is returned.
 It's similar to <<sql-functions-datetime-extract>> but with different names and aliases for the units and
 provides more options (e.g.: `TZOFFSET`).
 
@@ -512,20 +686,19 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetMinus]
 --------------------------------------------------
 DATE_TRUNC(
     string_exp, <1>
-    datetime_exp) <2>
+    datetime_exp/interval_exp) <2>
 --------------------------------------------------
 
 *Input*:
 
-<1> string expression denoting the unit to which the date/datetime should be truncated to
-<2> date/datetime expression
+<1> string expression denoting the unit to which the date/datetime/interval should be truncated to
+<2> date/datetime/interval expression
 
-*Output*: datetime
+*Output*: datetime/interval
 
-.Description:
-
-Truncate the date/datetime to the specified unit by setting all fields that are less significant than the specified
+*Description*: Truncate the date/datetime/interval to the specified unit by setting all fields that are less significant than the specified
 one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
+If the first argument is `week` and the second argument is of `interval` type, an error is thrown since the `interval` data type doesn't support a `week` time unit.
 
 [cols="^,^"]
 |===
@@ -577,6 +750,21 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateDecades]
 include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateQuarter]
 --------------------------------------------------
 
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalCenturies]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalHour]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateIntervalDay]
+--------------------------------------------------
+
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`
 
@@ -592,9 +780,7 @@ DAY_OF_MONTH(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the day of the month from a date/datetime.
+*Description*: Extract the day of the month from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -616,9 +802,7 @@ DAY_OF_WEEK(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the day of the week from a date/datetime. Sunday is `1`, Monday is `2`, etc.
+*Description*: Extract the day of the week from a date/datetime. Sunday is `1`, Monday is `2`, etc.
 
 [source, sql]
 --------------------------------------------------
@@ -640,9 +824,7 @@ DAY_OF_YEAR(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the day of the year from a date/datetime.
+*Description*: Extract the day of the year from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -664,9 +846,7 @@ DAY_NAME(datetime_exp) <1>
 
 *Output*: string
 
-.Description:
-
-Extract the day of the week from a date/datetime in text format (`Monday`, `Tuesday`...).
+*Description*: Extract the day of the week from a date/datetime in text format (`Monday`, `Tuesday`...).
 
 [source, sql]
 --------------------------------------------------
@@ -688,9 +868,7 @@ HOUR_OF_DAY(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the hour of the day from a date/datetime.
+*Description*: Extract the hour of the day from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -712,9 +890,7 @@ ISO_DAY_OF_WEEK(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the day of the week from a date/datetime, following the https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard].
+*Description*: Extract the day of the week from a date/datetime, following the https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard].
 Monday is `1`, Tuesday is `2`, etc.
 
 [source, sql]
@@ -737,9 +913,7 @@ ISO_WEEK_OF_YEAR(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the week of the year from a date/datetime, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
+*Description*: Extract the week of the year from a date/datetime, following https://en.wikipedia.org/wiki/ISO_week_date[ISO 8601 standard]. The first week
 of a year is the first week with a majority (4 or more) of its days in January.
 
 [source, sql]
@@ -762,9 +936,7 @@ MINUTE_OF_DAY(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the minute of the day from a date/datetime.
+*Description*: Extract the minute of the day from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -786,9 +958,7 @@ MINUTE_OF_HOUR(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the minute of the hour from a date/datetime.
+*Description*: Extract the minute of the hour from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -810,9 +980,7 @@ MONTH(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the month of the year from a date/datetime.
+*Description*: Extract the month of the year from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -834,9 +1002,7 @@ MONTH_NAME(datetime_exp) <1>
 
 *Output*: string
 
-.Description:
-
-Extract the month from a date/datetime in text format (`January`, `February`...).
+*Description*: Extract the month from a date/datetime in text format (`January`, `February`...).
 
 [source, sql]
 --------------------------------------------------
@@ -856,9 +1022,7 @@ NOW()
 
 *Output*: datetime
 
-.Description:
-
-This function offers the same functionality as <<sql-functions-current-timestamp,CURRENT_TIMESTAMP()>> function: returns
+*Description*: This function offers the same functionality as <<sql-functions-current-timestamp,CURRENT_TIMESTAMP()>> function: returns
 the datetime when the current query reached the server. This method always returns the same value for its every
 occurrence within the same query.
 
@@ -890,9 +1054,7 @@ SECOND_OF_MINUTE(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the second of the minute from a date/datetime.
+*Description*: Extract the second of the minute from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -914,9 +1076,7 @@ QUARTER(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the year quarter the date/datetime falls in.
+*Description*: Extract the year quarter the date/datetime falls in.
 
 [source, sql]
 --------------------------------------------------
@@ -936,9 +1096,7 @@ TODAY()
 
 *Output*: date
 
-.Description:
-
-This function offers the same functionality as <<sql-functions-current-date,CURRENT_DATE()>> function: returns
+*Description*: This function offers the same functionality as <<sql-functions-current-date,CURRENT_DATE()>> function: returns
 the date when the current query reached the server. This method always returns the same value for its every occurrence
 within the same query.
 
@@ -970,9 +1128,7 @@ WEEK_OF_YEAR(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the week of the year from a date/datetime.
+*Description*: Extract the week of the year from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -994,9 +1150,7 @@ YEAR(datetime_exp) <1>
 
 *Output*: integer
 
-.Description:
-
-Extract the year from a date/datetime.
+*Description*: Extract the year from a date/datetime.
 
 [source, sql]
 --------------------------------------------------
@@ -1021,9 +1175,7 @@ EXTRACT(
 
 *Output*: integer
 
-.Description:
-
-Extract fields from a date/datetime by specifying the name of a <<sql-functions-datetime,datetime function>>.
+*Description*: Extract fields from a date/datetime by specifying the name of a <<sql-functions-datetime,datetime function>>.
 The following
 
 [source, sql]

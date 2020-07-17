@@ -166,14 +166,6 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
-[[rpm-sysv-init-vs-systemd]]
-==== SysV `init` vs `systemd`
-
-include::init-systemd.asciidoc[]
-
-[[rpm-running-init]]
-include::rpm-init.asciidoc[]
-
 [[rpm-running-systemd]]
 include::systemd.asciidoc[]
 
@@ -233,7 +225,7 @@ locations for an RPM-based system:
 
 | jdk
   | The bundled Java Development Kit used to run Elasticsearch. Can
-    be overriden by setting the `JAVA_HOME` environment variable
+    be overridden by setting the `JAVA_HOME` environment variable
     in `/etc/sysconfig/elasticsearch`.
   | /usr/share/elasticsearch/jdk
  d|

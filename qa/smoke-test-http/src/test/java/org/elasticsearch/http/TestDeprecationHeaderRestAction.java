@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.http;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -28,13 +26,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * Enables testing {@code DeprecationRestHandler} via integration tests by guaranteeing a deprecated REST endpoint.
@@ -43,8 +44,7 @@ import java.util.Map;
  * and returns their values.
  */
 public class TestDeprecationHeaderRestAction extends BaseRestHandler {
-    private static final Logger logger = LogManager.getLogger(TestDeprecationHeaderRestAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TestDeprecationHeaderRestAction.class);
 
     public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE1 =
         Setting.boolSetting("test.setting.deprecated.true1", true,
@@ -66,16 +66,24 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
 
     private final Settings settings;
 
-    public TestDeprecationHeaderRestAction(Settings settings, RestController controller) {
+    public TestDeprecationHeaderRestAction(Settings settings) {
         this.settings = settings;
+    }
 
-        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, "/_test_cluster/deprecated_settings", this,
-                                               DEPRECATED_ENDPOINT, deprecationLogger);
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return singletonList(
+            new DeprecatedRoute(GET, "/_test_cluster/deprecated_settings", DEPRECATED_ENDPOINT));
     }
 
     @Override
     public String getName() {
         return "test_deprecation_header_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return Collections.emptyList();
     }
 
     @SuppressWarnings("unchecked") // List<String> casts
@@ -87,7 +95,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             final Map<String, Object> source = parser.map();
 
             if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.deprecated(DEPRECATED_USAGE);
+                deprecationLogger.deprecate("deprecated_settings", DEPRECATED_USAGE);
 
                 settings = (List<String>)source.get("deprecated_settings");
             } else {

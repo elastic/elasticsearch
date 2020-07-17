@@ -107,6 +107,13 @@ public final class Automatons {
         }
     }
 
+    /**
+     * Is the str a lucene type of pattern
+     */
+    public static boolean isLuceneRegex(String str) {
+        return str.length() > 1 && str.charAt(0) == '/' && str.charAt(str.length() - 1) == '/';
+    }
+
     private static Automaton buildAutomaton(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
             if (pattern.length() == 1 || !pattern.endsWith("/")) {

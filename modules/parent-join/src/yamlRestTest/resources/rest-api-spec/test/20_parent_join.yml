@@ -1,0 +1,148 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+              id: { "type": "keyword" }
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  { "id", "1", "join_field": { "name": "parent" } }
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "id", "2", "join_field": { "name": "parent" } }
+
+  - do:
+      index:
+        index: test
+        id:    3
+        routing: 1
+        body:  { "id", "3", "join_field": { "name": "child", "parent": "1" } }
+
+  - do:
+      index:
+        index: test
+        id:    4
+        routing: 1
+        body:  { "id", "4", "join_field": { "name": "child", "parent": "1" } }
+
+  - do:
+      index:
+        index: test
+        id:    5
+        routing: 1
+        body:  { "id", "5", "join_field": { "name": "child", "parent": "2" } }
+
+  - do:
+      index:
+        index: test
+        id:    6
+        routing: 1
+        body:  { "id", "6", "join_field": { "name": "grand_child", "parent": "5" } }
+
+  - do:
+      indices.refresh: {}
+
+---
+teardown:
+  - skip:
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.allow_expensive_queries: null
+
+---
+"Test basic":
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body: { sort: ["join_field", "id"] }
+
+    - match: { hits.total: 6 }
+    - match: { hits.hits.0._index: "test" }
+    - match: { hits.hits.0._id: "3" }
+    - match: { hits.hits.0._source.join_field.name: "child" }
+    - match: { hits.hits.0._source.join_field.parent: "1" }
+    - is_false: hits.hits.0.fields.join_field#child }
+    - match: { hits.hits.1._index: "test" }
+    - match: { hits.hits.1._id: "4" }
+    - match: { hits.hits.1._source.join_field.name: "child" }
+    - match: { hits.hits.1._source.join_field.parent: "1" }
+    - is_false: hits.hits.1.fields.join_field#child }
+    - match: { hits.hits.2._index: "test" }
+    - match: { hits.hits.2._id: "5" }
+    - match: { hits.hits.2._source.join_field.name: "child" }
+    - match: { hits.hits.2._source.join_field.parent: "2" }
+    - is_false: hits.hits.2.fields.join_field#child }
+    - match: { hits.hits.3._index: "test" }
+    - match: { hits.hits.3._id: "6" }
+    - match: { hits.hits.3._source.join_field.name: "grand_child" }
+    - match: { hits.hits.3._source.join_field.parent: "5" }
+    - match: { hits.hits.4._index: "test" }
+    - match: { hits.hits.4._id: "1" }
+    - match: { hits.hits.4._source.join_field.name: "parent" }
+    - is_false: hits.hits.4._source.join_field.parent
+    - match: { hits.hits.5._index: "test" }
+    - match: { hits.hits.5._id: "2" }
+    - match: { hits.hits.5._source.join_field.name: "parent" }
+    - is_false: hits.hits.5._source.join_field.parent
+
+---
+"Test parent_id query":
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ "id" ]
+            query:
+              parent_id:
+                type: child
+                id: 1
+
+    - match: { hits.total: 2 }
+    - match: { hits.hits.0._index: "test" }
+    - match: { hits.hits.0._id: "3" }
+    - match: { hits.hits.0._source.join_field.name: "child" }
+    - match: { hits.hits.0._source.join_field.parent: "1" }
+    - match: { hits.hits.1._index: "test" }
+    - match: { hits.hits.1._id: "4" }
+    - match: { hits.hits.1._source.join_field.name: "child" }
+    - match: { hits.hits.1._source.join_field.parent: "1" }
+
+---
+"HasChild disallow expensive queries":
+  - skip:
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
+
+  ### Update setting to false
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.allow_expensive_queries: "false"
+        flat_settings: true
+
+  - match: {transient: {search.allow_expensive_queries: "false"}}
+
+  - do:
+      catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        body:
+          sort: [ "id" ]
+          query:
+            parent_id:
+              type: child
+              id: 1

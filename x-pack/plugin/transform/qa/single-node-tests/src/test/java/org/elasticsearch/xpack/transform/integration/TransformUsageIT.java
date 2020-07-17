@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.transform.TransformInfoTransportAction.PROVIDED_STATS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TransformUsageIT extends TransformRestTestCase {
 
@@ -52,10 +54,14 @@ public class TransformUsageIT extends TransformRestTestCase {
         startAndWaitForTransform("test_usage", "pivot_reviews");
         stopTransform("test_usage", false);
 
-        Request statsExistsRequest = new Request("GET",
-            TransformInternalIndexConstants.LATEST_INDEX_NAME+"/_search?q=" +
-                INDEX_DOC_TYPE.getPreferredName() + ":" +
-                TransformStoredDoc.NAME);
+        Request statsExistsRequest = new Request(
+            "GET",
+            TransformInternalIndexConstants.LATEST_INDEX_NAME
+                + "/_search?q="
+                + INDEX_DOC_TYPE.getPreferredName()
+                + ":"
+                + TransformStoredDoc.NAME
+        );
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
@@ -66,13 +72,25 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         Request getRequest = new Request("GET", getTransformEndpoint() + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
-        Map<String, Integer> expectedStats = new HashMap<>();
-        for(String statName : PROVIDED_STATS) {
+        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
+        logger.info("test_usage/_stats response: [{}]", stats);
+        Map<String, Double> expectedStats = new HashMap<>();
+        for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
-            List<Integer> specificStatistic = ((List<Integer>)XContentMapValues.extractValue("transforms.stats." + statName, stats));
+            List<Object> specificStatistic = (List<Object>) (XContentMapValues.extractValue("transforms.stats." + statName, stats));
             assertNotNull(specificStatistic);
-            Integer statistic = (specificStatistic).get(0);
-            expectedStats.put(statName, statistic);
+            expectedStats.put(statName, extractStatsAsDouble(specificStatistic.get(0)));
+        }
+
+        getRequest = new Request("GET", getTransformEndpoint() + "test_usage_continuous/_stats");
+        stats = entityAsMap(client().performRequest(getRequest));
+        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
+        logger.info("test_usage_continuous/_stats response: [{}]", stats);
+        for (String statName : PROVIDED_STATS) {
+            @SuppressWarnings("unchecked")
+            List<Object> specificStatistic = (List<Object>) (XContentMapValues.extractValue("transforms.stats." + statName, stats));
+            assertNotNull(specificStatistic);
+            expectedStats.compute(statName, (key, value) -> value + extractStatsAsDouble(specificStatistic.get(0)));
         }
 
         // Simply because we wait for continuous to reach checkpoint 1, does not mean that the statistics are written yet.
@@ -85,19 +103,25 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(3, XContentMapValues.extractValue("transform.transforms._all", statsMap));
             assertEquals(2, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
-            for(String statName : PROVIDED_STATS) {
-                if (statName.equals(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
-                    ||statName.equals(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())) {
-                    continue;
+            for (String statName : PROVIDED_STATS) {
+                // the trigger count can be higher if the scheduler kicked before usage has been called, therefore check for gte
+                if (statName.equals(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())) {
+                    assertThat(
+                        "Incorrect stat " + statName,
+                        extractStatsAsDouble(XContentMapValues.extractValue("transform.stats." + statName, statsMap)),
+                        greaterThanOrEqualTo(expectedStats.get(statName).doubleValue())
+                    );
+                } else {
+                    assertThat(
+                        "Incorrect stat " + statName,
+                        extractStatsAsDouble(XContentMapValues.extractValue("transform.stats." + statName, statsMap)),
+                        equalTo(expectedStats.get(statName).doubleValue())
+                    );
                 }
-                assertEquals("Incorrect stat " +  statName,
-                    expectedStats.get(statName) * 2,
-                    XContentMapValues.extractValue("transform.stats." + statName, statsMap));
             }
             // Refresh the index so that statistics are searchable
             refreshIndex(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
         }, 60, TimeUnit.SECONDS);
-
 
         stopTransform("test_usage_continuous", false);
 
@@ -106,5 +130,15 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         assertEquals(3, XContentMapValues.extractValue("transform.transforms._all", usageAsMap));
         assertEquals(3, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
+    }
+
+    private double extractStatsAsDouble(Object statsObject) {
+        if (statsObject instanceof Integer) {
+            return ((Integer) statsObject).doubleValue();
+        } else if (statsObject instanceof Double) {
+            return (Double) statsObject;
+        }
+        fail("unexpected value type for stats");
+        return 0;
     }
 }

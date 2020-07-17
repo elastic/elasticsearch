@@ -84,7 +84,14 @@ public class S3HttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
         try {
-            if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
+            if (Regex.simpleMatch("HEAD /" + path + "/*", request)) {
+                final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
+                if (blob == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                }
+            } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();
                 byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                     "<InitiateMultipartUploadResult>\n" +
@@ -216,13 +223,13 @@ public class S3HttpHandler implements HttpHandler {
 
                         final int start = Integer.parseInt(matcher.group(1));
                         final int end = Integer.parseInt(matcher.group(2));
-                        final int length = end - start;
 
+                        final BytesReference rangeBlob = blob.slice(start, end + 1 - start);
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("Content-Range",
-                            String.format(Locale.ROOT, "bytes=%d-%d/%d", start, end, blob.length()));
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                        exchange.getResponseBody().write(BytesReference.toBytes(blob), start, length);
+                        exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d",
+                            start, end, rangeBlob.length()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), rangeBlob.length());
+                        rangeBlob.writeTo(exchange.getResponseBody());
                     }
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);

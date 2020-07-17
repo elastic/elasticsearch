@@ -33,8 +33,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,7 +49,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         for (int i = 0; i < numberOfSnapshots; i++) {
             entries.add(randomSnapshot());
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
 
     private Entry randomSnapshot() {
@@ -65,6 +67,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final List<Index> esIndices =
             indices.stream().map(i -> new Index(i.getName(), randomAlphaOfLength(10))).collect(Collectors.toList());
+        List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
             for (int j = 0; j < shardsCount; j++) {
@@ -76,8 +79,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
             }
         }
         ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
-        return new Entry(snapshot, includeGlobalState, partial, state, indices, startTime, repositoryStateId, shards,
-            SnapshotInfoTests.randomUserMetadata(), randomBoolean());
+        return new Entry(snapshot, includeGlobalState, partial, state, indices, dataStreams, startTime, repositoryStateId, shards,
+            null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()));
     }
 
     @Override
@@ -109,7 +112,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 }
             }
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
 
     @Override
@@ -131,7 +134,6 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         } else {
             entries.remove(randomIntBetween(0, entries.size() - 1));
         }
-        return new SnapshotsInProgress(entries);
+        return SnapshotsInProgress.of(entries);
     }
-
 }

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
@@ -27,27 +29,34 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
-public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<AtomicOrdinalsFieldData>
+public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldData<LeafOrdinalsFieldData>
         implements IndexOrdinalsFieldData {
+    private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
 
     private final double minFrequency, maxFrequency;
     private final int minSegmentSize;
     protected final CircuitBreakerService breakerService;
 
-    protected AbstractIndexOrdinalsFieldData(IndexSettings indexSettings, String fieldName,
-            IndexFieldDataCache cache, CircuitBreakerService breakerService,
-            double minFrequency, double maxFrequency, int minSegmentSize) {
-        super(indexSettings, fieldName, cache);
+    protected AbstractIndexOrdinalsFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        IndexFieldDataCache cache,
+        CircuitBreakerService breakerService,
+        double minFrequency,
+        double maxFrequency,
+        int minSegmentSize
+    ) {
+        super(fieldName, valuesSourceType, cache);
         this.breakerService = breakerService;
         this.minFrequency = minFrequency;
         this.maxFrequency = maxFrequency;
@@ -89,7 +98,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
             try {
-                return GlobalOrdinalsBuilder.buildEmpty(indexSettings, indexReader, this);
+                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -107,13 +116,18 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
 
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger,
-                AbstractAtomicOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+        return GlobalOrdinalsBuilder.build(
+            indexReader,
+            this,
+            breakerService,
+            logger,
+            AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+        );
     }
 
     @Override
-    protected AtomicOrdinalsFieldData empty(int maxDoc) {
-        return AbstractAtomicOrdinalsFieldData.empty();
+    protected LeafOrdinalsFieldData empty(int maxDoc) {
+        return AbstractLeafOrdinalsFieldData.empty();
     }
 
     protected TermsEnum filter(Terms terms, TermsEnum iterator, LeafReader reader) throws IOException {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -74,6 +75,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private Index concreteIndex;
 
+    private boolean writeIndexOnly;
+
     public PutMappingRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
@@ -87,6 +90,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            writeIndexOnly = in.readBoolean();
+        }
     }
 
     public PutMappingRequest() {
@@ -108,7 +114,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         } else if (source.isEmpty()) {
             validationException = addValidationError("mapping source is empty", validationException);
         }
-        if (concreteIndex != null && (indices != null && indices.length > 0)) {
+        if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
             validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
                 + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
         }
@@ -128,7 +134,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Sets a concrete index for this put mapping request.
      */
     public PutMappingRequest setConcreteIndex(Index index) {
-        Objects.requireNonNull(indices, "index must not be null");
+        Objects.requireNonNull(index, "index must not be null");
         this.concreteIndex = index;
         return this;
     }
@@ -158,6 +164,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return this;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /**
      * The mapping source definition.
      */
@@ -172,8 +183,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      * Also supports metadata mapping fields such as `_all` and `_parent` as property definition, these metadata
      * mapping fields will automatically be put on the top level mapping object.
      */
-    public PutMappingRequest source(Object... source) {
-        return source(buildFromSimplifiedDef(MapperService.SINGLE_MAPPING_NAME, source));
+    public PutMappingRequest source(String... source) {
+        return source(simpleMapping(source));
     }
 
     public String origin() {
@@ -187,8 +198,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     }
 
     /**
-     * @param type
-     *            the mapping type
      * @param source
      *            consisting of field/properties pairs (e.g. "field1",
      *            "type=string,store=true")
@@ -196,22 +205,19 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      *             if the number of the source arguments is not divisible by two
      * @return the mappings definition
      */
-    public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+    public static XContentBuilder simpleMapping(String... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
         }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
-            if (type != null) {
-                builder.startObject(type);
-            }
 
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     builder.startObject(fieldName);
-                    String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                    String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
                         String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
@@ -225,13 +231,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
             builder.startObject("properties");
             for (int i = 0; i < source.length; i++) {
-                String fieldName = source[i++].toString();
+                String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     continue;
                 }
 
                 builder.startObject(fieldName);
-                String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {
@@ -242,9 +248,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 builder.endObject();
             }
             builder.endObject();
-            if (type != null) {
-                builder.endObject();
-            }
             builder.endObject();
             return builder;
         } catch (Exception e) {
@@ -292,6 +295,15 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
+    public PutMappingRequest writeIndexOnly(boolean writeIndexOnly) {
+        this.writeIndexOnly = writeIndexOnly;
+        return this;
+    }
+
+    public boolean writeIndexOnly() {
+        return writeIndexOnly;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -303,5 +315,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeBoolean(writeIndexOnly);
+        }
     }
 }

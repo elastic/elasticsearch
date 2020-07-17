@@ -93,7 +93,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             query = new TermsQueryBuilder(fieldName, values);
         } else {
             // right now the mock service returns us a list of strings
-            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
+            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : TEXT_FIELD_NAME, randomTermsLookup());
         }
         return query;
     }
@@ -108,16 +108,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     protected void doAssertLuceneQuery(TermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (queryBuilder.termsLookup() == null && (queryBuilder.values() == null || queryBuilder.values().isEmpty())) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
-            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else if (queryBuilder.termsLookup() != null && randomTerms.size() == 0){
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
-            MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
-            assertThat(matchNoDocsQuery.toString(), containsString("No terms supplied for \"terms\" query."));
         } else {
             assertThat(query, either(instanceOf(TermInSetQuery.class))
                     .or(instanceOf(PointInSetQuery.class))
-                    .or(instanceOf(ConstantScoreQuery.class)));
+                    .or(instanceOf(ConstantScoreQuery.class))
+                    .or(instanceOf(MatchNoDocsQuery.class)));
             if (query instanceof ConstantScoreQuery) {
                 assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));
             }
@@ -137,8 +134,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             }
 
             String fieldName = expectedFieldName(queryBuilder.fieldName());
-            TermInSetQuery expected = new TermInSetQuery(fieldName,
-                    terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
+            Query expected;
+            if (context.fieldMapper(fieldName) != null) {
+                expected = new TermInSetQuery(fieldName,
+                        terms.stream().filter(Objects::nonNull).map(Object::toString).map(BytesRef::new).collect(Collectors.toList()));
+            } else {
+                expected = new MatchNoDocsQuery();
+            }
             assertEquals(expected, query);
         }
     }
@@ -259,12 +261,20 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     public void testMustRewrite() throws IOException {
-        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
                 () -> termsQueryBuilder.toQuery(createShardContext()));
         assertEquals("query must be rewritten first", e.getMessage());
-        assertEquals(rewriteAndFetch(termsQueryBuilder, createShardContext()), new TermsQueryBuilder(STRING_FIELD_NAME,
-            randomTerms.stream().filter(x -> x != null).collect(Collectors.toList()))); // terms lookup removes null values
+
+        // terms lookup removes null values
+        List<Object> nonNullTerms = randomTerms.stream().filter(x -> x != null).collect(Collectors.toList());
+        QueryBuilder expected;
+        if (nonNullTerms.isEmpty()) {
+            expected = new MatchNoneQueryBuilder();
+        } else {
+            expected = new TermsQueryBuilder(TEXT_FIELD_NAME, nonNullTerms);
+        }
+        assertEquals(expected, rewriteAndFetch(termsQueryBuilder, createShardContext()));
     }
 
     public void testGeo() throws Exception {
@@ -272,12 +282,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,
                 () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
+                + "[mapped_geo_point]", e.getMessage());
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
-        QueryBuilder builder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        QueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
         QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createShardContext());
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.writeTo(new BytesStreamOutput(10)));
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
@@ -312,26 +322,27 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
-    
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }      
-    
+    }
+
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         // At least one name is good
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
-        assertThat(rewritten, instanceOf(TermsQueryBuilder.class));
-    }      
-    
+        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
+
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
         return query;
     }
+
 }

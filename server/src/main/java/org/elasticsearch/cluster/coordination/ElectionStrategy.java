@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 

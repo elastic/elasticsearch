@@ -12,7 +12,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,7 +23,7 @@ import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptMetaData;
+import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -86,7 +86,7 @@ public class ScriptConditionTests extends ESTestCase {
         scriptService = WatcherMockScriptPlugin.newMockScriptService(scripts);
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
-        clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
+        clusterState.metadata(Metadata.builder().putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).build()));
         ClusterState cs = clusterState.build();
         scriptService.applyClusterState(new ClusterChangedEvent("_source", cs, cs));
     }

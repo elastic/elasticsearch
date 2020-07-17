@@ -22,7 +22,7 @@ Customized versions of this filter are included in several of {es}'s built-in
 * <<italian-analyzer, Italian analyzer>>
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/util/ElisionFilter.html[ElisionFilter].
+{lucene-analysis-docs}/util/ElisionFilter.html[ElisionFilter].
 
 [[analysis-elision-tokenfilter-analyze-ex]]
 ==== Example

@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.monitoring.collector.ml;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -48,14 +50,14 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         whenLocalNodeElectedMaster(isElectedMaster);
 
         // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
-        when(licenseState.isMachineLearningAllowed()).thenReturn(mlAllowed);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(mlAllowed);
 
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).checkFeature(Feature.MONITORING);
         }
     }
 
@@ -63,8 +65,8 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         // regardless of ML being enabled
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
-        when(licenseState.isMachineLearningAllowed()).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
         // this controls the blockage
         final boolean isElectedMaster = false;
 
@@ -77,8 +79,8 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         // this is controls the blockage
         final Settings settings = mlDisabledSettings();
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
-        when(licenseState.isMachineLearningAllowed()).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(randomBoolean());
 
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
@@ -88,16 +90,16 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
 
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).checkFeature(Feature.MONITORING);
         }
     }
 
     public void testShouldCollectReturnsFalseIfMLIsNotAllowed() {
         final Settings settings = randomFrom(mlEnabledSettings(), mlDisabledSettings());
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(randomBoolean());
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(randomBoolean());
         // this is controls the blockage
-        when(licenseState.isMachineLearningAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -106,22 +108,22 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
 
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).checkFeature(Feature.MONITORING);
         }
     }
 
     public void testShouldCollectReturnsTrue() {
         final Settings settings = mlEnabledSettings();
 
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
+        when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final JobStatsCollector collector = new JobStatsCollector(settings, clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
 
-        verify(licenseState).isMonitoringAllowed();
+        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {
@@ -144,14 +146,14 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
-        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(MetaData.ALL)))).thenReturn(future);
+        when(client.execute(eq(GetJobsStatsAction.INSTANCE), eq(new Request(Metadata.ALL)))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
 
         final long interval = randomNonNegativeLong();
 
         final List<MonitoringDoc> monitoringDocs = collector.doCollect(node, interval, clusterState);
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertThat(monitoringDocs, hasSize(jobStats.size()));
 

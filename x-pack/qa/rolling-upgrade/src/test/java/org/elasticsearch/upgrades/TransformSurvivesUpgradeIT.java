@@ -192,8 +192,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
         assertBusy(() -> {
             TransformStats stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
-            assertThat(stateAndStats.getIndexerStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
-            assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(totalDocsWritten));
+            assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo((long)ENTITIES.size()));
+            assertThat(stateAndStats.getIndexerStats().getDocumentsProcessed(), equalTo(totalDocsWritten));
             // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
             // Though short lived due to no changes on the source indices, it could result in flaky test behavior
             assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
@@ -231,8 +231,8 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         waitUntilAfterCheckpoint(CONTINUOUS_TRANSFORM_ID, expectedLastCheckpoint);
 
         assertBusy(() -> assertThat(
-            getTransformStats(CONTINUOUS_TRANSFORM_ID).getIndexerStats().getNumDocuments(),
-            greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getNumDocuments())),
+            getTransformStats(CONTINUOUS_TRANSFORM_ID).getIndexerStats().getDocumentsProcessed(),
+            greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getDocumentsProcessed())),
             120,
             TimeUnit.SECONDS);
         TransformStats stateAndStats = getTransformStats(CONTINUOUS_TRANSFORM_ID);
@@ -244,9 +244,9 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 responseBody))
                 .get(0);
             assertThat((Integer)indexerStats.get("documents_indexed"),
-                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getOutputDocuments()).intValue()));
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsIndexed()).intValue()));
             assertThat((Integer)indexerStats.get("documents_processed"),
-                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getNumDocuments()).intValue()));
+                greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsProcessed()).intValue()));
         });
     }
 

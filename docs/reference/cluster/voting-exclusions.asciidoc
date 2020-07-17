@@ -11,7 +11,9 @@ Adds or removes master-eligible nodes from the
 [[voting-config-exclusions-api-request]]
 ==== {api-request-title}
 
-`POST _cluster/voting_config_exclusions/<node_name>` +
+`POST _cluster/voting_config_exclusions?node_names=<node_names>` +
+
+`POST _cluster/voting_config_exclusions?node_ids=<node_ids>` +
 
 `DELETE _cluster/voting_config_exclusions`
 
@@ -42,39 +44,43 @@ master-eligible nodes.
 
 For more information, see <<modules-discovery-removing-nodes>>.
 
-
-[[voting-config-exclusions-api-path-params]]
-==== {api-path-parms-title}
-
-`<node_name>`::
-  A <<cluster-nodes,node filter>> that identifies {es} nodes.
-
-
 [[voting-config-exclusions-api-query-params]]
 ==== {api-query-parms-title}
 
-`cluster.auto_shrink_voting_configuration`::
-    (Optional, boolean) If `false`, you must use this API to maintain the voting 
-    configuration. Defaults to `true`.
+`node_names`::
+A comma-separated list of the names of the nodes to exclude from the voting
+configuration. If specified, you may not also specify `?node_ids`.
 
-`cluster.max_voting_config_exclusions`::
-    (Optional, integer) Limits the size of the voting configuration exclusion 
-    list. The default value is `10`. Since voting configuration exclusions are 
-    persistent and limited in number, you must clear the voting config 
-    exclusions list once the exclusions are no longer required.
+`node_ids`::
+A comma-separated list of the persistent ids of the nodes to exclude from the
+voting configuration. If specified, you may not also specify `?node_names`.
 
+`timeout`::
+(Optional, <<time-units, time units>>) When adding a voting configuration
+exclusion, the API waits for the specified nodes to be excluded from the voting
+configuration before returning. The period of time to wait is specified by the
+`?timeout` query parameter. If the timeout expires before the appropriate
+condition is satisfied, the request fails and returns an error. Defaults to
+`30s`.
+
+`wait_for_removal`::
+(Optional, boolean) Specifies whether to wait for all excluded nodes to be
+removed from the cluster before clearing the voting configuration exclusions
+list. Defaults to `true`, meaning that all excluded nodes must be removed from
+the cluster before this API takes any action. If set to `false` then the voting
+configuration exclusions list is cleared even if some excluded nodes are still
+in the cluster.
   
 [[voting-config-exclusions-api-example]]
 ==== {api-examples-title}
 
-Add `nodeId1` to the voting configuration exclusions list:
+Adds nodes named `nodeName1` and `nodeName2` to the voting configuration
+exclusions list:
 
 [source,console]
 -------------------------------------------------- 
-POST /_cluster/voting_config_exclusions/nodeId1
+POST /_cluster/voting_config_exclusions?node_names=nodeName1,nodeName2
 --------------------------------------------------
-// TEST[catch:bad_request]
-
 
 Remove all exclusions from the list:
 

@@ -20,8 +20,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -33,7 +31,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class TrainedModelDefinition implements ToXContentObject, Writeable, Accountable {
@@ -52,11 +49,10 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         ObjectParser<TrainedModelDefinition.Builder, Void> parser = new ObjectParser<>(NAME,
             ignoreUnknownFields,
             TrainedModelDefinition.Builder::builderForParser);
-        parser.declareNamedObjects(TrainedModelDefinition.Builder::setTrainedModel,
+        parser.declareNamedObject(TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> ignoreUnknownFields ?
                 p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
                 p.namedObject(StrictlyParsedTrainedModel.class, n, null),
-            (modelDocBuilder) -> { /* Noop does not matter as we will throw if more than one is defined */ },
             TRAINED_MODEL);
         parser.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> ignoreUnknownFields ?
@@ -115,15 +111,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         return preProcessors;
     }
 
-    private void preProcess(Map<String, Object> fields) {
-        preProcessors.forEach(preProcessor -> preProcessor.process(fields));
-    }
-
-    public InferenceResults infer(Map<String, Object> fields, InferenceConfig config) {
-        preProcess(fields);
-        return trainedModel.infer(fields, config);
-    }
-
     @Override
     public String toString() {
         return Strings.toString(this);
@@ -179,6 +166,12 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
             this(true);
         }
 
+        public Builder(TrainedModelDefinition definition) {
+            this(true);
+            this.preProcessors = new ArrayList<>(definition.getPreProcessors());
+            this.trainedModel = definition.trainedModel;
+        }
+
         public Builder setPreProcessors(List<PreProcessor> preProcessors) {
             this.preProcessors = preProcessors;
             return this;
@@ -187,14 +180,6 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         public Builder setTrainedModel(TrainedModel trainedModel) {
             this.trainedModel = trainedModel;
             return this;
-        }
-
-        private Builder setTrainedModel(List<TrainedModel> trainedModel) {
-            if (trainedModel.size() != 1) {
-                throw ExceptionsHelper.badRequestException("[{}] must have exactly one trained model defined.",
-                    TRAINED_MODEL.getPreferredName());
-            }
-            return setTrainedModel(trainedModel.get(0));
         }
 
         private void setProcessorsInOrder(boolean value) {

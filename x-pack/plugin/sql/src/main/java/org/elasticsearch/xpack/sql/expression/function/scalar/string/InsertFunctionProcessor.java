@@ -7,26 +7,26 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class InsertFunctionProcessor implements Processor {
 
-    private final Processor source, start, length, replacement;
+    private final Processor input, start, length, replacement;
     public static final String NAME = "si";
 
-    public InsertFunctionProcessor(Processor source, Processor start, Processor length, Processor replacement) {
-        this.source = source;
+    public InsertFunctionProcessor(Processor input, Processor start, Processor length, Processor replacement) {
+        this.input = input;
         this.start = start;
         this.length = length;
         this.replacement = replacement;
     }
 
     public InsertFunctionProcessor(StreamInput in) throws IOException {
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
         start = in.readNamedWriteable(Processor.class);
         length = in.readNamedWriteable(Processor.class);
         replacement = in.readNamedWriteable(Processor.class);
@@ -34,7 +34,7 @@ public class InsertFunctionProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(source());
+        out.writeNamedWriteable(input());
         out.writeNamedWriteable(start());
         out.writeNamedWriteable(length());
         out.writeNamedWriteable(replacement());
@@ -42,24 +42,24 @@ public class InsertFunctionProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        return doProcess(source().process(input), start().process(input), length().process(input), replacement().process(input));
+        return doProcess(input().process(input), start().process(input), length().process(input), replacement().process(input));
     }
 
-    public static Object doProcess(Object source, Object start, Object length, Object replacement) {
-        if (source == null) {
+    public static Object doProcess(Object input, Object start, Object length, Object replacement) {
+        if (input == null) {
             return null;
         }
-        if (!(source instanceof String || source instanceof Character)) {
-            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (!(input instanceof String || input instanceof Character)) {
+            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (replacement == null) {
-            return source;
+            return input;
         }
         if (!(replacement instanceof String || replacement instanceof Character)) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", replacement);
         }
         if (start == null || length == null) {
-            return source;
+            return input;
         }
         if (!(start instanceof Number)) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", start);
@@ -74,11 +74,11 @@ public class InsertFunctionProcessor implements Processor {
         int startInt = ((Number) start).intValue() - 1;
         int realStart = startInt < 0 ? 0 : startInt;
         
-        if (startInt > source.toString().length()) {
-            return source;
+        if (startInt > input.toString().length()) {
+            return input;
         }
         
-        StringBuilder sb = new StringBuilder(source.toString());
+        StringBuilder sb = new StringBuilder(input.toString());
         String replString = (replacement.toString());
 
         return sb.replace(realStart,
@@ -97,7 +97,7 @@ public class InsertFunctionProcessor implements Processor {
         }
         
         InsertFunctionProcessor other = (InsertFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
+        return Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(length(), other.length())
                 && Objects.equals(replacement(), other.replacement());
@@ -105,11 +105,11 @@ public class InsertFunctionProcessor implements Processor {
     
     @Override
     public int hashCode() {
-        return Objects.hash(source(), start(), length(), replacement());
+        return Objects.hash(input(), start(), length(), replacement());
     }
     
-    public Processor source() {
-        return source;
+    public Processor input() {
+        return input;
     }
     
     public Processor start() {

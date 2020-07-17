@@ -20,13 +20,16 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-
-import java.util.Objects;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * The superclass for all E* (expression) and P* (postfix) nodes.
@@ -34,185 +37,54 @@ import java.util.Objects;
 public abstract class AExpression extends ANode {
 
     /**
-     * Prefix is the predecessor to this node in a variable chain.
-     * This is used to analyze and write variable chains in a
-     * more natural order since the parent node of a variable
-     * chain will want the data from the final postfix to be
-     * analyzed.
-     */
-    AExpression prefix;
-
-    /**
-     * Set to false when an expression will not be read from such as
-     * a basic assignment.  Note this variable is always set by the parent
-     * as input.
-     */
-    boolean read = true;
-
-    /**
-     * Set to true when an expression can be considered a stand alone
-     * statement.  Used to prevent extraneous bytecode. This is always
-     * set by the node as output.
-     */
-    boolean statement = false;
-
-    /**
-     * Set to the expected type this node needs to be.  Note this variable
-     * is always set by the parent as input and should never be read from.
-     */
-    Class<?> expected = null;
-
-    /**
-     * Set to the actual type this node is.  Note this variable is always
-     * set by the node as output and should only be read from outside of the
-     * node itself.  <b>Also, actual can always be read after a cast is
-     * called on this node to get the type of the node after the cast.</b>
-     */
-    Class<?> actual = null;
-
-    /**
-     * Set by {@link EExplicit} if a cast made on an expression node should be
-     * explicit.
-     */
-    boolean explicit = false;
-
-    /**
-     * Set to true if a cast is allowed to boxed/unboxed.  This is used
-     * for method arguments because casting may be required.
-     */
-    boolean internal = false;
-
-    /**
-     * Set to the value of the constant this expression node represents if
-     * and only if the node represents a constant.  If this is not null
-     * this node will be replaced by an {@link EConstant} during casting
-     * if it's not already one.
-     */
-    Object constant = null;
-
-    /**
-     * Set to true by {@link ENull} to represent a null value.
-     */
-    boolean isNull = false;
-
-    /**
      * Standard constructor with location used for error tracking.
      */
-    AExpression(Location location) {
-        super(location);
-
-        prefix = null;
+    AExpression(int identifier, Location location) {
+        super(identifier, location);
     }
 
     /**
-     * This constructor is used by variable/method chains when postfixes are specified.
+     * Checks for errors and collects data for the writing phase.
      */
-    AExpression(Location location, AExpression prefix) {
-        super(location);
-
-        this.prefix = Objects.requireNonNull(prefix);
+    void analyze(SemanticScope semanticScope) {
+        throw new UnsupportedOperationException();
     }
 
     /**
-     * Inserts {@link ECast} nodes into the tree for implicit casts.  Also replaces
-     * nodes with the constant variable set to a non-null value with {@link EConstant}.
-     * @return The new child node for the parent node calling this method.
+     * Checks for errors and collects data for the writing phase. Adds additional, common
+     * error checking for conditions related to static types and partially constructed static types.
      */
-    AExpression cast(ScriptRoot scriptRoot, Locals locals) {
-        PainlessCast cast = AnalyzerCaster.getLegalCast(location, actual, expected, explicit, internal);
+    static void analyze(AExpression expression, SemanticScope semanticScope) {
+        expression.analyze(semanticScope);
 
-        if (cast == null) {
-            if (constant == null || this instanceof EConstant) {
-                // For the case where a cast is not required and a constant is not set
-                // or the node is already an EConstant no changes are required to the tree.
-
-                return this;
-            } else {
-                // For the case where a cast is not required but a
-                // constant is set, an EConstant replaces this node
-                // with the constant copied from this node.  Note that
-                // for constants output data does not need to be copied
-                // from this node because the output data for the EConstant
-                // will already be the same.
-
-                EConstant econstant = new EConstant(location, constant);
-                econstant.analyze(scriptRoot, locals);
-
-                if (!expected.equals(econstant.actual)) {
-                    throw createError(new IllegalStateException("Illegal tree structure."));
-                }
-
-                return econstant;
-            }
-        } else {
-            if (constant == null) {
-                // For the case where a cast is required and a constant is not set.
-                // Modify the tree to add an ECast between this node and its parent.
-                // The output data from this node is copied to the ECast for
-                // further reads done by the parent.
-
-                ECast ecast = new ECast(location, this, cast);
-                ecast.statement = statement;
-                ecast.actual = expected;
-                ecast.isNull = isNull;
-
-                return ecast;
-            } else {
-                if (PainlessLookupUtility.isConstantType(expected)) {
-                    // For the case where a cast is required, a constant is set,
-                    // and the constant can be immediately cast to the expected type.
-                    // An EConstant replaces this node with the constant cast appropriately
-                    // from the constant value defined by this node.  Note that
-                    // for constants output data does not need to be copied
-                    // from this node because the output data for the EConstant
-                    // will already be the same.
-
-                    constant = AnalyzerCaster.constCast(location, constant, cast);
-
-                    EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(scriptRoot, locals);
-
-                    if (!expected.equals(econstant.actual)) {
-                        throw createError(new IllegalStateException("Illegal tree structure."));
-                    }
-
-                    return econstant;
-                } else if (this instanceof EConstant) {
-                    // For the case where a cast is required, a constant is set,
-                    // the constant cannot be immediately cast to the expected type,
-                    // and this node is already an EConstant.  Modify the tree to add
-                    // an ECast between this node and its parent.  Note that
-                    // for constants output data does not need to be copied
-                    // from this node because the output data for the EConstant
-                    // will already be the same.
-
-                    ECast ecast = new ECast(location, this, cast);
-                    ecast.actual = expected;
-
-                    return ecast;
-                } else {
-                    // For the case where a cast is required, a constant is set,
-                    // the constant cannot be immediately cast to the expected type,
-                    // and this node is not an EConstant.  Replace this node with
-                    // an Econstant node copying the constant from this node.
-                    // Modify the tree to add an ECast between the EConstant node
-                    // and its parent.  Note that for constants output data does not
-                    // need to be copied from this node because the output data for
-                    // the EConstant will already be the same.
-
-                    EConstant econstant = new EConstant(location, constant);
-                    econstant.analyze(scriptRoot, locals);
-
-                    if (!actual.equals(econstant.actual)) {
-                        throw createError(new IllegalStateException("Illegal tree structure."));
-                    }
-
-                    ECast ecast = new ECast(location, econstant, cast);
-                    ecast.actual = expected;
-
-                    return ecast;
-                }
-            }
+        if (semanticScope.hasDecoration(expression, PartialCanonicalTypeName.class)) {
+            throw expression.createError(new IllegalArgumentException("cannot resolve symbol " +
+                    "[" + semanticScope.getDecoration(expression, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
+
+        if (semanticScope.hasDecoration(expression, StaticType.class)) {
+            throw expression.createError(new IllegalArgumentException("value required: instead found unexpected type " +
+                    "[" + semanticScope.getDecoration(expression, StaticType.class).getStaticCanonicalTypeName() + "]"));
+        }
+
+        if (semanticScope.hasDecoration(expression, ValueType.class) == false) {
+            throw expression.createError(new IllegalStateException("value required: instead found no value"));
+        }
+    }
+
+    // TODO: move this somewhere more appropriate
+    public PainlessCast cast(SemanticScope semanticScope) {
+        Class<?> valueType = semanticScope.getDecoration(this, ValueType.class).getValueType();
+        Class<?> targetType = semanticScope.getDecoration(this, TargetType.class).getTargetType();
+        boolean isExplicitCast = semanticScope.getCondition(this, Explicit.class);
+        boolean isInternalCast = semanticScope.getCondition(this, Internal.class);
+
+        PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), valueType, targetType, isExplicitCast, isInternalCast);
+
+        if (painlessCast != null) {
+            semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+        }
+
+        return painlessCast;
     }
 }

@@ -29,7 +29,7 @@ can delete it.
 
 `<feed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-delete-datafeed-query-parms]]
 ==== {api-query-parms-title}
@@ -40,8 +40,6 @@ quicker than stopping and deleting the {dfeed}.
 
 [[ml-delete-datafeed-example]]
 ==== {api-examples-title}
-
-The following example deletes the `datafeed-total-requests` {dfeed}:
 
 [source,console]
 --------------------------------------------------

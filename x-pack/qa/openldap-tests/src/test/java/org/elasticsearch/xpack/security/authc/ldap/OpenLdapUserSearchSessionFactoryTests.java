@@ -18,6 +18,7 @@ import org.elasticsearch.test.OpenLdapTests;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
@@ -90,11 +91,12 @@ public class OpenLdapUserSearchSessionFactoryTests extends ESTestCase {
         } else {
             realmSettings.put(getFullSettingKey(realmId, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), OpenLdapTests.PASSWORD);
         }
-        final Settings settings = realmSettings.put(globalSettings).build();
+        final Settings settings = realmSettings.put(globalSettings)
+            .put(getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build();
         RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
 
-        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
+        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
 
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor"};
         try (LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService, threadPool)) {

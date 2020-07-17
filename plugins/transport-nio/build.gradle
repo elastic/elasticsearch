@@ -18,7 +18,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: "nebula.maven-scm"
+apply plugin: "elasticsearch.publish"
 
 esplugin {
   description 'The nio transport.'
@@ -26,19 +26,19 @@ esplugin {
 }
 
 dependencies {
-  compile project(':libs:elasticsearch-nio')
+  api project(':libs:elasticsearch-nio')
 
   // network stack
-  compile "io.netty:netty-buffer:${versions.netty}"
-  compile "io.netty:netty-codec:${versions.netty}"
-  compile "io.netty:netty-codec-http:${versions.netty}"
-  compile "io.netty:netty-common:${versions.netty}"
-  compile "io.netty:netty-handler:${versions.netty}"
-  compile "io.netty:netty-resolver:${versions.netty}"
-  compile "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
 }
 
@@ -103,6 +103,7 @@ thirdPartyAudit {
     'com.ning.compress.BufferRecycler',
     'com.ning.compress.lzf.ChunkDecoder',
     'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
     'com.ning.compress.lzf.LZFEncoder',
     'com.ning.compress.lzf.util.ChunkDecoderFactory',
     'com.ning.compress.lzf.util.ChunkEncoderFactory',
@@ -131,6 +132,9 @@ thirdPartyAudit {
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
+
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration'
   )
 
   ignoreViolations(
@@ -153,14 +157,6 @@ thirdPartyAudit {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
 
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
-  )
-}
-
-if (BuildParams.inFipsJvm == false) {
-  // BouncyCastleFIPS provides this class, so the exclusion is invalid when running CI in
-  // a FIPS JVM with BouncyCastleFIPS Provider
-  thirdPartyAudit.ignoreMissingClasses(
-    'org.bouncycastle.asn1.x500.X500Name'
   )
 }
 

@@ -11,10 +11,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -22,8 +23,9 @@ public class RestGetRollupIndexCapsAction extends BaseRestHandler {
 
     static final ParseField INDEX = new ParseField("index");
 
-    public RestGetRollupIndexCapsAction(RestController controller) {
-        controller.registerHandler(GET, "/{index}/_rollup/data", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/{index}/_rollup/data"));
     }
 
     @Override

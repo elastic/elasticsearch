@@ -114,8 +114,7 @@ POST /_search
 For numeric fields it is also possible to cast the values from one type
 to another using the `numeric_type` option.
 This option accepts the following values: [`"double", "long", "date", "date_nanos"`]
-and can be useful for cross-index search if the sort field is mapped differently on some
-indices.
+and can be useful for searches across multiple data streams or indices where the sort field is mapped differently.
 
 Consider for instance these two indices:
 

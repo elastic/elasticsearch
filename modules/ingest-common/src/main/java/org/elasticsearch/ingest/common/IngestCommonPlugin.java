@@ -103,7 +103,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return Arrays.asList(new GrokProcessorGetAction.RestAction(restController));
+        return Collections.singletonList(new GrokProcessorGetAction.RestAction());
     }
 
     @Override

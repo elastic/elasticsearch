@@ -411,6 +411,19 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             "at line [" + lineNumber + "]"));
     }
 
+    public void testAddingDoWithAllowedWarningWithoutSkipAllowedWarnings() {
+        int lineNumber = between(1, 10000);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setAllowedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        ClientYamlTestSuite testSuite = createTestSuite(SkipSection.EMPTY, doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertThat(e.getMessage(), containsString("api/name:\nattempted to add a [do] with a [allowed_warnings] " +
+            "section without a corresponding [\"skip\": \"features\": \"allowed_warnings\"] so runners that do not " +
+            "support the [allowed_warnings] section can skip the test at line [" + lineNumber + "]"));
+    }
+
+
     public void testAddingDoWithHeaderWithoutSkipHeaders() {
         int lineNumber = between(1, 10000);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));

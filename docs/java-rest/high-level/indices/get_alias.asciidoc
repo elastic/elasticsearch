@@ -63,3 +63,23 @@ executed operation as follows:
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Retrieves a map of indices and their aliases
+
++{response}+ class contains information about errors if they occurred.
+This info could be in fields `error` or `exception` depends on a case.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-error]
+--------------------------------------------------
+<1> Client sets status to `NOT_FOUND` if at least one item of specified
+indices or aliases is not found. Otherwise it is `OK`.
+
+<2> If at least one item of specified indices isn't exist client sets
+`ElasticsearchException` and returns empty result.
+
+<3> If at least one item of specified aliases ins't exist client puts
+error description in `error` field and returns partial result if any
+of other patterns match.
+
+If user specified indices or aliases as regular expressions
+and nothing was found client returns `OK` status and no errors.

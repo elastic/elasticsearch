@@ -1,10 +1,10 @@
 [[parent-join]]
-=== Join datatype
+=== Join data type
 ++++
 <titleabbrev>Join</titleabbrev>
 ++++
 
-The `join` datatype is a special field that creates
+The `join` data type is a special field that creates
 parent/child relation within documents of the same index.
 The `relations` section defines a set of possible relations within the documents,
 each relation being a parent name and a child name.
@@ -151,7 +151,7 @@ within the document (`my_parent`, `my_child`, ...).
 It also creates one field per parent/child relation.
 The name of this field is the name of the `join` field followed by `#` and the
 name of the parent in the relation.
-So for instance for the `my_parent` => [`my_child`, `another_child`] relation,
+So for instance for the `my_parent` -> [`my_child`, `another_child`] relation,
 the `join` field creates an additional field named `my_join_field#my_parent`.
 
 This field contains the parent `_id` that the document links to

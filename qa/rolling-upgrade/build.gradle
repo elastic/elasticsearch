@@ -23,30 +23,10 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.rest-resources'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
-
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  dependsOn configurations.restSpec
-}
-
-for (Version bwcVersion : bwcVersions.wireCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   /*
    * The goal here is to:
    * <ul>
@@ -70,7 +50,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'http.content_type.required', 'true'
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -121,26 +100,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn(
-      tasks.register("${baseName}#bwcTest") {
-        dependsOn tasks.named("${baseName}#upgradedClusterTest")
-      }
-    )
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#upgradedClusterTest")
   }
 }
-
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-// basic integ tests includes testing bwc against the most recent version
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-
-check.dependsOn(bwcTestSnapshots)
-
-test.enabled = false

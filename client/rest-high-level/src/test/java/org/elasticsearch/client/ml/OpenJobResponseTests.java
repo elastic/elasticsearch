@@ -27,7 +27,8 @@ public class OpenJobResponseTests extends AbstractXContentTestCase<OpenJobRespon
 
     @Override
     protected OpenJobResponse createTestInstance() {
-        return new OpenJobResponse(randomBoolean());
+        String node = randomFrom("", randomAlphaOfLength(10), null);
+        return new OpenJobResponse(randomBoolean(), node);
     }
 
     @Override
@@ -37,6 +38,6 @@ public class OpenJobResponseTests extends AbstractXContentTestCase<OpenJobRespon
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

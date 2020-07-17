@@ -47,7 +47,7 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
         this(name, scope, analyzer, Integer.MIN_VALUE);
     }
 
-    NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
+    public NamedAnalyzer(String name, AnalyzerScope scope, Analyzer analyzer, int positionIncrementGap) {
         super(ERROR_STRATEGY);
         this.name = name;
         this.scope = scope;

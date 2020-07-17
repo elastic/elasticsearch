@@ -32,7 +32,7 @@ import java.util.Objects;
 public final class ActivateWatchResponse {
 
     private static final ParseField STATUS_FIELD = new ParseField("status");
-    private static ConstructingObjectParser<ActivateWatchResponse, Void> PARSER =
+    private static final ConstructingObjectParser<ActivateWatchResponse, Void> PARSER =
         new ConstructingObjectParser<>("activate_watch_response", true,
             a -> new ActivateWatchResponse((WatchStatus) a[0]));
 

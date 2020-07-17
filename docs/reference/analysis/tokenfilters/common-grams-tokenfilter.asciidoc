@@ -16,7 +16,7 @@ You can use the `common_grams` filter in place of the
 completely ignore common words.
 
 This filter uses Lucene's
-https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis/commongrams/CommonGramsFilter.html[CommonGramsFilter].
+{lucene-analysis-docs}/commongrams/CommonGramsFilter.html[CommonGramsFilter].
 
 [[analysis-common-grams-analyze-ex]]
 ==== Example

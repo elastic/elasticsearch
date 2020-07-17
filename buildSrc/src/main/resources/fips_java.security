@@ -1,6 +1,7 @@
 security.provider.1=org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider
 security.provider.2=org.bouncycastle.jsse.provider.BouncyCastleJsseProvider fips:BCFIPS
 security.provider.3=SUN
+security.provider.4=SunJGSS
 securerandom.source=file:/dev/urandom
 securerandom.strongAlgorithms=NativePRNGBlocking:SUN,DRBG:SUN
 securerandom.drbg.config=

@@ -13,11 +13,13 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
 
 import java.time.Clock;
@@ -50,19 +52,25 @@ public class MlDailyMaintenanceService implements Releasable {
     private final Supplier<TimeValue> schedulerProvider;
 
     private volatile Scheduler.Cancellable cancellable;
+    private volatile float deleteExpiredDataRequestsPerSecond;
 
-    MlDailyMaintenanceService(ThreadPool threadPool, Client client, ClusterService clusterService,
+    MlDailyMaintenanceService(Settings settings, ThreadPool threadPool, Client client, ClusterService clusterService,
                               MlAssignmentNotifier mlAssignmentNotifier, Supplier<TimeValue> scheduleProvider) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.mlAssignmentNotifier = Objects.requireNonNull(mlAssignmentNotifier);
         this.schedulerProvider = Objects.requireNonNull(scheduleProvider);
+        this.deleteExpiredDataRequestsPerSecond = MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND.get(settings);
     }
 
-    public MlDailyMaintenanceService(ClusterName clusterName, ThreadPool threadPool, Client client, ClusterService clusterService,
-                                     MlAssignmentNotifier mlAssignmentNotifier) {
-        this(threadPool, client, clusterService, mlAssignmentNotifier, () -> delayToNextTime(clusterName));
+    public MlDailyMaintenanceService(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+                                     Client client, ClusterService clusterService, MlAssignmentNotifier mlAssignmentNotifier) {
+        this(settings, threadPool, client, clusterService, mlAssignmentNotifier, () -> delayToNextTime(clusterName));
+    }
+
+    void setDeleteExpiredDataRequestsPerSecond(float value) {
+        this.deleteExpiredDataRequestsPerSecond = value;
     }
 
     /**
@@ -100,7 +108,7 @@ public class MlDailyMaintenanceService implements Releasable {
         }
     }
 
-    public boolean isStarted() {
+    boolean isStarted() {
         return cancellable != null;
     }
 
@@ -123,8 +131,15 @@ public class MlDailyMaintenanceService implements Releasable {
 
     private void triggerTasks() {
         try {
+            if (MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode()) {
+                LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
+                return;
+            }
             LOGGER.info("triggering scheduled [ML] maintenance tasks");
-            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
+            executeAsyncWithOrigin(client,
+                ML_ORIGIN,
+                DeleteExpiredDataAction.INSTANCE,
+                new DeleteExpiredDataAction.Request(deleteExpiredDataRequestsPerSecond, TimeValue.timeValueHours(8)),
                 ActionListener.wrap(
                     response -> {
                         if (response.isDeleted()) {
@@ -147,7 +162,7 @@ public class MlDailyMaintenanceService implements Releasable {
      * for displaying a yellow triangle in the UI jobs list changes.)
      */
     private void auditUnassignedMlTasks(ClusterState state) {
-        PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks != null) {
             mlAssignmentNotifier.auditUnassignedMlTasks(state.nodes(), tasks);
         }

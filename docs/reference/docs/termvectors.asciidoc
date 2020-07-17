@@ -137,27 +137,27 @@ from is randomly selected. Use `routing` only to hit a particular shard.
 [[docs-termvectors-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=field_statistics]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=field_statistics]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=offsets]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=offsets]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=payloads]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=payloads]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=positions]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=positions]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=realtime]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=realtime]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=term_statistics]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=term_statistics]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version_type]
 
 [[docs-termvectors-api-example]]
 ==== {api-examples-title}
@@ -216,7 +216,7 @@ PUT /twitter/_doc/1
   "text" : "twitter test test test "
 }
 
-PUT /twitter/_doc/2
+PUT /twitter/_doc/2?refresh=wait_for
 {
   "fullname" : "Jane Doe",
   "text" : "Another twitter test ..."

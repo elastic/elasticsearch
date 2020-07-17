@@ -21,22 +21,23 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -45,47 +46,71 @@ import static java.util.Collections.emptyList;
 /**
  * An aggregator that finds "rare" string values (e.g. terms agg that orders ascending)
  */
-public class StringRareTermsAggregator extends AbstractRareTermsAggregator<ValuesSource.Bytes, IncludeExclude.StringFilter, BytesRef> {
-    protected BytesRefHash bucketOrds;
+public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
+    private final ValuesSource.Bytes valuesSource;
+    private final IncludeExclude.StringFilter filter;
+    private final BytesKeyedBucketOrds bucketOrds;
 
-    StringRareTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes valuesSource,
-                                     DocValueFormat format,  IncludeExclude.StringFilter stringFilter,
-                                     SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                     Map<String, Object> metaData, long maxDocCount, double precision) throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData, maxDocCount, precision, format, valuesSource, stringFilter);
-        this.bucketOrds = new BytesRefHash(1, context.bigArrays());
+    StringRareTermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Bytes valuesSource,
+        DocValueFormat format,
+        IncludeExclude.StringFilter filter,
+        SearchContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        long maxDocCount,
+        double precision,
+        CardinalityUpperBound cardinality
+    ) throws IOException {
+        super(
+            name,
+            factories,
+            context,
+            parent,
+            metadata,
+            maxDocCount,
+            precision,
+            format
+        );
+        this.valuesSource = valuesSource;
+        this.filter = filter;
+        this.bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
                                                 final LeafBucketCollector sub) throws IOException {
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        if (subCollectors == null) {
-            subCollectors = sub;
-        }
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
 
             @Override
-            public void collect(int docId, long bucket) throws IOException {
-                assert bucket == 0;
-                if (values.advanceExact(docId)) {
-                    final int valuesCount = values.docValueCount();
-                    previous.clear();
+            public void collect(int docId, long owningBucketOrd) throws IOException {
+                if (false == values.advanceExact(docId)) {
+                    return;
+                }
+                int valuesCount = values.docValueCount();
+                previous.clear();
 
-                    // SortedBinaryDocValues don't guarantee uniqueness so we
-                    // need to take care of dups
-                    for (int i = 0; i < valuesCount; ++i) {
-                        final BytesRef bytes = values.nextValue();
-                        if (includeExclude != null && !includeExclude.accept(bytes)) {
-                            continue;
-                        }
-                        if (i > 0 && previous.get().equals(bytes)) {
-                            continue;
-                        }
-
-                        doCollect(bytes, docId);
-                        previous.copyBytes(bytes);
+                // SortedBinaryDocValues don't guarantee uniqueness so we
+                // need to take care of dups
+                for (int i = 0; i < valuesCount; ++i) {
+                    BytesRef bytes = values.nextValue();
+                    if (filter != null && false == filter.accept(bytes)) {
+                        continue;
+                    }
+                    if (i > 0 && previous.get().equals(bytes)) {
+                        continue;
+                    }
+                    previous.copyBytes(bytes);
+                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
+                    if (bucketOrdinal < 0) { // already seen
+                        bucketOrdinal = -1 - bucketOrdinal;
+                        collectExistingBucket(sub, docId, bucketOrdinal);
+                    } else {
+                        collectBucket(sub, docId, bucketOrdinal);
                     }
                 }
             }
@@ -93,78 +118,76 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator<Value
     }
 
     @Override
-    long addValueToOrds(BytesRef value) {
-        return bucketOrds.add(value);
-    }
-
-    /**
-     * Merges the ordinals to a minimal set, populates the CuckooFilter and
-     * generates a final set of buckets.
-     *
-     * If a term is below the maxDocCount, it is turned into a Bucket.  Otherwise,
-     * the term is added to the filter, and pruned from the ordinal map.  If
-     * necessary the ordinal map is merged down to a minimal set to remove deletions
-     */
-    private List<StringRareTerms.Bucket> buildSketch() {
-        long deletionCount = 0;
-        BytesRefHash newBucketOrds = new BytesRefHash(1, context.bigArrays());
-        List<StringRareTerms.Bucket> buckets = new ArrayList<>();
-        try (BytesRefHash oldBucketOrds = bucketOrds) {
-
-            long[] mergeMap = new long[(int) oldBucketOrds.size()];
-            BytesRef scratch = new BytesRef();
-            for (int i = 0; i < oldBucketOrds.size(); i++) {
-                BytesRef oldKey = oldBucketOrds.get(i, scratch);
-                long newBucketOrd = -1;
-                long docCount = bucketDocCount(i);
-                // if the key is below threshold, reinsert into the new ords
-                if (docCount <= maxDocCount) {
-                    newBucketOrd = newBucketOrds.add(oldKey);
-                    StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(BytesRef.deepCopyOf(oldKey), docCount, null, format);
-                    bucket.bucketOrd = newBucketOrd;
-                    buckets.add(bucket);
-
-                    consumeBucketsAndMaybeBreak(1);
-                } else {
-                    // Make a note when one of the ords has been deleted
-                    deletionCount += 1;
-                    filter.add(oldKey);
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        /*
+         * Collect the list of buckets, populate the filter with terms
+         * that are too frequent, and figure out how to merge sub-buckets.
+         */
+        StringRareTerms.Bucket[][] rarestPerOrd = new StringRareTerms.Bucket[owningBucketOrds.length][];
+        SetBackedScalingCuckooFilter[] filters = new SetBackedScalingCuckooFilter[owningBucketOrds.length];
+        long keepCount = 0;
+        long[] mergeMap = new long[(int) bucketOrds.size()];
+        Arrays.fill(mergeMap, -1);
+        long offset = 0;
+        for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
+            try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, context.bigArrays())) {
+                filters[owningOrdIdx] = newFilter();
+                List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
+                BytesKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);
+                BytesRef scratch = new BytesRef();
+                while (collectedBuckets.next()) {
+                    collectedBuckets.readValue(scratch);
+                    long docCount = bucketDocCount(collectedBuckets.ord());
+                    // if the key is below threshold, reinsert into the new ords
+                    if (docCount <= maxDocCount) {
+                        StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(BytesRef.deepCopyOf(scratch), docCount, null, format);
+                        bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(scratch);
+                        mergeMap[(int) collectedBuckets.ord()] = bucket.bucketOrd;
+                        builtBuckets.add(bucket);
+                        keepCount++;
+                    } else {
+                        filters[owningOrdIdx].add(scratch);
+                    }
                 }
-                mergeMap[i] = newBucketOrd;
-            }
-
-            // Only merge/delete the ordinals if we have actually deleted one,
-            // to save on some redundant work
-            if (deletionCount > 0) {
-                mergeBuckets(mergeMap, newBucketOrds.size());
-                if (deferringCollector != null) {
-                    deferringCollector.mergeBuckets(mergeMap);
-                }
+                rarestPerOrd[owningOrdIdx] = builtBuckets.toArray(StringRareTerms.Bucket[]::new);
+                offset += bucketsInThisOwningBucketToCollect.size();
             }
         }
-        bucketOrds = newBucketOrds;
-        return buckets;
-    }
 
-    @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        assert owningBucketOrdinal == 0;
-
-        List<StringRareTerms.Bucket> buckets = buildSketch();
-        runDeferredCollections(buckets.stream().mapToLong(b -> b.bucketOrd).toArray());
-
-        // Finalize the buckets
-        for (StringRareTerms.Bucket bucket : buckets) {
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+        /*
+         * Only merge/delete the ordinals if we have actually deleted one,
+         * to save on some redundant work.
+         */
+        if (keepCount != mergeMap.length) {
+            mergeBuckets(mergeMap, offset);
+            if (deferringCollector != null) {
+                deferringCollector.mergeBuckets(mergeMap);
+            }
         }
 
-        CollectionUtil.introSort(buckets, ORDER.comparator(this));
-        return new StringRareTerms(name, ORDER, pipelineAggregators(), metaData(), format, buckets, maxDocCount, filter);
+        /*
+         * Now build the results!
+         */
+        buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
+        InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            Arrays.sort(rarestPerOrd[ordIdx], ORDER.comparator());
+            result[ordIdx] = new StringRareTerms(
+                name,
+                ORDER,
+                metadata(),
+                format,
+                Arrays.asList(rarestPerOrd[ordIdx]),
+                maxDocCount,
+                filters[ordIdx]
+            );
+        }
+        return result;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringRareTerms(name, LongRareTermsAggregator.ORDER, pipelineAggregators(), metaData(), format, emptyList(), 0, filter);
+        return new StringRareTerms(name, LongRareTermsAggregator.ORDER, metadata(), format, emptyList(), 0, newFilter());
     }
 
     @Override

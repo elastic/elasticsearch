@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -24,7 +25,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,8 +49,10 @@ import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
 
@@ -61,6 +64,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final TransformServices transformServices;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
     private volatile int numFailureRetries;
 
@@ -69,21 +73,23 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         TransformServices transformServices,
         ThreadPool threadPool,
         ClusterService clusterService,
-        Settings settings
+        Settings settings,
+        IndexNameExpressionResolver resolver
     ) {
         super(TransformField.TASK_NAME, Transform.TASK_THREAD_POOL_NAME);
         this.client = client;
         this.transformServices = transformServices;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.resolver = resolver;
         this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
 
     @Override
-    public PersistentTasksCustomMetaData.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState);
+    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
                 + params.getId()
@@ -92,17 +98,66 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + String.join(",", unavailableIndices)
                 + "]";
             logger.debug(reason);
-            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+            return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
-            (node) -> node.isDataNode() && node.getVersion().onOrAfter(params.getVersion())
+            (node) -> nodeCanRunThisTransform(node, params, null)
         );
-        return discoveryNode == null ? NO_NODE_FOUND : new PersistentTasksCustomMetaData.Assignment(discoveryNode.getId(), "");
+
+        if (discoveryNode == null) {
+            Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
+            for (DiscoveryNode node : clusterState.getNodes()) {
+                nodeCanRunThisTransform(node, params, explainWhyAssignmentFailed);
+            }
+            String reason = "Not starting transform ["
+                + params.getId()
+                + "], reasons ["
+                + explainWhyAssignmentFailed.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))
+                + "]";
+
+            logger.debug(reason);
+            return new PersistentTasksCustomMetadata.Assignment(null, reason);
+        }
+
+        return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
     }
 
-    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+    public static boolean nodeCanRunThisTransform(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
+        // version of the transform run on a node that has at least the same version
+        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
+            if (explain != null) {
+                explain.put(
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
+                );
+            }
+            return false;
+        }
+
+        final Map<String, String> nodeAttributes = node.getAttributes();
+
+        // transform enabled?
+        if (Boolean.parseBoolean(nodeAttributes.get(Transform.TRANSFORM_ENABLED_NODE_ATTR)) == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "not a transform node");
+            }
+            return false;
+        }
+
+        // does the transform require a remote and remote is enabled?
+        if (params.requiresRemote() && node.isRemoteClusterClient() == false) {
+            if (explain != null) {
+                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
+            }
+            return false;
+        }
+
+        // we found no reason that the transform can not run on this node
+        return true;
+    }
+
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {
         String[] indices = resolver.concreteIndexNames(
             clusterState,
             IndicesOptions.lenientExpandOpen(),
@@ -131,9 +186,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         //
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
-
         final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setAuditor(auditor)
-            .setClient(client)
+            .setClient(buildTask.getParentTaskClient())
             .setTransformsCheckpointService(transformServices.getCheckpointService())
             .setTransformsConfigManager(transformServices.getConfigManager());
 
@@ -251,7 +305,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
             if (config.isValid()) {
                 indexerBuilder.setTransformConfig(config);
-                SchemaUtil.getDestinationFieldMappings(client, config.getDestination().getIndex(), getFieldMappingsListener);
+                SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
+                        getFieldMappingsListener);
             } else {
                 markAsFailed(buildTask, TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId));
             }
@@ -265,14 +320,16 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ActionListener<Void> templateCheckListener = ActionListener.wrap(
             aVoid -> transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener),
             error -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(error);
                 String msg = "Failed to create internal index mappings";
-                logger.error(msg, error);
-                markAsFailed(buildTask, msg);
+                logger.error(msg, cause);
+                markAsFailed(buildTask, msg + "[" + cause + "]");
             }
         );
 
         // <1> Check the index templates are installed
-        TransformInternalIndex.installLatestIndexTemplatesIfRequired(clusterService, client, templateCheckListener);
+        TransformInternalIndex.installLatestIndexTemplatesIfRequired(clusterService, buildTask.getParentTaskClient(),
+                templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {
@@ -336,7 +393,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         String type,
         String action,
         TaskId parentTaskId,
-        PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> persistentTask,
+        PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> persistentTask,
         Map<String, String> headers
     ) {
         return new TransformTask(
@@ -344,6 +401,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             type,
             action,
             parentTaskId,
+            client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
             transformServices.getSchedulerEngine(),

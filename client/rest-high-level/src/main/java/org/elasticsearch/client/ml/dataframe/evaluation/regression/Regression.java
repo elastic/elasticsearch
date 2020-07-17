@@ -33,6 +33,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 /**
  * Evaluation of regression results.
  */
@@ -49,10 +53,10 @@ public class Regression implements Evaluation {
         NAME, true, a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PREDICTED_FIELD);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(EvaluationMetric.class, n, c), METRICS);
+        PARSER.declareString(constructorArg(), ACTUAL_FIELD);
+        PARSER.declareString(constructorArg(), PREDICTED_FIELD);
+        PARSER.declareNamedObjects(
+            optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), c), METRICS);
     }
 
     public static Regression fromXContent(XContentParser parser) {

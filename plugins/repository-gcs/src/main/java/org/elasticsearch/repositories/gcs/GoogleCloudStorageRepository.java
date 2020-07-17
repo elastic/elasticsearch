@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.gcs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -43,7 +44,12 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+
+    /**
+     * Maximum allowed object size in GCS.
+     * @see <a href="https://cloud.google.com/storage/quotas#objects">GCS documentation</a> for details.
+     */
+    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(5, ByteSizeUnit.TB);
 
     static final String TYPE = "gcs";
 
@@ -61,11 +67,12 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final String clientName;
 
     GoogleCloudStorageRepository(
-        final RepositoryMetaData metadata,
+        final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
-        final ClusterService clusterService) {
-        super(metadata, namedXContentRegistry, clusterService, buildBasePath(metadata));
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata));
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
@@ -75,7 +82,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
             "using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
-    private static BlobPath buildBasePath(RepositoryMetaData metadata) {
+    private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
@@ -90,7 +97,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(bucket, clientName, storageService);
+        return new GoogleCloudStorageBlobStore(bucket, clientName, metadata.name(), storageService);
     }
 
     @Override
@@ -101,7 +108,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     /**
      * Get a given setting from the repository settings, throwing a {@link RepositoryException} if the setting does not exist or is empty.
      */
-    static <T> T getSetting(Setting<T> setting, RepositoryMetaData metadata) {
+    static <T> T getSetting(Setting<T> setting, RepositoryMetadata metadata) {
         T value = setting.get(metadata.settings());
         if (value == null) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");

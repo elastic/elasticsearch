@@ -19,71 +19,57 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-
-import java.util.Set;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a return statement.
  */
-public final class SReturn extends AStatement {
+public class SReturn extends AStatement {
 
-    private AExpression expression;
+    private final AExpression expressionNode;
 
-    public SReturn(Location location, AExpression expression) {
-        super(location);
+    public SReturn(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = expression;
+        this.expressionNode = expressionNode;
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitReturn(this, input);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (expression == null) {
-            if (locals.getReturnType() != void.class) {
-                throw location.createError(new ClassCastException("Cannot cast from " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(locals.getReturnType()) + "] to " +
+    void analyze(SemanticScope semanticScope) {
+        if (expressionNode == null) {
+            if (semanticScope.getReturnType() != void.class) {
+                throw getLocation().createError(new ClassCastException("Cannot cast from " +
+                        "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
         } else {
-            expression.expected = locals.getReturnType();
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            expression = expression.cast(scriptRoot, locals);
+            semanticScope.setCondition(expressionNode, Read.class);
+            semanticScope.putDecoration(expressionNode, new TargetType(semanticScope.getReturnType()));
+            semanticScope.setCondition(expressionNode, Internal.class);
+            AExpression.analyze(expressionNode, semanticScope);
+            expressionNode.cast(semanticScope);
         }
 
-        methodEscape = true;
-        loopEscape = true;
-        allEscape = true;
-
-        statementCount = 1;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        if (expression != null) {
-            expression.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.returnValue();
-    }
-
-    @Override
-    public String toString() {
-        return expression == null ? singleLineToString() : singleLineToString(expression);
+        semanticScope.setCondition(this, MethodEscape.class);
+        semanticScope.setCondition(this, LoopEscape.class);
+        semanticScope.setCondition(this, AllEscape.class);
     }
 }

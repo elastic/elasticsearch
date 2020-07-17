@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -38,8 +39,10 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,6 +51,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 final class QueryAnalyzer {
@@ -126,7 +130,7 @@ final class QueryAnalyzer {
         Result getResult() {
             List<Result> partialResults = new ArrayList<>();
             if (terms.size() > 0) {
-                partialResults.add(conjunction ? handleConjunction(terms) : handleDisjunction(terms, minimumShouldMatch));
+                partialResults.addAll(terms);
             }
             if (children.isEmpty() == false) {
                 List<Result> childResults = children.stream().map(ResultBuilder::getResult).collect(Collectors.toList());
@@ -149,6 +153,10 @@ final class QueryAnalyzer {
 
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+            if (parent instanceof DateRangeIncludingNowQuery) {
+                terms.add(Result.UNKNOWN);
+                return QueryVisitor.EMPTY_VISITOR;
+            }
             this.verified = isVerified(parent);
             if (occur == Occur.MUST || occur == Occur.FILTER) {
                 ResultBuilder builder = new ResultBuilder(true);
@@ -196,6 +204,22 @@ final class QueryAnalyzer {
             Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toUnmodifiableSet());
             if (qe.size() > 0) {
                 this.terms.add(new Result(verified, qe, conjunction ? qe.size() : 1));
+            }
+        }
+
+        @Override
+        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            if (query instanceof TermInSetQuery) {
+                TermInSetQuery q = (TermInSetQuery) query;
+                PrefixCodedTerms.TermIterator ti = q.getTermData().iterator();
+                BytesRef term;
+                Set<QueryExtraction> qe = new HashSet<>();
+                while ((term = ti.next()) != null) {
+                    qe.add(new QueryExtraction(new Term(field, term)));
+                }
+                this.terms.add(new Result(true, qe, 1));
+            } else {
+                super.consumeTermsMatching(query, field, automaton);
             }
         }
 

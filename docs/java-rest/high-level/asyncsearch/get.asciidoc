@@ -1,0 +1,87 @@
+--
+:api: asyncsearch-get
+:request: GetAsyncSearchRequest
+:response: AsyncSearchResponse
+--
+
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Get Async Search API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+A +{request}+ allows to get a running asynchronous search task by
+its id. Required arguments are the `id` of a running async search:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-arguments]
+--------------------------------------------------
+<1> The minimum time that the request should wait before 
+returning a partial result (defaults to no wait).
+<2> The expiration time of the request (defaults to none).
+
+
+[id="{upid}-{api}-sync"]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute]
+--------------------------------------------------
+<1> Execute the request and get back the response as an +{response}+ object.
+
+[id="{upid}-{api}-async"]
+==== Asynchronous Execution
+
+The asynchronous execution of a +{request}+ allows to use an 
+`ActionListener` to be called back when the submit request returns: 
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-execute-async]
+--------------------------------------------------
+<1> The +{request}+ to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for +{response}+ looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ allows to retrieve information about the executed
+ operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The `SearchResponse`, or `null` if not available yet
+<2> The id of the async search request, `null` if the response isn't stored
+<3> `true` when the response contains partial results
+<4> `true` when the search is still running
+<5> The time the response was created (millis since epoch)
+<6> The time the response expires (millis since epoch)
+<7> Get failure reasons or `null` for no failures

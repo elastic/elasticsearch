@@ -155,7 +155,7 @@ public class RunningStats implements Writeable, Cloneable {
             deltas.put(fieldName, fieldValue * docCount - fieldSum.get(fieldName));
 
             // update running mean, variance, skewness, kurtosis
-            if (means.containsKey(fieldName) == true) {
+            if (means.containsKey(fieldName)) {
                 // update running means
                 m1 = means.get(fieldName);
                 d = fieldValue - m1;
@@ -194,7 +194,7 @@ public class RunningStats implements Writeable, Cloneable {
             dR = deltas.get(fieldName);
             HashMap<String, Double> cFieldVals = (covariances.get(fieldName) != null) ? covariances.get(fieldName) : new HashMap<>();
             for (String cFieldName : cFieldNames) {
-                if (cFieldVals.containsKey(cFieldName) == true) {
+                if (cFieldVals.containsKey(cFieldName)) {
                     newVal = cFieldVals.get(cFieldName) + 1.0 / (docCount * (docCount - 1.0)) * dR * deltas.get(cFieldName);
                     cFieldVals.put(cFieldName, newVal);
                 } else {
@@ -224,7 +224,7 @@ public class RunningStats implements Writeable, Cloneable {
                 this.variances.put(fieldName, other.variances.get(fieldName).doubleValue());
                 this.skewness.put(fieldName , other.skewness.get(fieldName).doubleValue());
                 this.kurtosis.put(fieldName, other.kurtosis.get(fieldName).doubleValue());
-                if (other.covariances.containsKey(fieldName) == true) {
+                if (other.covariances.containsKey(fieldName)) {
                     this.covariances.put(fieldName, other.covariances.get(fieldName));
                 }
                 this.docCount = other.docCount;

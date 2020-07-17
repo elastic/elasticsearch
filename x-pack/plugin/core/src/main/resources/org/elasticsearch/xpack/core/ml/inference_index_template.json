@@ -1,0 +1,78 @@
+{
+  "order" : 0,
+  "version" : ${xpack.ml.version.id},
+  "index_patterns" : [
+    ".ml-inference-000002"
+  ],
+  "settings" : {
+    "index" : {
+      "number_of_shards" : "1",
+      "auto_expand_replicas" : "0-1"
+    }
+  },
+  "mappings" : {
+    "_doc": {
+      "_meta": {
+        "version": "${xpack.ml.version}"
+      },
+      "dynamic": "false",
+      "properties": {
+        "doc_type": {
+          "type": "keyword"
+        },
+        "model_id": {
+          "type": "keyword"
+        },
+        "created_by": {
+          "type": "keyword"
+        },
+        "input": {
+          "enabled": false
+        },
+        "version": {
+          "type": "keyword"
+        },
+        "description": {
+          "type": "text"
+        },
+        "create_time": {
+          "type": "date"
+        },
+        "tags": {
+          "type": "keyword"
+        },
+        "metadata": {
+          "enabled": false
+        },
+        "estimated_operations": {
+          "type": "long"
+        },
+        "estimated_heap_memory_usage_bytes": {
+          "type": "long"
+        },
+        "doc_num": {
+          "type": "long"
+        },
+        "definition": {
+          "enabled": false
+        },
+        "compression_version": {
+          "type": "long"
+        },
+        "definition_length": {
+          "type": "long"
+        },
+        "total_definition_length": {
+          "type": "long"
+        },
+        "default_field_map": {
+          "enabled": false
+        },
+        "inference_config": {
+          "enabled": false
+        }
+      }
+    }
+  },
+  "aliases" : { }
+}

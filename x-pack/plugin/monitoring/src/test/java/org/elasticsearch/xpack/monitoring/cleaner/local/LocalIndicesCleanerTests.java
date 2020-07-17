@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.monitoring.cleaner.local;
 
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -46,7 +46,7 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
     protected void createIndex(String name, ZonedDateTime creationDate) {
         long creationMillis = creationDate.toInstant().toEpochMilli();
         assertAcked(prepareCreate(name)
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_CREATION_DATE, creationMillis).build()));
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, creationMillis).build()));
     }
 
     @Override
@@ -57,7 +57,7 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
             //so when es core gets the request with the explicit index name, it throws an index not found exception as that index
             //doesn't exist anymore. If we ignore unavailable instead no error will be thrown.
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings()
-                    .setIndicesOptions(IndicesOptions.fromOptions(true, true, true, true)).get();
+                    .setIndicesOptions(IndicesOptions.fromOptions(true, true, true, true, true)).get();
             assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(count));
         });
     }

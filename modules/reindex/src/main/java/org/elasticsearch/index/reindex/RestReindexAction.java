@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -34,9 +35,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
 
-    public RestReindexAction(RestController controller) {
+    public RestReindexAction() {
         super(ReindexAction.INSTANCE);
-        controller.registerHandler(POST, "/_reindex", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(POST, "/_reindex"));
     }
 
     @Override
@@ -64,6 +69,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam("scroll")) {
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
+        if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
+            internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
+        }
+
         return internal;
     }
 }

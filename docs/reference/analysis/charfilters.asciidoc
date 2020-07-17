@@ -1,5 +1,5 @@
 [[analysis-charfilters]]
-== Character Filters
+== Character filters reference
 
 _Character filters_ are used to preprocess the stream of characters before it
 is passed to the <<analysis-tokenizers,tokenizer>>.

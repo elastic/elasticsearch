@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -94,7 +94,7 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
         }
         String indexName = shardIdString.substring(1, splitPosition);
         int shardId = Integer.parseInt(shardIdString.substring(splitPosition + 2, shardIdString.length() - 1));
-        return new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId);
+        return new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId);
     }
 
     @Override

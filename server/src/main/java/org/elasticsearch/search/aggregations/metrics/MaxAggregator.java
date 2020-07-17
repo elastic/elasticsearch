@@ -36,17 +36,13 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-
-import static org.elasticsearch.search.aggregations.metrics.MinAggregator.getPointReaderOrNull;
 
 class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
@@ -59,19 +55,18 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray maxes;
 
     MaxAggregator(String name,
-                    ValuesSourceConfig<ValuesSource.Numeric> config,
-                    ValuesSource.Numeric valuesSource,
+                    ValuesSourceConfig config,
                     SearchContext context,
-                    Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                    Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
-        this.valuesSource = valuesSource;
+                    Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
+        // TODO stop expecting nulls here
+        this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
         if (valuesSource != null) {
             maxes = context.bigArrays().newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
         this.formatter = config.format();
-        this.pointConverter = getPointReaderOrNull(context, parent, config);
+        this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
         } else {
@@ -98,8 +93,8 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         if (pointConverter != null) {
             Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
             if (segMax != null) {
-                /**
-                 * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
+                /*
+                 * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
                  * so the ordinal for the bucket is always 0.
                  */
                 assert maxes.size() == 1;
@@ -146,12 +141,12 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMax(name, maxes.get(bucket), formatter, pipelineAggregators(),  metaData());
+        return new InternalMax(name, maxes.get(bucket), formatter, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, pipelineAggregators(), metaData());
+        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, metadata());
     }
 
     @Override

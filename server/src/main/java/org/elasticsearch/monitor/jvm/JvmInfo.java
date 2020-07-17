@@ -28,8 +28,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -44,7 +44,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class JvmInfo implements Writeable, ToXContentFragment {
+public class JvmInfo implements ReportingService.Info {
 
     private static JvmInfo INSTANCE;
 
@@ -98,6 +98,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         String onOutOfMemoryError = null;
         String useCompressedOops = "unknown";
         String useG1GC = "unknown";
+        long g1RegisionSize = -1;
         String useSerialGC = "unknown";
         long configuredInitialHeapSize = -1;
         long configuredMaxHeapSize = -1;
@@ -130,6 +131,8 @@ public class JvmInfo implements Writeable, ToXContentFragment {
             try {
                 Object useG1GCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
                 useG1GC = (String) valueMethod.invoke(useG1GCVmOptionObject);
+                Object regionSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "G1HeapRegionSize");
+                g1RegisionSize = Long.parseLong((String) valueMethod.invoke(regionSizeVmOptionObject));
             } catch (Exception ignored) {
             }
 
@@ -180,8 +183,10 @@ public class JvmInfo implements Writeable, ToXContentFragment {
                 onOutOfMemoryError,
                 useCompressedOops,
                 useG1GC,
-                useSerialGC);
+                useSerialGC,
+                g1RegisionSize);
     }
+
 
     @SuppressForbidden(reason = "PathUtils#get")
     private static boolean usingBundledJdk() {
@@ -229,12 +234,13 @@ public class JvmInfo implements Writeable, ToXContentFragment {
     private final String useCompressedOops;
     private final String useG1GC;
     private final String useSerialGC;
+    private final long g1RegionSize;
 
     private JvmInfo(long pid, String version, String vmName, String vmVersion, String vmVendor, boolean bundledJdk, Boolean usingBundledJdk,
                     long startTime, long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments,
                     String bootClassPath, String classPath, Map<String, String> systemProperties, String[] gcCollectors,
                     String[] memoryPools, String onError, String onOutOfMemoryError, String useCompressedOops, String useG1GC,
-                    String useSerialGC) {
+                    String useSerialGC, long g1RegionSize) {
         this.pid = pid;
         this.version = version;
         this.vmName = vmName;
@@ -257,6 +263,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         this.useCompressedOops = useCompressedOops;
         this.useG1GC = useG1GC;
         this.useSerialGC = useSerialGC;
+        this.g1RegionSize = g1RegionSize;
     }
 
     public JvmInfo(StreamInput in) throws IOException {
@@ -291,6 +298,7 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         this.onOutOfMemoryError = null;
         this.useG1GC = "unknown";
         this.useSerialGC = "unknown";
+        this.g1RegionSize = -1;
     }
 
     @Override
@@ -484,6 +492,10 @@ public class JvmInfo implements Writeable, ToXContentFragment {
 
     public String useSerialGC() {
         return this.useSerialGC;
+    }
+
+    public long getG1RegionSize() {
+        return g1RegionSize;
     }
 
     public String[] getGcCollectors() {

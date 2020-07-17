@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -63,7 +63,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testExternalValues() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
                 singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),

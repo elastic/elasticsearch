@@ -21,18 +21,21 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -56,6 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchAsyncActionTests extends ESTestCase {
@@ -106,7 +110,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                0,
+                ClusterState.EMPTY_STATE,
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
@@ -122,7 +126,8 @@ public class SearchAsyncActionTests extends ESTestCase {
 
                     new Thread(() -> {
                         Transport.Connection connection = getConnection(null, shard.currentNodeId());
-                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
+                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
+                            new SearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()),
                         connection.getNode());
                         listener.onResponse(testSearchPhaseResult);
 
@@ -211,7 +216,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                0,
+                ClusterState.EMPTY_STATE,
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
@@ -232,8 +237,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                             throw new AssertionError(e);
                         }
                         Transport.Connection connection = getConnection(null, shard.currentNodeId());
-                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
-                            connection.getNode());
+                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
+                            new SearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
                         if (shardFailures[shard.shardId().id()]) {
                             listener.onFailure(new RuntimeException());
                         } else {
@@ -277,7 +282,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        Map<DiscoveryNode, Set<Long>> nodeToContextMap = newConcurrentMap();
+        Map<DiscoveryNode, Set<SearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(1, 10);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
@@ -286,7 +291,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null) {
             @Override
-            public void sendFreeContext(Transport.Connection connection, long contextId, OriginalIndices originalIndices) {
+            public void sendFreeContext(Transport.Connection connection, SearchContextId contextId, OriginalIndices originalIndices) {
                 numFreedContext.incrementAndGet();
                 assertTrue(nodeToContextMap.containsKey(connection.getNode()));
                 assertTrue(nodeToContextMap.get(connection.getNode()).remove(contextId));
@@ -314,7 +319,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         responseListener,
                         shardsIter,
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                        0,
+                        ClusterState.EMPTY_STATE,
                         null,
                         new ArraySearchPhaseResults<>(shardsIter.size()),
                         request.getMaxConcurrentShardRequests(),
@@ -326,10 +331,10 @@ public class SearchAsyncActionTests extends ESTestCase {
                 listener) {
                 assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
                 Transport.Connection connection = getConnection(null, shard.currentNodeId());
-                TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
-                    connection.getNode());
-                Set<Long> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
-                ids.add(testSearchPhaseResult.getRequestId());
+                TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
+                    new SearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
+                Set<SearchContextId> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
+                ids.add(testSearchPhaseResult.getContextId());
                 if (randomBoolean()) {
                     listener.onResponse(testSearchPhaseResult);
                 } else {
@@ -345,7 +350,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         for (int i = 0; i < results.getNumShards(); i++) {
                             TestSearchPhaseResult result = results.getAtomicArray().get(i);
                             assertEquals(result.node.getId(), result.getSearchShardTarget().getNodeId());
-                            sendReleaseSearchContext(result.getRequestId(), new MockConnection(result.node), OriginalIndices.NONE);
+                            sendReleaseSearchContext(result.getContextId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }
                         responseListener.onResponse(response);
                     }
@@ -364,6 +369,113 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertFalse(nodeToContextMap.isEmpty());
         assertTrue(nodeToContextMap.toString(), nodeToContextMap.containsKey(primaryNode) || nodeToContextMap.containsKey(replicaNode));
         assertEquals(shardsIter.size(), numFreedContext.get());
+        if (nodeToContextMap.containsKey(primaryNode)) {
+            assertTrue(nodeToContextMap.get(primaryNode).toString(), nodeToContextMap.get(primaryNode).isEmpty());
+        } else {
+            assertTrue(nodeToContextMap.get(replicaNode).toString(), nodeToContextMap.get(replicaNode).isEmpty());
+        }
+        executor.shutdown();
+    }
+
+    public void testFanOutAndFail() throws InterruptedException {
+        SearchRequest request = new SearchRequest();
+        request.allowPartialSearchResults(true);
+        request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        ActionListener<SearchResponse> responseListener = ActionListener.wrap(
+            searchResponse -> { throw new AssertionError("unexpected response"); },
+            exc -> {
+                failure.set(exc);
+                latch.countDown();
+            });
+        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        Map<DiscoveryNode, Set<SearchContextId>> nodeToContextMap = newConcurrentMap();
+        AtomicInteger contextIdGenerator = new AtomicInteger(0);
+        int numShards = randomIntBetween(2, 10);
+        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards, randomBoolean(), primaryNode, replicaNode);
+        AtomicInteger numFreedContext = new AtomicInteger();
+        SearchTransportService transportService = new SearchTransportService(null, null) {
+            @Override
+            public void sendFreeContext(Transport.Connection connection, SearchContextId contextId, OriginalIndices originalIndices) {
+                assertNotNull(contextId);
+                numFreedContext.incrementAndGet();
+                assertTrue(nodeToContextMap.containsKey(connection.getNode()));
+                assertTrue(nodeToContextMap.get(connection.getNode()).remove(contextId));
+            }
+        };
+        Map<String, Transport.Connection> lookup = new HashMap<>();
+        lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
+        lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
+        Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
+        AbstractSearchAsyncAction<TestSearchPhaseResult> asyncAction =
+            new AbstractSearchAsyncAction<TestSearchPhaseResult>(
+                "test",
+                logger,
+                transportService,
+                (cluster, node) -> {
+                    assert cluster == null : "cluster was not null: " + cluster;
+                    return lookup.get(node); },
+                aliasFilters,
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                executor,
+                request,
+                responseListener,
+                shardsIter,
+                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+                ClusterState.EMPTY_STATE,
+                null,
+                new ArraySearchPhaseResults<>(shardsIter.size()),
+                request.getMaxConcurrentShardRequests(),
+                SearchResponse.Clusters.EMPTY) {
+                TestSearchResponse response = new TestSearchResponse();
+
+                @Override
+                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                                                   ShardRouting shard,
+                                                   SearchActionListener<TestSearchPhaseResult> listener) {
+                    assertTrue("shard: " + shard.shardId() + " has been queried twice", response.queried.add(shard.shardId()));
+                    Transport.Connection connection = getConnection(null, shard.currentNodeId());
+                    final TestSearchPhaseResult testSearchPhaseResult;
+                    if (shard.shardId().id() == 0) {
+                        testSearchPhaseResult = new TestSearchPhaseResult(null, connection.getNode());
+                    } else {
+                        testSearchPhaseResult = new TestSearchPhaseResult(new SearchContextId(UUIDs.randomBase64UUID(),
+                            contextIdGenerator.incrementAndGet()), connection.getNode());
+                        Set<SearchContextId> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> newConcurrentSet());
+                        ids.add(testSearchPhaseResult.getContextId());
+                    }
+                    if (randomBoolean()) {
+                        listener.onResponse(testSearchPhaseResult);
+                    } else {
+                        new Thread(() -> listener.onResponse(testSearchPhaseResult)).start();
+                    }
+                }
+
+                @Override
+                protected SearchPhase getNextPhase(SearchPhaseResults<TestSearchPhaseResult> results,
+                                                   SearchPhaseContext context) {
+                    return new SearchPhase("test") {
+                        @Override
+                        public void run() {
+                            throw new RuntimeException("boom");
+                        }
+                    };
+                }
+            };
+        asyncAction.start();
+        latch.await();
+        assertNotNull(failure.get());
+        assertThat(failure.get().getCause().getMessage(), containsString("boom"));
+        assertFalse(nodeToContextMap.isEmpty());
+        assertTrue(nodeToContextMap.toString(), nodeToContextMap.containsKey(primaryNode) || nodeToContextMap.containsKey(replicaNode));
+        assertEquals(shardsIter.size()-1, numFreedContext.get());
         if (nodeToContextMap.containsKey(primaryNode)) {
             assertTrue(nodeToContextMap.get(primaryNode).toString(), nodeToContextMap.get(primaryNode).isEmpty());
         } else {
@@ -419,7 +531,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                0,
+                ClusterState.EMPTY_STATE,
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
@@ -434,8 +546,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                     });
                     new Thread(() -> {
                         Transport.Connection connection = getConnection(null, shard.currentNodeId());
-                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
-                            connection.getNode());
+                        TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(
+                            new SearchContextId(UUIDs.randomBase64UUID(), contextIdGenerator.incrementAndGet()), connection.getNode());
                         if (shardIt.remaining() > 0) {
                             numFailReplicas.incrementAndGet();
                             listener.onFailure(new RuntimeException());
@@ -513,9 +625,8 @@ public class SearchAsyncActionTests extends ESTestCase {
 
     public static class TestSearchPhaseResult extends SearchPhaseResult {
         final DiscoveryNode node;
-
-        TestSearchPhaseResult(long id, DiscoveryNode node) {
-            this.requestId = id;
+        TestSearchPhaseResult(SearchContextId contextId, DiscoveryNode node) {
+            this.contextId = contextId;
             this.node = node;
         }
 

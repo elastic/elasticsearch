@@ -22,13 +22,15 @@ To perform a full cluster restart upgrade to {version}:
 include::disable-shard-alloc.asciidoc[]
 --
 
-. *Stop indexing and perform a synced flush.*
+. *Stop indexing and perform a flush.*
 +
 --
-Performing a <<indices-synced-flush-api, synced-flush>> speeds up shard
-recovery.
+Performing a <<indices-flush, flush>> speeds up shard recovery.
 
-include::synced-flush.asciidoc[]
+[source,console]
+--------------------------------------------------
+POST /_flush
+--------------------------------------------------
 --
 
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
@@ -71,7 +73,7 @@ a node.
 . If you use {es} {security-features} to define realms, verify that your realm
 settings are up-to-date. The format of realm settings changed in version 7.0, in
 particular, the placement of the realm type changed. See
-<<realm-settings,Realm settings>>. 
+<<realm-settings,Realm settings>>.
 
 . *Start each upgraded node.*
 +

@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -78,7 +78,7 @@ public class TransportPutSnapshotLifecycleAction extends
             new AckedClusterStateUpdateTask<PutSnapshotLifecycleAction.Response>(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    SnapshotLifecycleMetadata snapMeta = currentState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+                    SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
 
                     String id = request.getLifecycleId();
                     final SnapshotLifecycleMetadata lifecycleMetadata;
@@ -110,9 +110,9 @@ public class TransportPutSnapshotLifecycleAction extends
                         }
                     }
 
-                    MetaData currentMeta = currentState.metaData();
+                    Metadata currentMeta = currentState.metadata();
                     return ClusterState.builder(currentState)
-                        .metaData(MetaData.builder(currentMeta)
+                        .metadata(Metadata.builder(currentMeta)
                             .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
                         .build();
                 }

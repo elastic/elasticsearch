@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -42,6 +44,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A query that computes a document score based on the provided script
@@ -53,7 +56,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
-    private static ConstructingObjectParser<ScriptScoreQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
+    private static final ConstructingObjectParser<ScriptScoreQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
         args -> {
             ScriptScoreQueryBuilder ssQueryBuilder = new ScriptScoreQueryBuilder((QueryBuilder) args[0], (Script) args[1]);
             if (args[2] != null) ssQueryBuilder.setMinScore((Float) args[2]);
@@ -170,6 +173,10 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[script score] queries cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
         ScoreScript.Factory factory = context.compile(script, ScoreScript.CONTEXT);
         ScoreScript.LeafFactory scoreScriptFactory = factory.newFactory(script.getParams(), context.lookup());
         Query query = this.query.toQuery(context);
@@ -181,6 +188,10 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder newQuery = this.query.rewrite(queryRewriteContext);
+        if (newQuery instanceof MatchNoneQueryBuilder) {
+            return newQuery;
+        }
+
         if (newQuery != query) {
             ScriptScoreQueryBuilder newQueryBuilder = new ScriptScoreQueryBuilder(newQuery, script);
             if (minScore != null) {

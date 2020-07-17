@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActionListener;
@@ -44,9 +43,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestSegmentsAction extends AbstractCatAction {
 
-    public RestSegmentsAction(RestController controller) {
-        controller.registerHandler(GET, "/_cat/segments", this);
-        controller.registerHandler(GET, "/_cat/segments/{index}", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(GET, "/_cat/segments"),
+            new Route(GET, "/_cat/segments/{index}"));
     }
 
     @Override

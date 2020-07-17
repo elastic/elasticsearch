@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,9 +32,8 @@ import java.util.Objects;
 public class InternalMin extends InternalNumericMetricsAggregation.SingleValue implements Min {
     private final double min;
 
-    public InternalMin(String name, double min, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalMin(String name, double min, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.min = min;
         this.format = formatter;
     }
@@ -76,7 +74,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        return new InternalMin(getName(), min, this.format, pipelineAggregators(), getMetaData());
+        return new InternalMin(getName(), min, this.format, getMetadata());
     }
 
     @Override

@@ -1,0 +1,64 @@
+[role="xpack"]
+[[ilm-shrink]]
+=== Shrink
+
+Phases allowed: warm
+
+Sets an index to <<dynamic-index-settings, read-only>> 
+and shrinks it into a new index with fewer primary shards. 
+The name of the new index is of the form `shrink-<original-index-name>`. 
+For example, if the name of the source index is _logs_, 
+the name of the shrunken index is _shrink-logs_.
+
+The shrink action allocates all primary shards of the index to one node so it 
+can call  the <<indices-shrink-index,Shrink API>> to shrink the index.
+After shrinking, it swaps aliases that point to the original index to the new shrunken index. 
+
+[IMPORTANT]
+If the shrink action is used on a <<ccr-put-follow,follower index>>, 
+policy execution waits until the leader index rolls over (or is
+<<skipping-rollover, otherwise marked complete>>), 
+then converts the follower index into a regular index with the 
+<<ilm-unfollow-action,the Unfollow action>> before performing the shrink operation.
+
+If the managed index is part of a <<data-streams, data stream>>,
+the shrunken index replaces the original index in the data stream.
+
+[NOTE]
+This action cannot be performed on a data stream's write index. Attempts to do
+so will fail. To shrink the index, first
+<<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
+creates a new write index. Because the index is no longer the stream's write
+index, the action can resume shrinking it.
+Using a policy that makes use of the <<ilm-rollover, rollover>> action
+in the hot phase will avoid this situation and the need for a manual rollover for future
+managed indices.
+
+[[ilm-shrink-options]]
+==== Shrink options
+`number_of_shards`::
+(Required, integer) 
+Number of shards to shrink to. 
+Must be a factor of the number of shards in the source index.
+
+
+[[ilm-shrink-ex]]
+==== Example
+ 
+[source,console]
+--------------------------------------------------
+PUT _ilm/policy/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "shrink" : {
+            "number_of_shards": 1
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

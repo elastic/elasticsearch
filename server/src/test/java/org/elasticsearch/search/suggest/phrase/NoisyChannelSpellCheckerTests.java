@@ -41,8 +41,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
@@ -65,7 +65,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
     private final BytesRef postTag = new BytesRef("</em>");
 
     public void testNgram() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
 
@@ -226,7 +226,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
     }
 
     public void testMultiGenerator() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
 
@@ -343,7 +343,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
     }
 
     public void testTrigram() throws IOException {
-        RAMDirectory dir = new RAMDirectory();
+        Directory dir = new ByteBuffersDirectory();
         Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
 

@@ -24,26 +24,16 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.rest-resources'
 
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  from({ zipTree(configurations.restSpec.singleFile) })
-  dependsOn configurations.restSpec
-}
-
-for (Version bwcVersion : bwcVersions.wireCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
     continue;
@@ -59,7 +49,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       numberOfNodes = 4
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -84,23 +73,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     onlyIf { project.bwc_tests_enabled }
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#mixedClusterTest"
   }
-
-  tasks.bwcTest.dependsOn "${baseName}#bwcTest"
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (Version bwcVersion : bwcVersions.unreleasedWireCompatible) {
-      if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
-        dependsOn "v${bwcVersion}#bwcTest"
-      }
-    }
-  }
-}
-
-check.dependsOn(bwcTestSnapshots)
-
-test.enabled = false

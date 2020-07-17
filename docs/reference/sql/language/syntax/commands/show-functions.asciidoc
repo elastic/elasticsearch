@@ -3,7 +3,7 @@
 [[sql-syntax-show-functions]]
 === SHOW FUNCTIONS
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
 SHOW FUNCTIONS [LIKE pattern?]? <1>
@@ -11,9 +11,7 @@ SHOW FUNCTIONS [LIKE pattern?]? <1>
 
 <1> SQL match pattern
 
-.Description
-
-List all the SQL functions and their type. The `LIKE` clause can be used to restrict the list of names to the given pattern.
+*Description*: List all the SQL functions and their type. The `LIKE` clause can be used to restrict the list of names to the given pattern.
 
 [source, sql]
 ----

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ccr.repository;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -46,8 +46,8 @@ import static org.mockito.Mockito.when;
 public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
 
     public void testWhenRetentionLeaseAlreadyExistsWeTryToRenewIt() {
-        final RepositoryMetaData repositoryMetaData = mock(RepositoryMetaData.class);
-        when(repositoryMetaData.name()).thenReturn(CcrRepository.NAME_PREFIX);
+        final RepositoryMetadata repositoryMetadata = mock(RepositoryMetadata.class);
+        when(repositoryMetadata.name()).thenReturn(CcrRepository.NAME_PREFIX);
         final Set<Setting<?>> settings =
                 Stream.concat(
                         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
@@ -55,7 +55,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                         .collect(Collectors.toSet());
 
         final CcrRepository repository = new CcrRepository(
-                repositoryMetaData,
+                repositoryMetadata,
                 mock(Client.class),
                 new CcrLicenseChecker(() -> true, () -> true),
                 Settings.EMPTY,
@@ -111,8 +111,8 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
     }
 
     public void testWhenRetentionLeaseExpiresBeforeWeCanRenewIt() {
-        final RepositoryMetaData repositoryMetaData = mock(RepositoryMetaData.class);
-        when(repositoryMetaData.name()).thenReturn(CcrRepository.NAME_PREFIX);
+        final RepositoryMetadata repositoryMetadata = mock(RepositoryMetadata.class);
+        when(repositoryMetadata.name()).thenReturn(CcrRepository.NAME_PREFIX);
         final Set<Setting<?>> settings =
                 Stream.concat(
                         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
@@ -120,7 +120,7 @@ public class CcrRepositoryRetentionLeaseTests extends ESTestCase {
                         .collect(Collectors.toSet());
 
         final CcrRepository repository = new CcrRepository(
-                repositoryMetaData,
+                repositoryMetadata,
                 mock(Client.class),
                 new CcrLicenseChecker(() -> true, () -> true),
                 Settings.EMPTY,

@@ -1,5 +1,8 @@
 [[analysis-lang-analyzer]]
-=== Language Analyzers
+=== Language analyzers
+++++
+<titleabbrev>Language</titleabbrev>
+++++
 
 A set of analyzers aimed at analyzing specific language text. The
 following types are supported:
@@ -48,6 +51,7 @@ the config, or by using an external stopwords file by setting
 `stopwords_path`. Check <<analysis-stop-analyzer,Stop Analyzer>> for
 more details.
 
+[[_excluding_words_from_stemming]]
 ===== Excluding words from stemming
 
 The `stem_exclusion` parameter allows you to specify an array
@@ -388,7 +392,7 @@ PUT /catalan_example
         },
         "catalan_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["exemple"] <2>
+          "keywords":   ["example"] <2>
         },
         "catalan_stemmer": {
           "type":       "stemmer",
@@ -798,7 +802,7 @@ PUT /french_example
         },
         "french_keywords": {
           "type":       "keyword_marker",
-          "keywords":   ["Exemple"] <2>
+          "keywords":   ["Example"] <2>
         },
         "french_stemmer": {
           "type":       "stemmer",

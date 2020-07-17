@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.core.monitoring.test;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.MockDeterministicScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.ScriptFactory;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -43,9 +43,9 @@ public class MockPainlessScriptEngine extends MockScriptEngine {
     }
 
     @Override
-    public <T extends ScriptFactory> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
+    public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
         if (context.instanceClazz.equals(ScoreScript.class)) {
-            return context.factoryClazz.cast(new MockScoreScript(p -> 0.0));
+            return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
         }
         throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
     }

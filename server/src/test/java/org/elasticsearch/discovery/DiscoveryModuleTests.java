@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -51,7 +50,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DiscoveryModuleTests extends ESTestCase {
 
@@ -59,7 +57,6 @@ public class DiscoveryModuleTests extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
     private MasterService masterService;
     private ClusterApplier clusterApplier;
-    private ThreadPool threadPool;
     private ClusterSettings clusterSettings;
     private GatewayMetaState gatewayMetaState;
 
@@ -74,9 +71,7 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     @Before
     public void setupDummyServices() {
-        threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null);
+        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, mock(ThreadPool.class), null);
         masterService = mock(MasterService.class);
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         clusterApplier = mock(ClusterApplier.class);
@@ -90,9 +85,9 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
-        return new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry, null, masterService,
+        return new DiscoveryModule(settings, transportService, namedWriteableRegistry, null, masterService,
             clusterApplier, clusterSettings, plugins, null, createTempDir().toAbsolutePath(), gatewayMetaState,
-            mock(RerouteService.class));
+            mock(RerouteService.class), null);
     }
 
     public void testDefaults() {

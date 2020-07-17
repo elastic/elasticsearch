@@ -21,7 +21,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -125,7 +125,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
             Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED,
+                .put(IndexMetadata.SETTING_VERSION_CREATED,
                     VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0)))
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
@@ -148,7 +148,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
             Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.my_analyzer.filter", "word_delimiter_graph")
                 .build();

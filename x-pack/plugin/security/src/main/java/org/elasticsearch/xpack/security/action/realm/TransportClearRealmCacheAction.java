@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRespons
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 
 import java.io.IOException;
 import java.util.List;

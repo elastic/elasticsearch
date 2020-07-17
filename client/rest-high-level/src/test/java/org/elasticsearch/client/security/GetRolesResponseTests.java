@@ -64,15 +64,7 @@ public class GetRolesResponseTests extends ESTestCase {
                 "  }\n" +
                 "}";
         final GetRolesResponse response = GetRolesResponse.fromXContent((XContentType.JSON.xContent().createParser(
-            new NamedXContentRegistry(Collections.emptyList()), new DeprecationHandler() {
-                @Override
-                public void usedDeprecatedName(String usedName, String modernName) {
-                }
-
-                @Override
-                public void usedDeprecatedField(String usedName, String replacedWith) {
-                }
-            }, json)));
+            new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json)));
         assertThat(response.getRoles().size(), equalTo(1));
         assertThat(response.getTransientMetadataMap().size(), equalTo(1));
         final Role role = response.getRoles().get(0);

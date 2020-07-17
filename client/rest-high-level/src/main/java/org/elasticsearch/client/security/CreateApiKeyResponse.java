@@ -89,7 +89,7 @@ public final class CreateApiKeyResponse {
                 && Objects.equals(expiration, other.expiration);
     }
 
-    static ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
+    static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
             args -> new CreateApiKeyResponse((String) args[0], (String) args[1], new SecureString((String) args[2]),
                     (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3])));
     static {

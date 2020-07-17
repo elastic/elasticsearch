@@ -27,10 +27,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.document.RestIndexAction.AutoIdHandler;
+import org.elasticsearch.rest.action.document.RestIndexAction.CreateHandler;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -41,24 +42,21 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class RestIndexActionTests extends RestActionTestCase {
 
-    private RestIndexAction action;
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
 
     @Before
     public void setUpAction() {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenAnswer(invocationOnMock -> clusterStateSupplier.get());
-        action = new RestIndexAction(controller(), clusterService);
+        controller().registerHandler(new RestIndexAction());
+        controller().registerHandler(new CreateHandler());
+        controller().registerHandler(new AutoIdHandler(() -> clusterStateSupplier.get().nodes()));
     }
 
     public void testCreateOpTypeValidation() {
-        RestIndexAction.CreateHandler create = action.new CreateHandler();
+        RestIndexAction.CreateHandler create = new CreateHandler();
 
         String opType = randomFrom("CREATE", null);
         create.validateOpType(opType);

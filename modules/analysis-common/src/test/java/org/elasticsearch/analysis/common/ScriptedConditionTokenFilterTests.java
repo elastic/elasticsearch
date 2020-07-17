@@ -20,7 +20,7 @@
 package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -30,7 +30,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -44,7 +43,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("index.analysis.filter.cond.type", "condition")
             .put("index.analysis.filter.cond.script.source", "token.getPosition() > 1")
             .putList("index.analysis.filter.cond.filter", "uppercase")
@@ -64,7 +63,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         @SuppressWarnings("unchecked")
         ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap()){
             @Override
-            public <FactoryType extends ScriptFactory> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 assertEquals(context, AnalysisPredicateScript.CONTEXT);
                 assertEquals(new Script("token.getPosition() > 1"), script);
                 return (FactoryType) factory;
@@ -72,7 +71,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         };
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null);
+        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null);
         AnalysisModule module
             = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
 

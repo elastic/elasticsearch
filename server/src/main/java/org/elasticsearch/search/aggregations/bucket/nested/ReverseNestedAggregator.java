@@ -30,16 +30,15 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class ReverseNestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -50,9 +49,9 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     private final BitSetProducer parentBitsetProducer;
 
     public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper,
-            SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            SearchContext context, Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
             throws IOException {
-        super(name, factories, context, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, cardinality, metadata);
         if (objectMapper == null) {
             parentFilter = Queries.newNonNestedFilter();
         } else {
@@ -93,14 +92,14 @@ public class ReverseNestedAggregator extends BucketsAggregator implements Single
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal),
-                pipelineAggregators(), metaData());
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
+            new InternalReverseNested(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
+        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metadata());
     }
 
     Query getParentFilter() {

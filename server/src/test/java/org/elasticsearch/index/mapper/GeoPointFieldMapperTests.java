@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,20 +31,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
-import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.NULL_VALUE;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_MALFORMED;
+import static org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.Names.IGNORE_Z_VALUE;
+import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.NULL_VALUE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,7 +53,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
+public class GeoPointFieldMapperTests extends FieldMapperTestCase<GeoPointFieldMapper.Builder> {
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values");
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -220,6 +226,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON));
 
         // doc values are enabled by default, but in this test we disable them; we should only have 2 points
+        IndexableField[] fields = doc.rootDoc().getFields("point");
         assertThat(doc.rootDoc().getFields("point"), notNullValue());
         assertThat(doc.rootDoc().getFields("point").length, equalTo(4));
     }
@@ -337,16 +344,16 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testMultiField() throws Exception {
         int numDocs = randomIntBetween(10, 100);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("pin")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("location")
             .field("type", "geo_point")
             .startObject("fields")
             .startObject("geohash").field("type", "keyword").endObject()  // test geohash as keyword
             .startObject("latlon").field("type", "keyword").endObject()  // test geohash as string
             .endObject()
-            .endObject().endObject().endObject().endObject());
+            .endObject().endObject().endObject());
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test")
-            .addMapping("pin", mapping, XContentType.JSON);
+            .setMapping(mapping);
         mappingRequest.execute().actionGet();
 
         // create index and add random test points
@@ -387,7 +394,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("location")
             .field("type", "geo_point")
-            .field(NULL_VALUE, "1,2")
+            .field(NULL_VALUE.getPreferredName(), "1,2")
             .endObject().endObject()
             .endObject().endObject());
 
@@ -396,7 +403,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
-        Object nullValue = ((GeoPointFieldMapper) fieldMapper).fieldType().nullValue();
+        AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
         assertThat(nullValue, equalTo(new GeoPoint(1, 2)));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
@@ -407,7 +414,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("location"), notNullValue());
-        BytesRef defaultValue = doc.rootDoc().getField("location").binaryValue();
+        BytesRef defaultValue = doc.rootDoc().getBinaryValue("location");
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -416,7 +423,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, equalTo(doc.rootDoc().getField("location").binaryValue()));
+        assertThat(defaultValue, equalTo(doc.rootDoc().getBinaryValue("location")));
 
         doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -425,7 +432,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()),
             XContentType.JSON));
         // Shouldn't matter if we specify the value explicitly or use null value
-        assertThat(defaultValue, not(equalTo(doc.rootDoc().getField("location").binaryValue())));
+        assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue("location"))));
     }
 
     /**
@@ -439,8 +446,8 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("location")
                     .field("type", "geo_point")
                     .field(IGNORE_Z_VALUE.getPreferredName(), false)
-                    .field(IGNORE_MALFORMED, true)
-                    .field(NULL_VALUE, "91,181")
+                    .field(IGNORE_MALFORMED.getPreferredName(), true)
+                    .field(NULL_VALUE.getPreferredName(), "91,181")
                 .endObject().endObject()
             .endObject().endObject());
 
@@ -449,7 +456,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
-        Object nullValue = ((GeoPointFieldMapper) fieldMapper).fieldType().nullValue();
+        AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
         // geo_point [91, 181] should have been normalized to [89, 1]
         assertThat(nullValue, equalTo(new GeoPoint(89, 1)));
     }
@@ -577,5 +584,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject().startObject("location").nullField("lat").nullField("lon").endObject().endObject()
             ), XContentType.JSON)).rootDoc().getField("location"), nullValue());
+    }
+
+    @Override
+    protected GeoPointFieldMapper.Builder newBuilder() {
+        return new GeoPointFieldMapper.Builder("geo");
     }
 }

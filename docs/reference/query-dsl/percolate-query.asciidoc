@@ -686,3 +686,8 @@ being percolated, as opposed to a single index as we do in examples. There are a
 allows for fields to be stored in a denser, more efficient way.
 - Percolate queries do not scale in the same way as other queries, so percolation performance may benefit from using
 a different index configuration, like the number of primary shards.
+
+=== Notes
+==== Allow expensive queries
+Percolate queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
+is set to false.

@@ -78,9 +78,9 @@ public class TransportTermVectorsAction extends TransportSingleShardAction<TermV
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias or a parent)
-        request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
+        request.request().routing(state.metadata().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
-        if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
+        if (request.request().routing() == null && state.getMetadata().routingRequired(request.concreteIndex())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }

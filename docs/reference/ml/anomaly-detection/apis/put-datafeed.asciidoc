@@ -26,7 +26,12 @@ cluster privileges to use this API. See
 [[ml-put-datafeed-desc]]
 ==== {api-description-title}
 
-You can associate only one {dfeed} to each {anomaly-job}.
+{ml-docs}/ml-dfeeds.html[{dfeeds-cap}] retrieve data from {es} for analysis by
+an {anomaly-job}. You can associate only one {dfeed} to each {anomaly-job}.
+
+The {dfeed} contains a query that runs at a defined interval (`frequency`). If
+you are concerned about delayed data, you can add a delay (`query_delay`) at
+each interval. See {ml-docs}/ml-delayed-data-detection.html[Handling delayed data].
 
 [IMPORTANT]
 ====
@@ -36,7 +41,9 @@ You can associate only one {dfeed} to each {anomaly-job}.
 `.ml-config` index.
 * When {es} {security-features} are enabled, your {dfeed} remembers which roles
 the user who created it had at the time of creation and runs the query using
-those same roles.
+those same roles. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used instead.
 ====
 
 [[ml-put-datafeed-path-parms]]
@@ -44,56 +51,63 @@ those same roles.
 
 `<feed_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
+[role="child_attributes"]
 [[ml-put-datafeed-request-body]]
 ==== {api-request-body-title}
 
 `aggregations`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=aggregations]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=aggregations]
 
 `chunking_config`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=chunking-config]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=chunking-config]
 
 `delayed_data_check_config`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=delayed-data-check-config]
 
 `frequency`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=frequency]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=frequency]
 
 `indices`::
 (Required, array)
-include::{docdir}/ml/ml-shared.asciidoc[tag=indices]
-
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices]
 
 `job_id`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`max_empty_searches`::
+(Optional,integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=max-empty-searches]
  
 `query`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query]
 
 `query_delay`::
 (Optional, <<time-units, time units>>)
-include::{docdir}/ml/ml-shared.asciidoc[tag=query-delay]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=query-delay]
 
 `script_fields`::
 (Optional, object)
-include::{docdir}/ml/ml-shared.asciidoc[tag=script-fields]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=script-fields]
 
 `scroll_size`::
 (Optional, unsigned integer)
-include::{docdir}/ml/ml-shared.asciidoc[tag=scroll-size]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
+
+`indices_options`::
+(Optional, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
+
 
 [[ml-put-datafeed-example]]
 ==== {api-examples-title}
-
-The following example creates the `datafeed-total-requests` {dfeed}:
 
 [source,console]
 --------------------------------------------------

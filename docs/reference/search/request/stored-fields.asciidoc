@@ -3,7 +3,7 @@
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
 stored in the mapping, which is off by default and generally not recommended.
-Use <<request-body-search-source-filtering,source filtering>> instead to select
+Use <<source-filtering,source filtering>> instead to select
 subsets of the original source document to be returned.
 
 Allows to selectively load specific stored fields for each document represented
@@ -40,12 +40,7 @@ If the requested fields are not stored (`store` mapping set to `false`), they wi
 
 Stored field values fetched from the document itself are always returned as an array. On the contrary, metadata fields like `_routing` are never returned as an array.
 
-Also only leaf fields can be returned via the `field` option. So object fields can't be returned and such requests
-will fail.
-
-Script fields can also be automatically detected and used as fields, so
-things like `_source.obj1.field1` can be used, though not recommended, as
-`obj1.field1` will work as well.
+Also only leaf fields can be returned via the `stored_fields` option. If an object field is specified, it will be ignored.
 
 NOTE: On its own, `stored_fields` cannot be used to load fields in nested
 objects -- if a field contains a nested object in its path, then no data will
@@ -67,5 +62,5 @@ GET /_search
 }
 --------------------------------------------------
 
-NOTE: <<request-body-search-source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
+NOTE: <<source-filtering,`_source`>> and <<request-body-search-version, `version`>> parameters cannot be activated if `_none_` is used.
 

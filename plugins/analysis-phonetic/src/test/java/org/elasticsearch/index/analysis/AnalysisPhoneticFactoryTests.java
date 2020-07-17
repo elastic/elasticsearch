@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
@@ -51,7 +51,7 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         AnalysisPhoneticPlugin plugin = new AnalysisPhoneticPlugin();
 
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
+            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT))
             .put("path.home", createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

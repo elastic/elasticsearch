@@ -45,8 +45,10 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -62,7 +64,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.function.Supplier;
 
 /**
@@ -90,6 +91,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         scoreFn.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.score.txt"));
         map.put(ScoreScript.CONTEXT, scoreFn);
 
+        // Functions available to ingest pipelines
+        List<Whitelist> ingest = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        ingest.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.ingest.txt"));
+        map.put(IngestScript.CONTEXT, ingest);
+
         whitelists = map;
     }
 
@@ -114,7 +120,9 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice
         return Collections.singletonList(painlessScriptEngine.get());
@@ -126,14 +134,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public void reloadSPI(ClassLoader loader) {
-        for (PainlessExtension extension : ServiceLoader.load(PainlessExtension.class, loader)) {
-            for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : extension.getContextWhitelists().entrySet()) {
+    public void loadExtensions(ExtensionLoader loader) {
+        loader.loadExtensions(PainlessExtension.class).stream()
+            .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
+            .forEach(entry -> {
                 List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(),
                     c -> new ArrayList<>(Whitelist.BASE_WHITELISTS));
                 existing.addAll(entry.getValue());
-            }
-        }
+            });
     }
 
     @Override
@@ -155,8 +163,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new PainlessExecuteAction.RestAction(restController));
-        handlers.add(new PainlessContextAction.RestAction(restController));
+        handlers.add(new PainlessExecuteAction.RestAction());
+        handlers.add(new PainlessContextAction.RestAction());
         return handlers;
     }
 }

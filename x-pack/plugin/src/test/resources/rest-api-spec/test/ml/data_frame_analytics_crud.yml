@@ -87,7 +87,7 @@ setup:
 ---
 "Test put config with security headers in the body":
   - do:
-      catch: /unknown field \[headers\], parser not found/
+      catch: /unknown field \[headers\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_header"
         body:  >
@@ -107,7 +107,7 @@ setup:
 "Test put config with create_time in the body":
 
   - do:
-      catch: /unknown field \[create_time\], parser not found/
+      catch: /unknown field \[create_time\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_create_time"
         body: >
@@ -126,7 +126,7 @@ setup:
 "Test put config with version in the body":
 
   - do:
-      catch: /unknown field \[version\], parser not found/
+      catch: /unknown field \[version\]/
       ml.put_data_frame_analytics:
         id: "data_frame_with_version"
         body: >
@@ -269,6 +269,24 @@ setup:
           }
 
 ---
+"Test put config given dest index contains uppercase chars":
+
+  - do:
+      catch: /.*Validation Failed.* Destination index \[Foo\] must be lowercase;.*/
+      ml.put_data_frame_analytics:
+        id: "config-given-dest-index-uppercase"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "Foo"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
 "Test put config with pattern dest index name":
 
   - do:
@@ -290,7 +308,7 @@ setup:
 "Test put config with missing concrete source index":
 
   - do:
-      catch: /No index matches source index \[missing]/
+      catch: /.*Validation Failed.* no such index \[missing\]/
       ml.put_data_frame_analytics:
         id: "config-with-missing-concrete-source-index"
         body: >
@@ -308,7 +326,6 @@ setup:
 "Test put config with missing wildcard source index":
 
   - do:
-      catch: /No index matches source index \[missing\*\]/
       ml.put_data_frame_analytics:
         id: "config-with-missing-wildcard-source-index"
         body: >
@@ -321,12 +338,13 @@ setup:
             },
             "analysis": {"outlier_detection":{}}
           }
+  - match: { id: "config-with-missing-wildcard-source-index" }
 
 ---
 "Test put config with dest index same as source index":
 
   - do:
-      catch: /Destination index \[index-source\] must not be included in source index \[index-source\]/
+      catch: /.*Validation Failed.* Destination index \[index-source\] is included in source expression \[index-source\]/
       ml.put_data_frame_analytics:
         id: "config-with-same-source-dest-index"
         body: >
@@ -362,7 +380,7 @@ setup:
         name: multiple-dest-index
 
   - do:
-      catch: /Destination index \[multiple-dest-index\] should match a single index; matches \[multiple-dest-index-[12], multiple-dest-index-[12]\]/
+      catch: /.*Validation Failed.* no write index is defined for alias \[multiple-dest-index\].*/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-matching-multiple-indices"
         body: >
@@ -389,7 +407,7 @@ setup:
         name: dest-alias
 
   - do:
-      catch: /Destination index \[dest-alias\], which is an alias for \[another-source-index\], must not be included in source index \[another-source-index\]/
+      catch: /.*Validation Failed.* Destination index \[another-source-index\] is included in source expression \[another-source-index\]/
       ml.put_data_frame_analytics:
         id: "config-with-dest-index-included-in-source-via-alias"
         body: >
@@ -404,10 +422,28 @@ setup:
           }
 
 ---
+"Test put config with remote source index":
+
+  - do:
+      catch: /.*Validation Failed.* remote source indices are not supported/
+      ml.put_data_frame_analytics:
+        id: "config-with-missing-concrete-source-index"
+        body: >
+          {
+            "source": {
+              "index": "remote_cluster:foo"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+---
 "Test put config with unknown top level field":
 
   - do:
-      catch: /unknown field \[unknown_field\], parser not found/
+      catch: /unknown field \[unknown_field\]/
       ml.put_data_frame_analytics:
         id: "unknown_field"
         body: >
@@ -867,6 +903,51 @@ setup:
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
+"Test get stats on newly created config":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo-1"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-foo-1_dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+  - match: { id: "foo-1" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "foo-1"
+        verbose: true
+  - match: { count: 1 }
+  - length: { data_frame_analytics: 1 }
+  - match: { data_frame_analytics.0.id: "foo-1" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+  - match: { data_frame_analytics.0.data_counts.training_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.test_docs_count: 0 }
+  - match: { data_frame_analytics.0.data_counts.skipped_docs_count: 0 }
+  - match: { data_frame_analytics.0.memory_usage.peak_usage_bytes: 0 }
+  - match: { data_frame_analytics.0.memory_usage.status: "ok" }
+
+---
 "Test delete given stopped config":
 
   - do:
@@ -902,7 +983,7 @@ setup:
         id: "missing_config"
 
 ---
-"Test delete given config and state documents":
+"Test delete given config, state and stats documents":
   - skip:
       features: headers
   - do:
@@ -924,7 +1005,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: "delete_foo_regression_state#1"
         body: >
           {
@@ -934,7 +1015,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: "data_frame_analytics-delete_foo-progress"
         body: >
           {
@@ -943,12 +1024,34 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_1"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: .ml-stats-000001
+        id: "delete_foo_stats_2"
+        body: >
+          {
+            "job_id": "delete_foo"
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-state
+        index: .ml-stat*
 
   - do:
       search:
-        index: .ml-state
+        index: .ml-state*
         body:
           size: 0
           query:
@@ -958,6 +1061,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
 
   - match: { hits.total.value: 2 }
 
@@ -978,6 +1096,21 @@ setup:
                   values:
                     - "data_frame_analytics-delete_foo-progress"
                     - "delete_foo_regression_state#1"
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: .ml-stats-*
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                ids:
+                  values:
+                    - "delete_foo_stats_1"
+                    - "delete_foo_stats_2"
+
   - match: { hits.total.value: 0 }
 
 ---
@@ -1297,12 +1430,12 @@ setup:
           }
 
 ---
-"Test put regression given maximum_number_trees is zero":
+"Test put regression given max_trees is zero":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "regression-maximum-number-trees-is-zero"
+        id: "regression-max-trees-is-zero"
         body: >
           {
             "source": {
@@ -1314,18 +1447,18 @@ setup:
             "analysis": {
               "regression": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 0
+                "max_trees": 0
               }
             }
           }
 
 ---
-"Test put regression given maximum_number_trees is greater than 2k":
+"Test put regression given max_trees is greater than 2k":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "regression-maximum-number-trees-greater-than-2k"
+        id: "regression-max-trees-greater-than-2k"
         body: >
           {
             "source": {
@@ -1337,7 +1470,7 @@ setup:
             "analysis": {
               "regression": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 2001
+                "max_trees": 2001
               }
             }
           }
@@ -1435,6 +1568,52 @@ setup:
           }
 
 ---
+"Test put regression given loss_function_parameter is zero":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-zero"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": 0.0
+              }
+            }
+          }
+
+---
+"Test put regression given loss_function_parameter is negative":
+
+  - do:
+      catch: /\[loss_function_parameter\] must be a positive double/
+      ml.put_data_frame_analytics:
+        id: "regression-loss-function-param-is-negative"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "foo",
+                "loss_function_parameter": -0.01
+              }
+            }
+          }
+
+---
 "Test put regression given valid":
 
   - do:
@@ -1454,10 +1633,12 @@ setup:
                 "lambda": 3.14,
                 "gamma": 0.42,
                 "eta": 0.5,
-                "maximum_number_trees": 400,
+                "max_trees": 400,
                 "feature_bag_fraction": 0.3,
                 "training_percent": 60.3,
-                "randomize_seed": 42
+                "randomize_seed": 42,
+                "loss_function": "msle",
+                "loss_function_parameter": 2.0
               }
             }
           }
@@ -1470,11 +1651,13 @@ setup:
       "lambda": 3.14,
       "gamma": 0.42,
       "eta": 0.5,
-      "maximum_number_trees": 400,
+      "max_trees": 400,
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "msle",
+      "loss_function_parameter": 2.0
     }
   }}
   - is_true: create_time
@@ -1593,12 +1776,12 @@ setup:
           }
 
 ---
-"Test put classification given maximum_number_trees is zero":
+"Test put classification given max_trees is zero":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "classification-maximum-number-trees-is-zero"
+        id: "classification-max-trees-is-zero"
         body: >
           {
             "source": {
@@ -1610,18 +1793,18 @@ setup:
             "analysis": {
               "classification": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 0
+                "max_trees": 0
               }
             }
           }
 
 ---
-"Test put classification given maximum_number_trees is greater than 2k":
+"Test put classification given max_trees is greater than 2k":
 
   - do:
-      catch: /\[maximum_number_trees\] must be an integer in \[1, 2000\]/
+      catch: /\[max_trees\] must be an integer in \[1, 2000\]/
       ml.put_data_frame_analytics:
-        id: "classification-maximum-number-trees-greater-than-2k"
+        id: "classification-max-trees-greater-than-2k"
         body: >
           {
             "source": {
@@ -1633,7 +1816,7 @@ setup:
             "analysis": {
               "classification": {
                 "dependent_variable": "foo",
-                "maximum_number_trees": 2001
+                "max_trees": 2001
               }
             }
           }
@@ -1796,8 +1979,9 @@ setup:
                 "lambda": 3.14,
                 "gamma": 0.42,
                 "eta": 0.5,
-                "maximum_number_trees": 400,
+                "max_trees": 400,
                 "feature_bag_fraction": 0.3,
+                "class_assignment_objective": "maximize_accuracy",
                 "training_percent": 60.3,
                 "randomize_seed": 24
               }
@@ -1812,11 +1996,56 @@ setup:
       "lambda": 3.14,
       "gamma": 0.42,
       "eta": 0.5,
-      "maximum_number_trees": 400,
+      "max_trees": 400,
       "feature_bag_fraction": 0.3,
       "prediction_field_name": "foo_prediction",
       "training_percent": 60.3,
       "randomize_seed": 24,
+      "class_assignment_objective": "maximize_accuracy",
+      "num_top_classes": 2
+    }
+  }}
+  - is_true: create_time
+  - is_true: version
+
+---
+"Test put classification given deprecated maximum_number_trees":
+
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - 'Deprecated field [maximum_number_trees] used, expected [max_trees] instead'
+      ml.put_data_frame_analytics:
+        id: "classification-with-maximum-number-trees"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "classification": {
+                "dependent_variable": "foo",
+                "maximum_number_trees": 400,
+                "randomize_seed": 24
+              }
+            }
+          }
+  - match: { id: "classification-with-maximum-number-trees" }
+  - match: { source.index: ["index-source"] }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis: {
+    "classification":{
+      "dependent_variable": "foo",
+      "max_trees": 400,
+      "prediction_field_name": "foo_prediction",
+      "training_percent": 100.0,
+      "randomize_seed": 24,
+      "class_assignment_objective": "maximize_minimum_recall",
       "num_top_classes": 2
     }
   }}
@@ -1854,7 +2083,8 @@ setup:
       "dependent_variable": "foo",
       "prediction_field_name": "foo_prediction",
       "training_percent": 100.0,
-      "randomize_seed": 42
+      "randomize_seed": 42,
+      "loss_function": "mse"
     }
   }}
   - is_true: create_time
@@ -1883,4 +2113,58 @@ setup:
             "analyzed_fields": {
               "includes": ["excluded"]
             }
+          }
+
+---
+"Test update given all updatable settings":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "update-test-job"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {"outlier_detection":{}},
+            "description": "before update",
+            "model_memory_limit": "20mb",
+            "allow_lazy_start": false,
+            "max_num_threads": 1
+          }
+  - match: { id: "update-test-job" }
+  - match: { description: "before update" }
+  - match: { model_memory_limit: "20mb" }
+  - match: { allow_lazy_start: false }
+  - match: { max_num_threads: 1 }
+
+  - do:
+      ml.update_data_frame_analytics:
+        id: "update-test-job"
+        body: >
+          {
+            "description": "after update",
+            "model_memory_limit": "30mb",
+            "allow_lazy_start": true,
+            "max_num_threads": 2
+          }
+  - match: { id: "update-test-job" }
+  - match: { description: "after update" }
+  - match: { model_memory_limit: "30mb" }
+  - match: { allow_lazy_start: true }
+  - match: { max_num_threads: 2 }
+
+---
+"Test update given missing analytics":
+
+  - do:
+      catch: missing
+      ml.update_data_frame_analytics:
+        id: "missing-analytics"
+        body: >
+          {
+            "description": "blah"
           }

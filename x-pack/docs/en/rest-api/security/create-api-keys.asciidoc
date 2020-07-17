@@ -11,6 +11,7 @@ Creates an API key for access without requiring basic authentication.
 ==== {api-request-title}
 
 `POST /_security/api_key`
+
 `PUT /_security/api_key`
 
 [[security-api-create-api-key-prereqs]]
@@ -44,7 +45,7 @@ service.
 The following parameters can be specified in the body of a POST or PUT request:
 
 `name`::
-(Optional, string) Specifies the name for this API key.
+(Required, string) Specifies the name for this API key.
 
 `role_descriptors`::
 (Optional, array-of-role-descriptor) An array of role descriptors for this API
@@ -54,7 +55,7 @@ authenticated user_. If you supply role descriptors then the resultant permissio
 would be an intersection of API keys permissions and authenticated user's permissions
 thereby limiting the access scope for API keys.
 The structure of role descriptor is the same as the request for create role API.
-For more details, see <<security-api-roles,role management APIs>>.
+For more details, see <<security-api-put-role, create or update roles API>>.
 
 `expiration`::
 (Optional, string) Expiration time for the API key. By default, API keys never

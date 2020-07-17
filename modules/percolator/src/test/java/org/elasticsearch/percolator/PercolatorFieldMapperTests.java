@@ -42,7 +42,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -128,7 +128,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     private String fieldName;
     private IndexService indexService;
     private MapperService mapperService;
-    private PercolatorFieldMapper.FieldType fieldType;
+    private PercolatorFieldMapper.PercolatorFieldType fieldType;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -170,7 +170,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject(fieldName).field("type", "percolator").endObject().endObject()
                 .endObject().endObject());
         mapperService.merge("doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
-        fieldType = (PercolatorFieldMapper.FieldType) mapperService.fullName(fieldName);
+        fieldType = (PercolatorFieldMapper.PercolatorFieldType) mapperService.fieldType(fieldName);
     }
 
     public void testExtractTerms() throws Exception {
@@ -183,8 +183,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
@@ -192,7 +192,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
         List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.queryTermsField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
@@ -227,18 +227,19 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExtractRanges() throws Exception {
+        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
         addQueryFieldMappings();
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
-        Query rangeQuery1 = mapperService.fullName("number_field1")
-            .rangeQuery(10, 20, true, true, null, null, null, null);
+        Query rangeQuery1 = mapperService.fieldType("number_field1")
+            .rangeQuery(10, 20, true, true, null, null, null, context);
         bq.add(rangeQuery1, Occur.MUST);
-        Query rangeQuery2 = mapperService.fullName("number_field1")
-            .rangeQuery(15, 20, true, true, null, null, null, null);
+        Query rangeQuery2 = mapperService.fieldType("number_field1")
+            .rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
         DocumentMapper documentMapper = mapperService.documentMapper();
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
@@ -247,7 +248,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(bq.build(), parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
         List<IndexableField> fields = new ArrayList<>(Arrays.asList(document.getFields(fieldType.rangeField.name())));
         fields.sort(Comparator.comparing(IndexableField::binaryValue));
@@ -264,8 +265,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         // Range queries on different fields:
         bq = new BooleanQuery.Builder();
         bq.add(rangeQuery1, Occur.MUST);
-        rangeQuery2 = mapperService.fullName("number_field2")
-            .rangeQuery(15, 20, true, true, null, null, null, null);
+        rangeQuery2 = mapperService.fieldType("number_field2")
+            .rangeQuery(15, 20, true, true, null, null, null, context);
         bq.add(rangeQuery2, Occur.MUST);
 
         parseContext = new ParseContext.InternalParseContext(settings,
@@ -292,8 +293,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         TermRangeQuery query = new TermRangeQuery("field1", new BytesRef("a"), new BytesRef("z"), true, true);
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
@@ -301,7 +302,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(query, parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(1));
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_FAILED));
     }
@@ -311,8 +312,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         PhraseQuery phraseQuery = new PhraseQuery("field", "term");
         DocumentMapper documentMapper = mapperService.documentMapper();
         PercolatorFieldMapper fieldMapper = (PercolatorFieldMapper) documentMapper.mappers().getMapper(fieldName);
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
@@ -320,7 +321,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         fieldMapper.processQuery(phraseQuery, parseContext);
         ParseContext.Document document = parseContext.doc();
 
-        PercolatorFieldMapper.FieldType fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(4));
         assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field\u0000term"));
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
@@ -490,6 +491,17 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getFields(fieldType.queryBuilderField.name()).length, equalTo(1));
         qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
         assertQueryBuilder(qbSource, queryBuilder);
+
+        queryBuilder = rangeQuery("date_field").from("now");
+        doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory
+            .jsonBuilder()
+            .startObject()
+            .field(fieldName, queryBuilder)
+            .endObject()),
+            XContentType.JSON));
+        assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()).length, equalTo(1));
+        assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name())[0].stringValue(),
+            equalTo(EXTRACTION_FAILED));
     }
 
     public void testStoringQueries() throws Exception {
@@ -633,7 +645,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject().endObject()),
                         XContentType.JSON));
         assertThat(doc.rootDoc().getFields().size(), equalTo(12)); // also includes all other meta fields
-        BytesRef queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
+        IndexableField queryBuilderField = doc.rootDoc().getField("object_field.query_field.query_builder_field");
+        assertTrue(queryBuilderField.fieldType().omitNorms());
+        IndexableField extractionResultField = doc.rootDoc().getField("object_field.query_field.extraction_result");
+        assertTrue(extractionResultField.fieldType().omitNorms());
+        BytesRef queryBuilderAsBytes = queryBuilderField.binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
         doc = mapperService.documentMapper().parse(new SourceToParse("test", "1",

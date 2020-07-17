@@ -37,29 +37,21 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExpressionRoleMappingTests extends ESTestCase {
 
     public void testExpressionRoleMappingParser() throws IOException {
-        final String json = 
-                "{\n" + 
-                "   \"enabled\" : true,\n" + 
-                "   \"roles\" : [\n" + 
-                "     \"superuser\"\n" + 
-                "   ],\n" + 
-                "   \"rules\" : {\n" + 
-                "     \"field\" : {\n" + 
-                "       \"realm.name\" : \"kerb1\"\n" + 
-                "     }\n" + 
-                "   },\n" + 
-                "   \"metadata\" : { }\n" + 
+        final String json =
+                "{\n" +
+                "   \"enabled\" : true,\n" +
+                "   \"roles\" : [\n" +
+                "     \"superuser\"\n" +
+                "   ],\n" +
+                "   \"rules\" : {\n" +
+                "     \"field\" : {\n" +
+                "       \"realm.name\" : \"kerb1\"\n" +
+                "     }\n" +
+                "   },\n" +
+                "   \"metadata\" : { }\n" +
                 " }";
         final ExpressionRoleMapping expressionRoleMapping = ExpressionRoleMapping.PARSER.parse(XContentType.JSON.xContent().createParser(
-                new NamedXContentRegistry(Collections.emptyList()), new DeprecationHandler() {
-                    @Override
-                    public void usedDeprecatedName(String usedName, String modernName) {
-                    }
-
-                    @Override
-                    public void usedDeprecatedField(String usedName, String replacedWith) {
-                    }
-                }, json), "example-role-mapping");
+                new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json), "example-role-mapping");
         final ExpressionRoleMapping expectedRoleMapping = new ExpressionRoleMapping("example-role-mapping",
             FieldRoleMapperExpression.ofKeyValues("realm.name", "kerb1"),
             singletonList("superuser"), Collections.emptyList(),

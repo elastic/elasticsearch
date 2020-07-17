@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,9 +33,8 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
     private final double sum;
     private final double weight;
 
-    InternalWeightedAvg(String name, double sum, double weight, DocValueFormat format, List<PipelineAggregator> pipelineAggregators,
-                            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    InternalWeightedAvg(String name, double sum, double weight, DocValueFormat format, Map<String, Object> metadata) {
+        super(name, metadata);
         this.sum = sum;
         this.weight = weight;
         this.format = format;
@@ -99,8 +97,7 @@ public class InternalWeightedAvg extends InternalNumericMetricsAggregation.Singl
             sumCompensation.add(avg.sum);
         }
 
-        return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(),
-            format, pipelineAggregators(), getMetaData());
+        return new InternalWeightedAvg(getName(), sumCompensation.value(), weightCompensation.value(), format, getMetadata());
     }
 
     @Override

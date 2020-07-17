@@ -23,9 +23,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 import java.util.List;
@@ -104,10 +103,10 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         }
     }
 
-    public StringTerms(String name, BucketOrder order, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
+    public StringTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
+            Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format,
+        super(name, order, requiredSize, minDocCount, metadata, format,
                 shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -125,7 +124,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
     @Override
     public StringTerms create(List<Bucket> buckets) {
-        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), metaData, format, shardSize,
+        return new StringTerms(name, order, requiredSize, minDocCount, metadata, format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -142,7 +141,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
     @Override
     protected StringTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
-        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, shardSize,
+        return new StringTerms(name, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 

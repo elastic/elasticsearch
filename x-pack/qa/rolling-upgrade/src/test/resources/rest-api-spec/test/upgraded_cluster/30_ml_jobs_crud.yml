@@ -135,7 +135,6 @@ setup:
 
 ---
 "Test job with pre 6.4 rules":
-
   - do:
       ml.get_jobs:
         job_id: job-with-old-rules
@@ -145,7 +144,6 @@ setup:
 
 ---
 "Test get job with function shortcut should expand":
-
   - do:
       ml.get_jobs:
         job_id: old-cluster-function-shortcut-expansion

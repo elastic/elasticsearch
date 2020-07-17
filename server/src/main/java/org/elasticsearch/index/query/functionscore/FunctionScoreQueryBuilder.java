@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -405,6 +406,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder queryBuilder = this.query.rewrite(queryRewriteContext);
+        if (queryBuilder instanceof MatchNoneQueryBuilder) {
+            return queryBuilder;
+        }
+
         FilterFunctionBuilder[] rewrittenBuilders = new FilterFunctionBuilder[this.filterFunctionBuilders.length];
         boolean rewritten = false;
         for (int i = 0; i < rewrittenBuilders.length; i++) {

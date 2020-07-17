@@ -35,13 +35,6 @@ import java.util.Map;
 
 public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implements Aggregator.Parser {
 
-    public abstract static class AnyValuesSourceParser extends ArrayValuesSourceParser<ValuesSource> {
-
-        protected AnyValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.ANY, null);
-        }
-    }
-
     public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Numeric> {
 
         protected NumericValuesSourceParser(boolean formattable) {
@@ -74,7 +67,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
     }
 
     @Override
-    public final ArrayValuesSourceAggregationBuilder<VS, ?> parse(String aggregationName, XContentParser parser)
+    public final ArrayValuesSourceAggregationBuilder<?> parse(String aggregationName, XContentParser parser)
         throws IOException {
 
         List<String> fields = null;
@@ -139,7 +132,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
             }
         }
 
-        ArrayValuesSourceAggregationBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+        ArrayValuesSourceAggregationBuilder<?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
             otherOptions);
         if (fields != null) {
             factory.fields(fields);
@@ -193,10 +186,10 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      *            method
      * @return the created factory
      */
-    protected abstract ArrayValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName,
-                                                                                ValuesSourceType valuesSourceType,
-                                                                                ValueType targetValueType,
-                                                                                Map<ParseField, Object> otherOptions);
+    protected abstract ArrayValuesSourceAggregationBuilder<?> createFactory(String aggregationName,
+                                                                            ValuesSourceType valuesSourceType,
+                                                                            ValueType targetValueType,
+                                                                            Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra

@@ -1,18 +1,48 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.gradle.info;
 
+import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.jvm.toolchain.JavaInstallation;
+import org.gradle.jvm.toolchain.JavaInstallationRegistry;
+import org.gradle.util.GradleVersion;
 
+import javax.inject.Inject;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,6 +53,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,23 +64,166 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
-    private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
+    private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
+    private static final String DEFAULT_VERSION_JAVA_FILE_PATH = "server/src/main/java/org/elasticsearch/Version.java";
     private static Integer _defaultParallel = null;
+
+    private final JavaInstallationRegistry javaInstallationRegistry;
+    private final ObjectFactory objects;
+    private final ProviderFactory providers;
+
+    @Inject
+    public GlobalBuildInfoPlugin(JavaInstallationRegistry javaInstallationRegistry, ObjectFactory objects, ProviderFactory providers) {
+        this.javaInstallationRegistry = javaInstallationRegistry;
+        this.objects = objects;
+        this.providers = providers;
+    }
 
     @Override
     public void apply(Project project) {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
+        GradleVersion minimumGradleVersion = GradleVersion.version(Util.getResourceContents("/minimumGradleVersion"));
+        if (GradleVersion.current().compareTo(minimumGradleVersion) < 0) {
+            throw new GradleException("Gradle " + minimumGradleVersion.getVersion() + "+ is required");
+        }
 
-        GlobalInfoExtension extension = project.getExtensions().create(GLOBAL_INFO_EXTENSION_NAME, GlobalInfoExtension.class);
+        JavaVersion minimumCompilerVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumCompilerVersion"));
+        JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(Util.getResourceContents("/minimumRuntimeVersion"));
 
-        JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
-        JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
+        File runtimeJavaHome = findRuntimeJavaHome();
 
-        File compilerJavaHome = findCompilerJavaHome();
-        File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
+        File rootDir = project.getRootDir();
+        GitInfo gitInfo = gitInfo(rootDir);
 
+        BuildParams.init(params -> {
+            // Initialize global build parameters
+            boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
+
+            params.reset();
+            params.setRuntimeJavaHome(runtimeJavaHome);
+            params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
+            params.setIsRutimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            params.setJavaVersions(getAvailableJavaVersions(minimumCompilerVersion));
+            params.setMinimumCompilerVersion(minimumCompilerVersion);
+            params.setMinimumRuntimeVersion(minimumRuntimeVersion);
+            params.setGradleJavaVersion(Jvm.current().getJavaVersion());
+            params.setGitRevision(gitInfo.getRevision());
+            params.setGitOrigin(gitInfo.getOrigin());
+            params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
+            params.setTestSeed(getTestSeed());
+            params.setIsCi(System.getenv("JENKINS_URL") != null);
+            params.setIsInternal(isInternal);
+            params.setDefaultParallel(findDefaultParallel(project));
+            params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
+            params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
+            if (isInternal) {
+                params.setBwcVersions(resolveBwcVersions(rootDir));
+            }
+        });
+
+        // Print global build info header just before task execution
+        project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+    }
+
+    /* Introspect all versions of ES that may be tested against for backwards
+     * compatibility. It is *super* important that this logic is the same as the
+     * logic in VersionUtils.java. */
+    private static BwcVersions resolveBwcVersions(File root) {
+        File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
+        try {
+            List<String> versionLines = IOUtils.readLines(new FileInputStream(versionsFile), "UTF-8");
+            return new BwcVersions(versionLines);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to resolve to resolve bwc versions from versionsFile.", e);
+        }
+    }
+
+    private void logGlobalBuildInfo() {
+        final String osName = System.getProperty("os.name");
+        final String osVersion = System.getProperty("os.version");
+        final String osArch = System.getProperty("os.arch");
+        final Jvm gradleJvm = Jvm.current();
+        final String gradleJvmDetails = getJavaInstallation(gradleJvm.getJavaHome()).getImplementationName();
+
+        LOGGER.quiet("=======================================");
+        LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
+        LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
+        LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
+        if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            String runtimeJvmDetails = getJavaInstallation(BuildParams.getRuntimeJavaHome()).getImplementationName();
+            LOGGER.quiet("  Runtime JDK Version   : " + BuildParams.getRuntimeJavaVersion() + " (" + runtimeJvmDetails + ")");
+            LOGGER.quiet("  Runtime java.home     : " + BuildParams.getRuntimeJavaHome());
+            LOGGER.quiet("  Gradle JDK Version    : " + gradleJvm.getJavaVersion() + " (" + gradleJvmDetails + ")");
+            LOGGER.quiet("  Gradle java.home      : " + gradleJvm.getJavaHome());
+        } else {
+            LOGGER.quiet("  JDK Version           : " + gradleJvm.getJavaVersion() + " (" + gradleJvmDetails + ")");
+            LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
+        }
+        LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
+        LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
+        LOGGER.quiet("=======================================");
+    }
+
+    private JavaVersion determineJavaVersion(String description, File javaHome, JavaVersion requiredVersion) {
+        JavaInstallation installation = getJavaInstallation(javaHome);
+        JavaVersion actualVersion = installation.getJavaVersion();
+        if (actualVersion.isCompatibleWith(requiredVersion) == false) {
+            throwInvalidJavaHomeException(
+                description,
+                javaHome,
+                Integer.parseInt(requiredVersion.getMajorVersion()),
+                Integer.parseInt(actualVersion.getMajorVersion())
+            );
+        }
+
+        return actualVersion;
+    }
+
+    private JavaInstallation getJavaInstallation(File javaHome) {
+        JavaInstallation installation;
+        if (isCurrentJavaHome(javaHome)) {
+            installation = javaInstallationRegistry.getInstallationForCurrentVirtualMachine().get();
+        } else {
+            installation = javaInstallationRegistry.installationForDirectory(objects.directoryProperty().fileValue(javaHome)).get();
+        }
+
+        return installation;
+    }
+
+    private List<JavaHome> getAvailableJavaVersions(JavaVersion minimumCompilerVersion) {
+        final List<JavaHome> javaVersions = new ArrayList<>();
+        for (int v = 8; v <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); v++) {
+            int version = v;
+            String javaHomeEnvVarName = getJavaHomeEnvVarName(Integer.toString(version));
+            if (System.getenv(javaHomeEnvVarName) != null) {
+                File javaHomeDirectory = new File(findJavaHome(Integer.toString(version)));
+                Provider<JavaInstallation> javaInstallationProvider = javaInstallationRegistry.installationForDirectory(
+                    objects.directoryProperty().fileValue(javaHomeDirectory)
+                );
+                JavaHome javaHome = JavaHome.of(version, providers.provider(() -> {
+                    int actualVersion = Integer.parseInt(javaInstallationProvider.get().getJavaVersion().getMajorVersion());
+                    if (actualVersion != version) {
+                        throwInvalidJavaHomeException("env variable " + javaHomeEnvVarName, javaHomeDirectory, version, actualVersion);
+                    }
+                    return javaHomeDirectory;
+                }));
+                javaVersions.add(javaHome);
+            }
+        }
+        return javaVersions;
+    }
+
+    private static boolean isCurrentJavaHome(File javaHome) {
+        try {
+            return Files.isSameFile(javaHome.toPath(), Jvm.current().getJavaHome().toPath());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String getTestSeed() {
         String testSeedProperty = System.getProperty("tests.seed");
         final String testSeed;
         if (testSeedProperty == null) {
@@ -58,120 +232,51 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         } else {
             testSeed = testSeedProperty;
         }
-
-        final List<JavaHome> javaVersions = new ArrayList<>();
-        for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
-            if (System.getenv(getJavaHomeEnvVarName(Integer.toString(version))) != null) {
-                javaVersions.add(JavaHome.of(version, new File(findJavaHome(Integer.toString(version)))));
-            }
-        }
-
-        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo",
-            GenerateGlobalBuildInfoTask.class, task -> {
-                task.setJavaVersions(javaVersions);
-                task.setMinimumCompilerVersion(minimumCompilerVersion);
-                task.setMinimumRuntimeVersion(minimumRuntimeVersion);
-                task.setCompilerJavaHome(compilerJavaHome);
-                task.setRuntimeJavaHome(runtimeJavaHome);
-                task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
-                task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
-                task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
-            });
-
-        PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
-            task.getBuildInfoFile().set(generateTask.getOutputFile());
-            task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
-            task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
-            task.setGlobalInfoListeners(extension.listeners);
-        });
-
-        // Initialize global build parameters
-        BuildParams.init(params -> {
-            params.reset();
-            params.setCompilerJavaHome(compilerJavaHome);
-            params.setRuntimeJavaHome(runtimeJavaHome);
-            params.setIsRutimeJavaHomeSet(compilerJavaHome.equals(runtimeJavaHome) == false);
-            params.setJavaVersions(javaVersions);
-            params.setMinimumCompilerVersion(minimumCompilerVersion);
-            params.setMinimumRuntimeVersion(minimumRuntimeVersion);
-            params.setGradleJavaVersion(Jvm.current().getJavaVersion());
-            params.setGitRevision(gitRevision(project.getRootProject().getRootDir()));
-            params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
-            params.setTestSeed(testSeed);
-            params.setIsCi(System.getenv("JENKINS_URL") != null);
-            params.setIsInternal(GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null);
-            params.setDefaultParallel(findDefaultParallel(project));
-            params.setInFipsJvm(isInFipsJvm());
-        });
-
-        project.allprojects(p -> {
-            // Make sure than any task execution generates and prints build info
-            p.getTasks().configureEach(task -> {
-                if (task != generateTask && task != printTask) {
-                    task.dependsOn(printTask);
-                }
-            });
-        });
+        return testSeed;
     }
 
-    private static File findCompilerJavaHome() {
-        String compilerJavaHome = System.getenv("JAVA_HOME");
-        String compilerJavaProperty = System.getProperty("compiler.java");
+    private static void throwInvalidJavaHomeException(String description, File javaHome, int expectedVersion, int actualVersion) {
+        String message = String.format(
+            Locale.ROOT,
+            "The %s must be set to a JDK installation directory for Java %d but is [%s] corresponding to [%s]",
+            description,
+            expectedVersion,
+            javaHome,
+            actualVersion
+        );
 
-        if (compilerJavaProperty != null) {
-            compilerJavaHome = findJavaHome(compilerJavaProperty);
-        }
-
-        // if JAVA_HOME is not set,so we use the JDK that Gradle was run with.
-        return compilerJavaHome == null ? Jvm.current().getJavaHome() : new File(compilerJavaHome);
+        throw new GradleException(message);
     }
 
-    private static File findRuntimeJavaHome(final File compilerJavaHome) {
+    private static File findRuntimeJavaHome() {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
             return new File(findJavaHome(runtimeJavaProperty));
         }
 
-        return System.getenv("RUNTIME_JAVA_HOME") == null ? compilerJavaHome : new File(System.getenv("RUNTIME_JAVA_HOME"));
+        return System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"));
     }
 
     private static String findJavaHome(String version) {
         String versionedJavaHome = System.getenv(getJavaHomeEnvVarName(version));
         if (versionedJavaHome == null) {
-            throw new GradleException(
-                "$" + getJavaHomeEnvVarName(version) + " must be set to build Elasticsearch. " +
-                    "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                    "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
+            final String exceptionMessage = String.format(
+                Locale.ROOT,
+                "$%s must be set to build Elasticsearch. "
+                    + "Note that if the variable was just set you "
+                    + "might have to run `./gradlew --stop` for "
+                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
+                getJavaHomeEnvVarName(version)
             );
+
+            throw new GradleException(exceptionMessage);
         }
         return versionedJavaHome;
     }
 
     private static String getJavaHomeEnvVarName(String version) {
         return "JAVA" + version + "_HOME";
-    }
-
-    private static boolean isInFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty("tests.fips.enabled"));
-    }
-
-    private static String getResourceContents(String resourcePath) {
-        try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath))
-        )) {
-            StringBuilder b = new StringBuilder();
-            for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                if (b.length() != 0) {
-                    b.append('\n');
-                }
-                b.append(line);
-            }
-
-            return b.toString();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Error trying to read classpath resource: " + resourcePath, e);
-        }
     }
 
     private static int findDefaultParallel(Project project) {
@@ -194,7 +299,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             if (name.equals("physical id")) {
                                 currentID = value;
                             }
-                            // Number  of cores not including hyper-threading
+                            // Number of cores not including hyper-threading
                             if (name.equals("cpu cores")) {
                                 assert currentID.isEmpty() == false;
                                 socketToCore.put("currentID", Integer.valueOf(value));
@@ -224,7 +329,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-    public static String gitRevision(File rootDir) {
+    public static GitInfo gitInfo(File rootDir) {
         try {
             /*
              * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
@@ -245,7 +350,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             final Path dotGit = rootDir.toPath().resolve(".git");
             final String revision;
             if (Files.exists(dotGit) == false) {
-                return "unknown";
+                return new GitInfo("unknown", "unknown");
             }
             final Path head;
             final Path gitDir;
@@ -256,6 +361,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             } else {
                 // this is a git worktree, follow the pointer to the repository
                 final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                if (Files.exists(workTree) == false) {
+                    return new GitInfo("unknown", "unknown");
+                }
                 head = workTree.resolve("HEAD");
                 final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
                 if (commonDir.isAbsolute()) {
@@ -271,10 +379,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 Path refFile = gitDir.resolve(refName);
                 if (Files.exists(refFile)) {
                     revision = readFirstLine(refFile);
-                } else if (Files.exists(dotGit.resolve("packed-refs"))) {
+                } else if (Files.exists(gitDir.resolve("packed-refs"))) {
                     // Check packed references for commit ID
                     Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "$");
-                    try (Stream<String> lines = Files.lines(dotGit.resolve("packed-refs"))) {
+                    try (Stream<String> lines = Files.lines(gitDir.resolve("packed-refs"))) {
                         revision = lines.map(p::matcher)
                             .filter(Matcher::matches)
                             .map(m -> m.group(1))
@@ -288,20 +396,67 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 // we are in detached HEAD state
                 revision = ref;
             }
-            return revision;
+            return new GitInfo(revision, findOriginUrl(gitDir.resolve("config")));
         } catch (final IOException e) {
             // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
             throw new GradleException("unable to read the git revision", e);
         }
     }
 
+    private static String findOriginUrl(final Path configFile) throws IOException {
+        Map<String, String> props = new HashMap<>();
+
+        try (Stream<String> stream = Files.lines(configFile, StandardCharsets.UTF_8)) {
+            Iterator<String> lines = stream.iterator();
+            boolean foundOrigin = false;
+            while (lines.hasNext()) {
+                String line = lines.next().trim();
+                if (line.startsWith(";") || line.startsWith("#")) {
+                    // ignore comments
+                    continue;
+                }
+                if (foundOrigin) {
+                    if (line.startsWith("[")) {
+                        // we're on to the next config item so stop looking
+                        break;
+                    }
+                    String[] pair = line.trim().split("=", 2);
+                    props.put(pair[0].trim(), pair[1].trim());
+                } else {
+                    if (line.equals("[remote \"origin\"]")) {
+                        foundOrigin = true;
+                    }
+                }
+            }
+        }
+
+        String originUrl = props.get("url");
+        return originUrl == null ? "unknown" : originUrl;
+    }
+
     private static String readFirstLine(final Path path) throws IOException {
         String firstLine;
         try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
-            firstLine = lines
-                .findFirst()
-                .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+            firstLine = lines.findFirst().orElseThrow(() -> new IOException("file [" + path + "] is empty"));
         }
         return firstLine;
+    }
+
+    private static class GitInfo {
+        private final String revision;
+        private final String origin;
+
+        GitInfo(String revision, String origin) {
+            this.revision = revision;
+            this.origin = origin;
+        }
+
+        public String getRevision() {
+            return revision;
+        }
+
+        public String getOrigin() {
+            return origin;
+        }
     }
 }

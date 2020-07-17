@@ -44,7 +44,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
     private static final ParseField HEADERS = new ParseField("headers");
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
             (a) -> new ShardFollowTask((String) a[0],
                 new ShardId((String) a[1], (String) a[2], (int) a[3]), new ShardId((String) a[4], (String) a[5], (int) a[6]),
                 (Integer) a[7], (Integer) a[8], (Integer) a[9], (Integer) a[10], (ByteSizeValue) a[11], (ByteSizeValue) a[12],

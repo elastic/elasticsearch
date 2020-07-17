@@ -73,9 +73,9 @@ Valid rules include:
 * <<intervals-match,`match`>>
 * <<intervals-prefix,`prefix`>>
 * <<intervals-wildcard,`wildcard`>>
+* <<intervals-fuzzy,`fuzzy`>>
 * <<intervals-all_of,`all_of`>>
 * <<intervals-any_of,`any_of`>>
-* <<interval_filter,`filter`>>
 --
 
 [[intervals-match]]
@@ -98,7 +98,7 @@ set to `0`, the terms must appear next to each other.
 --
 
 `ordered`::
-(Optional, boolean) 
+(Optional, boolean)
 If `true`, matching terms must appear in their specified order. Defaults to
 `false`.
 
@@ -175,6 +175,42 @@ Defaults to the top-level `<field>`'s analyzer.
 top-level `<field>`.
 
 The `pattern` is normalized using the search analyzer from this field, unless
+`analyzer` is specified separately.
+--
+
+[[intervals-fuzzy]]
+==== `fuzzy` rule parameters
+
+The `fuzzy` rule matches terms that are similar to the provided term, within an
+edit distance defined by <<fuzziness>>.  If the fuzzy expansion matches more than
+128 terms, {es} returns an error.
+
+`term`::
+(Required, string) The term to match
+
+`prefix_length`::
+(Optional, string) Number of beginning characters left unchanged when creating
+expansions. Defaults to `0`.
+
+`transpositions`::
+(Optional, boolean) Indicates whether edits include transpositions of two
+adjacent characters (ab → ba). Defaults to `true`.
+
+`fuzziness`::
+(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
+for valid values and more information.  Defaults to `auto`.
+
+`analyzer`::
+(Optional, string) <<analysis, analyzer>> used to normalize the `term`.
+Defaults to the top-level `<field>` 's analyzer.
+
+`use_field`::
++
+--
+(Optional, string) If specified, match intervals from this field rather than the
+top-level `<field>`.
+
+The `term` is normalized using the search analyzer from this field, unless
 `analyzer` is specified separately.
 --
 

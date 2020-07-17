@@ -308,7 +308,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
                 .calendarInterval(new DateHistogramInterval("1h"))
-                .subAggregation(new TermsAggregationBuilder("histo", ValueType.STRING).field("bar"));
+                .subAggregation(new TermsAggregationBuilder("histo").userValueTypeHint(ValueType.STRING).field("bar"));
 
         Set<RollupJobCaps> caps = new HashSet<>(2);
         caps.add(cap);

@@ -206,7 +206,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
                                              @Nullable RecoverySource recoverySource) {
         for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
             ShardRouting unassigned = it.next();
-            if (!unassigned.equalsIgnoringMetaData(shardRouting)) {
+            if (!unassigned.equalsIgnoringMetadata(shardRouting)) {
                 continue;
             }
             if (unassignedInfo != null || recoverySource != null) {

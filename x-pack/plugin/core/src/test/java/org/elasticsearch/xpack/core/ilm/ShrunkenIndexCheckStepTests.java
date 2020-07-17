@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep.Result;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -54,16 +54,16 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
     public void testConditionMet() {
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
-        IndexMetaData indexMetadata = IndexMetaData.builder(step.getShrunkIndexPrefix() + sourceIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
+        IndexMetadata indexMetadata = IndexMetadata.builder(step.getShrunkIndexPrefix() + sourceIndex)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(indexMetadata))
+            .put(IndexMetadata.builder(indexMetadata))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
         assertTrue(result.isComplete());
         assertNull(result.getInfomationContext());
@@ -72,15 +72,15 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
     public void testConditionNotMetBecauseNotSameShrunkenIndex() {
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
-        IndexMetaData shrinkIndexMetadata = IndexMetaData.builder(sourceIndex + "hello")
-            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
+        IndexMetadata shrinkIndexMetadata = IndexMetadata.builder(sourceIndex + "hello")
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(shrinkIndexMetadata))
+            .put(IndexMetadata.builder(shrinkIndexMetadata))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         Result result = step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
         assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.getInfomationContext());
@@ -89,20 +89,20 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
     public void testConditionNotMetBecauseSourceIndexExists() {
         ShrunkenIndexCheckStep step = createRandomInstance();
         String sourceIndex = randomAlphaOfLengthBetween(1, 10);
-        IndexMetaData originalIndexMetadata = IndexMetaData.builder(sourceIndex)
+        IndexMetadata originalIndexMetadata = IndexMetadata.builder(sourceIndex)
             .settings(settings(Version.CURRENT))
             .numberOfShards(100)
             .numberOfReplicas(0).build();
-        IndexMetaData shrinkIndexMetadata = IndexMetaData.builder(step.getShrunkIndexPrefix() + sourceIndex)
-            .settings(settings(Version.CURRENT).put(IndexMetaData.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
+        IndexMetadata shrinkIndexMetadata = IndexMetadata.builder(step.getShrunkIndexPrefix() + sourceIndex)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(originalIndexMetadata))
-            .put(IndexMetaData.builder(shrinkIndexMetadata))
+            .put(IndexMetadata.builder(originalIndexMetadata))
+            .put(IndexMetadata.builder(shrinkIndexMetadata))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         Result result = step.isConditionMet(shrinkIndexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
         assertEquals(new ShrunkenIndexCheckStep.Info(sourceIndex), result.getInfomationContext());
@@ -110,15 +110,15 @@ public class ShrunkenIndexCheckStepTests extends AbstractStepTestCase<ShrunkenIn
 
     public void testIllegalState() {
         ShrunkenIndexCheckStep step = createRandomInstance();
-        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0).build();
-        MetaData metaData = MetaData.builder()
+        Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
-            .put(IndexMetaData.builder(indexMetadata))
+            .put(IndexMetadata.builder(indexMetadata))
             .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> step.isConditionMet(indexMetadata.getIndex(), clusterState));
         assertThat(exception.getMessage(),

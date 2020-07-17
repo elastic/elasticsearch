@@ -11,8 +11,7 @@ extension as part of an ordinary elasticsearch plugin.
 ==== Implementing a custom realm
 
 Sample code that illustrates the structure and implementation of a custom realm
-is provided in the https://github.com/elastic/shield-custom-realm-example[custom-realm-example]
-repository on GitHub. You can use this code as a starting point for creating your
+is provided in https://github.com/elastic/elasticsearch/tree/{branch}/x-pack/qa/security-example-spi-extension. You can use this code as a starting point for creating your
 own realm.
 
 To create a custom realm, you need to:
@@ -86,14 +85,13 @@ bin/elasticsearch-plugin install file:///<path>/my-realm-1.0.zip
 
 . Add a realm configuration of the appropriate realm type to `elasticsearch.yml`
 under the `xpack.security.authc.realms` namespace.
-You must define your realm within the namespace that matchesto the type defined
+You must define your realm within the namespace that matches the type defined
 by the extension.
 The options you can set depend on the settings exposed by the custom realm.
-If you are configuring multiple realms, you should also explicitly set the
-`order` attribute to control the order in which the realms are consulted during
-authentication. You should make sure each configured realm has a distinct
-`order` setting. In the event that two or more realms have the same `order`,
-they will be processed in realm `name` order.
+At a minimum, you must explicitly set the `order` attribute to control the
+order in which the realms are consulted during authentication. You must also
+make sure each configured realm has a distinct `order` setting. In the event
+that two or more realms have the same `order`, the node will fail to start.
 +
 IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
 realms you specify are used for authentication. If you also want to use the

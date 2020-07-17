@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.flush.SyncedFlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -46,10 +45,20 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.AnalyzeResponse;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CloseIndexResponse;
+import org.elasticsearch.client.indices.ComposableIndexTemplateExistRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.DataStreamsStatsRequest;
+import org.elasticsearch.client.indices.DataStreamsStatsResponse;
 import org.elasticsearch.client.indices.DeleteAliasRequest;
+import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.DeleteDataStreamRequest;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
+import org.elasticsearch.client.indices.GetDataStreamRequest;
+import org.elasticsearch.client.indices.GetDataStreamResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
@@ -59,12 +68,15 @@ import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
 import org.elasticsearch.client.indices.ResizeRequest;
 import org.elasticsearch.client.indices.ResizeResponse;
+import org.elasticsearch.client.indices.SimulateIndexTemplateRequest;
+import org.elasticsearch.client.indices.SimulateIndexTemplateResponse;
 import org.elasticsearch.client.indices.UnfreezeIndexRequest;
 import org.elasticsearch.client.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.indices.rollover.RolloverResponse;
@@ -147,6 +159,140 @@ public final class IndicesClient {
                                    ActionListener<CreateIndexResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, IndicesRequestConverters::createIndex, options,
             CreateIndexResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Creates a data stream using the Create Data Stream API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
+     * Data Streams API on elastic.co</a>
+     *
+     * @param createDataStreamRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse createDataStream(CreateDataStreamRequest createDataStreamRequest,
+                                                 RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(createDataStreamRequest, IndicesRequestConverters::putDataStream, options,
+            AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates a data stream using the Create Data Stream API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
+     * Data Streams API on elastic.co</a>
+     *
+     * @param createDataStreamRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @param listener                the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable createDataStreamAsync(CreateDataStreamRequest createDataStreamRequest,
+                                             RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(createDataStreamRequest, IndicesRequestConverters::putDataStream,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Deletes a data stream using the Delete Data Stream API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
+     * Data Streams API on elastic.co</a>
+     *
+     * @param deleteDataStreamRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deleteDataStream(DeleteDataStreamRequest deleteDataStreamRequest,
+                                                 RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(deleteDataStreamRequest, IndicesRequestConverters::deleteDataStream,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously deletes a data stream using the Delete Data Stream API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-data-streams.html">
+     * Data Streams API on elastic.co</a>
+     *
+     * @param deleteDataStreamRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @param listener                the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteDataStreamAsync(DeleteDataStreamRequest deleteDataStreamRequest, RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteDataStreamRequest, IndicesRequestConverters::deleteDataStream,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets one or more data streams using the Get Data Stream API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
+     * elastic.co</a>
+     *
+     * @param dataStreamRequest the request
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetDataStreamResponse getDataStream(GetDataStreamRequest dataStreamRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(dataStreamRequest, IndicesRequestConverters::getDataStreams, options,
+            GetDataStreamResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets one or more data streams using the Get Data Stream API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
+     * elastic.co</a>
+     *
+     * @param dataStreamRequest the request
+     * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener          the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getDataStreamAsync(GetDataStreamRequest dataStreamRequest, RequestOptions options,
+                                          ActionListener<GetDataStreamResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(dataStreamRequest, IndicesRequestConverters::getDataStreams, options,
+            GetDataStreamResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets statistics about one or more data streams using the Get Data Streams Stats API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
+     * elastic.co</a>
+     *
+     * @param dataStreamsStatsRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DataStreamsStatsResponse dataStreamsStats(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
+            options, DataStreamsStatsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets statistics about one or more data streams using the Get Data Streams Stats API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-aliases.html"> Data Streams API on
+     * elastic.co</a>
+     *
+     * @param dataStreamsStatsRequest the request
+     * @param options                 the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                customized
+     * @param listener                the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable dataStreamsStatsAsync(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options,
+                                             ActionListener<DataStreamsStatsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
+            options, DataStreamsStatsResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -413,35 +559,6 @@ public final class IndicesClient {
     public Cancellable flushAsync(FlushRequest flushRequest, RequestOptions options, ActionListener<FlushResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(flushRequest, IndicesRequestConverters::flush, options,
                 FlushResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Initiate a synced flush manually using the synced flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush-api.html">
-     *     Synced flush API on elastic.co</a>
-     * @param syncedFlushRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public SyncedFlushResponse flushSynced(SyncedFlushRequest syncedFlushRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(syncedFlushRequest, IndicesRequestConverters::flushSynced, options,
-                SyncedFlushResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Asynchronously initiate a synced flush manually using the synced flush API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-synced-flush-api.html">
-     *     Synced flush API on elastic.co</a>
-     * @param syncedFlushRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable flushSyncedAsync(SyncedFlushRequest syncedFlushRequest, RequestOptions options,
-                                        ActionListener<SyncedFlushResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(syncedFlushRequest, IndicesRequestConverters::flushSynced, options,
-                SyncedFlushResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -940,6 +1057,70 @@ public final class IndicesClient {
     }
 
     /**
+     * Puts an index template using the Index Templates API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     * @param putIndexTemplateRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse putIndexTemplate(PutComposableIndexTemplateRequest putIndexTemplateRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously puts an index template using the Index Templates API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     * @param putIndexTemplateRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable putIndexTemplateAsync(PutComposableIndexTemplateRequest putIndexTemplateRequest,
+                                             RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Simulates matching index name against the existing index templates in the system.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     *
+     * @param simulateIndexTemplateRequest the request
+     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                     customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public SimulateIndexTemplateResponse simulateIndexTemplate(SimulateIndexTemplateRequest simulateIndexTemplateRequest,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(simulateIndexTemplateRequest,
+            IndicesRequestConverters::simulateIndexTemplate, options, SimulateIndexTemplateResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously simulates matching index name against the existing index templates in the system.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     *
+     * @param simulateIndexTemplateRequest the request
+     * @param options                      the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be
+     *                                     customized
+     * @param listener                     the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable simulateIndexTemplateAsync(SimulateIndexTemplateRequest simulateIndexTemplateRequest,
+                                                  RequestOptions options, ActionListener<SimulateIndexTemplateResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(simulateIndexTemplateRequest,
+            IndicesRequestConverters::simulateIndexTemplate, options, SimulateIndexTemplateResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Validate a potentially expensive query without executing it.
      * <p>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-validate.html"> Validate Query API
@@ -982,8 +1163,38 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
+    public GetComposableIndexTemplatesResponse getIndexTemplate(GetComposableIndexTemplateRequest getIndexTemplatesRequest,
+                                                                RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest, IndicesRequestConverters::getIndexTemplates,
+            options, GetComposableIndexTemplatesResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously gets index templates using the Index Templates API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     * @param getIndexTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getIndexTemplateAsync(GetComposableIndexTemplateRequest getIndexTemplatesRequest, RequestOptions options,
+                                             ActionListener<GetComposableIndexTemplatesResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
+            IndicesRequestConverters::getIndexTemplates, options, GetComposableIndexTemplatesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Gets index templates using the Index Templates API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param getIndexTemplatesRequest the request
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
     public GetIndexTemplatesResponse getIndexTemplate(GetIndexTemplatesRequest getIndexTemplatesRequest,
-                  RequestOptions options) throws IOException {
+                                                      RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest,
             IndicesRequestConverters::getTemplates,
             options, GetIndexTemplatesResponse::fromXContent, emptySet());
@@ -1030,6 +1241,37 @@ public final class IndicesClient {
     public Cancellable existsTemplateAsync(IndexTemplatesExistRequest indexTemplatesExistRequest,
                                            RequestOptions options,
                                            ActionListener<Boolean> listener) {
+
+        return restHighLevelClient.performRequestAsync(indexTemplatesExistRequest,
+            IndicesRequestConverters::templatesExist, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Uses the Index Templates API to determine if index templates exist
+     *
+     * @param indexTemplatesRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return true if any index templates in the request exist, false otherwise
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public boolean existsIndexTemplate(ComposableIndexTemplateExistRequest indexTemplatesRequest,
+                                       RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(indexTemplatesRequest,
+            IndicesRequestConverters::templatesExist, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Uses the Index Templates API to determine if index templates exist
+     * @param indexTemplatesExistRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable existsIndexTemplateAsync(ComposableIndexTemplateExistRequest indexTemplatesExistRequest,
+                                                RequestOptions options,
+                                                ActionListener<Boolean> listener) {
 
         return restHighLevelClient.performRequestAsync(indexTemplatesExistRequest,
             IndicesRequestConverters::templatesExist, options,
@@ -1139,6 +1381,36 @@ public final class IndicesClient {
     public Cancellable deleteTemplateAsync(DeleteIndexTemplateRequest request, RequestOptions options,
                                            ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteTemplate,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Delete an index template using the Index Templates API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse deleteIndexTemplate(DeleteComposableIndexTemplateRequest request,
+                                                    RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously delete an index template using the Index Templates API
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html"> Index Templates API
+     * on elastic.co</a>
+     * @param request  the request
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteIndexTemplateAsync(DeleteComposableIndexTemplateRequest request, RequestOptions options,
+                                                ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 

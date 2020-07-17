@@ -114,9 +114,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         numberOfFailedFollowIndices = in.readVLong();
         numberOfFailedRemoteClusterStateRequests = in.readVLong();
         numberOfSuccessfulFollowIndices = in.readVLong();
-        // note: the casts to the following Writeable.Reader<T> instances are needed by some IDEs (e.g. Eclipse 4.8) as a compiler help
-        recentAutoFollowErrors = new TreeMap<>(in.readMap(StreamInput::readString,
-            in1 -> new Tuple<>(in1.readZLong(), in1.readException())));
+        recentAutoFollowErrors = new TreeMap<>(
+                in.readMap(StreamInput::readString, in1 -> new Tuple<>(in1.readZLong(), in1.readException())));
         autoFollowedClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
     }
 

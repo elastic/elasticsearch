@@ -18,4 +18,8 @@ public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
      * All nodes in the cluster must be at least this version
      */
     Version getMinimalSupportedVersion();
+
+    default boolean requestingImportance() {
+        return false;
+    }
 }

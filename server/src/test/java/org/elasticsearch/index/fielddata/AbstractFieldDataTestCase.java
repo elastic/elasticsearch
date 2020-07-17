@@ -30,7 +30,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -122,7 +122,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else if (type.equals("geo_point")) {
             fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName).docValues(docValues).build(context).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }
@@ -136,7 +136,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(
-            new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         shardContext = indexService.newQueryShardContext(0, null, () -> 0, null);
     }
@@ -175,9 +175,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         IndexFieldData<?> fieldData = getForField("non_existing_field");
         int max = randomInt(7);
         for (LeafReaderContext readerContext : readerContexts) {
-            AtomicFieldData previous = null;
+            LeafFieldData previous = null;
             for (int i = 0; i < max; i++) {
-                AtomicFieldData current = fieldData.load(readerContext);
+                LeafFieldData current = fieldData.load(readerContext);
                 assertThat(current.ramBytesUsed(), equalTo(0L));
                 if (previous != null) {
                     assertThat(current, not(sameInstance(previous)));

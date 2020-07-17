@@ -257,4 +257,17 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
     }
+
+    @Override
+    public void beforeIndexShardRecovery(final IndexShard indexShard, final IndexSettings indexSettings) {
+        for (IndexEventListener listener  : listeners) {
+            try {
+                listener.beforeIndexShardRecovery(indexShard, indexSettings);
+            } catch (Exception e) {
+                logger.warn(() -> new ParameterizedMessage("failed to invoke the listener before the shard recovery starts for {}",
+                    indexShard.shardId()), e);
+                throw e;
+            }
+        }
+    }
 }

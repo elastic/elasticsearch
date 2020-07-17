@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,12 +30,15 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PivotConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_pivot";
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PivotConfig.class);
+
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
     private final Integer maxPageSearchSize;
@@ -42,32 +47,30 @@ public class PivotConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<PivotConfig, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<PivotConfig, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient,
-                args -> {
-                    GroupConfig groups = (GroupConfig) args[0];
+        ConstructingObjectParser<PivotConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient, args -> {
+            GroupConfig groups = (GroupConfig) args[0];
 
-                    // allow "aggs" and "aggregations" but require one to be specified
-                    // if somebody specifies both: throw
-                    AggregationConfig aggregationConfig = null;
-                    if (args[1] != null) {
-                        aggregationConfig = (AggregationConfig) args[1];
-                    }
+            // allow "aggs" and "aggregations" but require one to be specified
+            // if somebody specifies both: throw
+            AggregationConfig aggregationConfig = null;
+            if (args[1] != null) {
+                aggregationConfig = (AggregationConfig) args[1];
+            }
 
-                    if (args[2] != null) {
-                        if (aggregationConfig != null) {
-                            throw new IllegalArgumentException("Found two aggregation definitions: [aggs] and [aggregations]");
-                        }
-                        aggregationConfig = (AggregationConfig) args[2];
-                    }
-                    if (aggregationConfig == null) {
-                        throw new IllegalArgumentException("Required [aggregations]");
-                    }
+            if (args[2] != null) {
+                if (aggregationConfig != null) {
+                    throw new IllegalArgumentException("Found two aggregation definitions: [aggs] and [aggregations]");
+                }
+                aggregationConfig = (AggregationConfig) args[2];
+            }
+            if (aggregationConfig == null) {
+                throw new IllegalArgumentException("Required [aggregations]");
+            }
 
-                    return new PivotConfig(groups, aggregationConfig, (Integer)args[3]);
-                });
+            return new PivotConfig(groups, aggregationConfig, (Integer) args[3]);
+        });
 
-        parser.declareObject(constructorArg(),
-                (p, c) -> (GroupConfig.fromXContent(p, lenient)), TransformField.GROUP_BY);
+        parser.declareObject(constructorArg(), (p, c) -> (GroupConfig.fromXContent(p, lenient)), TransformField.GROUP_BY);
 
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGREGATIONS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGS);
@@ -80,6 +83,13 @@ public class PivotConfig implements Writeable, ToXContentObject {
         this.groups = ExceptionsHelper.requireNonNull(groups, TransformField.GROUP_BY.getPreferredName());
         this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, TransformField.AGGREGATIONS.getPreferredName());
         this.maxPageSearchSize = maxPageSearchSize;
+
+        if (maxPageSearchSize != null) {
+            deprecationLogger.deprecate(
+                TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
+                "[max_page_search_size] is deprecated inside pivot please use settings instead"
+            );
+        }
     }
 
     public PivotConfig(StreamInput in) throws IOException {
@@ -167,6 +177,21 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return groups.isValid() && aggregationConfig.isValid();
     }
 
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
+            validationException = addValidationError(
+                "pivot.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 10,000",
+                validationException
+            );
+        }
+
+        for (String failure : aggFieldValidation()) {
+            validationException = addValidationError(failure, validationException);
+        }
+
+        return validationException;
+    }
+
     public List<String> aggFieldValidation() {
         if ((aggregationConfig.isValid() && groups.isValid()) == false) {
             return Collections.emptyList();
@@ -206,16 +231,25 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         usedNames.sort(String::compareTo);
         for (int i = 0; i < usedNames.size() - 1; i++) {
-            if (usedNames.get(i+1).startsWith(usedNames.get(i) + ".")) {
+            if (usedNames.get(i + 1).startsWith(usedNames.get(i) + ".")) {
                 validationFailures.add("field [" + usedNames.get(i) + "] cannot be both an object and a field");
             }
-            if (usedNames.get(i+1).equals(usedNames.get(i))) {
+            if (usedNames.get(i + 1).equals(usedNames.get(i))) {
                 validationFailures.add("duplicate field [" + usedNames.get(i) + "] detected");
             }
         }
+
+        for (String name : usedNames) {
+            if (name.startsWith(".")) {
+                validationFailures.add("field [" + name + "] must not start with '.'");
+            }
+            if (name.endsWith(".")) {
+                validationFailures.add("field [" + name + "] must not end with '.'");
+            }
+        }
+
         return validationFailures;
     }
-
 
     private static void addAggNames(AggregationBuilder aggregationBuilder, Collection<String> names) {
         names.add(aggregationBuilder.getName());

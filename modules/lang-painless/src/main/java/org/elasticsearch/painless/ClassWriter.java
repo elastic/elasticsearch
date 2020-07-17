@@ -65,7 +65,6 @@ public class ClassWriter implements Closeable  {
 
     protected final org.objectweb.asm.ClassWriter classWriter;
     protected final ClassVisitor classVisitor;
-    protected MethodWriter clinitWriter = null;
 
     public ClassWriter(CompilerSettings compilerSettings, BitSet statements, Printer debugStream,
             Class<?> baseClass, int classFrames, int classAccess, String className, String[] classInterfaces) {
@@ -93,30 +92,12 @@ public class ClassWriter implements Closeable  {
         return classVisitor;
     }
 
-    /**
-     * Lazy loads the {@link MethodWriter} for clinit, so that if it's not
-     * necessary the method is never created for the class.
-     */
-    public MethodWriter getClinitWriter() {
-        if (clinitWriter == null) {
-            clinitWriter = new MethodWriter(Opcodes.ACC_STATIC, WriterConstants.CLINIT, classVisitor, statements, compilerSettings);
-            clinitWriter.visitCode();
-        }
-
-        return clinitWriter;
-    }
-
     public MethodWriter newMethodWriter(int access, Method method) {
         return new MethodWriter(access, method, classVisitor, statements, compilerSettings);
     }
 
     @Override
     public void close() {
-        if (clinitWriter != null) {
-            clinitWriter.returnValue();
-            clinitWriter.endMethod();
-        }
-
         classVisitor.visitEnd();
     }
 

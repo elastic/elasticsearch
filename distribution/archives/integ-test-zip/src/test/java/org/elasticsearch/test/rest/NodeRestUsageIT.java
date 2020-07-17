@@ -19,11 +19,15 @@
 
 package org.elasticsearch.test.rest;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.Request;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,14 +45,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
         Response beforeResponse = client().performRequest(new Request("GET", path));
         Map<String, Object> beforeResponseBodyMap = entityAsMap(beforeResponse);
         assertThat(beforeResponseBodyMap, notNullValue());
-        Map<String, Object> before_nodesMap = (Map<String, Object>) beforeResponseBodyMap.get("_nodes");
-        assertThat(before_nodesMap, notNullValue());
-        Integer beforeTotal = (Integer) before_nodesMap.get("total");
-        Integer beforeSuccessful = (Integer) before_nodesMap.get("successful");
-        Integer beforeFailed = (Integer) before_nodesMap.get("failed");
-        assertThat(beforeTotal, greaterThan(0));
-        assertThat(beforeSuccessful, equalTo(beforeTotal));
-        assertThat(beforeFailed, equalTo(0));
+        int beforeSuccessful = assertSuccess(beforeResponseBodyMap);
 
         Map<String, Object> beforeNodesMap = (Map<String, Object>) beforeResponseBodyMap.get("nodes");
         assertThat(beforeNodesMap, notNullValue());
@@ -98,14 +95,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
         Response response = client().performRequest(new Request("GET", "_nodes/usage"));
         Map<String, Object> responseBodyMap = entityAsMap(response);
         assertThat(responseBodyMap, notNullValue());
-        Map<String, Object> _nodesMap = (Map<String, Object>) responseBodyMap.get("_nodes");
-        assertThat(_nodesMap, notNullValue());
-        Integer total = (Integer) _nodesMap.get("total");
-        Integer successful = (Integer) _nodesMap.get("successful");
-        Integer failed = (Integer) _nodesMap.get("failed");
-        assertThat(total, greaterThan(0));
-        assertThat(successful, equalTo(total));
-        assertThat(failed, equalTo(0));
+        int successful = assertSuccess(responseBodyMap);
 
         Map<String, Object> nodesMap = (Map<String, Object>) responseBodyMap.get("nodes");
         assertThat(nodesMap, notNullValue());
@@ -141,6 +131,99 @@ public class NodeRestUsageIT extends ESRestTestCase {
         assertNotNull(exception);
         assertThat(exception.getMessage(), containsString("\"type\":\"illegal_argument_exception\","
                 + "\"reason\":\"request [_nodes/usage/_all,rest_actions] contains _all and individual metrics [_all,rest_actions]\""));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAggregationUsage() throws IOException {
+        // First get the current usage figures
+        String path = randomFrom("_nodes/usage", "_nodes/usage/aggregations", "_nodes/usage/_all");
+        Response beforeResponse = client().performRequest(new Request("GET", path));
+        Map<String, Object> beforeResponseBodyMap = entityAsMap(beforeResponse);
+        assertThat(beforeResponseBodyMap, notNullValue());
+        int beforeSuccessful = assertSuccess(beforeResponseBodyMap);
+
+        Map<String, Object> beforeNodesMap = (Map<String, Object>) beforeResponseBodyMap.get("nodes");
+        assertThat(beforeNodesMap, notNullValue());
+        assertThat(beforeNodesMap.size(), equalTo(beforeSuccessful));
+
+        Map<String, Map<String, Long>> beforeCombinedAggsUsage = getTotalUsage(beforeNodesMap);
+        // Do some requests to get some rest usage stats
+        Request create = new Request("PUT", "/test");
+        create.setJsonEntity("{\"mappings\": {\"properties\": { \"str\": {\"type\": \"keyword\"}, " +
+            "\"foo\": {\"type\": \"keyword\"}, \"num\": {\"type\": \"long\"}, \"start\": {\"type\": \"date\"} } }}");
+        client().performRequest(create);
+
+        Request searchRequest = new Request("GET", "/test/_search");
+        SearchSourceBuilder searchSource = new SearchSourceBuilder()
+            .aggregation(AggregationBuilders.terms("str_terms").field("str.keyword"))
+            .aggregation(AggregationBuilders.terms("num_terms").field("num"))
+            .aggregation(AggregationBuilders.avg("num_avg").field("num"));
+        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        client().performRequest(searchRequest);
+
+        searchRequest = new Request("GET", "/test/_search");
+        searchSource = new SearchSourceBuilder()
+            .aggregation(AggregationBuilders.terms("start").field("start"))
+            .aggregation(AggregationBuilders.avg("num1").field("num"))
+            .aggregation(AggregationBuilders.avg("num2").field("num"))
+            .aggregation(AggregationBuilders.terms("foo").field("foo.keyword"));
+        String r = Strings.toString(searchSource);
+        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        client().performRequest(searchRequest);
+
+        Response response = client().performRequest(new Request("GET", "_nodes/usage"));
+        Map<String, Object> responseBodyMap = entityAsMap(response);
+        assertThat(responseBodyMap, notNullValue());
+        int successful = assertSuccess(responseBodyMap);
+
+        Map<String, Object> nodesMap = (Map<String, Object>) responseBodyMap.get("nodes");
+        assertThat(nodesMap, notNullValue());
+        assertThat(nodesMap.size(), equalTo(successful));
+
+        Map<String, Map<String, Long>> afterCombinedAggsUsage = getTotalUsage(nodesMap);
+
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "numeric", 1L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "date", 1L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "bytes", 2L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "avg", "numeric", 3L);
+    }
+
+    private void assertDiff(Map<String, Map<String, Long>> before, Map<String, Map<String, Long>> after, String agg, String vst,
+                            long diff) {
+        Long valBefore = before.getOrDefault(agg, Collections.emptyMap()).getOrDefault(vst, 0L);
+        Long valAfter = after.getOrDefault(agg, Collections.emptyMap()).getOrDefault(vst, 0L);
+        assertThat(agg + "." + vst, valAfter - valBefore, equalTo(diff) );
+    }
+
+    private Map<String, Map<String, Long>> getTotalUsage(Map<String, Object> nodeUsage) {
+        Map<String, Map<String, Long>> combined = new HashMap<>();
+        for (Map.Entry<String, Object> nodeEntry : nodeUsage.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> beforeAggsUsage = (Map<String, Object>) ((Map<String, Object>) nodeEntry.getValue()).get("aggregations");
+            assertThat(beforeAggsUsage, notNullValue());
+            for (Map.Entry<String, Object> aggEntry : beforeAggsUsage.entrySet()) {
+                @SuppressWarnings("unchecked") Map<String, Object> aggMap = (Map<String, Object>) aggEntry.getValue();
+                Map<String, Long> combinedAggMap = combined.computeIfAbsent(aggEntry.getKey(), k -> new HashMap<>());
+                for  (Map.Entry<String, Object> valSourceEntry : aggMap.entrySet()) {
+                    combinedAggMap.put(valSourceEntry.getKey(),
+                        combinedAggMap.getOrDefault(valSourceEntry.getKey(), 0L) + ((Number) valSourceEntry.getValue()).longValue());
+                }
+            }
+        }
+        return combined;
+    }
+
+    private int assertSuccess(Map<String, Object> responseBodyMap) {
+        @SuppressWarnings("unchecked") Map<String, Object> nodesResultMap = (Map<String, Object>) responseBodyMap.get("_nodes");
+        assertThat(nodesResultMap, notNullValue());
+        Integer total = (Integer) nodesResultMap.get("total");
+        Integer successful = (Integer) nodesResultMap.get("successful");
+        Integer failed = (Integer) nodesResultMap.get("failed");
+        assertThat(total, greaterThan(0));
+        assertThat(successful, equalTo(total));
+        assertThat(failed, equalTo(0));
+        return successful;
     }
 
 }

@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
@@ -58,18 +58,18 @@ public class AllocationPriorityTests extends ESAllocationTestCase {
             prioritySecond = 100;
             priorityFirst = 1;
         }
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("first").settings(settings(Version.CURRENT)
-                    .put(IndexMetaData.SETTING_PRIORITY, priorityFirst)).numberOfShards(2).numberOfReplicas(1))
-                .put(IndexMetaData.builder("second").settings(settings(Version.CURRENT)
-                    .put(IndexMetaData.SETTING_PRIORITY, prioritySecond)).numberOfShards(2).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("first").settings(settings(Version.CURRENT)
+                    .put(IndexMetadata.SETTING_PRIORITY, priorityFirst)).numberOfShards(2).numberOfReplicas(1))
+                .put(IndexMetadata.builder("second").settings(settings(Version.CURRENT)
+                    .put(IndexMetadata.SETTING_PRIORITY, prioritySecond)).numberOfShards(2).numberOfReplicas(1))
                 .build();
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("first"))
-                .addAsNew(metaData.index("second"))
+                .addAsNew(metadata.index("first"))
+                .addAsNew(metadata.index("second"))
                 .build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))
             .add(newNode("node2"))).build();

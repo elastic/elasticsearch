@@ -187,7 +187,8 @@ you must not start Elasticsearch with the serial collector (whether it's
 from the defaults for the JVM that you're using, or you've explicitly
 specified it with `-XX:+UseSerialGC`). Note that the default JVM
 configuration that ships with Elasticsearch configures Elasticsearch to
-use the CMS collector.
+use the G1GC garbage collector with JDK14 and later versions. For earlier
+JDK versions, the configuration defaults to the CMS collector.
 
 === System call filter check
 Elasticsearch installs system call filters of various flavors depending

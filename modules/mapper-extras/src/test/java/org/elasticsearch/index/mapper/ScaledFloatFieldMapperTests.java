@@ -27,19 +27,21 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
+public class ScaledFloatFieldMapperTests extends FieldMapperTestCase<ScaledFloatFieldMapper.Builder> {
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -48,11 +50,25 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     public void setup() {
         indexService = createIndex("test");
         parser = indexService.mapperService().documentMapperParser();
+        addModifier("scaling_factor", false, (a, b) -> {
+            a.scalingFactor(10);
+            b.scalingFactor(100);
+        });
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class, MapperExtrasPlugin.class);
+    }
+
+    @Override
+    protected ScaledFloatFieldMapper.Builder newBuilder() {
+        return new ScaledFloatFieldMapper.Builder("scaled-float").scalingFactor(1);
     }
 
     public void testDefaults() throws Exception {
@@ -75,7 +91,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(1230, pointField.numericValue().longValue());
         IndexableField dvField = fields[1];
@@ -149,7 +165,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().longValue());
     }
 
@@ -173,7 +189,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().doubleValue(), 0d);
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -202,7 +218,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertEquals(1230, pointField.numericValue().longValue());
         IndexableField dvField = fields[1];
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
@@ -317,7 +333,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointDataDimensionCount());
+        assertEquals(1, pointField.fieldType().pointDimensionCount());
         assertFalse(pointField.fieldType().stored());
         assertEquals(25, pointField.numericValue().longValue());
         IndexableField dvField = fields[1];
@@ -352,5 +368,34 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject().endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
         assertThat(e.getMessage(), containsString("index_options not allowed in field [foo] of type [scaled_float]"));
+    }
+
+    public void testMeta() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "scaled_float")
+                .field("meta", Collections.singletonMap("foo", "bar"))
+                .field("scaling_factor", 10.0)
+                .endObject().endObject().endObject().endObject());
+
+        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "scaled_float")
+                .field("scaling_factor", 10.0)
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping2, mapper.mappingSource().toString());
+
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "scaled_float")
+                .field("meta", Collections.singletonMap("baz", "quux"))
+                .field("scaling_factor", 10.0)
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping3, mapper.mappingSource().toString());
     }
 }

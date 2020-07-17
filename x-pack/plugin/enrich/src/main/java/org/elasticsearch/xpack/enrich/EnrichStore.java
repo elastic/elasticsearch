@@ -11,11 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -60,7 +60,7 @@ public final class EnrichStore {
         }
         // The policy name is used to create the enrich index name and
         // therefor a policy name has the same restrictions as an index name
-        MetaDataCreateIndexService.validateIndexOrAliasName(
+        MetadataCreateIndexService.validateIndexOrAliasName(
             name,
             (policyName, error) -> new IllegalArgumentException("Invalid policy name [" + policyName + "], " + error)
         );
@@ -99,9 +99,9 @@ public final class EnrichStore {
                     indexExpression
                 );
                 for (String concreteIndex : concreteIndices) {
-                    IndexMetaData imd = current.getMetaData().index(concreteIndex);
+                    IndexMetadata imd = current.getMetadata().index(concreteIndex);
                     assert imd != null;
-                    MappingMetaData mapping = imd.mapping();
+                    MappingMetadata mapping = imd.mapping();
                     if (mapping == null) {
                         throw new IllegalArgumentException("source index [" + concreteIndex + "] has no mapping");
                     }
@@ -166,7 +166,7 @@ public final class EnrichStore {
      */
     public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
         final Map<String, EnrichPolicy> policies;
-        final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
+        final EnrichMetadata enrichMetadata = state.metadata().custom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {
             // Make a copy, because policies map inside custom metadata is read only:
             policies = new HashMap<>(enrichMetadata.getPolicies());
@@ -186,10 +186,10 @@ public final class EnrichStore {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 Map<String, EnrichPolicy> policies = function.apply(currentState);
-                MetaData metaData = MetaData.builder(currentState.metaData())
+                Metadata metadata = Metadata.builder(currentState.metadata())
                     .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
                     .build();
-                return ClusterState.builder(currentState).metaData(metaData).build();
+                return ClusterState.builder(currentState).metadata(metadata).build();
             }
 
             @Override

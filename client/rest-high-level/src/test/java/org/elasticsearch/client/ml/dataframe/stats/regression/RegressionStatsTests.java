@@ -1,0 +1,54 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.elasticsearch.client.ml.dataframe.stats.regression;
+
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
+
+import java.io.IOException;
+import java.time.Instant;
+
+public class RegressionStatsTests extends AbstractXContentTestCase<RegressionStats> {
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+
+    @Override
+    protected RegressionStats doParseInstance(XContentParser parser) throws IOException {
+        return RegressionStats.PARSER.apply(parser, null);
+    }
+
+
+    @Override
+    protected RegressionStats createTestInstance() {
+        return createRandom();
+    }
+
+    public static RegressionStats createRandom() {
+        return new RegressionStats(
+            Instant.now(),
+            randomBoolean() ? null : randomIntBetween(1, Integer.MAX_VALUE),
+            HyperparametersTests.createRandom(),
+            TimingStatsTests.createRandom(),
+            ValidationLossTests.createRandom()
+        );
+    }
+}

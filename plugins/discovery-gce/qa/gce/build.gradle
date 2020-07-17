@@ -26,11 +26,18 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 final int gceNumberOfNodes = 3
 
 dependencies {
-  testCompile project(path: ':plugins:discovery-gce', configuration: 'runtime')
+  testImplementation project(':plugins:discovery-gce')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
 }
 
 /** A task to start the GCEFixture which emulates a GCE service **/
@@ -56,7 +63,7 @@ integTest {
 
 testClusters.integTest {
   numberOfNodes = gceNumberOfNodes
-  plugin file(project(':plugins:discovery-gce').bundlePlugin.archiveFile)
+  plugin project(':plugins:discovery-gce').bundlePlugin.archiveFile
   // use gce fixture for Auth calls instead of http://metadata.google.internal
   environment 'GCE_METADATA_HOST', { "http://${gceFixture.addressAndPort}" }, IGNORE_VALUE
   // allows to configure hidden settings (`cloud.gce.host` and `cloud.gce.root_url`)

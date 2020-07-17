@@ -31,12 +31,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
@@ -55,13 +54,18 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     DoubleArray sumOfSqrs;
     DoubleArray compensationOfSqrs;
 
-    ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            SearchContext context, Aggregator parent, double sigma, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData)
-            throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
-        this.valuesSource = valuesSource;
-        this.format = formatter;
+    ExtendedStatsAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        SearchContext context,
+        Aggregator parent,
+        double sigma,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, context, parent, metadata);
+        // TODO: stop depending on nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+        this.format = valuesSourceConfig.format();
         this.sigma = sigma;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -166,7 +170,11 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                 case avg: return Double.NaN;
                 case sum_of_squares: return 0;
                 case variance: return Double.NaN;
+                case variance_population: return Double.NaN;
+                case variance_sampling: return Double.NaN;
                 case std_deviation: return Double.NaN;
+                case std_deviation_population: return Double.NaN;
+                case std_deviation_sampling: return Double.NaN;
                 case std_upper: return Double.NaN;
                 case std_lower: return Double.NaN;
                 default:
@@ -181,7 +189,11 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
             case avg: return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
             case sum_of_squares: return sumOfSqrs.get(owningBucketOrd);
             case variance: return variance(owningBucketOrd);
+            case variance_population: return variancePopulation(owningBucketOrd);
+            case variance_sampling: return varianceSampling(owningBucketOrd);
             case std_deviation: return Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_population: return Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_sampling: return  Math.sqrt(varianceSampling(owningBucketOrd));
             case std_upper:
                 return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
             case std_lower:
@@ -192,9 +204,20 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     private double variance(long owningBucketOrd) {
+        return variancePopulation(owningBucketOrd);
+    }
+
+    private double variancePopulation(long owningBucketOrd) {
         double sum = sums.get(owningBucketOrd);
         long count = counts.get(owningBucketOrd);
         double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / count;
+        return variance < 0  ? 0 : variance;
+    }
+
+    private double varianceSampling(long owningBucketOrd) {
+        double sum = sums.get(owningBucketOrd);
+        long count = counts.get(owningBucketOrd);
+        double variance = (sumOfSqrs.get(owningBucketOrd) - ((sum * sum) / count)) / (count - 1);
         return variance < 0  ? 0 : variance;
     }
 
@@ -205,13 +228,12 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         }
         return new InternalExtendedStats(name, counts.get(bucket), sums.get(bucket),
                 mins.get(bucket), maxes.get(bucket), sumOfSqrs.get(bucket), sigma, format,
-                pipelineAggregators(), metaData());
+                metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d,
-            sigma, format, pipelineAggregators(), metaData());
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, sigma, format, metadata());
     }
 
     @Override

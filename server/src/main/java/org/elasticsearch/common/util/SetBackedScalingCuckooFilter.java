@@ -39,13 +39,13 @@ import java.util.function.Consumer;
  * An approximate set membership datastructure that scales as more unique values are inserted.
  * Can definitively say if a member does not exist (no false negatives), but may say an item exists
  * when it does not (has false positives).  Similar in usage to a Bloom Filter.
- *
+ * <p>
  * Internally, the datastructure maintains a Set of hashes up to a specified threshold.  This provides
  * 100% accurate membership queries.
- *
+ * <p>
  * When the threshold is breached, a list of CuckooFilters are created and used to track membership.
  * These filters are approximate similar to Bloom Filters.
- *
+ * <p>
  * This datastructure scales as more values are inserted by growing the list of CuckooFilters.
  * Final size is dependent on the cardinality of data inserted, and the precision specified.
  */

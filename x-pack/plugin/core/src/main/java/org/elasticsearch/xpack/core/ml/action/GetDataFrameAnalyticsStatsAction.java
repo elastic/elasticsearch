@@ -28,8 +28,12 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,7 +55,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
-        private String id;
+        private String id = "_all";
         private boolean allowNoMatch = true;
         private PageParams pageParams = PageParams.defaultParams();
 
@@ -91,7 +95,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
         }
 
         public void setId(String id) {
-            this.id = id;
+            this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID.getPreferredName());
         }
 
         public String getId() {
@@ -138,7 +142,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && allowNoMatch == other.allowNoMatch && Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(id, other.id)
+                && allowNoMatch == other.allowNoMatch
+                && Objects.equals(pageParams, other.pageParams);
         }
     }
 
@@ -150,6 +156,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
+
+        /** Name of the response's REST param which is used to determine whether this response should be verbose. */
+        public static final String VERBOSE = "verbose";
 
         public static class Stats implements ToXContentObject, Writeable {
 
@@ -163,17 +172,28 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
              */
             private final List<PhaseProgress> progress;
 
+            private final DataCounts dataCounts;
+
+            private final MemoryUsage memoryUsage;
+
+            @Nullable
+            private final AnalysisStats analysisStats;
+
             @Nullable
             private final DiscoveryNode node;
             @Nullable
             private final String assignmentExplanation;
 
             public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, List<PhaseProgress> progress,
+                         @Nullable DataCounts dataCounts, @Nullable MemoryUsage memoryUsage, @Nullable AnalysisStats analysisStats,
                          @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
                 this.id = Objects.requireNonNull(id);
                 this.state = Objects.requireNonNull(state);
                 this.failureReason = failureReason;
                 this.progress = Objects.requireNonNull(progress);
+                this.dataCounts = dataCounts == null ? new DataCounts(id) : dataCounts;
+                this.memoryUsage = memoryUsage == null ? new MemoryUsage(id) : memoryUsage;
+                this.analysisStats = analysisStats;
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
             }
@@ -186,6 +206,21 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     progress = readProgressFromLegacy(state, in);
                 } else {
                     progress = in.readList(PhaseProgress::new);
+                }
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    dataCounts = new DataCounts(in);
+                } else {
+                    dataCounts = null;
+                }
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    memoryUsage = new MemoryUsage(in);
+                } else {
+                    memoryUsage = null;
+                }
+                if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
+                } else {
+                    analysisStats = null;
                 }
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
@@ -240,6 +275,19 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return progress;
             }
 
+            @Nullable
+            public DataCounts getDataCounts() {
+                return dataCounts;
+            }
+
+            public MemoryUsage getMemoryUsage() {
+                return memoryUsage;
+            }
+
+            public AnalysisStats getAnalysisStats() {
+                return analysisStats;
+            }
+
             public DiscoveryNode getNode() {
                 return node;
             }
@@ -253,12 +301,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 // TODO: Have callers wrap the content with an object as they choose rather than forcing it upon them
                 builder.startObject();
                 {
-                    toUnwrappedXContent(builder);
+                    toUnwrappedXContent(builder, params);
                 }
                 return builder.endObject();
             }
 
-            public XContentBuilder toUnwrappedXContent(XContentBuilder builder) throws IOException {
+            private XContentBuilder toUnwrappedXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
                 builder.field("state", state.toString());
                 if (failureReason != null) {
@@ -266,6 +314,18 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 }
                 if (progress != null) {
                     builder.field("progress", progress);
+                }
+                builder.field("data_counts", dataCounts);
+                builder.field("memory_usage", memoryUsage);
+                if (analysisStats != null) {
+                    builder.startObject("analysis_stats");
+                    builder.field(
+                        analysisStats.getWriteableName(),
+                        analysisStats,
+                        new MapParams(
+                            Collections.singletonMap(
+                                ToXContentParams.FOR_INTERNAL_STORAGE, Boolean.toString(params.paramAsBoolean(VERBOSE, false)))));
+                    builder.endObject();
                 }
                 if (node != null) {
                     builder.startObject("node");
@@ -296,6 +356,15 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                     writeProgressToLegacy(out);
                 } else {
                     out.writeList(progress);
+                }
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    dataCounts.writeTo(out);
+                }
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    memoryUsage.writeTo(out);
+                }
+                if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
+                    out.writeOptionalNamedWriteable(analysisStats);
                 }
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
@@ -329,7 +398,8 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
             @Override
             public int hashCode() {
-                return Objects.hash(id, state, failureReason, progress, node, assignmentExplanation);
+                return Objects.hash(id, state, failureReason, progress, dataCounts, memoryUsage, analysisStats, node,
+                    assignmentExplanation);
             }
 
             @Override
@@ -345,6 +415,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                         && Objects.equals(this.state, other.state)
                         && Objects.equals(this.failureReason, other.failureReason)
                         && Objects.equals(this.progress, other.progress)
+                        && Objects.equals(this.dataCounts, other.dataCounts)
+                        && Objects.equals(this.memoryUsage, other.memoryUsage)
+                        && Objects.equals(this.analysisStats, other.analysisStats)
                         && Objects.equals(this.node, other.node)
                         && Objects.equals(this.assignmentExplanation, other.assignmentExplanation);
             }

@@ -19,57 +19,39 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Represents a series of declarations.
  */
-public final class SDeclBlock extends AStatement {
+public class SDeclBlock extends AStatement {
 
-    private final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarationNodes;
 
-    public SDeclBlock(Location location, List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(int identifier, Location location, List<SDeclaration> declarationNodes) {
+        super(identifier, location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.declarationNodes = Collections.unmodifiableList(declarationNodes);
+    }
+
+    public List<SDeclaration> getDeclarationNodes() {
+        return declarationNodes;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (SDeclaration declaration : declarations) {
-            declaration.extractVariables(variables);
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDeclBlock(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        for (SDeclaration declaration : declarationNodes) {
+            declaration.analyze(semanticScope);
         }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, locals);
-        }
-
-        statementCount = declarations.size();
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        for (AStatement declaration : declarations) {
-            declaration.write(classWriter, methodWriter, globals);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), declarations);
     }
 }

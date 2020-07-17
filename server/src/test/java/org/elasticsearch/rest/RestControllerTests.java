@@ -24,7 +24,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -86,6 +85,7 @@ public class RestControllerTests extends ESTestCase {
                 // We want to have reproducible results in this test, hence we disable real memory usage accounting
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
+            Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         usageService = new UsageService();
         // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
@@ -180,12 +180,11 @@ public class RestControllerTests extends ESTestCase {
         String path = "/_" + randomAlphaOfLengthBetween(1, 6);
         RestHandler handler = mock(RestHandler.class);
         String deprecationMessage = randomAlphaOfLengthBetween(1, 10);
-        DeprecationLogger logger = mock(DeprecationLogger.class);
 
         // don't want to test everything -- just that it actually wraps the handler
-        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, handler, deprecationMessage, logger);
+        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
 
-        controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage, logger);
+        controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
 
         verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
     }
@@ -198,18 +197,17 @@ public class RestControllerTests extends ESTestCase {
         final RestHandler handler = mock(RestHandler.class);
         final RestRequest.Method deprecatedMethod = randomFrom(RestRequest.Method.values());
         final String deprecatedPath = "/_" + randomAlphaOfLengthBetween(1, 6);
-        final DeprecationLogger logger = mock(DeprecationLogger.class);
 
         final String deprecationMessage = "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" +
             method.name() + " " + path + "] instead.";
 
         // don't want to test everything -- just that it actually wraps the handlers
-        doCallRealMethod().when(controller).registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath, logger);
+        doCallRealMethod().when(controller).registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
 
-        controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath, logger);
+        controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
 
         verify(controller).registerHandler(method, path, handler);
-        verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage, logger);
+        verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
@@ -248,27 +246,6 @@ public class RestControllerTests extends ESTestCase {
         httpServerTransport.start();
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
-    }
-
-    /**
-     * Useful for testing with deprecation handler.
-     */
-    private static class FakeRestHandler implements RestHandler {
-        private final boolean canTripCircuitBreaker;
-
-        private FakeRestHandler(boolean canTripCircuitBreaker) {
-            this.canTripCircuitBreaker = canTripCircuitBreaker;
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-            //no op
-        }
-
-        @Override
-        public boolean canTripCircuitBreaker() {
-            return canTripCircuitBreaker;
-        }
     }
 
     public void testDispatchRequestAddsAndFreesBytesOnSuccess() {
@@ -617,6 +594,11 @@ public class RestControllerTests extends ESTestCase {
             public HttpRequest releaseAndCopy() {
                 return this;
             }
+
+            @Override
+            public Exception getInboundException() {
+                return null;
+            }
         }, null);
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
@@ -663,12 +645,12 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
-    private static final class AssertingChannel extends AbstractRestChannel {
+    public static final class AssertingChannel extends AbstractRestChannel {
 
         private final RestStatus expectedStatus;
         private final AtomicReference<RestResponse> responseReference = new AtomicReference<>();
 
-        protected AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
+        public AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
             super(request, detailedErrorsEnabled);
             this.expectedStatus = expectedStatus;
         }

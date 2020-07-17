@@ -1,0 +1,62 @@
+---
+setup:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test
+              _id:    1
+          - event:
+              - category: process
+            "@timestamp": 2020-02-03T12:34:56Z
+            user: SYSTEM
+
+---
+# Testing round-trip and the basic shape of the response
+"Execute some EQL.":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: "process where user = 'SYSTEM'"
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+
+---
+"Execute some EQL in async mode":
+  - do:
+      eql.search:
+        index: eql_test
+        wait_for_completion_timeout: "0ms"
+        keep_on_completion: true
+        body:
+          query: "process where user = 'SYSTEM'"
+
+  - is_true: id
+  - set: {id: id}
+
+  - do:
+      eql.get:
+        id: $id
+        wait_for_completion_timeout: "10s"
+
+  - match: {is_running: false}
+  - match: {is_partial: false}
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+  - match: {hits.events.0._source.user: "SYSTEM"}
+
+  - do:
+      eql.delete:
+        id: $id
+  - match: {acknowledged: true}
+
+  - do:
+      catch: missing
+      eql.delete:
+        id: $id

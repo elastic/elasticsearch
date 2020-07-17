@@ -33,6 +33,7 @@ import java.util.Objects;
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
+    public static final String ENRICH_INDEX_PATTERN = ENRICH_INDEX_NAME_BASE + "*";
 
     public static final String MATCH_TYPE = "match";
     public static final String GEO_MATCH_TYPE = "geo_match";

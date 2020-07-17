@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -125,7 +125,7 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
         Response openResponse = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/job-1/_open"));
-        assertEquals(Collections.singletonMap("opened", true), entityAsMap(openResponse));
+        assertThat(entityAsMap(openResponse), hasEntry("opened", true));
         usage = entityAsMap(client().performRequest(new Request("GET", "_xpack/usage")));
         assertEquals(2, XContentMapValues.extractValue("ml.jobs._all.count", usage));
         assertEquals(1, XContentMapValues.extractValue("ml.jobs.closed.count", usage));
@@ -194,15 +194,17 @@ public class MlJobIT extends ESRestTestCase {
         // appear immediately so wait here.
         assertBusy(() -> {
             try {
-                String aliasesResponse = EntityUtils.toString(client().performRequest(new Request("GET", "/_aliases")).getEntity());
-                assertThat(aliasesResponse,
-                        containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName) + "\":{\"aliases\":{"));
+                String aliasesResponse = getAliases();
+                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName)
+                        + "\":{\"aliases\":{"));
                 assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
-                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}}}"));
-                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1) + "\":{}"));
+                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}},\"is_hidden\":true}"));
+                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1)
+                        + "\":{\"is_hidden\":true}"));
                 assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)
-                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId2 + "\",\"boost\":1.0}}}}"));
-                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2) + "\":{}"));
+                        + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId2 + "\",\"boost\":1.0}}},\"is_hidden\":true}"));
+                assertThat(aliasesResponse, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2)
+                        + "\":{\"is_hidden\":true}"));
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
@@ -231,7 +233,7 @@ public class MlJobIT extends ESRestTestCase {
                 jobId1, "1236", 1));
             client().performRequest(createResultRequest);
 
-            client().performRequest(new Request("POST", "/_refresh"));
+            refreshAllIndices();
 
             responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1 + "/results/buckets")).getEntity());
@@ -256,7 +258,7 @@ public class MlJobIT extends ESRestTestCase {
                 jobId2, "1236", 1));
             client().performRequest(createResultRequest);
 
-            client().performRequest(new Request("POST", "/_refresh"));
+            refreshAllIndices();
 
             responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2 + "/results/buckets")).getEntity());
@@ -270,7 +272,7 @@ public class MlJobIT extends ESRestTestCase {
         client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId1));
 
         // check that indices still exist, but no longer have job1 entries and aliases are gone
-        responseAsString = EntityUtils.toString(client().performRequest(new Request("GET", "/_aliases")).getEntity());
+        responseAsString = getAliases();
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId1))));
         assertThat(responseAsString, containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))); //job2 still exists
 
@@ -278,7 +280,7 @@ public class MlJobIT extends ESRestTestCase {
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(responseAsString, containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName));
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         responseAsString = EntityUtils.toString(client().performRequest(
                 new Request("GET", AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName + "/_count")).getEntity());
@@ -286,10 +288,10 @@ public class MlJobIT extends ESRestTestCase {
 
         // Delete the second job and verify aliases are gone, and original concrete/custom index is gone
         client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId2));
-        responseAsString = EntityUtils.toString(client().performRequest(new Request("GET", "/_aliases")).getEntity());
+        responseAsString = getAliases();
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndex.jobResultsAliasedName(jobId2))));
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
         responseAsString = EntityUtils.toString(client().performRequest(
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(responseAsString, not(containsString(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-" + indexName)));
@@ -396,6 +398,42 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(e.getMessage(),
                 containsString("This job would cause a mapping clash with existing field [response] - " +
                         "avoid the clash by assigning a dedicated results index"));
+    }
+
+    public void testOpenJobFailsWhenPersistentTaskAssignmentDisabled() throws Exception {
+        String jobId = "open-job-with-persistent-task-assignment-disabled";
+        createFarequoteJob(jobId);
+
+        Request disablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
+        disablePersistentTaskAssignmentRequest.setJsonEntity("{\n" +
+            "  \"transient\": {\n" +
+            "    \"cluster.persistent_tasks.allocation.enable\": \"none\"\n" +
+            "  }\n" +
+            "}");
+        Response disablePersistentTaskAssignmentResponse = client().performRequest(disablePersistentTaskAssignmentRequest);
+        assertThat(entityAsMap(disablePersistentTaskAssignmentResponse), hasEntry("acknowledged", true));
+
+        try {
+            ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(
+                new Request("POST", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open")));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+            assertThat(EntityUtils.toString(exception.getResponse().getEntity()),
+                containsString("Cannot open jobs because persistent task assignment is disabled by the " +
+                    "[cluster.persistent_tasks.allocation.enable] setting"));
+        } finally {
+            // Try to revert the cluster setting change even if the test fails,
+            // because otherwise this setting will cause many other tests to fail
+            Request enablePersistentTaskAssignmentRequest = new Request("PUT", "_cluster/settings");
+            enablePersistentTaskAssignmentRequest.setJsonEntity("{\n" +
+                "  \"transient\": {\n" +
+                "    \"cluster.persistent_tasks.allocation.enable\": \"all\"\n" +
+                "  }\n" +
+                "}");
+            Response enablePersistentTaskAssignmentResponse = client().performRequest(disablePersistentTaskAssignmentRequest);
+            assertThat(entityAsMap(enablePersistentTaskAssignmentResponse), hasEntry("acknowledged", true));
+        }
     }
 
     public void testDeleteJob() throws Exception {
@@ -590,6 +628,7 @@ public class MlJobIT extends ESRestTestCase {
         extraIndex1.setJsonEntity("{\n" +
             "    \"aliases\" : {\n" +
             "        \"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)+ "\" : {\n" +
+            "            \"is_hidden\" : true,\n" +
             "            \"filter\" : {\n" +
             "                \"term\" : {\"" + Job.ID + "\" : \"" + jobId + "\" }\n" +
             "            }\n" +
@@ -601,6 +640,7 @@ public class MlJobIT extends ESRestTestCase {
         extraIndex2.setJsonEntity("{\n" +
             "    \"aliases\" : {\n" +
             "        \"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)+ "\" : {\n" +
+            "            \"is_hidden\" : true,\n" +
             "            \"filter\" : {\n" +
             "                \"term\" : {\"" + Job.ID + "\" : \"" + jobId + "\" }\n" +
             "            }\n" +
@@ -634,7 +674,7 @@ public class MlJobIT extends ESRestTestCase {
         createDoc3.setEntity(createDoc0.getEntity());
         client().performRequest(createDoc3);
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
         // check for the documents
         assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "/_count")).getEntity()),
@@ -647,23 +687,19 @@ public class MlJobIT extends ESRestTestCase {
         // Delete
         client().performRequest(new Request("DELETE", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId));
 
-        client().performRequest(new Request("POST", "/_refresh"));
+        refreshAllIndices();
 
-        // check that the indices still exist but are empty
+        // check that the default shared index still exists but is empty
         String indicesAfterDelete = EntityUtils.toString(client().performRequest(
             new Request("GET", "/_cat/indices/" + AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*")).getEntity());
         assertThat(indicesAfterDelete, containsString(indexName));
-        assertThat(indicesAfterDelete, containsString(indexName + "-001"));
-        assertThat(indicesAfterDelete, containsString(indexName + "-002"));
+
+        // other results indices should be deleted as this test job ID is the only job in those indices
+        assertThat(indicesAfterDelete, not(containsString(indexName + "-001")));
+        assertThat(indicesAfterDelete, not(containsString(indexName + "-002")));
 
         assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "/_count")).getEntity()),
                 containsString("\"count\":0"));
-        assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "-001/_count")).getEntity()),
-                containsString("\"count\":0"));
-        assertThat(EntityUtils.toString(client().performRequest(new Request("GET", indexName+ "-002/_count")).getEntity()),
-                containsString("\"count\":0"));
-
-
         expectThrows(ResponseException.class, () ->
                 client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")));
     }
@@ -748,6 +784,9 @@ public class MlJobIT extends ESRestTestCase {
             assertNull(recreationException.get().getMessage(), recreationException.get());
         }
 
+        String expectedReadAliasString = "\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+            + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}},\"is_hidden\":true}";
+        String expectedWriteAliasString = "\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{\"is_hidden\":true}";
         try {
             // The idea of the code above is that the deletion is sufficiently time-consuming that
             // all threads enter the deletion call before the first one exits it.  Usually this happens,
@@ -760,9 +799,8 @@ public class MlJobIT extends ESRestTestCase {
             // if there's been a race between deletion and recreation these are what will be missing.
             String aliases = getAliases();
 
-            assertThat(aliases, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-                    + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}"));
-            assertThat(aliases, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}"));
+            assertThat(aliases, containsString(expectedReadAliasString));
+            assertThat(aliases, containsString(expectedWriteAliasString));
 
 
         } catch (ResponseException missingJobException) {
@@ -771,9 +809,8 @@ public class MlJobIT extends ESRestTestCase {
 
             // The job aliases should be deleted
             String aliases = getAliases();
-            assertThat(aliases, not(containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
-                    + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}")));
-            assertThat(aliases, not(containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}")));
+            assertThat(aliases, not(containsString(expectedReadAliasString)));
+            assertThat(aliases, not(containsString(expectedWriteAliasString)));
         }
 
         assertEquals(numThreads, recreationGuard.get());
@@ -787,6 +824,7 @@ public class MlJobIT extends ESRestTestCase {
     @After
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        ESRestTestCase.waitForPendingTasks(adminClient());
+        // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
+        waitForPendingTasks(adminClient(), taskName -> taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
     }
 }

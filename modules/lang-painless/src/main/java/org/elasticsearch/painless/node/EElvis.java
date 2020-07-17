@@ -20,15 +20,15 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-
-import java.util.Set;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import static java.util.Objects.requireNonNull;
 
@@ -37,78 +37,92 @@ import static java.util.Objects.requireNonNull;
  * non null. If the first expression is null then it evaluates the second expression and returns it.
  */
 public class EElvis extends AExpression {
-    private AExpression lhs;
-    private AExpression rhs;
 
-    public EElvis(Location location, AExpression lhs, AExpression rhs) {
-        super(location);
+    private final AExpression leftNode;
+    private final AExpression rightNode;
 
-        this.lhs = requireNonNull(lhs);
-        this.rhs = requireNonNull(rhs);
+    public EElvis(int identifier, Location location, AExpression leftNode, AExpression rightNode) {
+        super(identifier, location);
+
+        this.leftNode = requireNonNull(leftNode);
+        this.rightNode = requireNonNull(rightNode);
+    }
+
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        lhs.extractVariables(variables);
-        rhs.extractVariables(variables);
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitElvis(this, input);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (expected != null && expected.isPrimitive()) {
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to elvis operation [?:]"));
+        }
+
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
+        }
+
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+
+        if (targetType != null && targetType.getTargetType().isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
-        lhs.expected = expected;
-        lhs.explicit = explicit;
-        lhs.internal = internal;
-        rhs.expected = expected;
-        rhs.explicit = explicit;
-        rhs.internal = internal;
-        actual = expected;
-        lhs.analyze(scriptRoot, locals);
-        rhs.analyze(scriptRoot, locals);
 
-        if (lhs.isNull) {
+        Class<?> valueType;
+
+        semanticScope.setCondition(leftNode, Read.class);
+        semanticScope.copyDecoration(this, leftNode, TargetType.class);
+        semanticScope.replicateCondition(this, leftNode, Explicit.class);
+        semanticScope.replicateCondition(this, leftNode, Internal.class);
+        analyze(leftNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
+
+        semanticScope.setCondition(rightNode, Read.class);
+        semanticScope.copyDecoration(this, rightNode, TargetType.class);
+        semanticScope.replicateCondition(this, rightNode, Explicit.class);
+        semanticScope.replicateCondition(this, rightNode, Internal.class);
+        analyze(rightNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+
+        if (leftNode instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
         }
-        if (lhs.constant != null) {
+        if (    leftNode instanceof EBooleanConstant ||
+                leftNode instanceof ENumeric         ||
+                leftNode instanceof EDecimal         ||
+                leftNode instanceof EString
+        ) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
         }
-        if (lhs.actual.isPrimitive()) {
+        if (leftValueType.isPrimitive()) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
         }
-        if (rhs.isNull) {
+        if (rightNode instanceof ENull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
         }
 
-        if (expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(lhs.actual, rhs.actual, lhs.constant, rhs.constant);
+        if (targetType == null) {
+            Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
 
-            lhs.expected = promote;
-            rhs.expected = promote;
-            actual = promote;
+            semanticScope.putDecoration(leftNode, new TargetType(promote));
+            semanticScope.putDecoration(rightNode, new TargetType(promote));
+            valueType = promote;
+        } else {
+            valueType = targetType.getTargetType();
         }
 
-        lhs = lhs.cast(scriptRoot, locals);
-        rhs = rhs.cast(scriptRoot, locals);
-    }
+        leftNode.cast(semanticScope);
+        rightNode.cast(semanticScope);
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        Label end = new Label();
-
-        lhs.write(classWriter, methodWriter, globals);
-        methodWriter.dup();
-        methodWriter.ifNonNull(end);
-        methodWriter.pop();
-        rhs.write(classWriter, methodWriter, globals);
-        methodWriter.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(lhs, rhs);
+        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

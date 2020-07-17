@@ -11,8 +11,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -55,30 +55,18 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(false);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(false);
         assertThat(featureSet.available(), equalTo(false));
 
-        when(licenseState.isIndexLifecycleAllowed()).thenReturn(true);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.ILM)).thenReturn(true);
         assertThat(featureSet.available(), equalTo(true));
-    }
-
-    public void testEnabled() {
-        Settings.Builder settings = Settings.builder().put("xpack.ilm.enabled", false);
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), equalTo(false));
-
-        settings = Settings.builder().put("xpack.ilm.enabled", true);
-        featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
-        assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
         IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class), mock(ActionFilters.class), licenseState);
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
@@ -131,16 +119,16 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
                 .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity()));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(lifecyclePolicyMetadatasMap, OperationMode.RUNNING);
 
-        MetaData.Builder metadata = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
+        Metadata.Builder metadata = Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
         indexPolicies.forEach((indexName, policyName) -> {
             Settings indexSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-            IndexMetaData.Builder indexMetadata = IndexMetaData.builder(indexName).settings(indexSettings);
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings);
             metadata.put(indexMetadata);
         });
 
-        return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
+        return ClusterState.builder(new ClusterName("my_cluster")).metadata(metadata).build();
     }
 }

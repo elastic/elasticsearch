@@ -34,6 +34,11 @@ public final class CappedScoreQuery extends Query {
     }
 
     @Override
+    public void visit(QueryVisitor visitor) {
+        query.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
+    }
+
+    @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = query.rewrite(reader);
 
@@ -123,11 +128,14 @@ public final class CappedScoreQuery extends Query {
                         @Override
                         public Scorer get(long leadCost) throws IOException {
                             final Scorer innerScorer = innerScorerSupplier.get(leadCost);
-                            // short-circuit if scores will not need capping
-                            innerScorer.advanceShallow(0);
-                            if (innerScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS) <= maxScore) {
-                              return innerScorer;
-                            }                            
+                            // test scoreMode to avoid NPE - see https://github.com/elastic/elasticsearch/issues/51034
+                            if (scoreMode == ScoreMode.TOP_SCORES) {                                
+                                // short-circuit if scores will not need capping
+                                innerScorer.advanceShallow(0);
+                                if (innerScorer.getMaxScore(DocIdSetIterator.NO_MORE_DOCS) <= maxScore) {
+                                  return innerScorer;
+                                }
+                            }
                             return new CappedScorer(innerWeight, innerScorer, maxScore);
                         }
 

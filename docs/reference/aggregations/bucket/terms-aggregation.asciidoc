@@ -66,7 +66,7 @@ GET /_search
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
-<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable 
+<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable
 <<fielddata, fielddata>>.
 
 Response:
@@ -124,84 +124,10 @@ NOTE: If you want to retrieve **all** terms or all combinations of terms in a ne
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
 
-As described above, the document counts (and the results of any sub aggregations) in the terms aggregation are not always
-accurate.  This is because each shard provides its own view of what the ordered list of terms should be and these are
-combined to give a final view. Consider the following scenario:
-
-A request is made to obtain the top 5 terms in the field product, ordered by descending document count from an index with
-3 shards. In this case each shard is asked to give its top 5 terms.
-
-[source,console,id=terms-aggregation-doc-counts-example]
---------------------------------------------------
-GET /_search
-{
-    "aggs" : {
-        "products" : {
-            "terms" : {
-                "field" : "product",
-                "size" : 5
-            }
-        }
-    }
-}
---------------------------------------------------
-// TEST[s/_search/_search\?filter_path=aggregations/]
-
-The terms for each of the three shards are shown below with their
-respective document counts in brackets:
-
-[width="100%",cols="^2,^2,^2,^2",options="header"]
-|=========================================================
-|    | Shard A        | Shard B        | Shard C
-
-| 1  | Product A (25) | Product A (30) | Product A (45)
-| 2  | Product B (18) | Product B (25) | Product C (44)
-| 3  | Product C (6)  | Product F (17) | Product Z (36)
-| 4  | Product D (3)  | Product Z (16) | Product G (30)
-| 5  | Product E (2)  | Product G (15) | Product E (29)
-| 6  | Product F (2)  | Product H (14) | Product H (28)
-| 7  | Product G (2)  | Product I (10) | Product Q (2)
-| 8  | Product H (2)  | Product Q (6)  | Product D (1)
-| 9  | Product I (1)  | Product J (6)  |
-| 10 | Product J (1)  | Product C (4)  |
-
-|=========================================================
-
-The shards will return their top 5 terms so the results from the shards will be:
-
-[width="100%",cols="^2,^2,^2,^2",options="header"]
-|=========================================================
-|    | Shard A        | Shard B        | Shard C
-
-| 1  | Product A (25) | Product A (30) | Product A (45)
-| 2  | Product B (18) | Product B (25) | Product C (44)
-| 3  | Product C (6)  | Product F (17) | Product Z (36)
-| 4  | Product D (3)  | Product Z (16) | Product G (30)
-| 5  | Product E (2)  | Product G (15) | Product E (29)
-
-|=========================================================
-
-Taking the top 5 results from each of the shards (as requested) and combining them to make a final top 5 list produces
-the following:
-
-[width="40%",cols="^2,^2"]
-|=========================================================
-
-| 1  | Product A (100)
-| 2  | Product Z (52)
-| 3  | Product C (50)
-| 4  | Product G (45)
-| 5  | Product B (43)
-
-|=========================================================
-
-Because Product A was returned from all shards we know that its document count value is accurate. Product C was only
-returned by shards A and C so its document count is shown as 50 but this is not an accurate count. Product C exists on
-shard B, but its count of 4 was not high enough to put Product C into the top 5 list for that shard. Product Z was also
-returned only by 2 shards but the third shard does not contain the term. There is no way of knowing, at the point of
-combining the results to produce the final list of terms, that there is an error in the document count for Product C and
-not for Product Z. Product H has a document count of 44 across all 3 shards but was not included in the final list of
-terms because it did not make it into the top five terms on any of the shards.
+Document counts (and the results of any sub aggregations) in the terms
+aggregation are not always accurate. Each shard provides its own view of what
+the ordered list of terms should be. These views are combined to give a final
+view.
 
 ==== Shard Size
 
@@ -226,35 +152,7 @@ The default `shard_size` is `(size * 1.5 + 10)`.
 
 There are two error values which can be shown on the terms aggregation. The first gives a value for the aggregation as
 a whole which represents the maximum potential document count for a term which did not make it into the final list of
-terms. This is calculated as the sum of the document count from the last term returned from each shard. For the example
-given above the value would be 46 (2 + 15 + 29). This means that in the worst case scenario a term which was not returned
-could have the 4th highest document count.
-
-[source,console-result]
---------------------------------------------------
-{
-    ...
-    "aggregations" : {
-        "products" : {
-            "doc_count_error_upper_bound" : 46,
-            "sum_other_doc_count" : 79,
-            "buckets" : [
-                {
-                    "key" : "Product A",
-                    "doc_count" : 100
-                },
-                {
-                    "key" : "Product Z",
-                    "doc_count" : 52
-                }
-                ...
-            ]
-        }
-    }
-}
---------------------------------------------------
-// TESTRESPONSE[s/\.\.\.//]
-// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+terms. This is calculated as the sum of the document count from the last term returned from each shard.
 
 ==== Per bucket document count error
 
@@ -280,39 +178,7 @@ GET /_search
 
 This shows an error value for each term returned by the aggregation which represents the 'worst case' error in the document count
 and can be useful when deciding on a value for the `shard_size` parameter. This is calculated by summing the document counts for
-the last term returned by all shards which did not return the term. In the example above the error in the document count for Product C
-would be 15 as Shard B was the only shard not to return the term and the document count of the last term it did return was 15.
-The actual document count of Product C was 54 so the document count was only actually off by 4 even though the worst case was that
-it would be off by 15. Product A, however has an error of 0 for its document count, since every shard returned it we can be confident
-that the count returned is accurate.
-
-[source,console-result]
---------------------------------------------------
-{
-    ...
-    "aggregations" : {
-        "products" : {
-            "doc_count_error_upper_bound" : 46,
-            "sum_other_doc_count" : 79,
-            "buckets" : [
-                {
-                    "key" : "Product A",
-                    "doc_count" : 100,
-                    "doc_count_error_upper_bound" : 0
-                },
-                {
-                    "key" : "Product Z",
-                    "doc_count" : 52,
-                    "doc_count_error_upper_bound" : 2
-                }
-                ...
-            ]
-        }
-    }
-}
---------------------------------------------------
-// TESTRESPONSE[s/\.\.\.//]
-// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+the last term returned by all shards which did not return the term.
 
 These errors can only be calculated in this way when the terms are ordered by descending document count. When the aggregation is
 ordered by the terms values themselves (either ascending or descending) there is no error in the document count since if a shard
@@ -673,7 +539,7 @@ GET /_search
 
 ===== Filtering Values with partitions
 
-Sometimes there are too many unique terms to process in a single request/response pair so 
+Sometimes there are too many unique terms to process in a single request/response pair so
 it can be useful to break the analysis up into multiple requests.
 This can be achieved by grouping the field's values into a number of partitions at query-time and processing
 only one partition in each request.
@@ -712,10 +578,10 @@ GET /_search
 This request is finding the last logged access date for a subset of customer accounts because we
 might want to expire some customer accounts who haven't been seen for a long while.
 The `num_partitions` setting has requested that the unique account_ids are organized evenly into twenty
-partitions (0 to 19). and the `partition` setting in this request filters to only consider account_ids falling 
+partitions (0 to 19). and the `partition` setting in this request filters to only consider account_ids falling
 into partition 0. Subsequent requests should ask for partitions 1 then 2 etc to complete the expired-account analysis.
 
-Note that the `size` setting for the number of results returned needs to be tuned with the `num_partitions`. 
+Note that the `size` setting for the number of results returned needs to be tuned with the `num_partitions`.
 For this particular account-expiration example the process for balancing values for `size` and `num_partitions` would be as follows:
 
 1. Use the `cardinality` aggregation to estimate the total number of unique account_id values
@@ -724,8 +590,8 @@ For this particular account-expiration example the process for balancing values 
 4. Run a test request
 
 If we have a circuit-breaker error we are trying to do too much in one request and must increase `num_partitions`.
-If the request was successful but the last account ID in the date-sorted test response was still an account we might want to 
-expire then we may be missing accounts of interest and have set our numbers too low. We must either 
+If the request was successful but the last account ID in the date-sorted test response was still an account we might want to
+expire then we may be missing accounts of interest and have set our numbers too low. We must either
 
 * increase the `size` parameter to return more results per partition (could be heavy on memory) or
 * increase the `num_partitions` to consider less accounts per request (could increase overall processing time as we need to make more requests)

@@ -10,8 +10,8 @@ setup:
 ---
 "Usage stats on frozen indices":
   - skip:
-      version: " - 7.9.99"
-      reason:  "frozen indices have usage stats starting in version 8.0.0"
+      version: " - 7.3.99"
+      reason:  "frozen indices have usage stats starting in version 7.4"
 
   - do:
       index:

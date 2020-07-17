@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -19,7 +19,6 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -33,7 +32,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
@@ -42,20 +40,19 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                                               Settings settings, XPackLicenseState licenseState) {
         super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.enabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isIndexLifecycleAllowed();
-        MetaData metaData = state.metaData();
-        IndexLifecycleMetadata lifecycleMetadata = metaData.custom(IndexLifecycleMetadata.TYPE);
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ILM);
+        Metadata metadata = state.metadata();
+        IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
-        if (enabled && lifecycleMetadata != null) {
+        if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metaData.indices().forEach(entry -> {
+            metadata.indices().forEach(entry -> {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {
@@ -72,9 +69,9 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
-            usage = new IndexLifecycleFeatureSetUsage(available, enabled, policyStats);
+            usage = new IndexLifecycleFeatureSetUsage(available, policyStats);
         } else {
-            usage = new IndexLifecycleFeatureSetUsage(available, enabled);
+            usage = new IndexLifecycleFeatureSetUsage(available);
         }
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

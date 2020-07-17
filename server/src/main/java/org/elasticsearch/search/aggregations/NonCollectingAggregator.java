@@ -20,11 +20,9 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,15 +30,20 @@ import java.util.Map;
  * a mapping.
  */
 public abstract class NonCollectingAggregator extends AggregatorBase {
-
+    /**
+     * Build a {@linkplain NonCollectingAggregator} for any aggregator.
+     */
     protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent, AggregatorFactories subFactories,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, subFactories, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, subFactories, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
+    /**
+     * Build a {@linkplain NonCollectingAggregator} for an aggregator without sub-aggregators.
+     */
     protected NonCollectingAggregator(String name, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        this(name, context, parent, AggregatorFactories.EMPTY, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        this(name, context, parent, AggregatorFactories.EMPTY, metadata);
     }
 
     @Override
@@ -50,7 +53,11 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
     }
 
     @Override
-    public final InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        return buildEmptyAggregation();
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            results[ordIdx] = buildEmptyAggregation();
+        }
+        return results;
     }
 }

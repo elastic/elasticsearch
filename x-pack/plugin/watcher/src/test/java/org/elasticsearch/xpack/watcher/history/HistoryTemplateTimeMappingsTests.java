@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.history;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -48,11 +48,11 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
             GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
             assertThat(mappingsResponse, notNullValue());
             assertThat(mappingsResponse.getMappings().isEmpty(), is(false));
-            for (ObjectObjectCursor<String, MappingMetaData> metadatas : mappingsResponse.getMappings()) {
+            for (ObjectObjectCursor<String, MappingMetadata> metadatas : mappingsResponse.getMappings()) {
                 if (!metadatas.key.startsWith(HistoryStoreField.INDEX_PREFIX)) {
                     continue;
                 }
-                MappingMetaData metadata = metadatas.value;
+                MappingMetadata metadata = metadatas.value;
                 assertThat(metadata, notNullValue());
                 try {
                     Map<String, Object> source = metadata.getSourceAsMap();

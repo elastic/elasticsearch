@@ -19,7 +19,6 @@
 
 package org.elasticsearch.http;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,8 +40,7 @@ import java.io.IOException;
 public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDeprecatedQueryBuilder> {
     public static final String NAME = "deprecated_match_all";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(TestDeprecatedQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TestDeprecatedQueryBuilder.class);
 
     public TestDeprecatedQueryBuilder() {
         // nothing to do
@@ -80,7 +78,7 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        deprecationLogger.deprecated("[{}] query is deprecated, but used on [{}] index", NAME, context.index().getName());
+        deprecationLogger.deprecate(NAME, "[{}] query is deprecated, but used on [{}] index", NAME, context.index().getName());
 
         return Queries.newMatchAllQuery();
     }

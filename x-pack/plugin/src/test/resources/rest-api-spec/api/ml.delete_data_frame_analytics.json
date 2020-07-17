@@ -1,7 +1,8 @@
 {
   "ml.delete_data_frame_analytics":{
     "documentation":{
-      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-dfanalytics.html",
+      "description":"Deletes an existing data frame analytics job."
     },
     "stability":"experimental",
     "url":{
@@ -19,6 +20,17 @@
           }
         }
       ]
+    },
+    "params":{
+      "force":{
+        "type":"boolean",
+        "description":"True if the job should be forcefully deleted",
+        "default":false
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Controls the time to wait until a job is deleted. Defaults to 1 minute"
+      }
     }
   }
 }

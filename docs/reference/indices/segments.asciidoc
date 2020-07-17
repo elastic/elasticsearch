@@ -5,7 +5,8 @@
 ++++
 
 Returns low-level information about the https://lucene.apache.org/core/[Lucene]
-segments in index shards.
+segments in index shards. For data streams, the API returns information about
+the stream's backing indices.
 
 [source,console]
 ----
@@ -17,7 +18,7 @@ GET /twitter/_segments
 [[index-segments-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_segments`
+`GET /<target>/_segments`
 
 `GET /_segments`
 
@@ -25,19 +26,27 @@ GET /twitter/_segments
 [[index-segments-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[index-segments-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 `verbose`::
 experimental:[]
@@ -52,39 +61,39 @@ Defaults to `false`.
 
 `<segment>`::
 (String)       
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=generation]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
 
 `num_docs`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted_docs`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
 `size_in_bytes`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-size]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 
 `memory_in_bytes`::
 (Integer)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=memory]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=memory]
 
 `committed`:: 
 (Boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=committed]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
 
 `search`::
 (Boolean)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-search]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
 
 `version`::
 (String)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-version]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
 
 `compound`::
 (Boolean)
@@ -100,7 +109,7 @@ Contains information about whether high compression was enabled.
 ==== {api-examples-title}
 
 
-===== Get segment information for a specific index
+===== Get segment information for a specific data stream or index
 
 [source,console]
 --------------------------------------------------
@@ -109,7 +118,7 @@ GET /test/_segments
 // TEST[s/^/PUT test\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST test\/_doc\?refresh\n{"test": "test"}\n/]
 
 
-===== Get segment information for several indices
+===== Get segment information for several data streams and indices
 
 [source,console]
 --------------------------------------------------
@@ -118,7 +127,7 @@ GET /test1,test2/_segments
 // TEST[s/^/PUT test1\nPUT test2\n/]
 
 
-===== Get segment information for all indices
+===== Get segment information for all data streams and indices in a cluster
 
 [source,console]
 --------------------------------------------------

@@ -47,9 +47,9 @@ public class LicenseOperationModeTests extends ESTestCase {
         assertResolve(OperationMode.PLATINUM, "PlAtINum", "platinum");
     }
 
-    public void testResolveEnterpriseAsPlatinum() {
-        assertResolve(OperationMode.PLATINUM, License.LicenseType.ENTERPRISE.getTypeName());
-        assertResolve(OperationMode.PLATINUM, License.LicenseType.ENTERPRISE.name());
+    public void testResolveEnterprise() {
+        assertResolve(OperationMode.ENTERPRISE, License.LicenseType.ENTERPRISE.getTypeName());
+        assertResolve(OperationMode.ENTERPRISE, License.LicenseType.ENTERPRISE.name());
     }
 
     public void testResolveUnknown() {

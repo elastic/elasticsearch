@@ -70,7 +70,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     private static RegexpQueryBuilder randomRegexpQuery() {
         // mapped or unmapped fields
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
         String value = randomAlphaOfLengthBetween(1, 10);
         return new RegexpQueryBuilder(fieldName, value);
     }

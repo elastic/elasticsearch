@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -35,6 +37,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportUpdateModelSnapshotAction extends HandledTransportAction<UpdateModelSnapshotAction.Request,
         UpdateModelSnapshotAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportUpdateModelSnapshotAction.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final Client client;

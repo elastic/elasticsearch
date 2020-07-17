@@ -30,10 +30,8 @@ esplugin {
 // Not published so no need to assemble
 assemble.enabled = false
 
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false
-
-compileJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
 
 // no unit tests
 test.enabled = false

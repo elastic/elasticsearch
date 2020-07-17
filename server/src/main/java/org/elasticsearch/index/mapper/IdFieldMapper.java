@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -31,13 +30,13 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -45,10 +44,16 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -58,7 +63,7 @@ import java.util.Map;
  * queries.
  */
 public class IdFieldMapper extends MetadataFieldMapper {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IdFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
             + "If you require sorting or aggregating on this field you should also include the id in the "
@@ -71,20 +76,22 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = IdFieldMapper.NAME;
 
-        public static final MappedFieldType FIELD_TYPE = new IdFieldType();
-        public static final MappedFieldType NESTED_FIELD_TYPE;
+        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType NESTED_FIELD_TYPE;
+        public static final MappedFieldType MAPPED_FIELD_TYPE = new IdFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
 
-            NESTED_FIELD_TYPE = FIELD_TYPE.clone();
+            NESTED_FIELD_TYPE = new FieldType();
+            NESTED_FIELD_TYPE.setTokenized(false);
+            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            NESTED_FIELD_TYPE.setStored(true);
+            NESTED_FIELD_TYPE.setOmitNorms(true);
             NESTED_FIELD_TYPE.setStored(false);
             NESTED_FIELD_TYPE.freeze();
         }
@@ -92,30 +99,24 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new IdFieldMapper(indexSettings, fieldType);
+        public MetadataFieldMapper getDefault(ParserContext context) {
+            return new IdFieldMapper(Defaults.FIELD_TYPE);
         }
     }
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        IdFieldType() {
-        }
+        public static final IdFieldType INSTANCE = new IdFieldType();
 
-        protected IdFieldType(IdFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IdFieldType(this);
+        private IdFieldType() {
+            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -155,13 +156,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            if (indexOptions() == IndexOptions.NONE) {
-                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed");
-            }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+                    CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
@@ -171,28 +170,27 @@ public class IdFieldMapper extends MetadataFieldMapper {
                             + "you can re-enable it by updating the dynamic cluster setting: "
                             + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
                     }
-                    deprecationLogger.deprecatedAndMaybeLog("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.deprecate("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
                         breakerService, mapperService);
-                    return new IndexFieldData<AtomicFieldData>() {
-
-                        @Override
-                        public Index index() {
-                            return fieldData.index();
-                        }
-
+                    return new IndexFieldData<LeafFieldData>() {
                         @Override
                         public String getFieldName() {
                             return fieldData.getFieldName();
                         }
 
                         @Override
-                        public AtomicFieldData load(LeafReaderContext context) {
+                        public ValuesSourceType getValuesSourceType() {
+                            return fieldData.getValuesSourceType();
+                        }
+
+                        @Override
+                        public LeafFieldData load(LeafReaderContext context) {
                             return wrap(fieldData.load(context));
                         }
 
                         @Override
-                        public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
+                        public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
                             return wrap(fieldData.loadDirect(context));
                         }
 
@@ -201,6 +199,12 @@ public class IdFieldMapper extends MetadataFieldMapper {
                             XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
                                 sortMode, nested);
                             return new SortField(getFieldName(), source, reverse);
+                        }
+
+                        @Override
+                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
+                                Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
 
                         @Override
@@ -214,8 +218,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private static AtomicFieldData wrap(AtomicFieldData in) {
-        return new AtomicFieldData() {
+    private static LeafFieldData wrap(LeafFieldData in) {
+        return new LeafFieldData() {
 
             @Override
             public void close() {
@@ -262,19 +266,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
-        MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        defaultFieldType.setIndexOptions(IndexOptions.DOCS);
-        defaultFieldType.setStored(true);
-        return defaultFieldType;
-    }
-
-    private IdFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
-        this(existing == null ? defaultFieldType(indexSettings) : existing, indexSettings);
-    }
-
-    private IdFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
-        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
+    private IdFieldMapper(FieldType fieldType) {
+        super(fieldType, new IdFieldType());
     }
 
     @Override
@@ -283,10 +276,10 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             BytesRef id = Uid.encodeId(context.sourceToParse().id());
-            fields.add(new Field(NAME, id, fieldType));
+            context.doc().add(new Field(NAME, id, fieldType));
         }
     }
 
@@ -298,10 +291,5 @@ public class IdFieldMapper extends MetadataFieldMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder;
-    }
-
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // do nothing here, no merging, but also no exception
     }
 }

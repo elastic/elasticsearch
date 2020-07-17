@@ -50,7 +50,7 @@ public interface Aggregation extends ToXContentFragment {
     /**
      * Get the optional byte array metadata that was set on the aggregation
      */
-    Map<String, Object> getMetaData();
+    Map<String, Object> getMetadata();
 
     /**
      * Common xcontent fields that are shared among addAggregation
@@ -68,5 +68,9 @@ public interface Aggregation extends ToXContentFragment {
         public static final ParseField FROM_AS_STRING = new ParseField("from_as_string");
         public static final ParseField TO = new ParseField("to");
         public static final ParseField TO_AS_STRING = new ParseField("to_as_string");
+        public static final ParseField MIN = new ParseField("min");
+        public static final ParseField MIN_AS_STRING = new ParseField("min_as_string");
+        public static final ParseField MAX = new ParseField("max");
+        public static final ParseField MAX_AS_STRING = new ParseField("max_as_string");
     }
 }

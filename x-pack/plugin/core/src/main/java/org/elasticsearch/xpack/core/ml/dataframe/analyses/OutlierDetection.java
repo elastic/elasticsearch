@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -41,12 +42,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     private static ObjectParser<Builder, Void> createParser(boolean lenient) {
         ObjectParser<Builder, Void> parser = new ObjectParser<>(NAME.getPreferredName(), lenient, Builder::new);
         parser.declareInt(Builder::setNNeighbors, N_NEIGHBORS);
-        parser.declareField(Builder::setMethod, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Method.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, METHOD, ObjectParser.ValueType.STRING);
+        parser.declareString(Builder::setMethod, Method::fromString, METHOD);
         parser.declareDouble(Builder::setFeatureInfluenceThreshold, FEATURE_INFLUENCE_THRESHOLD);
         parser.declareBoolean(Builder::setComputeFeatureInfluence, COMPUTE_FEATURE_INFLUENCE);
         parser.declareDouble(Builder::setOutlierFraction, OUTLIER_FRACTION);
@@ -57,6 +53,8 @@ public class OutlierDetection implements DataFrameAnalysis {
     public static OutlierDetection fromXContent(XContentParser parser, boolean ignoreUnknownFields) {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null).build() : STRICT_PARSER.apply(parser, null).build();
     }
+
+    private static final List<String> PROGRESS_PHASES = Collections.singletonList("computing_outliers");
 
     /**
      * The number of neighbors. Leave unspecified for dynamic detection.
@@ -192,7 +190,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getParams(Map<String, Set<String>> extractedFields) {
+    public Map<String, Object> getParams(FieldInfo fieldInfo) {
         Map<String, Object> params = new HashMap<>();
         if (nNeighbors != null) {
             params.put(N_NEIGHBORS.getPreferredName(), nNeighbors);
@@ -225,7 +223,12 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Long> getFieldCardinalityLimits() {
+    public List<FieldCardinalityConstraint> getFieldCardinalityConstraints() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public Map<String, Object> getExplicitlyMappedFields(Map<String, Object> mappingsProperties, String resultsFieldName) {
         return Collections.emptyMap();
     }
 
@@ -242,6 +245,21 @@ public class OutlierDetection implements DataFrameAnalysis {
     @Override
     public String getStateDocId(String jobId) {
         throw new UnsupportedOperationException("Outlier detection does not support state");
+    }
+
+    @Override
+    public List<String> getProgressPhases() {
+        return PROGRESS_PHASES;
+    }
+
+    @Override
+    public InferenceConfig inferenceConfig(FieldInfo fieldInfo) {
+        return null;
+    }
+
+    @Override
+    public boolean supportsInference() {
+        return false;
     }
 
     public enum Method {
@@ -265,6 +283,17 @@ public class OutlierDetection implements DataFrameAnalysis {
         private boolean computeFeatureInfluence = true;
         private double outlierFraction = 0.05;
         private boolean standardizationEnabled = true;
+
+        public Builder() {}
+
+        public Builder(OutlierDetection other) {
+            this.nNeighbors = other.nNeighbors;
+            this.method = other.method;
+            this.featureInfluenceThreshold = other.featureInfluenceThreshold;
+            this.computeFeatureInfluence = other.computeFeatureInfluence;
+            this.outlierFraction = other.outlierFraction;
+            this.standardizationEnabled = other.standardizationEnabled;
+        }
 
         public Builder setNNeighbors(Integer nNeighbors) {
             this.nNeighbors = nNeighbors;

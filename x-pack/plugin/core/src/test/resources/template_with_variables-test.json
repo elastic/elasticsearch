@@ -1,0 +1,14 @@
+{
+  "index_patterns": ".test-${test.template.version}",
+  "mappings": {
+    "doc": {
+      "_meta": {
+        "template.version": "${test.template.version}"
+      },
+      "properties": {
+        "${test.template.field_1}": {"type": "keyword"},
+        ${test.template.field_2}
+      }
+    }
+  }
+}

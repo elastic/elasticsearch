@@ -76,6 +76,7 @@ public class EmailSslTests extends ESTestCase {
     }
 
     public void testFailureSendingMessageToSmtpServerWithUntrustedCertificateAuthority() throws Exception {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings.Builder settings = Settings.builder();
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
@@ -124,6 +125,52 @@ public class EmailSslTests extends ESTestCase {
         }
     }
 
+    public void testCanSendMessageToSmtpServerUsingSmtpSslTrust() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM with verification mode None", inFipsJvm());
+        List<MimeMessage> messages = new ArrayList<>();
+        server.addListener(messages::add);
+        try {
+            final Settings.Builder settings = Settings.builder()
+                .put("xpack.notification.email.account.test.smtp.ssl.trust", "localhost");
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
+
+            WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
+            emailAction.execute("my_action_id", ctx, Payload.EMPTY);
+
+            assertThat(messages, hasSize(1));
+        } finally {
+            server.clearListeners();
+        }
+    }
+
+    /**
+     * This ordering could be considered to be backwards (the global "notification" settings take precedence
+     * over the account level "smtp.ssl.trust" setting) but smtp.ssl.trust was ignored for a period of time (see #52153)
+     * so this is the least breaking way to resolve that.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/49094")
+    public void testNotificationSslSettingsOverrideSmtpSslTrust() throws Exception {
+        List<MimeMessage> messages = new ArrayList<>();
+        server.addListener(messages::add);
+        try {
+            final Settings.Builder settings = Settings.builder()
+                .put("xpack.notification.email.account.test.smtp.ssl.trust", "localhost")
+                .put("xpack.notification.email.ssl.verification_mode", "full");
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            ExecutableEmailAction emailAction = buildEmailAction(settings, secureSettings);
+
+            WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
+            final MessagingException exception = expectThrows(MessagingException.class,
+                () -> emailAction.execute("my_action_id", ctx, Payload.EMPTY));
+
+            final List<Throwable> allCauses = getAllCauses(exception);
+            assertThat(allCauses, Matchers.hasItem(Matchers.instanceOf(SSLException.class)));
+        } finally {
+            server.clearListeners();
+        }
+    }
+
     private ExecutableEmailAction buildEmailAction(Settings.Builder baseSettings, MockSecureSettings secureSettings) {
         secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
         Settings settings = baseSettings
@@ -138,7 +185,7 @@ public class EmailSslTests extends ESTestCase {
         Set<Setting<?>> registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         registeredSettings.addAll(EmailService.getSettings());
         ClusterSettings clusterSettings = new ClusterSettings(settings, registeredSettings);
-        SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
+        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(settings));
         final EmailService emailService = new EmailService(settings, null, sslService, clusterSettings);
         EmailTemplate emailTemplate = EmailTemplate.builder().from("from@example.org").to("to@example.org")
             .subject("subject").textBody("body").build();

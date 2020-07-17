@@ -8,6 +8,8 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -19,17 +21,46 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
-     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetaDataUpgrader}
+     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetadataUpgrader}
      */
     @Before
     public void waitForTemplates() throws Exception {
-        XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V660_TEMPLATES);
+        try {
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V660_TEMPLATES);
+        } catch (AssertionError e) {
+            throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
+        }
+    }
+
+    @Before
+    public void waitForWatcher() throws Exception {
+        // Wait for watcher to be in started state in order to avoid errors due
+        // to manually executing watches prior for watcher to be ready:
+        try {
+            assertBusy(() -> {
+                Response response = client().performRequest(new Request("GET", "_watcher/stats"));
+                Map<String, Object> responseBody = entityAsMap(response);
+                List<?> stats = (List<?>) responseBody.get("stats");
+                assertThat(stats.size(), greaterThanOrEqualTo(3));
+                for (Object stat : stats) {
+                    Map<?, ?> statAsMap = (Map<?, ?>) stat;
+                    assertThat(statAsMap.get("watcher_state"), equalTo("started"));
+                }
+            }, 1, TimeUnit.MINUTES);
+        } catch (AssertionError e) {
+            throw new AssertionError("Failure in test setup: Failed to initialize at least 3 watcher nodes", e);
+        }
     }
 
     @Override

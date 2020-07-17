@@ -164,7 +164,7 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
         }
 
         void merge(ReloadResult other) {
-            assert this.indexName == other.index;
+            assert this.indexName.equals(other.index);
             this.reloadedAnalyzers.addAll(other.reloadedSearchAnalyzers);
             this.reloadedIndicesNodes.add(other.nodeId);
         }

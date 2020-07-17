@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -26,12 +27,12 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -49,13 +50,17 @@ public class RestBulkAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
 
-    public RestBulkAction(Settings settings, RestController controller) {
-        controller.registerHandler(POST, "/_bulk", this);
-        controller.registerHandler(PUT, "/_bulk", this);
-        controller.registerHandler(POST, "/{index}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/_bulk", this);
-
+    public RestBulkAction(Settings settings) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/_bulk"),
+            new Route(PUT, "/_bulk"),
+            new Route(POST, "/{index}/_bulk"),
+            new Route(PUT, "/{index}/_bulk"));
     }
 
     @Override
@@ -74,10 +79,11 @@ public class RestBulkAction extends BaseRestHandler {
         if (waitForActiveShards != null) {
             bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
+        Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
-            defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, request.getXContentType());
+            defaultFetchSourceContext, defaultPipeline, defaultRequireAlias, allowExplicitIndex, request.getXContentType());
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
     }

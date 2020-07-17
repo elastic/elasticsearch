@@ -30,16 +30,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.unit.TimeValue;
-
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -122,7 +121,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         }
         Object originObj = origin.origin();
         if (fieldType instanceof DateFieldType) {
-            long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context);
+            long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context::nowInMillis);
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             if (((DateFieldType) fieldType).resolution() == DateFieldMapper.Resolution.MILLISECONDS) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, originLong, pivotVal.getMillis());
@@ -213,7 +212,9 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
         @Override
         public final boolean equals(Object other) {
-            if ((other instanceof Origin) == false) return false;
+            if ((other instanceof Origin) == false) {
+                return false;
+            }
             Object otherOrigin = ((Origin) other).origin();
             return this.origin().equals(otherOrigin);
         }

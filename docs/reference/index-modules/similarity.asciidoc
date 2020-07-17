@@ -22,23 +22,23 @@ settings.
 --------------------------------------------------
 PUT /index
 {
-    "settings" : {
-        "index" : {
-            "similarity" : {
-              "my_similarity" : {
-                "type" : "DFR",
-                "basic_model" : "g",
-                "after_effect" : "l",
-                "normalization" : "h2",
-                "normalization.h2.c" : "3.0"
-              }
-            }
+  "settings": {
+    "index": {
+      "similarity": {
+        "my_similarity": {
+          "type": "DFR",
+          "basic_model": "g",
+          "after_effect": "l",
+          "normalization": "h2",
+          "normalization.h2.c": "3.0"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
-Here we configure the DFRSimilarity so it can be referenced as
+Here we configure the DFR similarity so it can be referenced as
 `my_similarity` in mappings as is illustrate in the below example:
 
 [source,console]
@@ -97,13 +97,13 @@ from randomness] framework. This similarity has the following options:
 
 `after_effect`::
     Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`b`] and
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`l`].
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectL.html[`l`].
 
 `normalization`::
     Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/Normalization.NoNormalization.html[`no`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH1.html[`h1`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH2.html[`h2`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH1.html[`h3`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationH3.html[`h3`] and
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/NormalizationZ.html[`z`].
 
 All options but the first option need a normalization value.
@@ -124,7 +124,7 @@ This similarity has the following options:
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceSaturated.html[`saturated`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/IndependenceChiSquared.html[`chisquared`].
 
-When using this similarity, it is highly recommended to remove stop words to get
+When using this similarity, it is highly recommended *not* to remove stop words to get
 good relevance. Also beware that terms whose frequency is less than the expected
 frequency will get a score equal to 0.
 

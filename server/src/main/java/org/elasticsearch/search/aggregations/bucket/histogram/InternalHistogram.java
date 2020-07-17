@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,7 +72,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             this.keyed = keyed;
             key = in.readDouble();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -153,12 +152,12 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
     }
 
-    static class EmptyBucketInfo {
+    public static class EmptyBucketInfo {
 
         final double interval, offset, minBound, maxBound;
         final InternalAggregations subAggregations;
 
-        EmptyBucketInfo(double interval, double offset, double minBound, double maxBound, InternalAggregations subAggregations) {
+        public EmptyBucketInfo(double interval, double offset, double minBound, double maxBound, InternalAggregations subAggregations) {
             this.interval = interval;
             this.offset = offset;
             this.minBound = minBound;
@@ -167,7 +166,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
 
         EmptyBucketInfo(StreamInput in) throws IOException {
-            this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), new InternalAggregations(in));
+            this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), InternalAggregations.readFrom(in));
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -204,10 +203,16 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     private final long minDocCount;
     final EmptyBucketInfo emptyBucketInfo;
 
-    InternalHistogram(String name, List<Bucket> buckets, BucketOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
-            DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalHistogram(
+        String name,
+        List<Bucket> buckets,
+        BucketOrder order,
+        long minDocCount,
+        EmptyBucketInfo emptyBucketInfo,
+        DocValueFormat formatter,
+        boolean keyed,
+        Map<String, Object> metadata) {
+        super(name, metadata);
         this.buckets = buckets;
         this.order = order;
         assert (minDocCount == 0) == (emptyBucketInfo != null);
@@ -266,7 +271,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     @Override
     public InternalHistogram create(List<Bucket> buckets) {
-        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(), metaData);
+        return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, format, keyed, metadata);
     }
 
     @Override
@@ -315,10 +320,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                     // Using Double.compare instead of != to handle NaN correctly.
                     final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                     if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
                         reducedBuckets.add(reduced);
-                    } else {
-                        reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
                     }
                     currentBuckets.clear();
                     key = top.current.key;
@@ -339,10 +341,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             if (currentBuckets.isEmpty() == false) {
                 final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
                 if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
-                    reduceContext.consumeBucketsAndMaybeBreak(1);
                     reducedBuckets.add(reduced);
-                } else {
-                    reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reduced));
                 }
             }
         }
@@ -382,7 +381,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         if (iter.hasNext() == false) {
             // fill with empty buckets
             for (double key = round(emptyBucketInfo.minBound); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
-                reduceContext.consumeBucketsAndMaybeBreak(1);
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
             }
         } else {
@@ -390,7 +388,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             if (Double.isFinite(emptyBucketInfo.minBound)) {
                 // fill with empty buckets until the first key
                 for (double key = round(emptyBucketInfo.minBound); key < first.key; key = nextKey(key)) {
-                    reduceContext.consumeBucketsAndMaybeBreak(1);
                     iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                 }
             }
@@ -403,7 +400,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 if (lastBucket != null) {
                     double key = nextKey(lastBucket.key);
                     while (key < nextBucket.key) {
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
                         iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
                         key = nextKey(key);
                     }
@@ -414,7 +410,6 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
             // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
             for (double key = nextKey(lastBucket.key); key <= emptyBucketInfo.maxBound; key = nextKey(key)) {
-                reduceContext.consumeBucketsAndMaybeBreak(1);
                 iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs));
             }
         }
@@ -436,11 +431,11 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
                 // nothing to do when sorting by key ascending, as data is already sorted since shards return
                 // sorted buckets and the merge-sort performed by reduceBuckets maintains order.
                 // otherwise, sorted by compound order or sub-aggregation, we need to fall back to a costly n*log(n) sort
-                CollectionUtil.introSort(reducedBuckets, order.comparator(null));
+                CollectionUtil.introSort(reducedBuckets, order.comparator());
             }
         }
-        return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(),
-                getMetaData());
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+        return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override
@@ -481,8 +476,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             buckets2.add((Bucket) b);
         }
         buckets2 = Collections.unmodifiableList(buckets2);
-        return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format,
-                keyed, pipelineAggregators(), getMetaData());
+        return new InternalHistogram(name, buckets2, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override

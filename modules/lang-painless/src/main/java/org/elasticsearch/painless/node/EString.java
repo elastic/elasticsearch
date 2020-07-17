@@ -19,48 +19,49 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a string constant.
  */
-public final class EString extends AExpression {
+public class EString extends AExpression {
 
-    public EString(Location location, String string) {
-        super(location);
+    private String string;
 
-        this.constant = Objects.requireNonNull(string);
+    public EString(int identifier, Location location, String string) {
+        super(identifier, location);
+
+        this.string = Objects.requireNonNull(string);
+    }
+
+    public String getString() {
+        return string;
+    }
+
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitString(this, input);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
         }
 
-        actual = String.class;
-    }
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
+        }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw new IllegalStateException("Illegal tree structure.");
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString("'" + constant.toString() + "'");
+        semanticScope.putDecoration(this, new ValueType(String.class));
+        semanticScope.putDecoration(this, new StandardConstant(string));
     }
 }

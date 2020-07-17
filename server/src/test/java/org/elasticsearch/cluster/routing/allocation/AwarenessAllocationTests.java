@@ -24,8 +24,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -62,14 +62,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded1'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -124,14 +124,14 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded2'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -192,16 +192,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded3'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -275,18 +275,18 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded4'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test1"))
-                .addAsNew(metaData.index("test2"))
+                .addAsNew(metadata.index("test1"))
+                .addAsNew(metadata.index("test2"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -362,16 +362,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded5'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -436,16 +436,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded6'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(3))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -513,16 +513,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'fullAwareness1'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -577,16 +577,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'fullAwareness2'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -647,18 +647,18 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'fullAwareness3'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test1"))
-                .addAsNew(metaData.index("test2"))
+                .addAsNew(metadata.index("test1"))
+                .addAsNew(metadata.index("test2"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes on same rack and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -723,16 +723,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'testUnbalancedZones'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes in different zones and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -781,16 +781,16 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'testUnassignedShardsWithUnbalancedZones'");
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(4))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(4))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test"))
+                .addAsNew(metadata.index("test"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding 5 nodes in different zones and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -841,15 +841,15 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table for 'testUnbalancedZones'");
 
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
 
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metaData(metaData).routingTable(initialRoutingTable).build();
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("--> adding two nodes in different zones and do rerouting");
         Map<String, String> nodeAAttributes = new HashMap<>();

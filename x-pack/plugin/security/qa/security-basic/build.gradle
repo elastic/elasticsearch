@@ -3,16 +3,15 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
 testClusters.integTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.security.enabled', 'true'

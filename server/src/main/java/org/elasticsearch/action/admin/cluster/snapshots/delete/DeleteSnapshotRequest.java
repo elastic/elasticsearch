@@ -31,15 +31,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Delete snapshot request
  * <p>
- * Delete snapshot request removes the snapshot record from the repository and cleans up all
- * files that are associated with this particular snapshot. All files that are shared with
- * at least one other existing snapshot are left intact.
+ * Delete snapshot request removes snapshots from the repository and cleans up all files that are associated with the snapshots.
+ * All files that are shared with at least one other existing snapshot are left intact.
  */
 public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotRequest> {
 
     private String repository;
 
-    private String snapshot;
+    private String[] snapshots;
 
     /**
      * Constructs a new delete snapshots request
@@ -48,14 +47,14 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     }
 
     /**
-     * Constructs a new delete snapshots request with repository and snapshot name
+     * Constructs a new delete snapshots request with repository and snapshot names
      *
      * @param repository repository name
-     * @param snapshot   snapshot name
+     * @param snapshots  snapshot names
      */
-    public DeleteSnapshotRequest(String repository, String snapshot) {
+    public DeleteSnapshotRequest(String repository, String... snapshots) {
         this.repository = repository;
-        this.snapshot = snapshot;
+        this.snapshots = snapshots;
     }
 
     /**
@@ -70,14 +69,14 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     public DeleteSnapshotRequest(StreamInput in) throws IOException {
         super(in);
         repository = in.readString();
-        snapshot = in.readString();
+        snapshots = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(repository);
-        out.writeString(snapshot);
+        out.writeStringArray(snapshots);
     }
 
     @Override
@@ -86,8 +85,8 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         if (repository == null) {
             validationException = addValidationError("repository is missing", validationException);
         }
-        if (snapshot == null) {
-            validationException = addValidationError("snapshot is missing", validationException);
+        if (snapshots == null || snapshots.length == 0) {
+            validationException = addValidationError("snapshots are missing", validationException);
         }
         return validationException;
     }
@@ -108,21 +107,21 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     }
 
     /**
-     * Returns repository name
+     * Returns snapshot names
      *
-     * @return repository name
+     * @return snapshot names
      */
-    public String snapshot() {
-        return this.snapshot;
+    public String[] snapshots() {
+        return this.snapshots;
     }
 
     /**
-     * Sets snapshot name
+     * Sets snapshot names
      *
      * @return this request
      */
-    public DeleteSnapshotRequest snapshot(String snapshot) {
-        this.snapshot = snapshot;
+    public DeleteSnapshotRequest snapshots(String... snapshots) {
+        this.snapshots = snapshots;
         return this;
     }
 }

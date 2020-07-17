@@ -5,26 +5,27 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isInteger;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor.doProcess;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Returns a character string that is derived from the source string, beginning at the character position specified by start
@@ -32,11 +33,11 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 public class Substring extends ScalarFunction {
 
-    private final Expression source, start, length;
+    private final Expression input, start, length;
 
-    public Substring(Source source, Expression src, Expression start, Expression length) {
-        super(source, Arrays.asList(src, start, length));
-        this.source = src;
+    public Substring(Source source, Expression input, Expression start, Expression length) {
+        super(source, Arrays.asList(input, start, length));
+        this.input = input;
         this.start = start;
         this.length = length;
     }
@@ -47,7 +48,7 @@ public class Substring extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
@@ -62,46 +63,43 @@ public class Substring extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new SubstringFunctionPipe(source(), this,
-                Expressions.pipe(source),
-                Expressions.pipe(start),
-                Expressions.pipe(length));
+        return new SubstringFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(start), Expressions.pipe(length));
     }
     
     @Override
     public boolean foldable() {
-        return source.foldable() && start.foldable() && length.foldable();
+        return input.foldable() && start.foldable() && length.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), start.fold(), length.fold());
+        return doProcess(input.fold(), start.fold(), length.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Substring::new, source, start, length);
+        return NodeInfo.create(this, Substring::new, input, start, length);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate startScript = asScript(start);
         ScriptTemplate lengthScript = asScript(length);
 
-        return asScriptFrom(sourceScript, startScript, lengthScript);
+        return asScriptFrom(inputScript, startScript, lengthScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript,
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript,
             ScriptTemplate lengthScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
                 "substring",
-                sourceScript.template(),
+                inputScript.template(),
                 startScript.template(),
                 lengthScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params()).script(startScript.params())
+                    .script(inputScript.params()).script(startScript.params())
                     .script(lengthScript.params())
                     .build(), dataType());
     }
@@ -115,7 +113,7 @@ public class Substring extends ScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataTypes.KEYWORD;
     }
 
     @Override

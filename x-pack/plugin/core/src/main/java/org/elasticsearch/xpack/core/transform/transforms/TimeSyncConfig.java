@@ -25,7 +25,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TimeSyncConfig  implements SyncConfig {
+public class TimeSyncConfig implements SyncConfig {
 
     public static final TimeValue DEFAULT_DELAY = TimeValue.timeValueSeconds(60);
     private static final String NAME = "data_frame_transform_pivot_sync_time";
@@ -37,17 +37,18 @@ public class TimeSyncConfig  implements SyncConfig {
     private static final ConstructingObjectParser<TimeSyncConfig, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<TimeSyncConfig, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<TimeSyncConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient,
-            args -> {
-                String field = (String) args[0];
-                TimeValue delay = (TimeValue) args[1];
-                return new TimeSyncConfig(field, delay);
-            });
+        ConstructingObjectParser<TimeSyncConfig, Void> parser = new ConstructingObjectParser<>(NAME, lenient, args -> {
+            String field = (String) args[0];
+            TimeValue delay = (TimeValue) args[1];
+            return new TimeSyncConfig(field, delay);
+        });
         parser.declareString(constructorArg(), TransformField.FIELD);
-        parser.declareField(optionalConstructorArg(),
+        parser.declareField(
+            optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), DEFAULT_DELAY, TransformField.DELAY.getPreferredName()),
             TransformField.DELAY,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         return parser;
     }
 
@@ -65,6 +66,7 @@ public class TimeSyncConfig  implements SyncConfig {
         this.delay = in.readTimeValue();
     }
 
+    @Override
     public String getField() {
         return field;
     }
@@ -105,12 +107,11 @@ public class TimeSyncConfig  implements SyncConfig {
 
         final TimeSyncConfig that = (TimeSyncConfig) other;
 
-        return Objects.equals(this.field, that.field)
-                && Objects.equals(this.delay, that.delay);
+        return Objects.equals(this.field, that.field) && Objects.equals(this.delay, that.delay);
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(field, delay);
     }
 
@@ -139,7 +140,8 @@ public class TimeSyncConfig  implements SyncConfig {
 
     @Override
     public QueryBuilder getRangeQuery(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint) {
-        return new RangeQueryBuilder(field).gte(oldCheckpoint.getTimeUpperBound()).lt(newCheckpoint.getTimeUpperBound())
-                .format("epoch_millis");
+        return new RangeQueryBuilder(field).gte(oldCheckpoint.getTimeUpperBound())
+            .lt(newCheckpoint.getTimeUpperBound())
+            .format("epoch_millis");
     }
 }

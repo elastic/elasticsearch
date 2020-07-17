@@ -1,0 +1,38 @@
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+  testImplementation project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'testArtifacts')
+  restXpackTestConfig project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'restXpackTests')
+}
+
+restResources {
+  restApi {
+    includeXpack 'watcher', 'security', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
+  }
+}
+
+testClusters.integTest {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  // settings to test settings filtering on
+  setting 'xpack.notification.email.account._email.smtp.host', 'host.domain'
+  setting 'xpack.notification.email.account._email.smtp.port', '587'
+  setting 'xpack.notification.email.account._email.smtp.user', '_user'
+  keystore 'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
+  setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'
+  extraConfigFile 'roles.yml', file('roles.yml')
+  user username: "test_admin", password: "x-pack-test-password"
+  user username: "x_pack_rest_user", password: "x-pack-test-password", role: "watcher_manager"
+  user username: "watcher_manager", password: "x-pack-test-password", role: "watcher_manager"
+  user username: "powerless_user", password: "x-pack-test-password", role: "crappy_role"
+}

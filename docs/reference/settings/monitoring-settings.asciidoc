@@ -17,10 +17,8 @@ file.
 
 To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
-`kibana.yml`. To control how monitoring data is collected from
-Logstash, configure
-{logstash-ref}/monitoring-internal-collection.html#monitoring-settings[`xpack.monitoring` settings]
-in `logstash.yml`.
+`kibana.yml`. To control how monitoring data is collected from Logstash,
+configure monitoring settings in `logstash.yml`.
 
 For more information, see <<monitor-elasticsearch-cluster>>.
 
@@ -29,20 +27,19 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 ==== General Monitoring Settings
 
 `xpack.monitoring.enabled`::
-Set to `true` (default) to enable {es} {monitoring} for {es} on the node. 
-+
---
-NOTE: To enable data collection, you must also set `xpack.monitoring.collection.enabled` 
-to `true`. Its default value is `false`. 
---
+deprecated:[7.8.0,Basic License features should always be enabled] +
+This deprecated setting has no effect.
 
 [float]
 [[monitoring-collection-settings]]
 ==== Monitoring Collection Settings
 
+[[monitoring-settings-description]]
+// tag::monitoring-settings-description-tag[]
 The `xpack.monitoring.collection` settings control how data is collected from
 your Elasticsearch nodes. You can dynamically change all monitoring collection
 settings using the <<cluster-update-settings,cluster update settings API>>.
+// end::monitoring-settings-description-tag[]
 
 `xpack.monitoring.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
 
@@ -51,7 +48,9 @@ this setting is `false` (default), {es} monitoring data is not collected and
 all monitoring data from other sources such as {kib}, Beats, and Logstash is
 ignored.
 
-`xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>):: 
+[[xpack-monitoring-collection-interval]]
+// tag::monitoring-collection-interval-tag[]
+`xpack.monitoring.collection.interval` (<<cluster-update-settings,Dynamic>>) {ess-icon}::
 
 Setting to `-1` to disable data collection is no longer supported beginning with
 7.0.0. deprecated[6.3.0, Use `xpack.monitoring.collection.enabled` set to `false` instead.]
@@ -59,6 +58,7 @@ Setting to `-1` to disable data collection is no longer supported beginning with
 Controls how often data samples are collected. Defaults to `10s`. If you
 modify the collection interval, set the `xpack.monitoring.min_interval_seconds`
 option in `kibana.yml` to the same value.
+// end::monitoring-collection-interval-tag[]
 
 `xpack.monitoring.elasticsearch.collection.enabled` (<<cluster-update-settings,Dynamic>>)::
 
@@ -98,7 +98,9 @@ collect only active recoveries. Defaults to `false`.
 
 (<<time-units,time value>>) Timeout for collecting the recovery information. Defaults to `10s`.
 
-`xpack.monitoring.history.duration` (<<cluster-update-settings,Dynamic>>)::
+[[xpack-monitoring-history-duration]]
+// tag::monitoring-history-duration-tag[]
+`xpack.monitoring.history.duration` (<<cluster-update-settings,Dynamic>>) {ess-icon}::
 
 (<<time-units,time value>>) Retention duration beyond which the indices created by a Monitoring
 exporter are automatically deleted. Defaults to `7d` (7 days).
@@ -110,6 +112,8 @@ being monitored, and it cannot be disabled.
 IMPORTANT: This setting currently only impacts `local`-type exporters. Indices created using
 the `http` exporter will not be deleted automatically.
 --
+
+// end::monitoring-history-duration-tag[]
 
 `xpack.monitoring.exporters`::
 
@@ -153,6 +157,11 @@ to future-proof them.
 Whether to create cluster alerts for this cluster. The default value is `true`.
 To use this feature, {watcher} must be enabled.  If you have a basic license,
 cluster alerts are not displayed.
+
+`wait_master.timeout`::
+
+(<<time-units,time value>>) Time to wait for the master node to setup `local` exporter for monitoring.
+After that, the non-master nodes will warn the user for possible missing X-Pack configuration. Defaults to `30s`.
 
 [float]
 [[http-exporter-settings]]
@@ -198,9 +207,9 @@ xpack.monitoring.exporters:
 
 `auth.username`::
 
-The username is required if a `auth.password` is supplied.
+The username is required if `auth.secure_password` is supplied.
 
-`auth.password`::
+`auth.secure_password` (<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)::
 
 The password for the `auth.username`.
 
@@ -244,7 +253,7 @@ anything defined here.
 `index.name.time_format`::
 
 A mechanism for changing the default date suffix for the, by default, daily Monitoring indices.
-The default value is `YYYY.MM.DD`, which is why the indices are created daily.
+The default value is `yyyy.MM.dd`, which is why the indices are created daily.
 
 `use_ingest`::
 
@@ -262,10 +271,10 @@ cluster alerts are not displayed.
 `cluster_alerts.management.blacklist`::
 
 Prevents the creation of specific cluster alerts. It also removes any applicable
-watches that already exist in the current cluster. +
+watches that already exist in the current cluster.
 +
 --
-You can add any of the following watch identifiers to the blacklist:
+You can add any of the following watch identifiers to the list of blocked alerts:
 
 * `elasticsearch_cluster_status`
 * `elasticsearch_version_mismatch`

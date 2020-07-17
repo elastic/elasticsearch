@@ -20,14 +20,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -79,9 +78,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         final MapperService mapperService = createIndex("test1").mapperService();
         final CompressedXContent mapping = createMappingSpecifyingNumberOfFields(1);
         mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
-        assertThat("field was not created by preflight check", mapperService.fullName("field0"), nullValue());
+        assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         mapperService.merge("type", mapping, MergeReason.MAPPING_UPDATE);
-        assertThat("field was not created by mapping update", mapperService.fullName("field0"), notNullValue());
+        assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
     }
 
     /**
@@ -148,7 +147,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
-                    .addMapping("type", "{\"type\":{}}", XContentType.JSON)
+                    .setMapping("{\"_doc\":{}}")
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
                         .put("index.routing_partition_size", 2))
@@ -158,7 +157,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         // valid partitioned index
         assertTrue(client().admin().indices().prepareCreate("test-index")
-            .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}", XContentType.JSON)
+            .setMapping("{\"_doc\":{\"_routing\":{\"required\":true}}}")
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", 4)
                 .put("index.routing_partition_size", 2))
@@ -363,8 +362,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testReloadSearchAnalyzers() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
                 .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
@@ -405,8 +404,10 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertSame(current.getDefaultSearchQuoteAnalyzer(), updatedAnalyzers.getDefaultSearchQuoteAnalyzer());
 
         assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
-        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fullName("field").searchAnalyzer()));
-        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fullName("otherField").searchQuoteAnalyzer()));
+        assertFalse(assertSameContainedFilters(originalTokenFilters,
+            mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer()));
+        assertFalse(assertSameContainedFilters(originalTokenFilters,
+            mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()));
     }
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {

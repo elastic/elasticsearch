@@ -10,16 +10,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,14 +26,13 @@ import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.MAX_INDEX_NAME_BYTES;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.MAX_INDEX_NAME_BYTES;
+import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
+import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
 
 /**
  * A {@code SnapshotLifecyclePolicy} is a policy for the cluster including a schedule of when a
@@ -62,8 +56,6 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -160,22 +152,10 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
 
         // Snapshot name validation
         // We generate a snapshot name here to make sure it validates after applying date math
-        final String snapshotName = generateSnapshotName(new ResolverContext());
-        if (Strings.hasText(name) == false) {
-            err.addValidationError("invalid snapshot name [" + name + "]: cannot be empty");
-        }
-        if (snapshotName.contains("#")) {
-            err.addValidationError("invalid snapshot name [" + name + "]: must not contain '#'");
-        }
-        if (snapshotName.charAt(0) == '_') {
-            err.addValidationError("invalid snapshot name [" + name + "]: must not start with '_'");
-        }
-        if (snapshotName.toLowerCase(Locale.ROOT).equals(snapshotName) == false) {
-            err.addValidationError("invalid snapshot name [" + name + "]: must be lowercase");
-        }
-        if (Strings.validFileName(snapshotName) == false) {
-            err.addValidationError("invalid snapshot name [" + name + "]: must not contain contain the following characters " +
-                Strings.INVALID_FILENAME_CHARS);
+        final String snapshotName = generateSnapshotName(this.name);
+        ActionRequestValidationException nameValidationErrors = validateGeneratedSnapshotName(name, snapshotName);
+        if(nameValidationErrors != null) {
+            err.addValidationErrors(nameValidationErrors.validationErrors());
         }
 
         // Schedule validation
@@ -235,29 +215,15 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     }
 
     /**
-     * Since snapshots need to be uniquely named, this method will resolve any date math used in
-     * the provided name, as well as appending a unique identifier so expressions that may overlap
-     * still result in unique snapshot names.
-     */
-    public String generateSnapshotName(Context context) {
-        List<String> candidates = DATE_MATH_RESOLVER.resolve(context, Collections.singletonList(this.name));
-        if (candidates.size() != 1) {
-            throw new IllegalStateException("resolving snapshot name " + this.name + " generated more than one candidate: " + candidates);
-        }
-        // TODO: we are breaking the rules of UUIDs by lowercasing this here, find an alternative (snapshot names must be lowercase)
-        return candidates.get(0) + "-" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
-    }
-
-    /**
      * Generate a new create snapshot request from this policy. The name of the snapshot is
      * generated at this time based on any date math expressions in the "name" field.
      */
     public CreateSnapshotRequest toRequest() {
-        CreateSnapshotRequest req = new CreateSnapshotRequest(repository, generateSnapshotName(new ResolverContext()));
+        CreateSnapshotRequest req = new CreateSnapshotRequest(repository, generateSnapshotName(this.name));
+        Map<String, Object> mergedConfiguration = configuration == null ? new HashMap<>() : new HashMap<>(configuration);
         @SuppressWarnings("unchecked")
-        Map<String, Object> metadata = (Map<String, Object>) configuration.get("metadata");
+        Map<String, Object> metadata = (Map<String, Object>) mergedConfiguration.get("metadata");
         Map<String, Object> metadataWithAddedPolicyName = addPolicyNameToMetadata(metadata);
-        Map<String, Object> mergedConfiguration = new HashMap<>(configuration);
         mergedConfiguration.put("metadata", metadataWithAddedPolicyName);
         req.source(mergedConfiguration);
         req.waitForCompletion(true);
@@ -324,28 +290,4 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         return Strings.toString(this);
     }
 
-    /**
-     * This is a context for the DateMathExpressionResolver, which does not require
-     * {@code IndicesOptions} or {@code ClusterState} since it only uses the start
-     * time to resolve expressions
-     */
-    public static final class ResolverContext extends Context {
-        public ResolverContext() {
-            this(System.currentTimeMillis());
-        }
-
-        public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false);
-        }
-
-        @Override
-        public ClusterState getState() {
-            throw new UnsupportedOperationException("should never be called");
-        }
-
-        @Override
-        public IndicesOptions getOptions() {
-            throw new UnsupportedOperationException("should never be called");
-        }
-    }
 }

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -67,7 +67,7 @@ public class ShardSearchFailureTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        ShardSearchFailure response = createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
+        ShardSearchFailure response = createTestItem(IndexMetadata.INDEX_UUID_NA_VALUE);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);

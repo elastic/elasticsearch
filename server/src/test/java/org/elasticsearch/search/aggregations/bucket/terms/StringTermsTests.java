@@ -20,12 +20,10 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,8 +36,7 @@ public class StringTermsTests extends InternalTermsTestCase {
 
     @Override
     protected InternalTerms<?, ?> createTestInstance(String name,
-                                                     List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData,
+                                                     Map<String, Object> metadata,
                                                      InternalAggregations aggregations,
                                                      boolean showTermDocCountError,
                                                      long docCountError) {
@@ -57,13 +54,8 @@ public class StringTermsTests extends InternalTermsTestCase {
             int docCount = randomIntBetween(1, 100);
             buckets.add(new StringTerms.Bucket(term, docCount, aggregations, showTermDocCountError, docCountError, format));
         }
-        return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators,
-                metaData, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
-    }
-
-    @Override
-    protected Reader<InternalTerms<?, ?>> instanceReader() {
-        return StringTerms::new;
+        return new StringTerms(name, order, requiredSize, minDocCount,
+                metadata, format, shardSize, showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
     @Override
@@ -85,8 +77,7 @@ public class StringTermsTests extends InternalTermsTestCase {
             long otherDocCount = stringTerms.getSumOfOtherDocCounts();
             List<StringTerms.Bucket> buckets = stringTerms.getBuckets();
             long docCountError = stringTerms.getDocCountError();
-            List<PipelineAggregator> pipelineAggregators = stringTerms.pipelineAggregators();
-            Map<String, Object> metaData = stringTerms.getMetaData();
+            Map<String, Object> metadata = stringTerms.getMetadata();
             switch (between(0, 8)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -115,25 +106,24 @@ public class StringTermsTests extends InternalTermsTestCase {
                         InternalAggregations.EMPTY, showTermDocCountError, docCountError, format));
                 break;
             case 8:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new StringTerms(name, order, requiredSize, minDocCount, pipelineAggregators, metaData, format, shardSize,
+            return new StringTerms(name, order, requiredSize, minDocCount, metadata, format, shardSize,
                     showTermDocCountError, otherDocCount, buckets, docCountError);
         } else {
             String name = instance.getName();
             BucketOrder order = instance.order;
             int requiredSize = instance.requiredSize;
             long minDocCount = instance.minDocCount;
-            List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-            Map<String, Object> metaData = instance.getMetaData();
+            Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 3)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -145,17 +135,17 @@ public class StringTermsTests extends InternalTermsTestCase {
                 minDocCount += between(1, 100);
                 break;
             case 3:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return new UnmappedTerms(name, order, requiredSize, minDocCount, pipelineAggregators, metaData);
+            return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
         }
     }
 }

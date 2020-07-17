@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.lenientExpand();
+    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandHidden();
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
     private boolean waitForNoRelocatingShards = false;
@@ -73,7 +73,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         timeout = in.readTimeValue();
         if (in.readBoolean()) {
-            waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
+            waitForStatus = ClusterHealthStatus.readFrom(in);
         }
         waitForNoRelocatingShards = in.readBoolean();
         waitForActiveShards = ActiveShardCount.readFrom(in);
@@ -141,6 +141,11 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     public ClusterHealthRequest indicesOptions(final IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
         return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     public TimeValue timeout() {

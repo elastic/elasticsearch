@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -32,10 +31,17 @@ import java.util.Map;
 
 public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregator.Range> {
 
-    public RangeAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, Range[] ranges, boolean keyed,
-                                  Factory<?, ?> rangeFactory, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                  AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder, metaData);
+    public RangeAggregatorFactory(String name,
+                                  ValuesSourceConfig config,
+                                  Range[] ranges,
+                                  boolean keyed,
+                                  Factory<?, ?> rangeFactory,
+                                  QueryShardContext queryShardContext,
+                                  AggregatorFactory parent,
+                                  AggregatorFactories.Builder subFactoriesBuilder,
+                                  Map<String, Object> metadata) throws IOException {
+        super(name, RangeAggregationBuilder.NAME, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
+            metadata);
     }
 
 }

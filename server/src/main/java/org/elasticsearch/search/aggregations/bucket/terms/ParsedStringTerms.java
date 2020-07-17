@@ -34,7 +34,7 @@ public class ParsedStringTerms extends ParsedTerms {
         return StringTerms.NAME;
     }
 
-    private static ObjectParser<ParsedStringTerms, Void> PARSER =
+    private static final ObjectParser<ParsedStringTerms, Void> PARSER =
             new ObjectParser<>(ParsedStringTerms.class.getSimpleName(), true, ParsedStringTerms::new);
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);

@@ -20,14 +20,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.ParsedHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.InternalPercentilesTestCase;
-import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
-import org.elasticsearch.search.aggregations.metrics.Percentile;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -35,21 +28,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<InternalHDRPercentiles> {
 
     @Override
     protected InternalHDRPercentiles createTestInstance(String name,
-                                                        List<PipelineAggregator> pipelineAggregators,
-                                                        Map<String, Object>  metaData,
+                                                        Map<String, Object> metadata,
                                                         boolean keyed, DocValueFormat format, double[] percents, double[] values) {
 
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
 
-        return new InternalHDRPercentiles(name, percents, state, keyed, format, pipelineAggregators, metaData);
+        return new InternalHDRPercentiles(name, percents, state, keyed, format, metadata);
     }
 
     @Override
@@ -60,11 +51,6 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             totalCount += ranks.state.getTotalCount();
         }
         assertEquals(totalCount, reduced.state.getTotalCount());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalHDRPercentiles> instanceReader() {
-        return InternalHDRPercentiles::new;
     }
 
     @Override
@@ -80,7 +66,7 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         }
 
         InternalHDRPercentiles aggregation =
-                createTestInstance("test", emptyList(), emptyMap(), false, randomNumericDocValueFormat(), percents, values);
+                createTestInstance("test", emptyMap(), false, randomNumericDocValueFormat(), percents, values);
 
         Iterator<Percentile> iterator = aggregation.iterator();
         for (double percent : percents) {
@@ -99,8 +85,7 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         DoubleHistogram state = instance.state;
         boolean keyed = instance.keyed;
         DocValueFormat formatter = instance.formatter();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -120,16 +105,16 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             keyed = keyed == false;
             break;
         case 4:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalHDRPercentiles(name, percents, state, keyed, formatter, pipelineAggregators, metaData);
+        return new InternalHDRPercentiles(name, percents, state, keyed, formatter, metadata);
     }
 }

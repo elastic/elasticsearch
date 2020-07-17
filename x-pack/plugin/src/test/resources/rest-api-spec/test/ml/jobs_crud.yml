@@ -70,7 +70,7 @@
   - do:
       indices.get_alias:
         name: ".ml-anomalies-.write-job-crud-test-apis"
-  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: {} }
+  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: { is_hidden: true } }
 
   - do:
       ml.delete_job:
@@ -142,7 +142,8 @@
   - do:
       ml.open_job:
         job_id: job-model-memory-limit-as-string
-  - match: { opened: false }
+  - match: { opened: true }
+  - match: { node: "" }
 
   - do:
       headers:
@@ -170,6 +171,44 @@
       catch: missing
       ml.get_jobs:
         job_id: "non-existing"
+
+---
+"Test put job with inconsistent model snapshot settings":
+  - do:
+      catch: /The value of daily_model_snapshot_retention_after_days \[4\] cannot be greater than model_snapshot_retention_days \[3\]/
+      ml.put_job:
+        job_id: inconsistent-snapshot-settings-1
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"@timestamp"
+            },
+            "model_snapshot_retention_days": 3,
+            "daily_model_snapshot_retention_after_days": 4
+          }
+
+  - do:
+      catch: /daily_model_snapshot_retention_after_days cannot be less than 0. Value = -1/
+      ml.put_job:
+        job_id: inconsistent-snapshot-settings-2
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"@timestamp"
+            },
+            "model_snapshot_retention_days": 3,
+            "daily_model_snapshot_retention_after_days": -1
+          }
 
 ---
 "Test put job with inconsistent body/param ids":
@@ -296,6 +335,7 @@
             "renormalization_window_days": 1,
             "background_persist_interval": "2h",
             "model_snapshot_retention_days": 3,
+            "daily_model_snapshot_retention_after_days": 2,
             "results_retention_days": 4,
             "custom_settings": {
               "setting1": "custom1",
@@ -353,6 +393,7 @@
   - match: { description: "Post update description" }
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
+  - match: { model_plot_config.annotations_enabled: false }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.custom_rules.0.actions: ["skip_result"] }
   - length: { analysis_config.detectors.0.custom_rules.0.conditions: 1 }
@@ -362,6 +403,7 @@
   - match: { renormalization_window_days: 10 }
   - match: { background_persist_interval: "3h" }
   - match: { model_snapshot_retention_days: 30 }
+  - match: { daily_model_snapshot_retention_after_days: 2 }
   - match: { results_retention_days: 40 }
 
   - do:
@@ -401,6 +443,24 @@
             }
           }
   - match: { analysis_limits.model_memory_limit: "15mb" }
+
+  - do:
+      catch: /The value of daily_model_snapshot_retention_after_days \[31\] cannot be greater than model_snapshot_retention_days \[30\]/
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "daily_model_snapshot_retention_after_days": 31
+          }
+
+  - do:
+      catch: /The value of daily_model_snapshot_retention_after_days \[2\] cannot be greater than model_snapshot_retention_days \[1\]/
+      ml.update_job:
+        job_id: jobs-crud-update-job
+        body:  >
+          {
+            "model_snapshot_retention_days": 1
+          }
 
   - do:
       catch: bad_request
@@ -470,7 +530,8 @@
           model_bytes: 10000000
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
       catch: /Invalid update value for analysis_limits[:] model_memory_limit cannot be decreased below current usage; current usage \[9mb\], update had \[5mb\]/
@@ -562,6 +623,7 @@
       ml.open_job:
         job_id: delete-opened-job
   - match: { opened: true }
+  - match: { node: /\S+/ }
 
   - do:
       catch: /Cannot delete job \[delete-opened-job\] because the job is opened/
@@ -920,13 +982,14 @@
 
   - do:
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: jobs-crud-existing-docs_categorizer_state#1
         body:
           key: value
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
       catch: /status_exception/
@@ -947,13 +1010,14 @@
 
   - do:
       index:
-        index: .ml-state
+        index: .ml-state-000001
         id: jobs-crud-existing-docs_quantiles
         body:
           key: value
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
       catch: /status_exception/
@@ -990,7 +1054,8 @@
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        expand_wildcards: all
 
   - do:
       catch: /status_exception/
@@ -1126,14 +1191,14 @@
 
   - do:
       indices.create:
-        index: ".ml-state"
+        index: ".ml-state-000001"
 
   - do:
       indices.close:
-        index: ".ml-state"
+        index: ".ml-state-000001"
 
   - do:
-      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state\]/
+      catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state-000001\]/
       ml.put_job:
         job_id: closed-results-job
         body:  >
@@ -1425,7 +1490,7 @@
   - match: { job_id: "persistent-task-allocation-allowed-test" }
 
   - do:
-      catch: /no persistent task assignments are allowed due to cluster settings/
+      catch: /Cannot open jobs because persistent task assignment is disabled by the \[cluster.persistent_tasks.allocation.enable\] setting/
       ml.open_job:
         job_id: persistent-task-allocation-allowed-test
 
@@ -1442,6 +1507,7 @@
       ml.open_job:
         job_id: persistent-task-allocation-allowed-test
   - match: { opened: true }
+  - match: { node: /\S+/ }
 
 ---
 "Test reopen job resets the finished time":

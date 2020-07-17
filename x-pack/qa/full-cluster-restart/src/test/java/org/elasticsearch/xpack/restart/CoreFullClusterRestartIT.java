@@ -21,4 +21,5 @@ public class CoreFullClusterRestartIT extends FullClusterRestartIT {
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();
     }
+
 }

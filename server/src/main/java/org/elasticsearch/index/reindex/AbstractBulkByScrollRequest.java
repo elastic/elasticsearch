@@ -187,6 +187,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (maxDocs < 0) {
             throw new IllegalArgumentException("[max_docs] parameter cannot be negative, found [" + maxDocs + "]");
         }
+        if (maxDocs < slices) {
+            throw new IllegalArgumentException("[max_docs] should be >= [slices]");
+        }
         this.maxDocs = maxDocs;
         return self();
     }
@@ -375,6 +378,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
 
     /**
      * The number of slices this task should be divided into. Defaults to 1 meaning the task isn't sliced into subtasks.
+     * A value of 0 is equivalent to the "auto" slices parameter of the Rest API.
      */
     public Self setSlices(int slices) {
         if (slices < 0) {

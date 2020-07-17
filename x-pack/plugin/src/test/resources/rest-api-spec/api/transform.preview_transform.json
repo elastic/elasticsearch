@@ -1,9 +1,10 @@
 {
   "transform.preview_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html",
+      "description":"Previews a transform."
     },
-    "stability":"beta",
+    "stability":"stable",
     "url":{
       "paths":[
         {

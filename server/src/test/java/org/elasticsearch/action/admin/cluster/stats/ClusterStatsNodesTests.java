@@ -70,9 +70,23 @@ public class ClusterStatsNodesTests extends ESTestCase {
     public void testIngestStats() throws Exception {
         NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
         SortedMap<String, long[]> processorStats = new TreeMap<>();
-        nodeStats.getIngestStats().getProcessorStats().values().forEach(l -> l.forEach(s -> processorStats.put(s.getType(),
-            new long[] { s.getStats().getIngestCount(), s.getStats().getIngestFailedCount(),
-                s.getStats().getIngestCurrent(), s.getStats().getIngestTimeInMillis()})));
+        nodeStats.getIngestStats().getProcessorStats().values().forEach(stats -> {
+            stats.forEach(stat -> {
+                processorStats.compute(stat.getType(), (key, value) -> {
+                    if (value == null) {
+                        return new long[] { stat.getStats().getIngestCount(), stat.getStats().getIngestFailedCount(),
+                            stat.getStats().getIngestCurrent(), stat.getStats().getIngestTimeInMillis()};
+                    } else {
+                        value[0] += stat.getStats().getIngestCount();
+                        value[1] += stat.getStats().getIngestFailedCount();
+                        value[2] += stat.getStats().getIngestCurrent();
+                        value[3] += stat.getStats().getIngestTimeInMillis();
+                        return value;
+                    }
+                });
+            });
+        });
+
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(Collections.singletonList(nodeStats));
         assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
         String processorStatsString = "{";

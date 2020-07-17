@@ -329,7 +329,6 @@ public class PemUtils {
         EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
         SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
         SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Arrays.fill(keyPassword, '\u0000');
         Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
@@ -482,9 +481,12 @@ public class PemUtils {
         parser.readAsn1Object().getInteger(); // version
         String keyHex = parser.readAsn1Object().getString();
         BigInteger privateKeyInt = new BigInteger(keyHex, 16);
+        DerParser.Asn1Object choice = parser.readAsn1Object();
+        parser = choice.getParser();
+        String namedCurve = getEcCurveNameFromOid(parser.readAsn1Object().getOid());
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EC");
-        AlgorithmParameterSpec prime256v1ParamSpec = new ECGenParameterSpec("secp256r1");
-        keyPairGenerator.initialize(prime256v1ParamSpec);
+        AlgorithmParameterSpec algorithmParameterSpec = new ECGenParameterSpec(namedCurve);
+        keyPairGenerator.initialize(algorithmParameterSpec);
         ECParameterSpec parameterSpec = ((ECKey) keyPairGenerator.generateKeyPair().getPrivate()).getParams();
         return new ECPrivateKeySpec(privateKeyInt, parameterSpec);
     }
@@ -556,7 +558,45 @@ public class PemUtils {
             case "1.2.840.10045.2.1":
                 return "EC";
         }
-        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: "+oidString+ " is not " +
+        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: " + oidString + " is not " +
+            "supported");
+    }
+
+    private static String getEcCurveNameFromOid(String oidString) throws GeneralSecurityException {
+        switch (oidString) {
+            // see https://tools.ietf.org/html/rfc5480#section-2.1.1.1
+            case "1.2.840.10045.3.1":
+                return "secp192r1";
+            case "1.3.132.0.1":
+                return "sect163k1";
+            case "1.3.132.0.15":
+                return "sect163r2";
+            case "1.3.132.0.33":
+                return "secp224r1";
+            case "1.3.132.0.26":
+                return "sect233k1";
+            case "1.3.132.0.27":
+                return "sect233r1";
+            case "1.2.840.10045.3.1.7":
+                return "secp256r1";
+            case "1.3.132.0.16":
+                return "sect283k1";
+            case "1.3.132.0.17":
+                return "sect283r1";
+            case "1.3.132.0.34":
+                return "secp384r1";
+            case "1.3.132.0.36":
+                return "sect409k1";
+            case "1.3.132.0.37":
+                return "sect409r1";
+            case "1.3.132.0.35":
+                return "secp521r1";
+            case "1.3.132.0.38":
+                return "sect571k1";
+            case "1.3.132.0.39":
+                return "sect571r1";
+        }
+        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString + " is not " +
             "supported");
     }
 }

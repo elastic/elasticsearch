@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,12 +17,11 @@ import java.util.Objects;
 
 public class SubstringFunctionPipe extends Pipe {
 
-    private final Pipe source, start, length;
+    private final Pipe input, start, length;
 
-    public SubstringFunctionPipe(Source source, Expression expression, Pipe src,
-            Pipe start, Pipe length) {
-        super(source, expression, Arrays.asList(src, start, length));
-        this.source = src;
+    public SubstringFunctionPipe(Source source, Expression expression, Pipe input, Pipe start, Pipe length) {
+        super(source, expression, Arrays.asList(input, start, length));
+        this.input = input;
         this.start = start;
         this.length = length;
     }
@@ -37,49 +36,48 @@ public class SubstringFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newStart = start.resolveAttributes(resolver);
         Pipe newLength = length.resolveAttributes(resolver);
-        if (newSource == source && newStart == start && newLength == length) {
+        if (newInput == input && newStart == start && newLength == length) {
             return this;
         }
-        return replaceChildren(newSource, newStart, newLength);
+        return replaceChildren(newInput, newStart, newLength);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && start.supportedByAggsOnlyQuery() && length.supportedByAggsOnlyQuery();
+        return input.supportedByAggsOnlyQuery() && start.supportedByAggsOnlyQuery() && length.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && start.resolved() && length.resolved();
+        return input.resolved() && start.resolved() && length.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource, Pipe newStart,
-            Pipe newLength) {
-        return new SubstringFunctionPipe(source(), expression(), newSource, newStart, newLength);
+    protected SubstringFunctionPipe replaceChildren(Pipe newInput, Pipe newStart, Pipe newLength) {
+        return new SubstringFunctionPipe(source(), expression(), newInput, newStart, newLength);
     }
 
     @Override
-    public final void collectFields(SqlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+    public final void collectFields(QlSourceBuilder sourceBuilder) {
+        input.collectFields(sourceBuilder);
         start.collectFields(sourceBuilder);
         length.collectFields(sourceBuilder);
     }
 
     @Override
     protected NodeInfo<SubstringFunctionPipe> info() {
-        return NodeInfo.create(this, SubstringFunctionPipe::new, expression(), source, start, length);
+        return NodeInfo.create(this, SubstringFunctionPipe::new, expression(), input, start, length);
     }
 
     @Override
     public SubstringFunctionProcessor asProcessor() {
-        return new SubstringFunctionProcessor(source.asProcessor(), start.asProcessor(), length.asProcessor());
+        return new SubstringFunctionProcessor(input.asProcessor(), start.asProcessor(), length.asProcessor());
     }
     
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
     
     public Pipe start() {
@@ -92,7 +90,7 @@ public class SubstringFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source, start, length);
+        return Objects.hash(input, start, length);
     }
 
     @Override
@@ -106,6 +104,6 @@ public class SubstringFunctionPipe extends Pipe {
         }
 
         SubstringFunctionPipe other = (SubstringFunctionPipe) obj;
-        return Objects.equals(source, other.source) && Objects.equals(start, other.start) && Objects.equals(length, other.length);
+        return Objects.equals(input, other.input) && Objects.equals(start, other.start) && Objects.equals(length, other.length);
     }
 }

@@ -125,7 +125,9 @@ public final class MethodWriter extends GeneratorAdapter {
         int offset = location.getOffset();
         // ensure we don't have duplicate stuff going in here. can catch bugs
         // (e.g. nodes get assigned wrong offsets by antlr walker)
-        assert statements.get(offset) == false;
+        // TODO: introduce a way to ignore internal statements so this assert is not triggered
+        // TODO: https://github.com/elastic/elasticsearch/issues/51836
+        //assert statements.get(offset) == false;
         statements.set(offset);
     }
 
@@ -141,12 +143,12 @@ public final class MethodWriter extends GeneratorAdapter {
         visitLineNumber(location.getOffset() + 1, label);
     }
 
-    public void writeLoopCounter(int slot, int count, Location location) {
+    public void writeLoopCounter(int slot, Location location) {
         assert slot != -1;
         writeDebugInfo(location);
         final Label end = new Label();
 
-        iinc(slot, -count);
+        iinc(slot, -1);
         visitVarInsn(Opcodes.ILOAD, slot);
         push(0);
         ifICmp(GeneratorAdapter.GT, end);
@@ -500,7 +502,7 @@ public final class MethodWriter extends GeneratorAdapter {
             // method since java 8 did not check, but java 9 and 10 do
             if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
                 visitMethodInsn(Opcodes.INVOKESTATIC, type.getInternalName(),
-                        painlessMethod.javaMethod.getName(), painlessMethod.methodType.toMethodDescriptorString(), true);
+                        painlessMethod.javaMethod.getName(), method.getDescriptor(), true);
             } else {
                 invokeStatic(type, method);
             }

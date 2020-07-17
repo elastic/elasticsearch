@@ -9,10 +9,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -36,14 +34,17 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
-public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedResponse> {
+public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static final StartDataFrameAnalyticsAction INSTANCE = new StartDataFrameAnalyticsAction();
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/start";
 
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
+
     private StartDataFrameAnalyticsAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, NodeAcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -69,7 +70,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
 
         private String id;
-        private TimeValue timeout = TimeValue.timeValueSeconds(20);
+        private TimeValue timeout = DEFAULT_TIMEOUT;
 
         public Request(String id) {
             setId(id);
@@ -143,7 +144,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
+    static class RequestBuilder extends ActionRequestBuilder<Request, NodeAcknowledgedResponse> {
 
         RequestBuilder(ElasticsearchClient client, StartDataFrameAnalyticsAction action) {
             super(client, action, new Request());
@@ -157,7 +158,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         private static final ParseField PROGRESS_ON_START = new ParseField("progress_on_start");
 
         @SuppressWarnings("unchecked")
-        public static ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
             a -> new TaskParams((String) a[0], (String) a[1], (List<PhaseProgress>) a[2], (Boolean) a[3]));
 
@@ -271,7 +272,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
 
         static boolean match(Task task, String expectedId) {
             if (task instanceof TaskMatcher) {
-                if (MetaData.ALL.equals(expectedId)) {
+                if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
                 String expectedDescription = MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + expectedId;

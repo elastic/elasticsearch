@@ -24,20 +24,15 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
-
-for (Version bwcVersion : bwcVersions.indexCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"
 
   testClusters {
     "${baseName}" {
       version = bwcVersion.toString()
       setting 'http.content_type.required', 'true'
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -47,22 +42,12 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#integTest"
   }
-
-  bwcTest.dependsOn("${baseName}#bwcTest")
 }
 
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (version in bwcVersions.unreleasedIndexCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-
-task verifyDocsLuceneVersion {
+tasks.register("verifyDocsLuceneVersion") {
   doFirst {
     File docsVersionsFile = rootProject.file('docs/Versions.asciidoc')
     List<String> versionLines = docsVersionsFile.readLines('UTF-8')
@@ -84,6 +69,6 @@ task verifyDocsLuceneVersion {
   }
 }
 
-check.dependsOn bwcTestSnapshots, verifyDocsLuceneVersion
-
-test.enabled = false
+tasks.named("check").configure {
+  dependsOn verifyDocsLuceneVersion
+}

@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.monitor.NodeHealthService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.Transport;
@@ -54,6 +56,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * The FollowersChecker is responsible for allowing a leader to check that its followers are still connected and healthy. On deciding that a
@@ -94,16 +97,17 @@ public class FollowersChecker {
     private final Set<DiscoveryNode> faultyNodes = new HashSet<>();
 
     private final TransportService transportService;
-
+    private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
 
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
-                            BiConsumer<DiscoveryNode, String> onNodeFailure) {
+                            BiConsumer<DiscoveryNode, String> onNodeFailure, NodeHealthService nodeHealthService) {
         this.settings = settings;
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
+        this.nodeHealthService = nodeHealthService;
 
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
@@ -160,10 +164,16 @@ public class FollowersChecker {
     }
 
     private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
-        FastResponseState responder = this.fastResponseState;
+        final StatusInfo statusInfo = nodeHealthService.getHealth();
+        if (statusInfo.getStatus() == UNHEALTHY) {
+            final String message
+                = "handleFollowerCheck: node is unhealthy [" + statusInfo.getInfo() + "], rejecting " + statusInfo.getInfo();
+            logger.debug(message);
+            throw new NodeHealthCheckFailureException(message);
+        }
 
+        final FastResponseState responder = this.fastResponseState;
         if (responder.mode == Mode.FOLLOWER && responder.term == request.term) {
-            // TODO trigger a term bump if we voted for a different leader in this term
             logger.trace("responding to {} on fast path", request);
             transportChannel.sendResponse(Empty.INSTANCE);
             return;
@@ -197,15 +207,6 @@ public class FollowersChecker {
             }
         });
     }
-
-    // TODO in the PoC a faulty node was considered non-faulty again if it sent us a PeersRequest:
-    // - node disconnects, detected faulty, removal is enqueued
-    // - node reconnects, pings us, finds we are master, requests to join, all before removal is applied
-    // - join is processed before removal, but we do not publish to known-faulty nodes so the joining node does not receive this publication
-    // - it doesn't start its leader checker since it receives nothing to cause it to become a follower
-    // Apparently this meant that it remained a candidate for too long, leading to a test failure.  At the time this logic was added, we did
-    // not have gossip-based discovery which would (I think) have retried this joining process a short time later. It's therefore possible
-    // that this is no longer required, so it's omitted here until we can be sure if it's necessary or not.
 
     /**
      * @return nodes in the current cluster state which have failed their follower checks.
@@ -326,13 +327,16 @@ public class FollowersChecker {
                         failureCountSinceLastSuccess++;
 
                         final String reason;
-                        if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
-                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
-                        } else if (exp instanceof ConnectTransportException
+                        if (exp instanceof ConnectTransportException
                             || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
+                        } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
+                            logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
+                            reason = "health check failed";
+                        } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
+                            logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
+                            reason = "followers check retry count exceeded";
                         } else {
                             logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();

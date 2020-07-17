@@ -17,24 +17,19 @@ Returns configured remote cluster information.
 ==== {api-description-title}
 
 The cluster remote info API allows you to retrieve all of the configured
-remote cluster information. It returns connection and endpoint information keyed 
+remote cluster information. It returns connection and endpoint information keyed
 by the configured remote cluster alias.
 
 
 [[cluster-remote-info-api-response-body]]
 ==== {api-response-body-title}
 
-`seeds`::
-	The configured initial seed transport addresses of the remote cluster.
+`mode`::
+    Connection mode for the remote cluster. Returned values are `sniff` and
+    `proxy`.
 
 `connected`::
 	True if there is at least one connection to the remote cluster.
-
-`num_nodes_connected`::
-    The number of connected nodes in the remote cluster.
-
-`max_connections_per_cluster`::
-	The maximum number of connections maintained for the remote cluster.
 
 `initial_connect_timeout`::
 	The initial connect timeout for remote cluster connections.
@@ -43,3 +38,26 @@ by the configured remote cluster alias.
 `skip_unavailable`::
     Whether the remote cluster is skipped in case it is searched through
     a {ccs} request but none of its nodes are available.
+
+`seeds`::
+    Initial seed transport addresses of the remote cluster when sniff mode is
+    configured.
+
+`num_nodes_connected`::
+    Number of connected nodes in the remote cluster when sniff mode is
+    configured.
+
+`max_connections_per_cluster`::
+    Maximum number of connections maintained for the remote cluster when sniff
+    mode is configured.
+
+`proxy_address`::
+    Address for remote connections when proxy mode is configured.
+
+`num_proxy_sockets_connected`::
+    Number of open socket connections to the remote cluster when proxy mode
+    is configured.
+
+`max_proxy_socket_connections`::
+    The maximum number of socket connections to the remote cluster when proxy
+    mode is configured.

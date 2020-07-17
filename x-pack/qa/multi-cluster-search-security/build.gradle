@@ -2,9 +2,16 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
+}
+
+restResources {
+  restApi {
+    includeXpack 'security', 'async_search', 'indices'
+  }
 }
 
 task 'remote-cluster'(type: RestIntegTestTask) {
@@ -17,11 +24,9 @@ task 'remote-cluster'(type: RestIntegTestTask) {
 testClusters.'remote-cluster' {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
-  setting 'cluster.remote.connect', "false"
-  setting 'xpack.ilm.enabled', 'false'
+  setting 'node.roles', '[data,ingest,master]'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
@@ -40,14 +45,12 @@ testClusters.'mixed-cluster' {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'cluster.remote.my_remote_cluster.seeds', {
     testClusters.'remote-cluster'.getAllTransportPortURI().collect { "\"$it\"" }.toString()
   }
   setting 'cluster.remote.connections_per_cluster', "1"
-  setting 'cluster.remote.connect', "true"
 
   user username: "test_user", password: "x-pack-test-password"
 }

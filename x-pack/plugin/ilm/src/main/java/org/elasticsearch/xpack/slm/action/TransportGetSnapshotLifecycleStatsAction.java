@@ -49,7 +49,7 @@ public class TransportGetSnapshotLifecycleStatsAction extends
     @Override
     protected void masterOperation(Task task, GetSnapshotLifecycleStatsAction.Request request,
                                    ClusterState state, ActionListener<GetSnapshotLifecycleStatsAction.Response> listener) {
-        SnapshotLifecycleMetadata slmMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata slmMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (slmMeta == null) {
             listener.onResponse(new GetSnapshotLifecycleStatsAction.Response(new SnapshotLifecycleStats()));
         } else {

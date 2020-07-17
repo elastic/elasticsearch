@@ -5,34 +5,24 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.junit.Before;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class RegressionConfigTests extends AbstractWireSerializingTestCase<RegressionConfig> {
+public class RegressionConfigTests extends AbstractBWCSerializationTestCase<RegressionConfig> {
+    private boolean lenient;
 
     public static RegressionConfig randomRegressionConfig() {
         return new RegressionConfig(randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
-    public void testFromMap() {
-        RegressionConfig expected = new RegressionConfig("foo");
-        Map<String, Object> config = new HashMap<>(){{
-            put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
-        }};
-        assertThat(RegressionConfig.fromMap(config), equalTo(expected));
-    }
-
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> RegressionConfig.fromMap(Collections.singletonMap("some_key", 1)));
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Before
+    public void chooseStrictOrLenient() {
+        lenient = randomBoolean();
     }
 
     @Override
@@ -45,4 +35,18 @@ public class RegressionConfigTests extends AbstractWireSerializingTestCase<Regre
         return RegressionConfig::new;
     }
 
+    @Override
+    protected RegressionConfig doParseInstance(XContentParser parser) throws IOException {
+        return lenient ? RegressionConfig.fromXContentLenient(parser) : RegressionConfig.fromXContentStrict(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return lenient;
+    }
+
+    @Override
+    protected RegressionConfig mutateInstanceForVersion(RegressionConfig instance, Version version) {
+        return instance;
+    }
 }

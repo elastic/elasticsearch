@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,6 +45,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -71,10 +73,16 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             return null;
         }
 
+        @Override
+        public String getDescription() {
+            return null;
+        }
+
         static class Factory implements Processor.Factory {
 
             @Override
-            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) {
+            public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
+                                    Map<String, Object> config) {
                 return new NotInferenceProcessor();
             }
         }
@@ -85,12 +93,11 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             Map<String, Processor.Factory> factoryMap = new HashMap<>();
             XPackLicenseState licenseState = mock(XPackLicenseState.class);
-            when(licenseState.isMachineLearningAllowed()).thenReturn(true);
+            when(licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)).thenReturn(true);
             factoryMap.put(InferenceProcessor.TYPE,
                 new InferenceProcessor.Factory(parameters.client,
                     parameters.ingestService.getClusterService(),
-                    Settings.EMPTY,
-                    parameters.ingestService));
+                    Settings.EMPTY));
 
             factoryMap.put("not_inference", new NotInferenceProcessor.Factory());
 
@@ -105,6 +112,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
     @Before
     public void setUpVariables() {
         ThreadPool tp = mock(ThreadPool.class);
+        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(tp.generic()).thenReturn(executorService);
         client = mock(Client.class);
         clusterService = mock(ClusterService.class);
         Settings settings = Settings.builder().put("node.name", "InferenceProcessorFactoryTests_node").build();
@@ -112,7 +121,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ClusterService.USER_DEFINED_META_DATA,
+                ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
         clusterService = new ClusterService(settings, clusterSettings, tp);
         ingestService = new IngestService(clusterService, tp, null, null,
@@ -120,7 +129,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
     }
 
 
-    public void testInferenceIngestStatsByPipelineId() throws IOException {
+    public void testInferenceIngestStatsByModelId() {
         List<NodeStats> nodeStatsList = Arrays.asList(
             buildNodeStats(
                 new IngestStats.Stats(2, 2, 3, 4),
@@ -187,7 +196,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             put("trained_model_1", Collections.singleton("pipeline1"));
             put("trained_model_2", new HashSet<>(Arrays.asList("pipeline1", "pipeline2")));
         }};
-        Map<String, IngestStats> ingestStatsMap = TransportGetTrainedModelsStatsAction.inferenceIngestStatsByPipelineId(response,
+        Map<String, IngestStats> ingestStatsMap = TransportGetTrainedModelsStatsAction.inferenceIngestStatsByModelId(response,
             pipelineIdsByModelIds);
 
         assertThat(ingestStatsMap.keySet(), equalTo(new HashSet<>(Arrays.asList("trained_model_1", "trained_model_2"))));
@@ -252,7 +261,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(configurations);
 
         return ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
             .build();
     }
 
@@ -263,7 +272,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     new HashMap<String, Object>() {{
                         put(InferenceProcessor.MODEL_ID, modelId);
                         put("inference_config", Collections.singletonMap("regression", Collections.emptyMap()));
-                        put("field_mappings", Collections.emptyMap());
+                        put("field_map", Collections.emptyMap());
                         put("target_field", randomAlphaOfLength(10));
                     }}))))) {
             return new PipelineConfiguration("pipeline_with_model_" + modelId + num,
@@ -289,7 +298,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             IntStream.range(0, pipelineids.size()).boxed().collect(Collectors.toMap(pipelineids::get, processorStats::get)));
         return new NodeStats(mock(DiscoveryNode.class),
             Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null);
+            null, null, null, ingestStats, null, null);
 
     }
 

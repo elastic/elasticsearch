@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99" #TODO change this after backport
-      reason:  These new error messages were added in 7.1
+      version: " - 7.1.99"
+      reason:  These new error messages were added in 7.2
 
   - do:
       indices.create:
@@ -98,3 +98,26 @@ setup:
             the_bad_max:
               max_bucket:
                 buckets_path: "the_terms>the_percentiles"
+
+---
+"Top level bucket_sort":
+  - skip:
+      version: " - 7.7.99"
+      reason:  This validation was changed in 7.8.0
+
+  - do:
+      catch: /bucket_sort aggregation \[the_bad_bucket_sort\] must be declared inside of another aggregation/
+      search:
+        body:
+          aggs:
+            the_terms:
+              terms:
+                field: "int_field"
+              aggs:
+                the_max:
+                  max:
+                    field: "int_field"
+            the_bad_bucket_sort:
+              bucket_sort:
+                sort:
+                  - the_terms>the_max

@@ -1,0 +1,307 @@
+[role="xpack"]
+[testenv="basic"]
+[[usage-api]]
+== Usage API
+
+Provides usage information about the installed {xpack} features.
+
+[discrete]
+[[usage-api-request]]
+=== {api-request-title}
+
+`GET /_xpack/usage`
+
+[discrete]
+[[usage-api-desc]]
+=== {api-description-title}
+
+This API provides information about which features are currently enabled and
+available under the current license and some usage statistics.
+
+[discrete]
+[[usage-api-query-parms]]
+=== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+[discrete]
+[[usage-api-example]]
+=== {api-examples-title}
+
+[source,console]
+------------------------------------------------------------
+GET /_xpack/usage
+------------------------------------------------------------
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "security" : {
+    "available" : true,
+    "enabled" : false,
+    "ssl" : {
+      "http" : {
+        "enabled" : false
+      },
+      "transport" : {
+        "enabled" : false
+      }
+    }
+  },
+  "monitoring" : {
+    "available" : true,
+    "enabled" : true,
+    "collection_enabled" : false,
+    "enabled_exporters" : {
+      "local" : 1
+    }
+  },
+  "watcher" : {
+    "available" : true,
+    "enabled" : true,
+    "execution" : {
+      "actions" : {
+        "_all" : {
+          "total" : 0,
+          "total_time_in_ms" : 0
+        }
+      }
+    },
+    "watch" : {
+      "input" : {
+        "_all" : {
+          "total" : 0,
+          "active" : 0
+        }
+      },
+      "trigger" : {
+        "_all" : {
+          "total" : 0,
+          "active" : 0
+        }
+      }
+    },
+    "count" : {
+      "total" : 0,
+      "active" : 0
+    }
+  },
+  "graph" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "ml" : {
+    "available" : true,
+    "enabled" : true,
+    "jobs" : {
+      "_all" : {
+        "count" : 0,
+        "detectors" : {
+          ...
+        },
+        "created_by" : { },
+        "model_size" : {
+          ...
+        },
+        "forecasts" : {
+          "total" : 0,
+          "forecasted_jobs" : 0
+        }
+      }
+    },
+    "datafeeds" : {
+      "_all" : {
+        "count" : 0
+      }
+    },
+    "data_frame_analytics_jobs" : {
+      "_all" : {
+        "count" : 0
+      }
+    },
+    "inference" : {
+      "ingest_processors" : {
+        "_all" : {
+          "num_docs_processed" : {
+            "max" : 0,
+            "sum" : 0,
+            "min" : 0
+          },
+          "pipelines" : {
+            "count" : 0
+          },
+          "num_failures" : {
+            "max" : 0,
+            "sum" : 0,
+            "min" : 0
+          },
+          "time_ms" : {
+            "max" : 0,
+            "sum" : 0,
+            "min" : 0
+          }
+        }
+      },
+      "trained_models" : {
+        "_all" : {
+          "count" : 0
+        }
+      }
+    },
+    "node_count" : 1
+  },
+  "logstash" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "eql" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "sql" : {
+    "available" : true,
+    "enabled" : true,
+    "features" : {
+      "having" : 0,
+      "subselect" : 0,
+      "limit" : 0,
+      "orderby" : 0,
+      "where" : 0,
+      "join" : 0,
+      "groupby" : 0,
+      "command" : 0,
+      "local" : 0
+    },
+    "queries" : {
+      "rest" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "cli" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "canvas" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "odbc" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "jdbc" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "odbc32" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "odbc64" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "_all" : {
+        "total" : 0,
+        "paging" : 0,
+        "failed" : 0
+      },
+      "translate" : {
+        "count" : 0
+      }
+    }
+  },
+  "rollup" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "ilm" : {
+    "policy_count" : 3,
+    "policy_stats" : [
+      ...
+    ]
+  },
+  "slm" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "ccr" : {
+    "available" : true,
+    "enabled" : true,
+    "follower_indices_count" : 0,
+    "auto_follow_patterns_count" : 0
+  },
+  "transform" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "vectors" : {
+    "available" : true,
+    "enabled" : true,
+    "dense_vector_fields_count" : 0,
+    "dense_vector_dims_avg_count" : 0
+  },
+  "voting_only" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "searchable_snapshots" : {
+    "available" : true,
+    "enabled" : true,
+    "indices_count" : 0
+  },
+  "frozen_indices" : {
+    "available" : true,
+    "enabled" : true,
+    "indices_count" : 0
+  },
+  "spatial" : {
+    "available" : true,
+    "enabled" : true
+  },
+  "analytics" : {
+    "available" : true,
+    "enabled" : true,
+    "stats": {
+      "boxplot_usage" : 0,
+      "top_metrics_usage" : 0,
+      "normalize_usage" : 0,
+      "cumulative_cardinality_usage" : 0,
+      "t_test_usage" : 0,
+      "string_stats_usage" : 0,
+      "moving_percentiles_usage" : 0
+    }
+  },
+  "data_streams" : {
+    "available" : true,
+    "enabled" : true,
+    "data_streams" : 0,
+    "indices_count" : 0
+  }
+}
+------------------------------------------------------------
+// TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
+// TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
+// TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
+// TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
+// TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
+// TESTRESPONSE[s/ : true/ : $body.$_path/]
+// TESTRESPONSE[s/ : false/ : $body.$_path/]
+// TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
+// These replacements do a few things:
+// 1. Ignore the contents of the `policy_stats` object because we don't know all
+//    of the policies that will be in it. And because we figure folks don't need
+//    to see an exhaustive list anyway.
+// 2. Handling eql, which is disabled by default on release builds and enabled
+//    everywhere else during the initial implementation phase until its release
+// 3. Ignore the contents of the `slm` object because it might contain policies
+// 4. All of the numbers and strings on the right hand side of *every* field in
+//    the response are ignored. So we're really only asserting things about the
+//    the shape of this response, not the values in it.

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -21,8 +20,7 @@ import static org.mockito.Mockito.mock;
 public class RestStartDatafeedActionTests extends ESTestCase {
 
     public void testPrepareRequest() throws Exception {
-        RestStartDatafeedAction action = new RestStartDatafeedAction(
-            mock(RestController.class));
+        RestStartDatafeedAction action = new RestStartDatafeedAction();
 
         Map<String, String> params = new HashMap<>();
         params.put("start", "not-a-date");

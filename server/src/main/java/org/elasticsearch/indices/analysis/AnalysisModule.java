@@ -19,11 +19,10 @@
 
 package org.elasticsearch.indices.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
+import org.elasticsearch.index.analysis.LowercaseNormalizerProvider;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
@@ -63,15 +63,14 @@ import static org.elasticsearch.plugins.AnalysisPlugin.requiresAnalysisSettings;
  */
 public final class AnalysisModule {
     static {
-        Settings build = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexMetaData
-            .SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
-        IndexMetaData metaData = IndexMetaData.builder("_na_").settings(build).build();
-        NA_INDEX_SETTINGS = new IndexSettings(metaData, Settings.EMPTY);
+        Settings build = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexMetadata
+            .SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("_na_").settings(build).build();
+        NA_INDEX_SETTINGS = new IndexSettings(metadata, Settings.EMPTY);
     }
 
     private static final IndexSettings NA_INDEX_SETTINGS;
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(AnalysisModule.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AnalysisModule.class);
 
     private final HunspellService hunspellService;
     private final AnalysisRegistry analysisRegistry;
@@ -125,7 +124,7 @@ public final class AnalysisModule {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
                 if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
+                    deprecationLogger.deprecate("standard_deprecation",
                         "The [standard] token filter name is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
@@ -181,9 +180,9 @@ public final class AnalysisModule {
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register( "standard",
-            PreConfiguredTokenFilter.singletonWithVersion("standard", true, (reader, version) -> {
+            PreConfiguredTokenFilter.elasticsearchVersion("standard", true, (reader, version) -> {
                 if (version.before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecatedAndMaybeLog("standard_deprecation",
+                    deprecationLogger.deprecate("standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
@@ -250,7 +249,7 @@ public final class AnalysisModule {
 
     private NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> setupNormalizers(List<AnalysisPlugin> plugins) {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = new NamedRegistry<>("normalizer");
-        // TODO: provide built-in normalizer providers?
+        normalizers.register("lowercase", LowercaseNormalizerProvider::new);
         // TODO: pluggability?
         return normalizers;
     }

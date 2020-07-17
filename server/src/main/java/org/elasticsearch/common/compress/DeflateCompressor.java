@@ -67,6 +67,11 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
+    public int headerLength() {
+        return HEADER.length;
+    }
+
+    @Override
     public StreamInput streamInput(StreamInput in) throws IOException {
         final byte[] headerBytes = new byte[HEADER.length];
         int len = 0;
@@ -102,8 +107,8 @@ public class DeflateCompressor implements Compressor {
     }
 
     @Override
-    public StreamOutput streamOutput(StreamOutput out) throws IOException {
-        out.writeBytes(HEADER);
+    public StreamOutput streamOutput(OutputStream out) throws IOException {
+        out.write(HEADER);
         final boolean nowrap = true;
         final Deflater deflater = new Deflater(LEVEL, nowrap);
         final boolean syncFlush = true;

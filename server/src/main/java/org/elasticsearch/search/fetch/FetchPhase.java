@@ -38,7 +38,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -52,12 +51,13 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
-import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -78,7 +79,7 @@ public class FetchPhase implements SearchPhase {
 
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
-        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
+        this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
     @Override
@@ -116,7 +117,7 @@ public class FetchPhase implements SearchPhase {
 
                 Collection<String> fieldNames = context.mapperService().simpleMatchToFullName(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
-                    MappedFieldType fieldType = context.smartNameFieldType(fieldName);
+                    MappedFieldType fieldType = context.fieldType(fieldName);
                     if (fieldType == null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         if (context.getObjectMapper(fieldName) != null) {
@@ -140,13 +141,20 @@ public class FetchPhase implements SearchPhase {
         }
 
         try {
+            DocIdToIndex[] docs = new DocIdToIndex[context.docIdsToLoadSize()];
+            for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+                docs[index] = new DocIdToIndex(context.docIdsToLoad()[context.docIdsToLoadFrom() + index], index);
+            }
+            Arrays.sort(docs);
+
             SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
+            SearchHit[] sortedHits = new SearchHit[context.docIdsToLoadSize()];
             FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
             for (int index = 0; index < context.docIdsToLoadSize(); index++) {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
+                int docId = docs[index].docId;
                 int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                 LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                 int subDocId = docId - subReaderContext.docBase;
@@ -161,7 +169,8 @@ public class FetchPhase implements SearchPhase {
                         storedToRequestedFields, subReaderContext);
                 }
 
-                hits[index] = searchHit;
+                sortedHits[index] = searchHit;
+                hits[docs[index].index] = searchHit;
                 hitContext.reset(searchHit, subReaderContext, subDocId, context.searcher());
                 for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                     fetchSubPhase.hitExecute(context, hitContext);
@@ -172,7 +181,7 @@ public class FetchPhase implements SearchPhase {
             }
 
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
-                fetchSubPhase.hitsExecute(context, hits);
+                fetchSubPhase.hitsExecute(context, sortedHits);
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
@@ -182,6 +191,21 @@ public class FetchPhase implements SearchPhase {
             context.fetchResult().hits(new SearchHits(hits, totalHits, context.queryResult().getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
+        }
+    }
+
+    static class DocIdToIndex implements Comparable<DocIdToIndex> {
+        final int docId;
+        final int index;
+
+        DocIdToIndex(int docId, int index) {
+            this.docId = docId;
+            this.index = index;
+        }
+
+        @Override
+        public int compareTo(DocIdToIndex o) {
+            return Integer.compare(docId, o.docId);
         }
     }
 
@@ -204,13 +228,19 @@ public class FetchPhase implements SearchPhase {
                                       Map<String, Set<String>> storedToRequestedFields,
                                       LeafReaderContext subReaderContext) {
         if (fieldsVisitor == null) {
-            return new SearchHit(docId, null, null);
+            return new SearchHit(docId, null, null, null);
         }
-
-        Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
-            storedToRequestedFields, subReaderContext);
-
-        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.id(), searchFields);
+        loadStoredFields(context.shardTarget(), subReaderContext, fieldsVisitor, subDocId);
+        fieldsVisitor.postProcess(context.mapperService());
+        SearchHit searchHit;
+        if (fieldsVisitor.fields().isEmpty() == false) {
+            Map<String, DocumentField> docFields = new HashMap<>();
+            Map<String, DocumentField> metaFields = new HashMap<>();
+            fillDocAndMetaFields(context, fieldsVisitor, storedToRequestedFields, docFields, metaFields);
+            searchHit = new SearchHit(docId, fieldsVisitor.id(), docFields, metaFields);
+        } else {
+            searchHit = new SearchHit(docId, fieldsVisitor.id(), emptyMap(), emptyMap());
+        }
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -218,34 +248,6 @@ public class FetchPhase implements SearchPhase {
             sourceLookup.setSource(fieldsVisitor.source());
         }
         return searchHit;
-    }
-
-    private Map<String, DocumentField> getSearchFields(SearchContext context,
-                                                       FieldsVisitor fieldsVisitor,
-                                                       int subDocId,
-                                                       Map<String, Set<String>> storedToRequestedFields,
-                                                       LeafReaderContext subReaderContext) {
-        loadStoredFields(context.shardTarget(), subReaderContext, fieldsVisitor, subDocId);
-        fieldsVisitor.postProcess(context.mapperService());
-
-        if (fieldsVisitor.fields().isEmpty()) {
-            return null;
-        }
-
-        Map<String, DocumentField> searchFields = new HashMap<>(fieldsVisitor.fields().size());
-        for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
-            String storedField = entry.getKey();
-            List<Object> storedValues = entry.getValue();
-
-            if (storedToRequestedFields.containsKey(storedField)) {
-                for (String requestedField : storedToRequestedFields.get(storedField)) {
-                    searchFields.put(requestedField, new DocumentField(requestedField, storedValues));
-                }
-            } else {
-                searchFields.put(storedField, new DocumentField(storedField, storedValues));
-            }
-        }
-        return searchFields;
     }
 
     @SuppressWarnings("unchecked")
@@ -273,11 +275,17 @@ public class FetchPhase implements SearchPhase {
             source = null;
         }
 
-        Map<String, DocumentField> searchFields = null;
+        Map<String, DocumentField> docFields = emptyMap();
+        Map<String, DocumentField> metaFields = emptyMap();
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
-            searchFields = getSearchFields(context, nestedFieldsVisitor, nestedSubDocId,
-                storedToRequestedFields, subReaderContext);
+            loadStoredFields(context.shardTarget(), subReaderContext, nestedFieldsVisitor, nestedSubDocId);
+            nestedFieldsVisitor.postProcess(context.mapperService());
+            if (nestedFieldsVisitor.fields().isEmpty() == false) {
+                docFields = new HashMap<>();
+                metaFields = new HashMap<>();
+                fillDocAndMetaFields(context, nestedFieldsVisitor, storedToRequestedFields, docFields, metaFields);
+            }
         }
 
         DocumentMapper documentMapper = context.mapperService().documentMapper();
@@ -337,7 +345,7 @@ public class FetchPhase implements SearchPhase {
             XContentType contentType = tuple.v1();
             context.lookup().source().setSourceContentType(contentType);
         }
-        return new SearchHit(nestedTopDocId, id, nestedIdentity, searchFields);
+        return new SearchHit(nestedTopDocId, id, nestedIdentity, docFields, metaFields);
     }
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
@@ -349,7 +357,6 @@ public class FetchPhase implements SearchPhase {
         ObjectMapper current = nestedObjectMapper;
         String originalName = nestedObjectMapper.name();
         SearchHit.NestedIdentity nestedIdentity = null;
-        final IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
         do {
             Query parentFilter;
             nestedParentObjectMapper = current.getParentObjectMapper(mapperService);
@@ -409,6 +416,30 @@ public class FetchPhase implements SearchPhase {
             readerContext.reader().document(docId, fieldVisitor);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(shardTarget, "Failed to fetch doc id [" + docId + "]", e);
+        }
+    }
+
+    private static void fillDocAndMetaFields(SearchContext context, FieldsVisitor fieldsVisitor,
+            Map<String, Set<String>> storedToRequestedFields,
+            Map<String, DocumentField> docFields, Map<String, DocumentField> metaFields) {
+        for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
+            String storedField = entry.getKey();
+            List<Object> storedValues = entry.getValue();
+            if (storedToRequestedFields.containsKey(storedField)) {
+                for (String requestedField : storedToRequestedFields.get(storedField)) {
+                    if (context.mapperService().isMetadataField(requestedField)) {
+                        metaFields.put(requestedField, new DocumentField(requestedField, storedValues));
+                    } else {
+                        docFields.put(requestedField, new DocumentField(requestedField, storedValues));
+                    }
+                }
+            } else {
+                if (context.mapperService().isMetadataField(storedField)) {
+                    metaFields.put(storedField, new DocumentField(storedField, storedValues));
+                } else {
+                    docFields.put(storedField, new DocumentField(storedField, storedValues));
+                }
+            }
         }
     }
 }

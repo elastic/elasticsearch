@@ -57,7 +57,10 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        //TODO here we should just use ByteSizeValue#writeTo and same for de-serialization in the constructor
+        // While we technically could serialize this with value.writeTo(...), that would
+        // require doing the song and dance around backwards compatibility for this value. Since
+        // in this case the deserialized version is not displayed to a user, it's okay to simply use
+        // bytes.
         out.writeVLong(value.getBytes());
     }
 

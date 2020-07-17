@@ -251,6 +251,13 @@ for large number of values is that the law of large numbers makes the distributi
 values more and more uniform and the t-digest tree can do a better job at summarizing
 it. It would not be the case on more skewed distributions.
 
+[WARNING]
+====
+Percentile aggregations are also
+https://en.wikipedia.org/wiki/Nondeterministic_algorithm[non-deterministic].
+This means you can get slightly different results using the same data.
+====
+
 [[search-aggregations-metrics-percentile-aggregation-compression]]
 ==== Compression
 
@@ -278,6 +285,7 @@ GET latency/_search
 
 <1> Compression controls memory usage and approximation error
 
+// tag::t-digest[]
 The TDigest algorithm uses a number of "nodes" to approximate percentiles -- the
 more nodes available, the higher the accuracy (and large memory footprint) proportional
 to the volume of data.  The `compression` parameter limits the maximum number of
@@ -293,6 +301,7 @@ A "node" uses roughly 32 bytes of memory, so under worst-case scenarios (large a
 of data which arrives sorted and in-order) the default settings will produce a
 TDigest roughly 64KB in size.  In practice data tends to be more random and
 the TDigest will use less memory.
+// end::t-digest[]
 
 ==== HDR Histogram
 

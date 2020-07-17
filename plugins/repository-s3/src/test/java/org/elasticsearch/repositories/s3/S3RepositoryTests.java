@@ -20,11 +20,13 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.services.s3.AbstractAmazonS3;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +51,7 @@ public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Service extends S3Service {
         @Override
-        public AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
+        public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
             return new AmazonS3Reference(new DummyS3Client());
         }
 
@@ -66,23 +68,23 @@ public class S3RepositoryTests extends ESTestCase {
         // chunk < buffer should fail
         final Settings s1 = bufferAndChunkSettings(10, 5);
         final Exception e1 = expectThrows(RepositoryException.class,
-                () -> createS3Repo(getRepositoryMetaData(s1)));
+                () -> createS3Repo(getRepositoryMetadata(s1)));
         assertThat(e1.getMessage(), containsString("chunk_size (5mb) can't be lower than buffer_size (10mb)"));
         // chunk > buffer should pass
         final Settings s2 = bufferAndChunkSettings(5, 10);
-        createS3Repo(getRepositoryMetaData(s2)).close();
+        createS3Repo(getRepositoryMetadata(s2)).close();
         // chunk = buffer should pass
         final Settings s3 = bufferAndChunkSettings(5, 5);
-        createS3Repo(getRepositoryMetaData(s3)).close();
+        createS3Repo(getRepositoryMetadata(s3)).close();
         // buffer < 5mb should fail
         final Settings s4 = bufferAndChunkSettings(4, 10);
         final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
-                () -> createS3Repo(getRepositoryMetaData(s4))
+                () -> createS3Repo(getRepositoryMetadata(s4))
                         .close());
         assertThat(e2.getMessage(), containsString("failed to parse value [4mb] for setting [buffer_size], must be >= [5mb]"));
         final Settings s5 = bufferAndChunkSettings(5, 6000000);
         final IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class,
-                () -> createS3Repo(getRepositoryMetaData(s5))
+                () -> createS3Repo(getRepositoryMetadata(s5))
                         .close());
         assertThat(e3.getMessage(), containsString("failed to parse value [6000000mb] for setting [chunk_size], must be <= [5tb]"));
     }
@@ -94,12 +96,12 @@ public class S3RepositoryTests extends ESTestCase {
                 .build();
     }
 
-    private RepositoryMetaData getRepositoryMetaData(Settings settings) {
-        return new RepositoryMetaData("dummy-repo", "mock", Settings.builder().put(settings).build());
+    private RepositoryMetadata getRepositoryMetadata(Settings settings) {
+        return new RepositoryMetadata("dummy-repo", "mock", Settings.builder().put(settings).build());
     }
 
     public void testBasePathSetting() {
-        final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.builder()
                 .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build());
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertEquals("foo/bar/", s3repo.basePath().buildAsString());
@@ -107,7 +109,7 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     public void testDefaultBufferSize() {
-        final RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
+        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertThat(s3repo.getBlobStore(), is(nullValue()));
             s3repo.start();
@@ -118,8 +120,9 @@ public class S3RepositoryTests extends ESTestCase {
         }
     }
 
-    private S3Repository createS3Repo(RepositoryMetaData metadata) {
-        return new S3Repository(metadata, NamedXContentRegistry.EMPTY, new DummyS3Service(), BlobStoreTestUtil.mockClusterService()) {
+    private S3Repository createS3Repo(RepositoryMetadata metadata) {
+        return new S3Repository(metadata, NamedXContentRegistry.EMPTY, new DummyS3Service(), BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads

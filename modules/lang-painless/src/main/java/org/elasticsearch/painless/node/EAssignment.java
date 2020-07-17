@@ -21,338 +21,181 @@ package org.elasticsearch.painless.node;
 
 
 import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations;
+import org.elasticsearch.painless.symbol.Decorations.CompoundType;
+import org.elasticsearch.painless.symbol.Decorations.Concatenate;
+import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
+import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents an assignment with the lhs and rhs as child nodes.
  */
-public final class EAssignment extends AExpression {
+public class EAssignment extends AExpression {
 
-    private AExpression lhs;
-    private AExpression rhs;
-    private final boolean pre;
-    private final boolean post;
-    private Operation operation;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final boolean postIfRead;
+    private final Operation operation;
 
-    private boolean cat = false;
-    private Class<?> promote = null;
-    private Class<?> shiftDistance; // for shifts, the RHS is promoted independently
-    private PainlessCast there = null;
-    private PainlessCast back = null;
+    public EAssignment(int identifier, Location location,
+            AExpression leftNode, AExpression rightNode, boolean postIfRead, Operation operation) {
 
-    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
-        super(location);
+        super(identifier, location);
 
-        this.lhs = Objects.requireNonNull(lhs);
-        this.rhs = rhs;
-        this.pre = pre;
-        this.post = post;
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+        this.postIfRead = postIfRead;
         this.operation = operation;
     }
 
-    @Override
-    void extractVariables(Set<String> variables) {
-        lhs.extractVariables(variables);
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
 
-        if (rhs != null) {
-            rhs.extractVariables(variables);
-        }
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public boolean postIfRead() {
+        return postIfRead;
+    }
+
+    public Operation getOperation() {
+        return operation;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        analyzeLHS(scriptRoot, locals);
-        analyzeIncrDecr();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitAssignment(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        semanticScope.replicateCondition(this, leftNode, Read.class);
+        semanticScope.setCondition(leftNode, Write.class);
+        analyze(leftNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorations.ValueType.class).getValueType();
+
+        semanticScope.setCondition(rightNode, Read.class);
 
         if (operation != null) {
-            analyzeCompound(scriptRoot, locals);
-        } else if (rhs != null) {
-            analyzeSimple(scriptRoot, locals);
-        } else {
-            throw new IllegalStateException("Illegal tree structure.");
-        }
-    }
+            analyze(rightNode, semanticScope);
+            Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
-    private void analyzeLHS(ScriptRoot scriptRoot, Locals locals) {
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
+            Class<?> promote;
+            Class<?> shiftDistance = null;
+            boolean shift = false;
 
-            lhs.read = read;
-            lhs.write = true;
-            lhs.analyze(scriptRoot, locals);
-        } else {
-            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
-        }
-    }
-
-    private void analyzeIncrDecr() {
-        if (pre && post) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        } else if (pre || post) {
-            if (rhs != null) {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-
-            if (operation == Operation.INCR) {
-                if (lhs.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (lhs.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (lhs.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.ADD;
-            } else if (operation == Operation.DECR) {
-                if (lhs.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (lhs.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (lhs.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.SUB;
+            if (operation == Operation.MUL) {
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+            } else if (operation == Operation.DIV) {
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+            } else if (operation == Operation.REM) {
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+            } else if (operation == Operation.ADD) {
+                promote = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
+            } else if (operation == Operation.SUB) {
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
+            } else if (operation == Operation.LSH) {
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
+                shift = true;
+            } else if (operation == Operation.RSH) {
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
+                shift = true;
+            } else if (operation == Operation.USH) {
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
+                shift = true;
+            } else if (operation == Operation.BWAND) {
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
+            } else if (operation == Operation.XOR) {
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
+            } else if (operation == Operation.BWOR) {
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
-        }
-    }
 
-    private void analyzeCompound(ScriptRoot scriptRoot, Locals locals) {
-        rhs.analyze(scriptRoot, locals);
-        boolean shift = false;
-
-        if (operation == Operation.MUL) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
-        } else if (operation == Operation.DIV) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
-        } else if (operation == Operation.REM) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
-        } else if (operation == Operation.ADD) {
-            promote = AnalyzerCaster.promoteAdd(lhs.actual, rhs.actual);
-        } else if (operation == Operation.SUB) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, rhs.actual, true);
-        } else if (operation == Operation.LSH) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
-            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
-            shift = true;
-        } else if (operation == Operation.RSH) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
-            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
-            shift = true;
-        } else if (operation == Operation.USH) {
-            promote = AnalyzerCaster.promoteNumeric(lhs.actual, false);
-            shiftDistance = AnalyzerCaster.promoteNumeric(rhs.actual, false);
-            shift = true;
-        } else if (operation == Operation.BWAND) {
-            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
-        } else if (operation == Operation.XOR) {
-            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
-        } else if (operation == Operation.BWOR) {
-            promote = AnalyzerCaster.promoteXor(lhs.actual, rhs.actual);
-        } else {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        }
-
-        if (promote == null || (shift && shiftDistance == null)) {
-            throw createError(new ClassCastException("Cannot apply compound assignment " +
-                "[" + operation.symbol + "=] to types [" + lhs.actual + "] and [" + rhs.actual + "]."));
-        }
-
-        cat = operation == Operation.ADD && promote == String.class;
-
-        if (cat) {
-            if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rhs.actual == String.class) {
-                ((EBinary)rhs).cat = true;
+            if (promote == null || (shift && shiftDistance == null)) {
+                throw createError(new ClassCastException("Cannot apply compound assignment " +
+                        "[" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]."));
             }
 
-            rhs.expected = rhs.actual;
-        } else if (shift) {
-            if (promote == def.class) {
-                // shifts are promoted independently, but for the def type, we need object.
-                rhs.expected = promote;
-            } else if (shiftDistance == long.class) {
-                rhs.expected = int.class;
-                rhs.explicit = true;
+            boolean cat = operation == Operation.ADD && promote == String.class;
+
+            if (cat && rightNode instanceof EBinary &&
+                    ((EBinary)rightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
+                semanticScope.setCondition(rightNode, Concatenate.class);
+            }
+
+            if (shift) {
+                if (promote == def.class) {
+                    // shifts are promoted independently, but for the def type, we need object.
+                    semanticScope.putDecoration(rightNode, new TargetType(def.class));
+                } else if (shiftDistance == long.class) {
+                    semanticScope.putDecoration(rightNode, new TargetType(int.class));
+                    semanticScope.setCondition(rightNode, Explicit.class);
+                } else {
+                    semanticScope.putDecoration(rightNode, new TargetType(shiftDistance));
+                }
             } else {
-                rhs.expected = shiftDistance;
+                semanticScope.putDecoration(rightNode, new TargetType(promote));
             }
-        } else {
-            rhs.expected = promote;
-        }
 
-        rhs = rhs.cast(scriptRoot, locals);
+            rightNode.cast(semanticScope);
 
-        there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
-        back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
+            PainlessCast upcast = AnalyzerCaster.getLegalCast(getLocation(), leftValueType, promote, false, false);
+            PainlessCast downcast = AnalyzerCaster.getLegalCast(getLocation(), promote, leftValueType, true, false);
 
-        this.statement = true;
-        this.actual = read ? lhs.actual : void.class;
-    }
+            semanticScope.putDecoration(this, new CompoundType(promote));
 
-    private void analyzeSimple(ScriptRoot scriptRoot, Locals locals) {
-        AStoreable lhs = (AStoreable)this.lhs;
+            if (cat) {
+                semanticScope.setCondition(this, Concatenate.class);
+            }
 
+            if (upcast != null) {
+                semanticScope.putDecoration(this, new UpcastPainlessCast(upcast));
+            }
+
+            if (downcast != null) {
+                semanticScope.putDecoration(this, new DowncastPainlessCast(downcast));
+            }
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-        if (lhs.isDefOptimized()) {
-            rhs.analyze(scriptRoot, locals);
+        } else if (semanticScope.getCondition(leftNode, DefOptimized.class)) {
+            analyze(rightNode, semanticScope);
+            Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
 
-            if (rhs.actual == void.class) {
-                throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
+            if (rightValueType == void.class) {
+                throw createError(new IllegalArgumentException(
+                        "invalid assignment: cannot assign type [" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
             }
 
-            rhs.expected = rhs.actual;
-            lhs.updateActual(rhs.actual);
+            semanticScope.putDecoration(leftNode, new ValueType(rightValueType));
+            leftValueType = rightValueType;
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
-            rhs.expected = lhs.actual;
-            rhs.analyze(scriptRoot, locals);
+            semanticScope.putDecoration(rightNode, new TargetType(leftValueType));
+            analyze(rightNode, semanticScope);
+            rightNode.cast(semanticScope);
         }
 
-        rhs = rhs.cast(scriptRoot, locals);
-
-        this.statement = true;
-        this.actual = read ? lhs.actual : void.class;
-    }
-
-    /**
-     * Handles writing byte code for variable/method chains for all given possibilities
-     * including String concatenation, compound assignment, regular assignment, and simple
-     * reads.  Includes proper duplication for chained assignments and assignments that are
-     * also read from.
-     */
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeDebugInfo(location);
-
-        // For the case where the assignment represents a String concatenation
-        // we must, depending on the Java version, write a StringBuilder or
-        // track types going onto the stack.  This must be done before the
-        // lhs is read because we need the StringBuilder to be placed on the
-        // stack ahead of any potential concatenation arguments.
-        int catElementStackSize = 0;
-
-        if (cat) {
-            catElementStackSize = methodWriter.writeNewStrings();
-        }
-
-        // Cast the lhs to a storeable to perform the necessary operations to store the rhs.
-        AStoreable lhs = (AStoreable)this.lhs;
-        lhs.setup(classWriter, methodWriter, globals); // call the setup method on the lhs to prepare for a load/store operation
-
-        if (cat) {
-            // Handle the case where we are doing a compound assignment
-            // representing a String concatenation.
-
-            methodWriter.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
-                                                                            // before concat helper on stack
-            lhs.load(classWriter, methodWriter, globals);                                      // read the current lhs's value
-            methodWriter.writeAppendStrings(lhs.actual);  // append the lhs's value using the StringBuilder
-
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
-
-            if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) {            // check to see if the rhs has already done a concatenation
-                methodWriter.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
-            }
-
-            methodWriter.writeToStrings(); // put the value for string concat onto the stack
-            methodWriter.writeCast(back);  // if necessary, cast the String to the lhs actual type
-
-            if (lhs.read) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // if this lhs is also read
-                                                                                                       // from dup the value onto the stack
-            }
-
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
-        } else if (operation != null) {
-            // Handle the case where we are doing a compound assignment that
-            // does not represent a String concatenation.
-
-            methodWriter.writeDup(lhs.accessElementCount(), 0); // if necessary, dup the previous lhs's value
-                                                                // to be both loaded from and stored to
-            lhs.load(classWriter, methodWriter, globals); // load the current lhs's value
-
-            if (lhs.read && post) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the
-                                                                                                             // lhs is also
-                                                                                                             // read from and is a post
-                                                                                                             // increment
-            }
-
-            methodWriter.writeCast(there); // if necessary cast the current lhs's value
-                                           // to the promotion type between the lhs and rhs types
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
-
-            // XXX: fix these types, but first we need def compound assignment tests.
-            // its tricky here as there are possibly explicit casts, too.
-            // write the operation instruction for compound assignment
-            if (promote == def.class) {
-                methodWriter.writeDynamicBinaryInstruction(
-                    location, promote, def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
-            } else {
-                methodWriter.writeBinaryInstruction(location, promote, operation);
-            }
-
-            methodWriter.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
-
-            if (lhs.read && !post) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
-                                                                                                             // is also
-                                                                                                             // read from and is not a post
-                                                                                                             // increment
-            }
-
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
-        } else {
-            // Handle the case for a simple write.
-
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs rhs
-
-            if (lhs.read) {
-                methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
-                                                                                                       // is also read from
-            }
-
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
-        }
-    }
-
-    @Override
-    public String toString() {
-        List<Object> subs = new ArrayList<>();
-        subs.add(lhs);
-        if (rhs != null) {
-            // Make sure "=" is in the symbol so this is easy to read at a glance
-            subs.add(operation == null ? "=" : operation.symbol + "=");
-            subs.add(rhs);
-            return singleLineToString(subs);
-        }
-        subs.add(operation.symbol);
-        if (pre) {
-            subs.add("pre");
-        }
-        if (post) {
-            subs.add("post");
-        }
-        return singleLineToString(subs);
+        semanticScope.putDecoration(this, new ValueType(semanticScope.getCondition(this, Read.class) ? leftValueType : void.class));
     }
 }

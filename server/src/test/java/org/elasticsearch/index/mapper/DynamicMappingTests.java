@@ -19,7 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -190,7 +190,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     public void testDynamicMappingOnEmptyString() throws Exception {
         IndexService service = createIndex("test");
         client().prepareIndex("test").setSource("empty_field", "").get();
-        MappedFieldType fieldType = service.mapperService().fullName("empty_field");
+        MappedFieldType fieldType = service.mapperService().fieldType("empty_field");
         assertNotNull(fieldType);
     }
 
@@ -201,8 +201,8 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     }
 
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         SourceToParse source = new SourceToParse("test", "some_id",
@@ -341,6 +341,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         // original mapping not modified
         assertEquals(mapping, serialize(mapper));
         // but we have an update
+        String serializedUpdate = serialize(update);
         assertEquals(Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("foo").startObject("properties").startObject("bar").startObject("properties").startObject("baz")
                 .field("type", "text")
@@ -650,7 +651,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     public void testDynamicTemplateOrder() throws IOException {
         // https://github.com/elastic/elasticsearch/issues/18625
         // elasticsearch used to apply templates that do not have a match_mapping_type first
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startArray("dynamic_templates")
                     .startObject()
                         .startObject("type-based")
@@ -670,17 +671,17 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endArray()
                 .endObject().endObject();
-        IndexService index = createIndex("test", Settings.EMPTY, "type", mapping);
+        IndexService index = createIndex("test", Settings.EMPTY, mapping);
         client().prepareIndex("test").setId("1").setSource("foo", "abc").get();
-        assertThat(index.mapperService().fullName("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertThat(index.mapperService().fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
     public void testMappingVersionAfterDynamicMappingUpdate() {
-        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        createIndex("test", client().admin().indices().prepareCreate("test"));
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+        final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
         client().prepareIndex("test").setId("1").setSource("field", "text").get();
-        assertThat(clusterService.state().metaData().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+        assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
     }
 
 }

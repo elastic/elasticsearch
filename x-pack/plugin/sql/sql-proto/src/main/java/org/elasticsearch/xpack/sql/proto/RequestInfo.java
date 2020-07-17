@@ -35,14 +35,25 @@ public class RequestInfo {
     
     private Mode mode;
     private String clientId;
-    
+    private SqlVersion version;
+
     public RequestInfo(Mode mode) {
-        this(mode, null);
+        this(mode, null, null);
     }
     
     public RequestInfo(Mode mode, String clientId) {
+        this(mode, clientId, null);
+    }
+
+    public RequestInfo(Mode mode, String clientId, String version) {
         mode(mode);
         clientId(clientId);
+        version(version);
+    }
+
+    public RequestInfo(Mode mode, SqlVersion version) {
+        mode(mode);
+        this.version = version;
     }
     
     public Mode mode() {
@@ -65,6 +76,14 @@ public class RequestInfo {
             }
         }
         this.clientId = clientId;
+    }
+
+    public void version(String clientVersion) {
+        this.version = SqlVersion.fromString(clientVersion);
+    }
+
+    public SqlVersion version() {
+        return version;
     }
 
     @Override

@@ -28,9 +28,7 @@ import java.nio.file.Paths;
 public class Installation {
 
     // in the future we'll run as a role user on Windows
-    public static final String ARCHIVE_OWNER = Platforms.WINDOWS
-        ? System.getenv("username")
-        : "elasticsearch";
+    public static final String ARCHIVE_OWNER = Platforms.WINDOWS ? System.getenv("username") : "elasticsearch";
 
     private final Shell sh;
     public final Distribution distribution;
@@ -46,8 +44,18 @@ public class Installation {
     public final Path pidDir;
     public final Path envFile;
 
-    private Installation(Shell sh, Distribution distribution, Path home, Path config, Path data, Path logs,
-                         Path plugins, Path modules, Path pidDir, Path envFile) {
+    private Installation(
+        Shell sh,
+        Distribution distribution,
+        Path home,
+        Path config,
+        Path data,
+        Path logs,
+        Path plugins,
+        Path modules,
+        Path pidDir,
+        Path envFile
+    ) {
         this.sh = sh;
         this.distribution = distribution;
         this.home = home;
@@ -114,11 +122,28 @@ public class Installation {
         );
     }
 
+    /**
+     * Returns the user that owns this installation.
+     *
+     * For packages this is root, and for archives it is the user doing the installation.
+     */
+    public String getOwner() {
+        if (Platforms.WINDOWS) {
+            // windows is always administrator, since there is no sudo
+            return "BUILTIN\\Administrators";
+        }
+        return distribution.isArchive() ? ARCHIVE_OWNER : "root";
+    }
+
     public Path bin(String executableName) {
         return bin.resolve(executableName);
     }
 
     public Path config(String configFileName) {
+        return config.resolve(configFileName);
+    }
+
+    public Path config(Path configFileName) {
         return config.resolve(configFileName);
     }
 
@@ -130,9 +155,7 @@ public class Installation {
         public final Path path;
 
         private Executable(String name) {
-            final String platformExecutableName = Platforms.WINDOWS
-                ? name + ".bat"
-                : name;
+            final String platformExecutableName = Platforms.WINDOWS ? name + ".bat" : name;
             this.path = bin(platformExecutableName);
         }
 
@@ -146,14 +169,20 @@ public class Installation {
         }
 
         public Shell.Result run(String args, String input) {
-            String command = path + " " + args;
-            if (distribution.isArchive() && distribution.platform != Distribution.Platform.WINDOWS) {
-                command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+            String command = path.toString();
+            if (Platforms.WINDOWS) {
+                command = "& '" + command + "'";
+            } else {
+                command = "\"" + command + "\"";
+                if (distribution.isArchive()) {
+                    command = "sudo -E -u " + ARCHIVE_OWNER + " " + command;
+                }
             }
+
             if (input != null) {
                 command = "echo \"" + input + "\" | " + command;
             }
-            return sh.run(command);
+            return sh.run(command + " " + args);
         }
     }
 
@@ -163,6 +192,8 @@ public class Installation {
         public final Executable pluginTool = new Executable("elasticsearch-plugin");
         public final Executable keystoreTool = new Executable("elasticsearch-keystore");
         public final Executable certutilTool = new Executable("elasticsearch-certutil");
+        public final Executable certgenTool = new Executable("elasticsearch-certgen");
+        public final Executable cronevalTool = new Executable("elasticsearch-croneval");
         public final Executable shardTool = new Executable("elasticsearch-shard");
         public final Executable nodeTool = new Executable("elasticsearch-node");
         public final Executable setupPasswordsTool = new Executable("elasticsearch-setup-passwords");

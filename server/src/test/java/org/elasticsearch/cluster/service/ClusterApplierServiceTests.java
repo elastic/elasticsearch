@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -38,6 +38,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -48,6 +49,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -392,7 +396,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         clusterApplierService.onNewClusterState("test", () -> ClusterState.builder(clusterApplierService.state())
-                .metaData(MetaData.builder(clusterApplierService.state().metaData())
+                .metadata(Metadata.builder(clusterApplierService.state().metadata())
                     .persistentSettings(
                         Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), false).build())
                     .build())
@@ -493,6 +497,48 @@ public class ClusterApplierServiceTests extends ESTestCase {
         latch.await();
         assertNull(error.get());
         assertTrue(applierCalled.get());
+    }
+
+    public void testThreadContext() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            final Map<String, String> expectedHeaders = Collections.singletonMap("test", "test");
+            final Map<String, List<String>> expectedResponseHeaders = Collections.singletonMap("testResponse",
+                Collections.singletonList("testResponse"));
+            threadPool.getThreadContext().putHeader(expectedHeaders);
+
+            clusterApplierService.onNewClusterState("test", () -> {
+                assertTrue(threadPool.getThreadContext().isSystemContext());
+                assertEquals(Collections.emptyMap(), threadPool.getThreadContext().getHeaders());
+                threadPool.getThreadContext().addResponseHeader("testResponse", "testResponse");
+                assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                if (randomBoolean()) {
+                    return ClusterState.builder(clusterApplierService.state()).build();
+                } else {
+                    throw new IllegalArgumentException("mock failure");
+                }
+            }, new ClusterApplyListener() {
+
+                @Override
+                public void onSuccess(String source) {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    assertFalse(threadPool.getThreadContext().isSystemContext());
+                    assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
+                    assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
     }
 
     static class TimedClusterApplierService extends ClusterApplierService {

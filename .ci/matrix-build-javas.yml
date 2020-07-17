@@ -1,9 +1,0 @@
-# This file is used as part of a matrix build in Jenkins where the
-# values below are included as an axis of the matrix.
-
-# This axis of the build matrix represents the versions of Java with
-# which Elasticsearch will be built.  Valid Java versions are 'java'
-# or 'openjdk' followed by the major release number.
-
-ES_BUILD_JAVA:
-  - openjdk13

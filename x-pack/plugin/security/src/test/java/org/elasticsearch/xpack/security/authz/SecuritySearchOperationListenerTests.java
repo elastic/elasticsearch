@@ -5,30 +5,35 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 
-import static org.elasticsearch.mock.orig.Mockito.verifyNoMoreInteractions;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGINATING_ACTION_KEY;
@@ -38,6 +43,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -45,16 +51,17 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
 
     public void testUnlicensed() {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(false);
+        when(licenseState.isSecurityEnabled()).thenReturn(false);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.scrollContext()).thenReturn(new ScrollContext());
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
+        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
         listener.onNewScrollContext(searchContext);
         listener.validateSearchContext(searchContext, Empty.INSTANCE);
-        verify(licenseState, times(2)).isAuthAllowed();
+        verify(licenseState, times(2)).isSecurityEnabled();
         verifyZeroInteractions(auditTrailService, searchContext);
     }
 
@@ -64,20 +71,21 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         final Scroll scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         testSearchContext.scrollContext().scroll = scroll;
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         AuditTrailService auditTrailService = mock(AuditTrailService.class);
         Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
         authentication.writeToContext(threadContext);
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
+        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
         listener.onNewScrollContext(testSearchContext);
 
         Authentication contextAuth = testSearchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
         assertEquals(authentication, contextAuth);
         assertEquals(scroll, testSearchContext.scrollContext().scroll);
 
-        verify(licenseState).isAuthAllowed();
+        verify(licenseState).isSecurityEnabled();
         verifyZeroInteractions(auditTrailService);
     }
 
@@ -88,17 +96,20 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
                 new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null));
         testSearchContext.scrollContext().scroll = new Scroll(TimeValue.timeValueSeconds(2L));
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        AuditTrailService auditTrailService = mock(AuditTrailService.class);
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        AuditTrail auditTrail = mock(AuditTrail.class);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
-        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(threadContext, licenseState, auditTrailService);
+        SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, licenseState, auditTrailService);
         try (StoredContext ignore = threadContext.newStoredContext(false)) {
             Authentication authentication = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
-            verify(licenseState).isAuthAllowed();
-            verifyZeroInteractions(auditTrailService);
+            verify(licenseState).isSecurityEnabled();
+            verifyZeroInteractions(auditTrail);
         }
 
         try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -107,8 +118,8 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             Authentication authentication = new Authentication(new User("test", "role"), new RealmRef(realmName, "file", nodeName), null);
             authentication.writeToContext(threadContext);
             listener.validateSearchContext(testSearchContext, Empty.INSTANCE);
-            verify(licenseState, times(2)).isAuthAllowed();
-            verifyZeroInteractions(auditTrailService);
+            verify(licenseState, times(2)).isSecurityEnabled();
+            verifyZeroInteractions(auditTrail);
         }
 
         try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -123,9 +134,9 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
-            assertEquals(testSearchContext.id(), expected.id());
-            verify(licenseState, times(3)).isAuthAllowed();
-            verify(auditTrailService).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
+            assertEquals(testSearchContext.id(), expected.contextId());
+            verify(licenseState, Mockito.atLeast(3)).isSecurityEnabled();
+            verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                 authzInfoRoles(authentication.getUser().roles()));
         }
 
@@ -141,8 +152,8 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             listener.validateSearchContext(testSearchContext, request);
-            verify(licenseState, times(4)).isAuthAllowed();
-            verifyNoMoreInteractions(auditTrailService);
+            verify(licenseState, Mockito.atLeast(4)).isSecurityEnabled();
+            verifyNoMoreInteractions(auditTrail);
         }
 
         // the user that authenticated for the run as request
@@ -159,9 +170,9 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
             final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
             SearchContextMissingException expected =
                     expectThrows(SearchContextMissingException.class, () -> listener.validateSearchContext(testSearchContext, request));
-            assertEquals(testSearchContext.id(), expected.id());
-            verify(licenseState, times(5)).isAuthAllowed();
-            verify(auditTrailService).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
+            assertEquals(testSearchContext.id(), expected.contextId());
+            verify(licenseState, Mockito.atLeast(5)).isSecurityEnabled();
+            verify(auditTrail).accessDenied(eq(null), eq(authentication), eq("action"), eq(request),
                 authzInfoRoles(authentication.getUser().roles()));
         }
     }
@@ -170,13 +181,17 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         Authentication original = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
         Authentication current =
                 randomBoolean() ? original : new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
-        long id = randomLong();
+        SearchContextId contextId = new SearchContextId(UUIDs.randomBase64UUID(), randomLong());
         final String action = randomAlphaOfLength(4);
         TransportRequest request = Empty.INSTANCE;
-        AuditTrailService auditTrail = mock(AuditTrailService.class);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);
+        AuditTrail auditTrail = mock(AuditTrail.class);
+        AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
 
         final String auditId = randomAlphaOfLengthBetween(8, 20);
-        ensureAuthenticatedUserIsSame(original, current, auditTrail, id, action, request, auditId,
+        ensureAuthenticatedUserIsSame(original, current, auditTrailService, contextId, action, request, auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles()));
         verifyZeroInteractions(auditTrail);
 
@@ -184,7 +199,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
         current = new Authentication(user, new RealmRef("realm", "file", "node"),
                 new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        ensureAuthenticatedUserIsSame(original, current, auditTrail, id, action, request, auditId,
+        ensureAuthenticatedUserIsSame(original, current, auditTrailService, contextId, action, request, auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles()));
         verifyZeroInteractions(auditTrail);
 
@@ -192,7 +207,7 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         current = new Authentication(user, new RealmRef("realm", "file", "node"),
                 new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
         Authentication runAs = current;
-        ensureAuthenticatedUserIsSame(runAs, current, auditTrail, id, action, request, auditId,
+        ensureAuthenticatedUserIsSame(runAs, current, auditTrailService, contextId, action, request, auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles()));
         verifyZeroInteractions(auditTrail);
 
@@ -200,9 +215,9 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         Authentication differentRealmType =
                 new Authentication(new User("test", "role"), new RealmRef("realm", randomAlphaOfLength(5), "node"), null);
         SearchContextMissingException e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(original, differentRealmType, auditTrail, id, action, request, auditId,
+                () -> ensureAuthenticatedUserIsSame(original, differentRealmType, auditTrailService, contextId, action, request, auditId,
                     () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())));
-        assertEquals(id, e.id());
+        assertEquals(contextId, e.contextId());
         verify(auditTrail).accessDenied(eq(auditId), eq(differentRealmType), eq(action), eq(request),
             authzInfoRoles(original.getUser().roles()));
 
@@ -210,9 +225,9 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         Authentication differentUser =
                 new Authentication(new User("test2", "role"), new RealmRef("realm", "realm", "node"), null);
         e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(original, differentUser, auditTrail, id, action, request, auditId,
+                () -> ensureAuthenticatedUserIsSame(original, differentUser, auditTrailService, contextId, action, request, auditId,
                     () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())));
-        assertEquals(id, e.id());
+        assertEquals(contextId, e.contextId());
         verify(auditTrail).accessDenied(eq(auditId), eq(differentUser), eq(action), eq(request),
             authzInfoRoles(original.getUser().roles()));
 
@@ -220,18 +235,18 @@ public class SecuritySearchOperationListenerTests extends ESTestCase {
         Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
                 new RealmRef("realm", "file", "node1"), new RealmRef("realm", "file", "node1"));
         e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(original, diffRunAs, auditTrail, id, action, request, auditId,
+                () -> ensureAuthenticatedUserIsSame(original, diffRunAs, auditTrailService, contextId, action, request, auditId,
                     () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())));
-        assertEquals(id, e.id());
+        assertEquals(contextId, e.contextId());
         verify(auditTrail).accessDenied(eq(auditId), eq(diffRunAs), eq(action), eq(request), authzInfoRoles(original.getUser().roles()));
 
         // run as different looked up by type
         Authentication runAsDiffType = new Authentication(user, new RealmRef("realm", "file", "node"),
                 new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
         e = expectThrows(SearchContextMissingException.class,
-                () -> ensureAuthenticatedUserIsSame(runAs, runAsDiffType, auditTrail, id, action, request, auditId,
+                () -> ensureAuthenticatedUserIsSame(runAs, runAsDiffType, auditTrailService, contextId, action, request, auditId,
                     () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())));
-        assertEquals(id, e.id());
+        assertEquals(contextId, e.contextId());
         verify(auditTrail).accessDenied(eq(auditId), eq(runAsDiffType), eq(action), eq(request),
             authzInfoRoles(original.getUser().roles()));
     }

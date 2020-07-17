@@ -25,7 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -84,14 +84,14 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
         settingsThatAllowMemoryMap.add(Settings.builder().put("node.store.allow_mmap", true).build());
 
         for (final Settings settingThatAllowsMemoryMap : settingsThatAllowMemoryMap) {
-            assertFailure(check.check(createTestContext(settingThatAllowsMemoryMap, MetaData.EMPTY_META_DATA)));
+            assertFailure(check.check(createTestContext(settingThatAllowsMemoryMap, Metadata.EMPTY_METADATA)));
         }
     }
 
     public void testMaxMapCountCheckNotEnforcedIfMemoryMapNotAllowed() {
         // nothing should happen if current vm.max_map_count is under the limit but mmap is not allowed
         final Settings settings = Settings.builder().put("node.store.allow_mmap", false).build();
-        final BootstrapContext context = createTestContext(settings, MetaData.EMPTY_META_DATA);
+        final BootstrapContext context = createTestContext(settings, Metadata.EMPTY_METADATA);
         final BootstrapCheck.BootstrapCheckResult result = check.check(context);
         assertTrue(result.isSuccess());
     }

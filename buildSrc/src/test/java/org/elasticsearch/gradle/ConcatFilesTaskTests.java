@@ -66,17 +66,14 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         file2.getParentFile().mkdirs();
         file1.createNewFile();
         file2.createNewFile();
-        Files.write(file1.toPath(), ("Hello" + System.lineSeparator() +  "Hello").getBytes(StandardCharsets.UTF_8));
+        Files.write(file1.toPath(), ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8));
         Files.write(file2.toPath(), ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8));
 
         concatFilesTask.setFiles(project.fileTree(file1.getParentFile().getParentFile()));
 
         concatFilesTask.concatFiles();
 
-        assertEquals(
-            Arrays.asList("Hello", "नमस्ते"),
-            Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8)
-        );
+        assertEquals(Arrays.asList("Hello", "नमस्ते"), Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8));
 
     }
 

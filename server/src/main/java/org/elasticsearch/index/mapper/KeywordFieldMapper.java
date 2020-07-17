@@ -23,9 +23,9 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
@@ -33,7 +33,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -41,15 +40,20 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.index.mapper.TypeParsers.checkNull;
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
@@ -60,7 +64,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "keyword";
 
     public static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new KeywordFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -71,23 +75,45 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         public static final String NULL_VALUE = null;
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
+        public static final boolean EAGER_GLOBAL_ORDINALS = false;
+        public static final boolean SPLIT_QUERIES_ON_WHITESPACE = false;
     }
 
-    public static class Builder extends FieldMapper.Builder<Builder, KeywordFieldMapper> {
+    public static class KeywordField extends Field {
+
+        public KeywordField(String field, BytesRef term, FieldType ft) {
+            super(field, term, ft);
+        }
+
+        public KeywordField(String field, BytesRef term) {
+            super(field, term, Defaults.FIELD_TYPE);
+        }
+
+    }
+
+    public static class Builder extends FieldMapper.Builder<Builder> {
 
         protected String nullValue = Defaults.NULL_VALUE;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
         private IndexAnalyzers indexAnalyzers;
-        private String normalizerName;
+        private String normalizerName = "default";
+        private boolean eagerGlobalOrdinals = Defaults.EAGER_GLOBAL_ORDINALS;
+        private boolean splitQueriesOnWhitespace = Defaults.SPLIT_QUERIES_ON_WHITESPACE;
+        private SimilarityProvider similarity;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
 
         @Override
-        public KeywordFieldType fieldType() {
-            return (KeywordFieldType) super.fieldType();
+        public Builder omitNorms(boolean omitNorms) {
+            fieldType.setOmitNorms(omitNorms);
+            return builder;
+        }
+
+        public void similarity(SimilarityProvider similarity) {
+            this.similarity = similarity;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -108,12 +134,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             return builder;
         }
 
         public Builder splitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
-            fieldType().setSplitQueriesOnWhitespace(splitQueriesOnWhitespace);
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             return builder;
         }
 
@@ -123,40 +149,50 @@ public final class KeywordFieldMapper extends FieldMapper {
             return builder;
         }
 
-        @Override
-        public KeywordFieldMapper build(BuilderContext context) {
-            setupFieldType(context);
-            if (normalizerName != null) {
-                NamedAnalyzer normalizer = indexAnalyzers.getNormalizer(normalizerName);
+        public Builder nullValue(String nullValue) {
+            this.nullValue = nullValue;
+            return builder;
+        }
+
+        private KeywordFieldType buildFieldType(BuilderContext context) {
+            NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
+            NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
+            if (normalizerName == null || "default".equals(normalizerName) == false) {
+                normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {
                     throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
                 }
-                fieldType().setNormalizer(normalizer);
-                final NamedAnalyzer searchAnalyzer;
-                if (fieldType().splitQueriesOnWhitespace) {
+                if (splitQueriesOnWhitespace) {
                     searchAnalyzer = indexAnalyzers.getWhitespaceNormalizer(normalizerName);
                 } else {
                     searchAnalyzer = normalizer;
                 }
-                fieldType().setSearchAnalyzer(searchAnalyzer);
-            } else if (fieldType().splitQueriesOnWhitespace) {
-                fieldType().setSearchAnalyzer(new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer()));
             }
-            return new KeywordFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            else if (splitQueriesOnWhitespace) {
+                // TODO should this be a Lucene global analyzer as well?
+                searchAnalyzer = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
+            }
+            return new KeywordFieldType(buildFullName(context), hasDocValues, fieldType,
+                eagerGlobalOrdinals, normalizer, searchAnalyzer, similarity, meta, boost);
+        }
+
+        @Override
+        public KeywordFieldMapper build(BuilderContext context) {
+            return new KeywordFieldMapper(name,
+                    fieldType, buildFieldType(context), ignoreAbove, splitQueriesOnWhitespace, nullValue,
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
-            parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
+                checkNull(propName, propNode);
                 if (propName.equals("null_value")) {
                     if (propNode == null) {
                         throw new MapperParsingException("Property [null_value] cannot be null.");
@@ -180,54 +216,44 @@ public final class KeywordFieldMapper extends FieldMapper {
                 } else if (propName.equals("split_queries_on_whitespace")) {
                     builder.splitQueriesOnWhitespace(XContentMapValues.nodeBooleanValue(propNode, "split_queries_on_whitespace"));
                     iterator.remove();
+                } else if (propName.equals("similarity")) {
+                    SimilarityProvider similarityProvider = TypeParsers.resolveSimilarity(parserContext, name, propNode.toString());
+                    builder.similarity(similarityProvider);
+                    iterator.remove();
                 }
             }
+            parseField(builder, name, node, parserContext);
             return builder;
         }
     }
 
     public static final class KeywordFieldType extends StringFieldType {
 
-        private NamedAnalyzer normalizer = null;
-        private boolean splitQueriesOnWhitespace;
+        boolean hasNorms;
 
-        public KeywordFieldType() {
+        public KeywordFieldType(String name, boolean hasDocValues, FieldType fieldType,
+                                boolean eagerGlobalOrdinals, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer,
+                                SimilarityProvider similarity, Map<String, String> meta, float boost) {
+            super(name, fieldType.indexOptions() != IndexOptions.NONE,
+                hasDocValues, new TextSearchInfo(fieldType, similarity, searchAnalyzer, searchAnalyzer), meta);
+            this.hasNorms = fieldType.omitNorms() == false;
+            setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            setIndexAnalyzer(normalizer);
+            setBoost(boost);
+        }
+
+        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
-        protected KeywordFieldType(KeywordFieldType ref) {
-            super(ref);
-            this.normalizer = ref.normalizer;
-            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
+        public KeywordFieldType(String name) {
+            this(name, true, Defaults.FIELD_TYPE, false,
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, Collections.emptyMap(), 1f);
         }
 
-        public KeywordFieldType clone() {
-            return new KeywordFieldType(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            KeywordFieldType other = (KeywordFieldType) o;
-            return Objects.equals(normalizer, other.normalizer) &&
-                splitQueriesOnWhitespace == other.splitQueriesOnWhitespace;
-        }
-
-        @Override
-        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts) {
-            super.checkCompatibility(otherFT, conflicts);
-            KeywordFieldType other = (KeywordFieldType) otherFT;
-            if (Objects.equals(normalizer, other.normalizer) == false) {
-                conflicts.add("mapper [" + name() + "] has different [normalizer]");
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Objects.hash(normalizer, splitQueriesOnWhitespace);
+        public KeywordFieldType(String name, NamedAnalyzer analyzer) {
+            super(name, true, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
         }
 
         @Override
@@ -235,30 +261,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        private NamedAnalyzer normalizer() {
-            return normalizer;
-        }
-
-        public void setNormalizer(NamedAnalyzer normalizer) {
-            checkIfFrozen();
-            this.normalizer = normalizer;
-            setIndexAnalyzer(normalizer);
-        }
-
-        public boolean splitQueriesOnWhitespace() {
-            return splitQueriesOnWhitespace;
-        }
-
-        public void setSplitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
-            checkIfFrozen();
-            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
+        NamedAnalyzer normalizer() {
+            return indexAnalyzer();
         }
 
         @Override
         public Query existsQuery(QueryShardContext context) {
             if (hasDocValues()) {
                 return new DocValuesFieldExistsQuery(name());
-            } else if (omitNorms()) {
+            } else if (hasNorms == false) {
                 return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
             } else {
                 return new NormsFieldExistsQuery(name());
@@ -268,7 +279,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -283,7 +294,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
-            if (searchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+            if (getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
                 // keyword analyzer with the default attribute source which encodes terms using UTF8
                 // in that case we skip normalization, which may be slow if there many terms need to
                 // parse (eg. large terms query) since Analyzer.normalize involves things like creating
@@ -298,24 +309,27 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (value instanceof BytesRef) {
                 value = ((BytesRef) value).utf8ToString();
             }
-            return searchAnalyzer().normalize(name(), value.toString());
+            return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
     }
 
     private int ignoreAbove;
+    private boolean splitQueriesOnWhitespace;
+    private String nullValue;
 
-    protected KeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                 int ignoreAbove, Settings indexSettings,
+    protected KeywordFieldMapper(String simpleName, FieldType fieldType, MappedFieldType mappedFieldType,
+                                 int ignoreAbove, boolean splitQueriesOnWhitespace, String nullValue,
                                  MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
+        this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
+        this.nullValue = nullValue;
     }
 
     /** Values that have more chars than the return value of this method will
      *  be skipped at parsing time. */
-    // pkg-private for testing
-    int ignoreAbove() {
+    public int ignoreAbove() {
         return ignoreAbove;
     }
 
@@ -330,14 +344,14 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         String value;
         if (context.externalValueSet()) {
             value = context.externalValue().toString();
         } else {
             XContentParser parser = context.parser();
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = fieldType().nullValueAsString();
+                value = nullValue;
             } else {
                 value =  parser.textOrNull();
             }
@@ -370,17 +384,17 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored())  {
-            Field field = new Field(fieldType().name(), binaryValue, fieldType());
-            fields.add(field);
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
+            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
+            context.doc().add(field);
 
-            if (fieldType().hasDocValues() == false && fieldType().omitNorms()) {
-                createFieldNamesField(context, fields);
+            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
+                createFieldNamesField(context);
             }
         }
 
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
     @Override
@@ -389,31 +403,56 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doMerge(Mapper mergeWith) {
-        super.doMerge(mergeWith);
-        this.ignoreAbove = ((KeywordFieldMapper) mergeWith).ignoreAbove;
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+        KeywordFieldMapper k = (KeywordFieldMapper) other;
+        if (Objects.equals(fieldType().indexAnalyzer(), k.fieldType().indexAnalyzer()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [normalizer]");
+        }
+        if (Objects.equals(mappedFieldType.getTextSearchInfo().getSimilarity(),
+            k.fieldType().getTextSearchInfo().getSimilarity()) == false) {
+            conflicts.add("mapper [" + name() + "] has different [similarity]");
+        }
+        this.ignoreAbove = k.ignoreAbove;
+        this.splitQueriesOnWhitespace = k.splitQueriesOnWhitespace;
+        this.fieldType().setBoost(k.fieldType().boost());
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValue());
+        if (fieldType.indexOptions() != IndexOptions.NONE
+            && (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions())) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
         }
-
+        if (nullValue != null) {
+            builder.field("null_value", nullValue);
+        }
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
         }
-
-        if (fieldType().normalizer() != null) {
-            builder.field("normalizer", fieldType().normalizer().name());
-        } else if (includeDefaults) {
-            builder.nullField("normalizer");
+        if (includeDefaults || fieldType.omitNorms() != Defaults.FIELD_TYPE.omitNorms()) {
+            builder.field("norms", fieldType.omitNorms() == false);
+        }
+        if (includeDefaults || fieldType().eagerGlobalOrdinals() != false) {
+            builder.field("eager_global_ordinals", fieldType().eagerGlobalOrdinals());
         }
 
-        if (includeDefaults || fieldType().splitQueriesOnWhitespace) {
-            builder.field("split_queries_on_whitespace", fieldType().splitQueriesOnWhitespace);
+        if (fieldType().normalizer() != null && fieldType().normalizer() != Lucene.KEYWORD_ANALYZER) {
+            builder.field("normalizer", fieldType().normalizer().name());
+        }
+        else if (includeDefaults) {
+            builder.field("normalizer", "default");
+        }
+
+        if (fieldType().getTextSearchInfo().getSimilarity() != null) {
+            builder.field("similarity", fieldType().getTextSearchInfo().getSimilarity().name());
+        } else if (includeDefaults) {
+            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
+        }
+
+        if (includeDefaults || splitQueriesOnWhitespace) {
+            builder.field("split_queries_on_whitespace", splitQueriesOnWhitespace);
         }
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 
@@ -50,7 +51,7 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
 
                 if (request.isIncludeModelDefinition() && totalAndIds.v2().size() > 1) {
                     listener.onFailure(
-                        ExceptionsHelper.badRequestException(Messages.INFERENCE_TO_MANY_DEFINITIONS_REQUESTED)
+                        ExceptionsHelper.badRequestException(Messages.INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED)
                     );
                     return;
                 }
@@ -70,7 +71,11 @@ public class TransportGetTrainedModelsAction extends HandledTransportAction<Requ
             listener::onFailure
         );
 
-        provider.expandIds(request.getResourceId(), request.isAllowNoResources(), request.getPageParams(), idExpansionListener);
+        provider.expandIds(request.getResourceId(),
+            request.isAllowNoResources(),
+            request.getPageParams(),
+            new HashSet<>(request.getTags()),
+            idExpansionListener);
     }
 
 }

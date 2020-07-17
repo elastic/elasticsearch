@@ -29,9 +29,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +58,13 @@ public final class XContentTestUtils {
         part.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+    }
+
+    public static BytesReference convertToXContent(Map<String, ?> map, XContentType xContentType) throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+            builder.map(map);
+            return BytesReference.bytes(builder);
+        }
     }
 
 
@@ -294,5 +303,35 @@ public final class XContentTestUtils {
             insertMap.put(key.get(), value.get());
         }
         return object.toXContentBuilder(xContent);
+    }
+
+    public static JsonMapView createJsonMapView(InputStream inputStream) {
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, inputStream, true);
+
+        return new JsonMapView(responseMap);
+    }
+
+    public static class JsonMapView {
+        private final Map<String, Object> map;
+
+        public JsonMapView(Map<String, Object> map) {
+            this.map = map;
+        }
+
+        @SuppressWarnings("unchecked")
+        public <T> T get(String path) {
+            String[] keys = path.split("\\.");
+            Object context = map;
+            for (String key : keys) {
+                if (context instanceof Map) {
+                    context = ((Map<String, Object>) context).get(key);
+                } else if (context instanceof List) {
+                    context = ((List<Object>) context).get(Integer.parseInt(key));
+                } else {
+                    throw new IllegalStateException("neither list nor map");
+                }
+            }
+            return (T) context;
+        }
     }
 }

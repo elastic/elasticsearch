@@ -109,7 +109,7 @@ public class PutIndexTemplateRequestTests extends AbstractRequestTestCase<PutInd
                 throw new UncheckedIOException(e);
             }
         }
-        assertThat(serverInstance.mappings().get("_doc"), equalTo(mapping));
+        assertThat(serverInstance.mappings(), equalTo(mapping));
         assertThat(serverInstance.settings(), equalTo(clientTestInstance.settings()));
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport.nio;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -53,8 +54,10 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
     public SecurityNioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
                                           PageCacheRecycler pageCacheRecycler, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, IPFilter ipFilter,
-                                          SSLService sslService, NioGroupFactory nioGroupFactory) {
-        super(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry, dispatcher, nioGroupFactory);
+                                          SSLService sslService, NioGroupFactory nioGroupFactory,
+                                          ClusterSettings clusterSettings) {
+        super(settings, networkService, bigArrays, pageCacheRecycler, threadPool, xContentRegistry, dispatcher, nioGroupFactory,
+            clusterSettings);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         this.sslEnabled = HTTP_SSL_ENABLED.get(settings);

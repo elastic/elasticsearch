@@ -61,14 +61,14 @@ results the job might have recently produced or might produce in the future.
 
 `<job_id>`::
 (Required, string)
-include::{docdir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
 
 [[ml-close-job-query-parms]]
 ==== {api-query-parms-title}
 
 `allow_no_jobs`::
 (Optional, boolean)
-include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `force`::
   (Optional, boolean) Use to close a failed job, or to forcefully close a job
@@ -88,13 +88,11 @@ include::{docdir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 [[ml-close-job-example]]
 ==== {api-examples-title}
 
-The following example closes the `total-requests` job:
-
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/total-requests/_close
+POST _ml/anomaly_detectors/low_request_rate/_close
 --------------------------------------------------
-// TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325 - on unmuting use setup:server_metrics_openjob-raw]
+// TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325]
 
 When the job is closed, you receive the following results:
 

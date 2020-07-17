@@ -59,7 +59,7 @@ install_package() {
     local version=$(cat version)
     local rpmCommand='-i'
     local dir='./'
-    while getopts ":fuv:" opt; do
+    while getopts ":ufd:v:" opt; do
         case $opt in
             u)
                 rpmCommand='-U'
@@ -136,7 +136,7 @@ verify_package_installation() {
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
-    assert_file "$ESHOME/README.textile" f root root 644
+    assert_file "$ESHOME/README.asciidoc" f root root 644
 
     if is_dpkg; then
         # Env file
@@ -164,10 +164,6 @@ verify_package_installation() {
         else
             [[ $(/sbin/sysctl vm.max_map_count) =~ "vm.max_map_count = 262144" ]]
         fi
-    fi
-
-    if is_sysvinit; then
-        assert_file "/etc/init.d/elasticsearch" f root root 750
     fi
 
     run sudo -E -u vagrant LANG="en_US.UTF-8" cat "$ESCONFIG/elasticsearch.yml"

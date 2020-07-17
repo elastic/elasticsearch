@@ -1,0 +1,149 @@
+[[slm-api-put-policy]]
+=== Put snapshot lifecycle policy API
+++++
+<titleabbrev>Put policy</titleabbrev>
+++++
+
+Creates or updates a snapshot lifecycle policy.
+
+
+[[slm-api-put-request]]
+==== {api-request-title}
+
+`PUT /_slm/policy/<snapshot-lifecycle-policy-id>`
+
+[[slm-api-put-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the 
+`manage_slm` cluster privilege and the `manage` index privilege
+for any included indices to use this API. 
+For more information, see <<security-privileges>>.
+
+[[slm-api-put-desc]]
+==== {api-description-title}
+
+Use the put snapshot lifecycle policy API
+to create or update a snapshot lifecycle policy.
+
+If the policy already exists,
+this request increments the policy's version.
+Only the latest version of a policy is stored.
+
+[[slm-api-put-path-params]]
+==== {api-path-parms-title}
+
+`<snapshot-lifecycle-policy-id>`::
+(Required, string)
+ID for the snapshot lifecycle policy
+you want to create or update.
+
+[[slm-api-put-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[role="child_attributes"]
+[[slm-api-put-request-body]]
+==== {api-request-body-title}
+
+`config`::
+(Required, object)
+Configuration for each snapshot created by the policy.
++
+.Properties of `config`
+[%collapsible%open]
+====
+`ignore_unavailable`::
+(Optional, boolean)
+If `true`, missing data streams or indices do *not* cause snapshot creation to fail and return
+an error. Defaults to `false`.
+
+`include_global_state`::
+(Optional, boolean)
+If `true`, cluster states are included in snapshots. Defaults to `false`.
+
+`indices`::
+(Optional, array of strings)
+Array of data streams and indices to include in snapshots.
+<<date-math-index-names,Date math>> and wildcard (`*`) expressions are
+supported.
+====
+
+`name`::
+(Required, string)
+Name automatically assigned to each snapshot created by the policy.
+<<date-math-index-names,Date math>> is supported.
+To prevent conflicting snapshot names, a UUID is automatically appended to each 
+snapshot name.
+
+`repository`::
+(Required, string)
+Repository used to store snapshots created by this policy. This repository must 
+exist prior to the policy's creation. You can create a repository using the 
+<<modules-snapshots,snapshot repository API>>.
+
+[[slm-api-put-retention]]
+`retention`::
+(Optional, object)
+Retention rules used to retain and delete snapshots created by the policy.
++
+.Properties of `retention`
+[%collapsible%open]
+====
+`expire_after`::
+(Optional, <<time-units, time units>>)
+Time period after which a snapshot is considered expired and eligible for
+deletion.
+
+`max_count`::
+(Optional, integer)
+Maximum number of snapshots to retain, even if the snapshots have not yet
+expired. If the number of snapshots in the repository exceeds this limit, the 
+policy retains the most recent snapshots and deletes older snapshots.
+
+`min_count`::
+(Optional, integer)
+Minimum number of snapshots to retain, even if the snapshots have expired.
+====
+
+`schedule`::
+(Required, <<cron-expressions,Cron syntax>>)
+Periodic or absolute schedule at which the policy creates snapshots and deletes 
+expired snapshots. Schedule changes to existing policies are applied immediately.
+
+[[slm-api-put-example]]
+==== {api-examples-title}
+
+Create a `daily-snapshots` lifecycle policy:
+
+[source,console]
+--------------------------------------------------
+PUT /_slm/policy/daily-snapshots
+{
+  "schedule": "0 30 1 * * ?", <1>
+  "name": "<daily-snap-{now/d}>", <2>
+  "repository": "my_repository", <3>
+  "config": { <4>
+    "indices": ["data-*", "important"], <5>
+    "ignore_unavailable": false,
+    "include_global_state": false
+  },
+  "retention": { <6>
+    "expire_after": "30d", <7>
+    "min_count": 5, <8>
+    "max_count": 50 <9>
+  }
+}
+--------------------------------------------------
+// TEST[setup:setup-repository]
+
+<1> When the snapshot should be taken, in this case, 1:30am daily
+<2> The name each snapshot should be given
+<3> Which repository to take the snapshot in
+<4> Any extra snapshot configuration
+<5> Data streams and indices the snapshot should contain
+<6> Optional retention configuration
+<7> Keep snapshots for 30 days
+<8> Always keep at least 5 successful snapshots, even if they're more than 30 days old
+<9> Keep no more than 50 successful snapshots, even if they're less than 30 days old

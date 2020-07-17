@@ -11,25 +11,34 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapperTestCase;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 
-public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
+public class HistogramFieldMapperTests extends FieldMapperTestCase<HistogramFieldMapper.Builder> {
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity", "doc_values", "store", "index");
+    }
 
     public void testParseValue() throws Exception {
         ensureGreen();
@@ -498,6 +507,33 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause().getMessage(), containsString("[counts] elements must be >= 0 but got -3"));
     }
 
+    public void testMeta() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "histogram")
+                .field("meta", Collections.singletonMap("foo", "bar"))
+                .endObject().endObject().endObject().endObject());
+
+        IndexService indexService = createIndex("test");
+        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "histogram")
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping2, mapper.mappingSource().toString());
+
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "histogram")
+                .field("meta", Collections.singletonMap("baz", "quux"))
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping3, mapper.mappingSource().toString());
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
@@ -506,4 +542,8 @@ public class HistogramFieldMapperTests extends ESSingleNodeTestCase {
         return plugins;
     }
 
+    @Override
+    protected HistogramFieldMapper.Builder newBuilder() {
+        return new HistogramFieldMapper.Builder("histo");
+    }
 }

@@ -53,7 +53,7 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
         declareMultiBucketAggregationFields(objectParser, bucketParser::apply, keyedBucketParser::apply);
     }
 
-    private static ObjectParser<ParsedRange, Void> PARSER =
+    private static final ObjectParser<ParsedRange, Void> PARSER =
             new ObjectParser<>(ParsedRange.class.getSimpleName(), true, ParsedRange::new);
     static {
         declareParsedRangeFields(PARSER,

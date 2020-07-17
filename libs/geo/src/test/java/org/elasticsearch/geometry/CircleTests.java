@@ -40,14 +40,14 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
 
     public void testBasicSerialization() throws IOException, ParseException {
         WellKnownText wkt = new WellKnownText(true, new GeographyValidator(true));
-        assertEquals("circle (20.0 10.0 15.0)", wkt.toWKT(new Circle(20, 10, 15)));
+        assertEquals("CIRCLE (20.0 10.0 15.0)", wkt.toWKT(new Circle(20, 10, 15)));
         assertEquals(new Circle(20, 10, 15), wkt.fromWKT("circle (20.0 10.0 15.0)"));
 
-        assertEquals("circle (20.0 10.0 15.0 25.0)", wkt.toWKT(new Circle(20, 10, 25, 15)));
+        assertEquals("CIRCLE (20.0 10.0 15.0 25.0)", wkt.toWKT(new Circle(20, 10, 25, 15)));
         assertEquals(new Circle(20, 10, 25, 15), wkt.fromWKT("circle (20.0 10.0 15.0 25.0)"));
 
-        assertEquals("circle EMPTY", wkt.toWKT(Circle.EMPTY));
-        assertEquals(Circle.EMPTY, wkt.fromWKT("circle EMPTY)"));
+        assertEquals("CIRCLE EMPTY", wkt.toWKT(Circle.EMPTY));
+        assertEquals(Circle.EMPTY, wkt.fromWKT("CIRCLE EMPTY)"));
     }
 
     public void testInitValidation() {

@@ -11,7 +11,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 
 import java.io.IOException;
@@ -23,9 +22,8 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     public static final String NAME = "simple_long_value";
     protected final long value;
 
-    public InternalSimpleLongValue(String name, long value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-                               Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalSimpleLongValue(String name, long value, DocValueFormat formatter, Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = formatter;
         this.value = value;
     }

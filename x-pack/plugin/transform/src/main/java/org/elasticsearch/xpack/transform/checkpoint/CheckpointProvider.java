@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
 /**
@@ -34,7 +34,7 @@ public interface CheckpointProvider {
     void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
 
     /**
-     * Get checkpoint statistics for a running data frame
+     * Get checkpoint statistics for a running transform
      *
      * For running transforms most information is available in-memory.
      *
@@ -44,14 +44,16 @@ public interface CheckpointProvider {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    void getCheckpointingInfo(TransformCheckpoint lastCheckpoint,
-                              TransformCheckpoint nextCheckpoint,
-                              TransformIndexerPosition nextCheckpointPosition,
-                              TransformProgress nextCheckpointProgress,
-                              ActionListener<TransformCheckpointingInfo> listener);
+    void getCheckpointingInfo(
+        TransformCheckpoint lastCheckpoint,
+        TransformCheckpoint nextCheckpoint,
+        TransformIndexerPosition nextCheckpointPosition,
+        TransformProgress nextCheckpointProgress,
+        ActionListener<TransformCheckpointingInfoBuilder> listener
+    );
 
     /**
-     * Get checkpoint statistics for a stopped data frame
+     * Get checkpoint statistics for a stopped transform
      *
      * For stopped transforms we need to do lookups in the internal index.
      *
@@ -60,8 +62,10 @@ public interface CheckpointProvider {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    void getCheckpointingInfo(long lastCheckpointNumber,
-                              TransformIndexerPosition nextCheckpointPosition,
-                              TransformProgress nextCheckpointProgress,
-                              ActionListener<TransformCheckpointingInfo> listener);
+    void getCheckpointingInfo(
+        long lastCheckpointNumber,
+        TransformIndexerPosition nextCheckpointPosition,
+        TransformProgress nextCheckpointProgress,
+        ActionListener<TransformCheckpointingInfoBuilder> listener
+    );
 }

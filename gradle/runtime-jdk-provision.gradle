@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
@@ -9,6 +10,7 @@ jdks {
         vendor = VersionProperties.bundledJdkVendor
         version = VersionProperties.getBundledJdk(OS.current().name().toLowerCase())
         platform = OS.current().name().toLowerCase()
+        architecture = Architecture.current().name().toLowerCase()
     }
 }
 

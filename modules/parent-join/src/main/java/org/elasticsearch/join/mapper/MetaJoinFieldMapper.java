@@ -19,20 +19,21 @@
 
 package org.elasticsearch.join.mapper;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -47,41 +48,38 @@ public class MetaJoinFieldMapper extends FieldMapper {
     static final String CONTENT_TYPE = "parent_join";
 
     static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new MetaJoinFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
             FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setHasDocValues(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.freeze();
         }
     }
 
-    static class Builder extends FieldMapper.Builder<Builder, MetaJoinFieldMapper> {
-        Builder() {
-            super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+    static class Builder extends FieldMapper.Builder<Builder> {
+
+        final String joinField;
+
+        Builder(String joinField) {
+            super(NAME, Defaults.FIELD_TYPE);
             builder = this;
+            this.joinField = joinField;
         }
 
         @Override
         public MetaJoinFieldMapper build(BuilderContext context) {
-            fieldType.setName(NAME);
-            return new MetaJoinFieldMapper(name, fieldType, context.indexSettings());
+            return new MetaJoinFieldMapper(name, joinField);
         }
     }
 
     public static class MetaJoinFieldType extends StringFieldType {
 
-        private ParentJoinFieldMapper mapper;
+        private final String joinField;
 
-        MetaJoinFieldType() {}
-
-        protected MetaJoinFieldType(MetaJoinFieldType ref) {
-            super(ref);
-        }
-
-        public MetaJoinFieldType clone() {
-            return new MetaJoinFieldType(this);
+        MetaJoinFieldType(String joinField) {
+            super(NAME, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this.joinField = joinField;
         }
 
         @Override
@@ -92,7 +90,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -104,8 +102,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
             return binaryValue.utf8ToString();
         }
 
-        public ParentJoinFieldMapper getMapper() {
-            return mapper;
+        public String getJoinField() {
+            return joinField;
         }
 
         @Override
@@ -114,12 +112,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    MetaJoinFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings) {
-        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
-    }
-
-    void setFieldMapper(ParentJoinFieldMapper mapper) {
-        fieldType().mapper = mapper;
+    MetaJoinFieldMapper(String name, String joinField) {
+        super(name, Defaults.FIELD_TYPE, new MetaJoinFieldType(joinField), MultiFields.empty(), CopyTo.empty());
     }
 
     @Override
@@ -133,7 +127,11 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
+    }
+
+    @Override
+    protected void parseCreateField(ParseContext context) throws IOException {
         throw new IllegalStateException("Should never be called");
     }
 

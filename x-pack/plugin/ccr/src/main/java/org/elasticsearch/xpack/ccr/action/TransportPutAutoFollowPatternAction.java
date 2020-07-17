@@ -16,12 +16,13 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -79,6 +81,17 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
+
+        final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
+        if (replicatedRequestSettings.isEmpty() == false) {
+            final String message = String.format(
+                Locale.ROOT,
+                "can not put auto-follow pattern that could override leader settings %s",
+                replicatedRequestSettings
+            );
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
         final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
             .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
@@ -109,7 +122,7 @@ public class TransportPutAutoFollowPatternAction extends
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
-        clusterStateRequest.metaData(true);
+        clusterStateRequest.metadata(true);
 
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, request.getRemoteCluster(),
             clusterStateRequest, listener::onFailure, consumer);
@@ -123,7 +136,7 @@ public class TransportPutAutoFollowPatternAction extends
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
-        AutoFollowMetadata currentAutoFollowMetadata = localState.metaData().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata currentAutoFollowMetadata = localState.metadata().custom(AutoFollowMetadata.TYPE);
         Map<String, List<String>> followedLeaderIndices;
         Map<String, AutoFollowPattern> patterns;
         Map<String, Map<String, String>> headers;
@@ -147,10 +160,10 @@ public class TransportPutAutoFollowPatternAction extends
         followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
+            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metadata(),
                 previousPattern, followedIndexUUIDs);
         } else {
-            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metaData(), followedIndexUUIDs);
+            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metadata(), followedIndexUUIDs);
         }
 
         if (filteredHeaders != null) {
@@ -161,6 +174,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
+            request.getSettings(),
             true,
             request.getParameters().getMaxReadRequestOperationCount(),
             request.getParameters().getMaxWriteRequestOperationCount(),
@@ -174,7 +188,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getParameters().getReadPollTimeout());
         patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
-        newState.metaData(MetaData.builder(localState.getMetaData())
+        newState.metadata(Metadata.builder(localState.getMetadata())
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))
             .build());
         return newState.build();
@@ -182,7 +196,7 @@ public class TransportPutAutoFollowPatternAction extends
 
     private static void markExistingIndicesAsAutoFollowedForNewPatterns(
         List<String> leaderIndexPatterns,
-        MetaData leaderMetaData,
+        Metadata leaderMetadata,
         AutoFollowPattern previousPattern,
         List<String> followedIndexUUIDS) {
 
@@ -190,17 +204,17 @@ public class TransportPutAutoFollowPatternAction extends
             .stream()
             .filter(p -> previousPattern.getLeaderIndexPatterns().contains(p) == false)
             .collect(Collectors.toList());
-        markExistingIndicesAsAutoFollowed(newPatterns, leaderMetaData, followedIndexUUIDS);
+        markExistingIndicesAsAutoFollowed(newPatterns, leaderMetadata, followedIndexUUIDS);
     }
 
     private static void markExistingIndicesAsAutoFollowed(
         List<String> patterns,
-        MetaData leaderMetaData,
+        Metadata leaderMetadata,
         List<String> followedIndexUUIDS) {
 
-        for (final IndexMetaData indexMetaData : leaderMetaData) {
-            if (AutoFollowPattern.match(patterns, indexMetaData.getIndex().getName())) {
-                followedIndexUUIDS.add(indexMetaData.getIndexUUID());
+        for (final IndexMetadata indexMetadata : leaderMetadata) {
+            if (AutoFollowPattern.match(patterns, indexMetadata.getIndex().getName())) {
+                followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }
         }
     }

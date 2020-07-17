@@ -254,6 +254,14 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Recovery);
     }
 
+    public IndicesStatsRequest bulk(boolean bulk) {
+        flags.set(Flag.Bulk, bulk);
+        return this;
+    }
+    public boolean bulk() {
+        return flags.isSet(Flag.Bulk);
+    }
+
     public boolean includeSegmentFileSizes() {
         return flags.includeSegmentFileSizes();
     }
@@ -272,5 +280,10 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         flags.writeTo(out);
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 }

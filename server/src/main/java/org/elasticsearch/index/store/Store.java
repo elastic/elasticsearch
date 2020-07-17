@@ -135,6 +135,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static final Setting<TimeValue> INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
+    /**
+     * Specific {@link IOContext} used to verify Lucene files footer checksums.
+     * See {@link MetadataSnapshot#checksumFromLuceneFile(Directory, String, Map, Logger, Version, boolean)}
+     */
+    public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE.context);
+
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
@@ -206,18 +212,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
         }
 
-    }
-
-    /**
-     * Loads the maximum sequence number and local checkpoint from the given Lucene commit point or the latest if not provided.
-     *
-     * @param commit the commit point to load seqno stats, or the last commit in the store if the parameter is null
-     * @return {@link SequenceNumbers.CommitInfo} containing information about the last commit
-     * @throws IOException if an I/O exception occurred reading the latest Lucene commit point from disk
-     */
-    public static SequenceNumbers.CommitInfo loadSeqNoInfo(final IndexCommit commit) throws IOException {
-        final Map<String, String> userData = commit.getUserData();
-        return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
     }
 
     final void ensureOpen() {
@@ -352,9 +346,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public StoreStats stats() throws IOException {
+    /**
+     * @param reservedBytes a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+     */
+    public StoreStats stats(long reservedBytes) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize());
+        return new StoreStats(directory.estimateSize(), reservedBytes);
     }
 
     /**
@@ -469,7 +466,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Note: Checksums are calculated by default since version 4.8.0. This method only adds the
      * verification against the checksum in the given metadata and does not add any significant overhead.
      */
-    public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetaData metadata,
+    public IndexOutput createVerifyingOutput(String fileName, final StoreFileMetadata metadata,
                                                 final IOContext context) throws IOException {
         IndexOutput output = directory().createOutput(fileName, context);
         boolean success = false;
@@ -491,7 +488,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetaData metadata) throws IOException {
+    public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetadata metadata) throws IOException {
         assert metadata.writtenBy() != null;
         return new VerifyingIndexInput(directory().openInput(filename, context));
     }
@@ -502,11 +499,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public boolean checkIntegrityNoException(StoreFileMetaData md) {
+    public boolean checkIntegrityNoException(StoreFileMetadata md) {
         return checkIntegrityNoException(md, directory());
     }
 
-    public static boolean checkIntegrityNoException(StoreFileMetaData md, Directory directory) {
+    public static boolean checkIntegrityNoException(StoreFileMetadata md, Directory directory) {
         try {
             checkIntegrity(md, directory);
             return true;
@@ -515,7 +512,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public static void checkIntegrity(final StoreFileMetaData md, final Directory directory) throws IOException {
+    public static void checkIntegrity(final StoreFileMetadata md, final Directory directory) throws IOException {
         try (IndexInput input = directory.openInput(md.name(), IOContext.READONCE)) {
             if (input.length() != md.length()) { // first check the length no matter how old this file is
                 throw new CorruptIndexException("expected length=" + md.length() + " != actual length: " + input.length() +
@@ -608,15 +605,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown.
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
-     * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
+     * @param sourceMetadata the metadata used for cleanup. all files in this metadata should be kept around.
      * @throws IOException           if an IOException occurs
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
-    public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
+    public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetadata) throws IOException {
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
             for (String existingFile : directory.listAll()) {
-                if (Store.isAutogenerated(existingFile) || sourceMetaData.contains(existingFile)) {
+                if (Store.isAutogenerated(existingFile) || sourceMetadata.contains(existingFile)) {
                     // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete
                     // checksum)
                     continue;
@@ -639,20 +636,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             }
             directory.syncMetaData();
             final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
-            verifyAfterCleanup(sourceMetaData, metadataOrEmpty);
+            verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();
         }
     }
 
     // pkg private for testing
-    final void verifyAfterCleanup(MetadataSnapshot sourceMetaData, MetadataSnapshot targetMetaData) {
-        final RecoveryDiff recoveryDiff = targetMetaData.recoveryDiff(sourceMetaData);
+    final void verifyAfterCleanup(MetadataSnapshot sourceMetadata, MetadataSnapshot targetMetadata) {
+        final RecoveryDiff recoveryDiff = targetMetadata.recoveryDiff(sourceMetadata);
         if (recoveryDiff.identical.size() != recoveryDiff.size()) {
             if (recoveryDiff.missing.isEmpty()) {
-                for (StoreFileMetaData meta : recoveryDiff.different) {
-                    StoreFileMetaData local = targetMetaData.get(meta.name());
-                    StoreFileMetaData remote = sourceMetaData.get(meta.name());
+                for (StoreFileMetadata meta : recoveryDiff.different) {
+                    StoreFileMetadata local = targetMetadata.get(meta.name());
+                    StoreFileMetadata remote = sourceMetadata.get(meta.name());
                     // if we have different files then they must have no checksums; otherwise something went wrong during recovery.
                     // we have that problem when we have an empty index is only a segments_1 file so we can't tell if it's a Lucene 4.8 file
                     // and therefore no checksum is included. That isn't a problem since we simply copy it over anyway but those files
@@ -728,10 +725,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Note: This class will ignore the {@code segments.gen} file since it's optional and might
      * change concurrently for safety reasons.
      *
-     * @see StoreFileMetaData
+     * @see StoreFileMetadata
      */
-    public static final class MetadataSnapshot implements Iterable<StoreFileMetaData>, Writeable {
-        private final Map<String, StoreFileMetaData> metadata;
+    public static final class MetadataSnapshot implements Iterable<StoreFileMetadata>, Writeable {
+        private final Map<String, StoreFileMetadata> metadata;
 
         public static final MetadataSnapshot EMPTY = new MetadataSnapshot();
 
@@ -739,7 +736,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private final long numDocs;
 
-        public MetadataSnapshot(Map<String, StoreFileMetaData> metadata, Map<String, String> commitUserData, long numDocs) {
+        public MetadataSnapshot(Map<String, StoreFileMetadata> metadata, Map<String, String> commitUserData, long numDocs) {
             this.metadata = metadata;
             this.commitUserData = commitUserData;
             this.numDocs = numDocs;
@@ -764,9 +761,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public MetadataSnapshot(StreamInput in) throws IOException {
             final int size = in.readVInt();
-            Map<String, StoreFileMetaData> metadata = new HashMap<>();
+            Map<String, StoreFileMetadata> metadata = new HashMap<>();
             for (int i = 0; i < size; i++) {
-                StoreFileMetaData meta = new StoreFileMetaData(in);
+                StoreFileMetadata meta = new StoreFileMetadata(in);
                 metadata.put(meta.name(), meta);
             }
             Map<String, String> commitUserData = new HashMap<>();
@@ -784,7 +781,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.metadata.size());
-            for (StoreFileMetaData meta : this) {
+            for (StoreFileMetadata meta : this) {
                 meta.writeTo(out);
             }
             out.writeVInt(commitUserData.size());
@@ -803,11 +800,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         static class LoadedMetadata {
-            final Map<String, StoreFileMetaData> fileMetadata;
+            final Map<String, StoreFileMetadata> fileMetadata;
             final Map<String, String> userData;
             final long numDocs;
 
-            LoadedMetadata(Map<String, StoreFileMetaData> fileMetadata, Map<String, String> userData, long numDocs) {
+            LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {
                 this.fileMetadata = fileMetadata;
                 this.userData = userData;
                 this.numDocs = numDocs;
@@ -816,7 +813,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
             long numDocs;
-            Map<String, StoreFileMetaData> builder = new HashMap<>();
+            Map<String, StoreFileMetadata> builder = new HashMap<>();
             Map<String, String> commitUserDataBuilder = new HashMap<>();
             try {
                 final SegmentInfos segmentCommitInfos = Store.readSegmentsInfo(commit, directory);
@@ -867,11 +864,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return new LoadedMetadata(unmodifiableMap(builder), unmodifiableMap(commitUserDataBuilder), numDocs);
         }
 
-        private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetaData> builder,
+        private static void checksumFromLuceneFile(Directory directory, String file, Map<String, StoreFileMetadata> builder,
                 Logger logger, Version version, boolean readFileAsHash) throws IOException {
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
-            try (IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+            try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
                 final long length;
                 try {
                     length = in.length();
@@ -893,7 +890,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     logger.debug(() -> new ParameterizedMessage("Can retrieve checksum from file [{}]", file), ex);
                     throw ex;
                 }
-                builder.put(file, new StoreFileMetaData(file, length, checksum, version, fileHash.get()));
+                builder.put(file, new StoreFileMetadata(file, length, checksum, version, fileHash.get()));
             }
         }
 
@@ -910,15 +907,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         @Override
-        public Iterator<StoreFileMetaData> iterator() {
+        public Iterator<StoreFileMetadata> iterator() {
             return metadata.values().iterator();
         }
 
-        public StoreFileMetaData get(String name) {
+        public StoreFileMetadata get(String name) {
             return metadata.get(name);
         }
 
-        public Map<String, StoreFileMetaData> asMap() {
+        public Map<String, StoreFileMetadata> asMap() {
             return metadata;
         }
 
@@ -960,13 +957,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          * NOTE: this diff will not contain the {@code segments.gen} file. This file is omitted on recovery.
          */
         public RecoveryDiff recoveryDiff(MetadataSnapshot recoveryTargetSnapshot) {
-            final List<StoreFileMetaData> identical = new ArrayList<>();
-            final List<StoreFileMetaData> different = new ArrayList<>();
-            final List<StoreFileMetaData> missing = new ArrayList<>();
-            final Map<String, List<StoreFileMetaData>> perSegment = new HashMap<>();
-            final List<StoreFileMetaData> perCommitStoreFiles = new ArrayList<>();
+            final List<StoreFileMetadata> identical = new ArrayList<>();
+            final List<StoreFileMetadata> different = new ArrayList<>();
+            final List<StoreFileMetadata> missing = new ArrayList<>();
+            final Map<String, List<StoreFileMetadata>> perSegment = new HashMap<>();
+            final List<StoreFileMetadata> perCommitStoreFiles = new ArrayList<>();
 
-            for (StoreFileMetaData meta : this) {
+            for (StoreFileMetadata meta : this) {
                 if (IndexFileNames.OLD_SEGMENTS_GEN.equals(meta.name())) { // legacy
                     continue; // we don't need that file at all
                 }
@@ -980,16 +977,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
                 }
             }
-            final ArrayList<StoreFileMetaData> identicalFiles = new ArrayList<>();
-            for (List<StoreFileMetaData> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
+            final ArrayList<StoreFileMetadata> identicalFiles = new ArrayList<>();
+            for (List<StoreFileMetadata> segmentFiles : Iterables.concat(perSegment.values(), Collections.singleton(perCommitStoreFiles))) {
                 identicalFiles.clear();
                 boolean consistent = true;
-                for (StoreFileMetaData meta : segmentFiles) {
-                    StoreFileMetaData storeFileMetaData = recoveryTargetSnapshot.get(meta.name());
-                    if (storeFileMetaData == null) {
+                for (StoreFileMetadata meta : segmentFiles) {
+                    StoreFileMetadata storeFileMetadata = recoveryTargetSnapshot.get(meta.name());
+                    if (storeFileMetadata == null) {
                         consistent = false;
                         missing.add(meta);
-                    } else if (storeFileMetaData.isSame(meta) == false) {
+                    } else if (storeFileMetadata.isSame(meta) == false) {
                         consistent = false;
                         different.add(meta);
                     } else {
@@ -1039,8 +1036,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Returns the segments file that this metadata snapshot represents or null if the snapshot is empty.
          */
-        public StoreFileMetaData getSegmentsFile() {
-            for (StoreFileMetaData file : this) {
+        public StoreFileMetadata getSegmentsFile() {
+            for (StoreFileMetadata file : this) {
                 if (file.name().startsWith(IndexFileNames.SEGMENTS)) {
                     return file;
                 }
@@ -1051,7 +1048,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private int numSegmentFiles() { // only for asserts
             int count = 0;
-            for (StoreFileMetaData file : this) {
+            for (StoreFileMetadata file : this) {
                 if (file.name().startsWith(IndexFileNames.SEGMENTS)) {
                     count++;
                 }
@@ -1078,17 +1075,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * Files that exist in both snapshots and they can be considered the same ie. they don't need to be recovered
          */
-        public final List<StoreFileMetaData> identical;
+        public final List<StoreFileMetadata> identical;
         /**
          * Files that exist in both snapshots but their they are not identical
          */
-        public final List<StoreFileMetaData> different;
+        public final List<StoreFileMetadata> different;
         /**
          * Files that exist in the source but not in the target
          */
-        public final List<StoreFileMetaData> missing;
+        public final List<StoreFileMetadata> missing;
 
-        RecoveryDiff(List<StoreFileMetaData> identical, List<StoreFileMetaData> different, List<StoreFileMetaData> missing) {
+        RecoveryDiff(List<StoreFileMetadata> identical, List<StoreFileMetadata> different, List<StoreFileMetadata> missing) {
             this.identical = identical;
             this.different = different;
             this.missing = missing;
@@ -1130,13 +1127,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     static class LuceneVerifyingIndexOutput extends VerifyingIndexOutput {
 
-        private final StoreFileMetaData metadata;
+        private final StoreFileMetadata metadata;
         private long writtenBytes;
         private final long checksumPosition;
         private String actualChecksum;
         private final byte[] footerChecksum = new byte[8]; // this holds the actual footer checksum data written by to this output
 
-        LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput out) {
+        LuceneVerifyingIndexOutput(StoreFileMetadata metadata, IndexOutput out) {
             super(out);
             this.metadata = metadata;
             checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum - we store it in footerChecksum
@@ -1449,10 +1446,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (translogUUID.equals(getUserData(writer).get(Translog.TRANSLOG_UUID_KEY))) {
                 throw new IllegalArgumentException("a new translog uuid can't be equal to existing one. got [" + translogUUID + "]");
             }
-            final Map<String, String> map = new HashMap<>();
-            map.put(Translog.TRANSLOG_GENERATION_KEY, "1");
-            map.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
-            updateCommitData(writer, map);
+            updateCommitData(writer, Map.of(Translog.TRANSLOG_UUID_KEY, translogUUID));
         } finally {
             metadataLock.writeLock().unlock();
         }

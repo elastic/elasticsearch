@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -17,41 +17,41 @@ public class SubstringFunctionProcessor implements Processor {
 
     public static final String NAME = "ssub";
 
-    private final Processor source, start, length;
+    private final Processor input, start, length;
 
-    public SubstringFunctionProcessor(Processor source, Processor start, Processor length) {
-        this.source = source;
+    public SubstringFunctionProcessor(Processor input, Processor start, Processor length) {
+        this.input = input;
         this.start = start;
         this.length = length;
     }
 
     public SubstringFunctionProcessor(StreamInput in) throws IOException {
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
         start = in.readNamedWriteable(Processor.class);
         length = in.readNamedWriteable(Processor.class);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(source);
+        out.writeNamedWriteable(input);
         out.writeNamedWriteable(start);
         out.writeNamedWriteable(length);
     }
 
     @Override
-    public Object process(Object input) {
-        return doProcess(source.process(input), start.process(input), length.process(input));
+    public Object process(Object o) {
+        return doProcess(input.process(o), start.process(o), length.process(o));
     }
 
-    public static Object doProcess(Object source, Object start, Object length) {
-        if (source == null) {
+    public static Object doProcess(Object input, Object start, Object length) {
+        if (input == null) {
             return null;
         }
-        if (!(source instanceof String || source instanceof Character)) {
-            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (!(input instanceof String || input instanceof Character)) {
+            throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (start == null || length == null) {
-            return source;
+            return input;
         }
         if (!(start instanceof Number)) {
             throw new SqlIllegalArgumentException("A number is required; received [{}]", start);
@@ -63,13 +63,13 @@ public class SubstringFunctionProcessor implements Processor {
             throw new SqlIllegalArgumentException("A positive number is required for [length]; received [{}]", length);
         }
 
-        return StringFunctionUtils.substring(source instanceof Character ? source.toString() : (String) source,
+        return StringFunctionUtils.substring(input instanceof Character ? input.toString() : (String) input,
                 ((Number) start).intValue() - 1, // SQL is 1-based when it comes to string manipulation
                 ((Number) length).intValue());
     }
     
-    protected Processor source() {
-        return source;
+    protected Processor input() {
+        return input;
     }
     
     protected Processor start() {
@@ -91,14 +91,14 @@ public class SubstringFunctionProcessor implements Processor {
         }
         
         SubstringFunctionProcessor other = (SubstringFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
+        return Objects.equals(input(), other.input())
                 && Objects.equals(start(), other.start())
                 && Objects.equals(length(), other.length());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(source(), start(), length());
+        return Objects.hash(input(), start(), length());
     }
     
 

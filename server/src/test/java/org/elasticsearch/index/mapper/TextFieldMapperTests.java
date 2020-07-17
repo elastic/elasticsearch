@@ -24,7 +24,9 @@ import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -40,6 +42,8 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
@@ -58,6 +62,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
@@ -67,8 +73,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -78,13 +84,58 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
-public class TextFieldMapperTests extends ESSingleNodeTestCase {
+public class TextFieldMapperTests extends FieldMapperTestCase<TextFieldMapper.Builder> {
+
+    @Override
+    protected TextFieldMapper.Builder newBuilder() {
+        return new TextFieldMapper.Builder("text")
+            .indexAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()))
+            .searchAnalyzer(new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
+    }
+
+    @Before
+    public void addModifiers() {
+        addBooleanModifier("fielddata", true, TextFieldMapper.Builder::fielddata);
+        addModifier("fielddata_frequency_filter.min", true, (a, b) -> {
+            a.fielddataFrequencyFilter(1, 10, 10);
+            a.fielddataFrequencyFilter(2, 10, 10);
+        });
+        addModifier("fielddata_frequency_filter.max", true, (a, b) -> {
+            a.fielddataFrequencyFilter(1, 10, 10);
+            a.fielddataFrequencyFilter(1, 12, 10);
+        });
+        addModifier("fielddata_frequency_filter.min_segment_size", true, (a, b) -> {
+            a.fielddataFrequencyFilter(1, 10, 10);
+            a.fielddataFrequencyFilter(1, 10, 11);
+        });
+        addModifier("index_phrases", false, (a, b) -> {
+            a.indexPhrases(true);
+            b.indexPhrases(false);
+        });
+        addModifier("index_prefixes", false, (a, b) -> {
+            a.indexPrefixes(2, 4);
+        });
+        addModifier("index_options", false, (a, b) -> {
+            a.indexOptions(IndexOptions.DOCS_AND_FREQS);
+            b.indexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        });
+        addModifier("similarity", false, (a, b) -> {
+            a.similarity(new SimilarityProvider("BM25", new BM25Similarity()));
+            b.similarity(new SimilarityProvider("boolean", new BooleanSimilarity()));
+        });
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("doc_values");
+    }
 
     IndexService indexService;
     DocumentMapperParser parser;
@@ -216,6 +267,10 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(mappingBuilder.endObject().endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        String serialized = Strings.toString(mapper);
+        assertThat(serialized, containsString("\"offsets\":{\"type\":\"text\",\"index_options\":\"offsets\"}"));
+        assertThat(serialized, containsString("\"freqs\":{\"type\":\"text\",\"index_options\":\"freqs\"}"));
+        assertThat(serialized, containsString("\"docs\":{\"type\":\"text\",\"index_options\":\"docs\"}"));
 
         XContentBuilder jsonDoc = XContentFactory.jsonBuilder().startObject();
         for (String option : supportedOptions.keySet()) {
@@ -515,7 +570,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             FieldMapper fieldMapper = (FieldMapper) disabledMapper.mappers().getMapper("field");
             fieldMapper.fieldType().fielddataBuilder("test");
         });
-        assertThat(e.getMessage(), containsString("Fielddata is disabled"));
+        assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -639,9 +694,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
-            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, ft.indexOptions());
+            assertEquals(prefix.name(), "field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, prefix.fieldType.indexOptions());
         }
 
         {
@@ -656,8 +710,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
         }
@@ -674,8 +728,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
         }
@@ -692,8 +746,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertTrue(ft.storeTermVectorOffsets());
         }
@@ -710,8 +764,8 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
-            MappedFieldType ft = prefix.fieldType;
-            assertEquals(ft.name(), "field._index_prefix");
+            FieldType ft = prefix.fieldType;
+            assertEquals(prefix.name(), "field._index_prefix");
             assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectorOffsets());
         }
@@ -735,13 +789,15 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("object.field");
+            MappedFieldType textField = indexService.mapperService().fieldType("object.field");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
             assertEquals(prefix.name(), "object.field._index_prefix");
-            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, prefix.indexOptions());
-            assertFalse(prefix.storeTermVectorOffsets());
+            FieldMapper mapper
+                = (FieldMapper) indexService.mapperService().documentMapper().mappers().getMapper("object.field._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
+            assertFalse(mapper.fieldType.storeTermVectorOffsets());
         }
 
         {
@@ -761,13 +817,15 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject());
 
             indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            MappedFieldType textField = indexService.mapperService().fullName("body.with_prefix");
+            MappedFieldType textField = indexService.mapperService().fieldType("body.with_prefix");
             assertNotNull(textField);
             assertThat(textField, instanceOf(TextFieldType.class));
             MappedFieldType prefix = ((TextFieldType) textField).getPrefixFieldType();
             assertEquals(prefix.name(), "body.with_prefix._index_prefix");
-            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, prefix.indexOptions());
-            assertFalse(prefix.storeTermVectorOffsets());
+            FieldMapper mapper
+                = (FieldMapper) indexService.mapperService().documentMapper().mappers().getMapper("body.with_prefix._index_prefix");
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, mapper.fieldType.indexOptions());
+            assertFalse(mapper.fieldType.storeTermVectorOffsets());
         }
     }
 
@@ -1246,5 +1304,31 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(mapper.mappers().getMapper("a_field"), instanceOf(TextFieldMapper.class));
             assertThat(mapper.mappers().getMapper("b_field"), instanceOf(KeywordFieldMapper.class));
         }
+    }
+
+    public void testMeta() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "text")
+                .field("meta", Collections.singletonMap("foo", "bar"))
+                .endObject().endObject().endObject().endObject());
+
+        DocumentMapper mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "text")
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping2, mapper.mappingSource().toString());
+
+        String mapping3 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties").startObject("field").field("type", "text")
+                .field("meta", Collections.singletonMap("baz", "quux"))
+                .endObject().endObject().endObject().endObject());
+        mapper = indexService.mapperService().merge("_doc",
+                new CompressedXContent(mapping3), MergeReason.MAPPING_UPDATE);
+        assertEquals(mapping3, mapper.mappingSource().toString());
     }
 }

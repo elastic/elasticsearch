@@ -22,6 +22,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -172,6 +173,11 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return stats.getRecoveryStats();
     }
 
+    @Nullable
+    public BulkStats getBulk() {
+        return stats.getBulk();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
@@ -245,6 +251,14 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         }
 
         return statsMap;
+    }
+
+    public List<IndexShardStats> getShardStats(Index index) {
+        if (statsByShard == null) {
+            return null;
+        } else {
+            return statsByShard.get(index);
+        }
     }
 
     static final class Fields {

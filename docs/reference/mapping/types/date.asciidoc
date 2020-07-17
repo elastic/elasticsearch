@@ -1,10 +1,10 @@
 [[date]]
-=== Date datatype
+=== Date data type
 ++++
 <titleabbrev>Date</titleabbrev>
 ++++
 
-JSON doesn't have a date datatype, so dates in Elasticsearch can either be:
+JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
 * a long number representing _milliseconds-since-the-epoch_.
@@ -95,11 +95,6 @@ The following parameters are accepted by `date` fields:
 
 [horizontal]
 
-<<mapping-boost,`boost`>>::
-
-    Mapping field-level query time boosting. Accepts a floating point number, defaults
-    to `1.0`.
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it
@@ -137,3 +132,7 @@ The following parameters are accepted by `date` fields:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
+
+<<mapping-field-meta,`meta`>>::
+
+    Metadata about the field.

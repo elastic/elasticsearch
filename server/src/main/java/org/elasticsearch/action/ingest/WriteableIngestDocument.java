@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.MetaData;
+import org.elasticsearch.ingest.IngestDocument.Metadata;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -53,27 +53,27 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
             true,
             a -> {
                 HashMap<String, Object> sourceAndMetadata = new HashMap<>();
-                sourceAndMetadata.put(MetaData.INDEX.getFieldName(), a[0]);
-                sourceAndMetadata.put(MetaData.ID.getFieldName(), a[1]);
+                sourceAndMetadata.put(Metadata.INDEX.getFieldName(), a[0]);
+                sourceAndMetadata.put(Metadata.ID.getFieldName(), a[1]);
                 if (a[2] != null) {
-                    sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), a[2]);
+                    sourceAndMetadata.put(Metadata.ROUTING.getFieldName(), a[2]);
                 }
                 if (a[3] != null) {
-                    sourceAndMetadata.put(MetaData.VERSION.getFieldName(), a[3]);
+                    sourceAndMetadata.put(Metadata.VERSION.getFieldName(), a[3]);
                 }
                 if (a[4] != null) {
-                    sourceAndMetadata.put(MetaData.VERSION_TYPE.getFieldName(), a[4]);
+                    sourceAndMetadata.put(Metadata.VERSION_TYPE.getFieldName(), a[4]);
                 }
                 sourceAndMetadata.putAll((Map<String, Object>)a[5]);
                 return new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, (Map<String, Object>)a[6]));
             }
         );
     static {
-        INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(MetaData.INDEX.getFieldName()));
-        INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(MetaData.ID.getFieldName()));
-        INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(MetaData.ROUTING.getFieldName()));
-        INGEST_DOC_PARSER.declareLong(optionalConstructorArg(), new ParseField(MetaData.VERSION.getFieldName()));
-        INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(MetaData.VERSION_TYPE.getFieldName()));
+        INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(Metadata.INDEX.getFieldName()));
+        INGEST_DOC_PARSER.declareString(constructorArg(), new ParseField(Metadata.ID.getFieldName()));
+        INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(Metadata.ROUTING.getFieldName()));
+        INGEST_DOC_PARSER.declareLong(optionalConstructorArg(), new ParseField(Metadata.VERSION.getFieldName()));
+        INGEST_DOC_PARSER.declareString(optionalConstructorArg(), new ParseField(Metadata.VERSION_TYPE.getFieldName()));
         INGEST_DOC_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField(SOURCE_FIELD));
         INGEST_DOC_PARSER.declareObject(
             constructorArg(),
@@ -123,8 +123,8 @@ final class WriteableIngestDocument implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(DOC_FIELD);
-        Map<IngestDocument.MetaData, Object> metadataMap = ingestDocument.getMetadata();
-        for (Map.Entry<IngestDocument.MetaData, Object> metadata : metadataMap.entrySet()) {
+        Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.getMetadata();
+        for (Map.Entry<IngestDocument.Metadata, Object> metadata : metadataMap.entrySet()) {
             if (metadata.getValue() != null) {
                 builder.field(metadata.getKey().getFieldName(), metadata.getValue().toString());
             }

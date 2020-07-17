@@ -26,6 +26,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -42,10 +43,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.List;
-import java.util.ArrayList;
 
 import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQuery;
 
@@ -84,7 +85,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         if (getAnalyzer() != null) {
             return analyzer;
         }
-        return ft.searchAnalyzer();
+        return ft.getTextSearchInfo().getSearchAnalyzer();
     }
 
     /**
@@ -104,7 +105,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     }
 
     @Override
-    protected Query newTermQuery(Term term) {
+    protected Query newTermQuery(Term term, float boost) {
         MappedFieldType ft = context.fieldMapper(term.field());
         if (ft == null) {
             return newUnmappedFieldQuery(term.field());
@@ -134,7 +135,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             try {
                 final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
                 Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), settings.fuzzyPrefixLength,
-                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions);
+                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions, context);
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 disjuncts.add(rethrowUnlessLenient(e));
@@ -259,7 +260,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 if (isLastPos) {
                     posQuery = new PrefixQuery(new Term(field, plist.get(0)));
                 } else {
-                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                    posQuery = newTermQuery(new Term(field, plist.get(0)), BoostAttribute.DEFAULT_BOOST);
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.

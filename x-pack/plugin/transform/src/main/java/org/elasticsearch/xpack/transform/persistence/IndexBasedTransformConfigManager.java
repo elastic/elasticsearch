@@ -14,6 +14,8 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -451,7 +453,13 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     );
                     return;
                 }
-                foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));
+                // if only exact ids have been given, take the count from docs to avoid potential duplicates
+                // in versioned indexes (like transform)
+                if (requiredMatches.isOnlyExact()) {
+                    foundIdsListener.onResponse(new Tuple<>((long) ids.size(), new ArrayList<>(ids)));
+                } else {
+                    foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));    
+                }
             }, foundIdsListener::onFailure),
             client::search
         );
@@ -631,6 +639,17 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 listener.onResponse(stats);
             }, listener::onFailure),
             client::search
+        );
+    }
+
+    @Override
+    public void refresh(ActionListener<Boolean> listener) {
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            TRANSFORM_ORIGIN,
+            new RefreshRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME),
+            ActionListener.<RefreshResponse>wrap(r -> listener.onResponse(true), listener::onFailure),
+            client.admin().indices()::refresh
         );
     }
 

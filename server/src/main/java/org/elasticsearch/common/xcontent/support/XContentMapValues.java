@@ -267,7 +267,7 @@ public class XContentMapValues {
 
                 List<Object> filteredValue = filter((Iterable<?>) value,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
-                if (filteredValue.isEmpty() == false) {
+                if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
 
@@ -328,6 +328,16 @@ public class XContentMapValues {
     public static String nodeStringValue(Object node, String defaultValue) {
         if (node == null) {
             return defaultValue;
+        }
+        return node.toString();
+    }
+
+    /**
+     * Returns the {@link Object#toString} value of its input, or {@code null} if the input is null
+     */
+    public static String nodeStringValue(Object node) {
+        if (node == null) {
+            return null;
         }
         return node.toString();
     }

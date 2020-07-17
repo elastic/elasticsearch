@@ -238,4 +238,26 @@ public class TimeValueTests extends ESTestCase {
         TimeValue secondValue = new TimeValue(firstValue.getSeconds(), TimeUnit.SECONDS);
         assertEquals(firstValue.hashCode(), secondValue.hashCode());
     }
+
+    public void testRejectsNegativeValuesDuringParsing() {
+        final String settingName = "test-value";
+        final long negativeValue = randomLongBetween(Long.MIN_VALUE, -2);
+        final String negativeTimeValueString = Long.toString(negativeValue) + randomTimeUnit();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> TimeValue.parseTimeValue(negativeTimeValueString, settingName));
+        assertThat(ex.getMessage(),
+            equalTo("failed to parse setting [" + settingName + "] with value [" + negativeTimeValueString +
+                "] as a time value: negative durations are not supported"));
+    }
+
+    public void testRejectsNegativeValuesAtCreation() {
+        final long duration = randomLongBetween(Long.MIN_VALUE, -2);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new TimeValue(duration, randomTimeUnitObject()));
+        assertThat(ex.getMessage(), containsString("duration cannot be negative"));
+    }
+
+    private TimeUnit randomTimeUnitObject() {
+        return randomFrom(TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS, TimeUnit.SECONDS,
+            TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
+    }
 }

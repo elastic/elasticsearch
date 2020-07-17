@@ -21,6 +21,7 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -44,6 +45,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * Builder for the 'has_parent' query.
@@ -158,6 +161,11 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
         if (joinFieldMapper == null) {
             if (ignoreUnmapped) {
@@ -173,7 +181,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
             Query childFilter = parentIdFieldMapper.getChildrenFilter();
             MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetDVOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+            final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
             return new HasChildQueryBuilder.LateParsingQuery(childFilter, innerQuery,
                 HasChildQueryBuilder.DEFAULT_MIN_CHILDREN, HasChildQueryBuilder.DEFAULT_MAX_CHILDREN,
                 fieldType.name(), score ? ScoreMode.Max : ScoreMode.None, fieldData, context.getSearchSimilarity());

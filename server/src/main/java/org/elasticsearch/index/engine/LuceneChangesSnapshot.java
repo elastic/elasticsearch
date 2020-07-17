@@ -23,7 +23,8 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -33,13 +34,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -210,7 +210,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     }
 
     private TopDocs searchOperations(ScoreDoc after) throws IOException {
-        final Query rangeQuery = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo);
+        final Query rangeQuery = new BooleanQuery.Builder()
+            .add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo), BooleanClause.Occur.MUST)
+            .add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST) // exclude non-root nested documents
+            .build();
         final Sort sortedBySeqNo = new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG));
         return indexSearcher.searchAfter(after, rangeQuery, searchBatchSize, sortedBySeqNo);
     }
@@ -219,11 +222,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final LeafReaderContext leaf = parallelArray.leafReaderContexts[docIndex];
         final int segmentDocID = scoreDocs[docIndex].doc - leaf.docBase;
         final long primaryTerm = parallelArray.primaryTerm[docIndex];
-        // We don't have to read the nested child documents - those docs don't have primary terms.
-        if (primaryTerm == -1) {
-            skippedOperations++;
-            return null;
-        }
+        assert primaryTerm > 0 : "nested child document must be excluded";
         final long seqNo = parallelArray.seqNo[docIndex];
         // Only pick the first seen seq#
         if (seqNo == lastSeenSeqNo) {
@@ -245,9 +244,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Noop but soft_deletes field is not set [" + op + "]";
         } else {
             final String id = fields.id();
-            final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
             if (isTombstone) {
-                op = new Translog.Delete(id, uid, seqNo, primaryTerm, version);
+                op = new Translog.Delete(id, seqNo, primaryTerm, version);
                 assert assertDocSoftDeleted(leaf.reader(), segmentDocID) : "Delete op but soft_deletes field is not set [" + op + "]";
             } else {
                 final BytesReference source = fields.source();

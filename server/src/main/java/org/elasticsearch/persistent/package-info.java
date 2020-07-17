@@ -29,14 +29,14 @@
  * {@link org.elasticsearch.persistent.PersistentTasksClusterService} to update cluster state with the record about running persistent
  * task.
  * <p>
- * 2. The master node updates the {@link org.elasticsearch.persistent.PersistentTasksCustomMetaData} in the cluster state to indicate
+ * 2. The master node updates the {@link org.elasticsearch.persistent.PersistentTasksCustomMetadata} in the cluster state to indicate
  * that there is a new persistent task running in the system.
  * <p>
  * 3. The {@link org.elasticsearch.persistent.PersistentTasksNodeService} running on every node in the cluster monitors changes in
  * the cluster state and starts execution of all new tasks assigned to the node it is running on.
  * <p>
  * 4. If the task fails to start on the node, the {@link org.elasticsearch.persistent.PersistentTasksNodeService} uses the
- * {@link org.elasticsearch.persistent.PersistentTasksCustomMetaData} to notify the
+ * {@link org.elasticsearch.persistent.PersistentTasksCustomMetadata} to notify the
  * {@link org.elasticsearch.persistent.PersistentTasksService}, which reassigns the action to another node in the cluster.
  * <p>
  * 5. If a task finishes successfully on the node and calls listener.onResponse(), the corresponding persistent action is removed from the

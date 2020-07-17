@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
@@ -85,7 +86,11 @@ public class RealmUserLookupTests extends ESTestCase {
     }
 
     public void testRealmException() {
-        final Realm realm = new Realm(new RealmConfig(new RealmIdentifier("test", "test"), globalSettings, env, threadContext)) {
+        RealmIdentifier realmIdentifier = new RealmIdentifier("test", "test");
+        final Realm realm = new Realm(new RealmConfig(realmIdentifier,
+            Settings.builder().put(globalSettings)
+                .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            env, threadContext)) {
             @Override
             public boolean supports(AuthenticationToken token) {
                 return false;
@@ -116,7 +121,12 @@ public class RealmUserLookupTests extends ESTestCase {
     private List<MockLookupRealm> buildRealms(int realmCount) {
         final List<MockLookupRealm> realms = new ArrayList<>(realmCount);
         for (int i = 1; i <= realmCount; i++) {
-            final RealmConfig config = new RealmConfig(new RealmIdentifier("mock","lookup-" + i), globalSettings, env, threadContext);
+            RealmIdentifier realmIdentifier = new RealmIdentifier("mock", "lookup-" + i);
+            final RealmConfig config = new RealmConfig(realmIdentifier,
+                Settings.builder().put(globalSettings)
+                    .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+                env,
+                threadContext);
             final MockLookupRealm realm = new MockLookupRealm(config);
             for (int j = 0; j < 5; j++) {
                 realm.registerUser(new User(randomAlphaOfLengthBetween(6, 12)));

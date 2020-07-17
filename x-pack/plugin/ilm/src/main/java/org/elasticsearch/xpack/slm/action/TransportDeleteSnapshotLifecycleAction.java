@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -63,7 +63,7 @@ public class TransportDeleteSnapshotLifecycleAction extends
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    SnapshotLifecycleMetadata snapMeta = currentState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+                    SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
                     if (snapMeta == null) {
                         throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
                     }
@@ -78,9 +78,9 @@ public class TransportDeleteSnapshotLifecycleAction extends
                         .filter(e -> e.getKey().equals(request.getLifecycleId()) == false)
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-                    MetaData metaData = currentState.metaData();
+                    Metadata metadata = currentState.metadata();
                     return ClusterState.builder(currentState)
-                        .metaData(MetaData.builder(metaData)
+                        .metadata(Metadata.builder(metadata)
                             .putCustom(SnapshotLifecycleMetadata.TYPE,
                                 new SnapshotLifecycleMetadata(newConfigs,
                                     snapMeta.getOperationMode(), snapMeta.getStats().removePolicy(request.getLifecycleId()))))

@@ -1,26 +1,30 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache license, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the license for the specific language governing permissions and
- * limitations under the license.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -101,10 +105,11 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()));
+                new ActionFilters(Collections.emptySet()),
+                new IndexingPressure(Settings.EMPTY));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
-        action.shardOperationOnPrimary(request, indexShard,
+        action.dispatchedShardOperationOnPrimary(request, indexShard,
             ActionTestUtils.assertNoFailureListener(result -> {
                     // the retention leases on the shard should be persisted
                     verify(indexShard).persistRetentionLeases();
@@ -137,12 +142,14 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()));
+                new ActionFilters(Collections.emptySet()),
+                new IndexingPressure(Settings.EMPTY));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
-        final TransportWriteAction.WriteReplicaResult<RetentionLeaseSyncAction.Request> result =
-                action.shardOperationOnReplica(request, indexShard);
+        PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
+        action.dispatchedShardOperationOnReplica(request, indexShard, listener);
+        final TransportReplicationAction.ReplicaResult result = listener.actionGet();
         // the retention leases on the shard should be updated
         verify(indexShard).updateRetentionLeasesOnReplica(retentionLeases);
         // the retention leases on the shard should be persisted
@@ -174,7 +181,8 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
                 indicesService,
                 threadPool,
                 shardStateAction,
-                new ActionFilters(Collections.emptySet()));
+                new ActionFilters(Collections.emptySet()),
+                new IndexingPressure(Settings.EMPTY));
 
         assertNull(action.indexBlockLevel());
     }

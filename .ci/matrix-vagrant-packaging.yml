@@ -1,0 +1,17 @@
+# This file is used as part of a matrix build in Jenkins where the
+# values below are included as an axis of the matrix.
+
+# This axis of the build matrix represents the versions subprojects
+# of the :qa:os project which will be tested on a metal CI worker
+# for the purposes of verifying of Vagrant-based tooling
+
+OS:
+  - centos-7
+  - debian-9
+  - fedora-28
+  - fedora-29
+  - oel-7
+  - sles-12
+  - ubuntu-1804
+  - windows-2012r2
+  - windows-2016

@@ -28,10 +28,13 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class FrozenEngineTests extends EngineTestCase {
 
@@ -46,7 +49,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                     assertEquals(config.getShardId(), ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher
@@ -80,7 +83,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.Searcher searcher1 = frozenEngine.acquireSearcher("test");
                     assertTrue(frozenEngine.isReaderOpen());
@@ -116,7 +119,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                     SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                     assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
@@ -145,6 +148,7 @@ public class FrozenEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(),
                 NoMergePolicy.INSTANCE, // we don't merge we want no background merges to happen to ensure we have consistent breaker stats
                 null, listener, null, globalCheckpoint::get, new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
+                    Collections.emptyList(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             final int docs;
@@ -154,7 +158,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 engine.refresh("test"); // pull the reader to account for RAM in the breaker.
             }
             final long expectedUse;
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, i -> i)) {
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, i -> i, true)) {
                 expectedUse = breaker.getUsed();
                 DocsStats docsStats = readOnlyEngine.docStats();
                 assertEquals(docs, docsStats.getCount());
@@ -162,7 +166,7 @@ public class FrozenEngineTests extends EngineTestCase {
             assertTrue(expectedUse > 0);
             assertEquals(0, breaker.getUsed());
             listener.reset();
-            try (FrozenEngine frozenEngine = new FrozenEngine(config)) {
+            try (FrozenEngine frozenEngine = new FrozenEngine(config, true)) {
                 Engine.Searcher searcher = frozenEngine.acquireSearcher("test");
                 assertEquals(expectedUse, breaker.getUsed());
                 FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()).release();
@@ -201,13 +205,14 @@ public class FrozenEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, null, globalCheckpoint::get,
                 new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
+                    Collections.emptyList(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             try (InternalEngine engine = createEngine(config)) {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 int numIters = randomIntBetween(100, 1000);
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     int numThreads = randomIntBetween(2, 4);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads);
@@ -303,7 +308,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig)) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true)) {
                     DirectoryReader reader;
                     try (Engine.Searcher searcher = frozenEngine.acquireSearcher("can_match")) {
                         assertNotNull(ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()));
@@ -324,6 +329,34 @@ public class FrozenEngineTests extends EngineTestCase {
                         DirectoryReader unwrap = FilterDirectoryReader.unwrap(searcher.getDirectoryReader());
                         assertThat(unwrap, Matchers.instanceOf(RewriteCachingDirectoryReader.class));
                     }
+                }
+            }
+        }
+    }
+
+    public void testSearchers() throws Exception {
+        IOUtils.close(engine, store);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, null,
+                globalCheckpoint::get, new NoneCircuitBreakerService());
+            final int totalDocs;
+            try (InternalEngine engine = createEngine(config)) {
+                applyOperations(engine, generateHistoryOnReplica(between(10, 1000), false, randomBoolean(), randomBoolean()));
+                globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+                engine.syncTranslog();
+                // We need to force flush to make the last commit a safe commit; otherwise, we might fail to open ReadOnlyEngine
+                // See TransportVerifyShardBeforeCloseAction#executeShardOperation
+                engine.flush(true, true);
+                engine.refresh("test");
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    totalDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE).scoreDocs.length;
+                }
+            }
+            try (FrozenEngine frozenEngine = new FrozenEngine(config, true)) {
+                try (Engine.Searcher searcher = frozenEngine.acquireSearcher("test")) {
+                    TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+                    assertThat(topDocs.scoreDocs.length, equalTo(totalDocs));
                 }
             }
         }

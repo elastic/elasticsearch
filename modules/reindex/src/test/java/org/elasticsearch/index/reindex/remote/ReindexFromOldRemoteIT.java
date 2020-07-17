@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -117,6 +118,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
     }
 
     public void testEs090() throws IOException {
+        assumeFalse("No longer works on Mac", Constants.MAC_OS_X);
         oldEsTestCase("es090.port", null);
     }
 
@@ -129,6 +131,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
     }
 
     public void testEs090WithFunnyThrottle() throws IOException {
+        assumeFalse("No longer works on Mac", Constants.MAC_OS_X);
         oldEsTestCase("es090.port", "11"); // 11 requests per second should give us a nice "funny" number on the scroll timeout
     }
 

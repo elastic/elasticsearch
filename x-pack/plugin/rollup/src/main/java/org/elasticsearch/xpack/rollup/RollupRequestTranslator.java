@@ -226,7 +226,7 @@ public class RollupRequestTranslator {
             rolledDateHisto.minDocCount(source.minDocCount());
             rolledDateHisto.order(source.order());
             rolledDateHisto.field(RollupField.formatFieldName(source, RollupField.TIMESTAMP));
-            rolledDateHisto.setMetaData(source.getMetaData());
+            rolledDateHisto.setMetadata(source.getMetadata());
             return rolledDateHisto;
         });
     }
@@ -255,7 +255,7 @@ public class RollupRequestTranslator {
             rolledHisto.minDocCount(source.minDocCount());
             rolledHisto.order(source.order());
             rolledHisto.field(RollupField.formatFieldName(source, RollupField.VALUE));
-            rolledHisto.setMetaData(source.getMetaData());
+            rolledHisto.setMetadata(source.getMetadata());
             return rolledHisto;
         });
     }
@@ -319,7 +319,10 @@ public class RollupRequestTranslator {
 
         return translateVSAggBuilder(source, registry, () -> {
             TermsAggregationBuilder rolledTerms
-                    = new TermsAggregationBuilder(source.getName(), source.valueType());
+                    = new TermsAggregationBuilder(source.getName());
+            if (source.userValueTypeHint() != null) {
+                rolledTerms.userValueTypeHint(source.userValueTypeHint());
+            }
             rolledTerms.field(RollupField.formatFieldName(source, RollupField.VALUE));
             rolledTerms.includeExclude(source.includeExclude());
             if (source.collectMode() != null) {
@@ -354,8 +357,8 @@ public class RollupRequestTranslator {
      * @param <T> The type of ValueSourceAggBuilder that we are working with
      * @return the translated multi-bucket ValueSourceAggBuilder
      */
-    private static <T extends ValuesSourceAggregationBuilder> List<AggregationBuilder>
-        translateVSAggBuilder(ValuesSourceAggregationBuilder source, NamedWriteableRegistry registry, Supplier<T> factory) {
+    private static <T extends ValuesSourceAggregationBuilder<T>> List<AggregationBuilder>
+        translateVSAggBuilder(T source, NamedWriteableRegistry registry, Supplier<T> factory) {
 
         T rolled = factory.get();
 
@@ -446,7 +449,7 @@ public class RollupRequestTranslator {
      *                 most of the leafs to easily clone them
      * @return The translated leaf aggregation
      */
-    private static List<AggregationBuilder> translateVSLeaf(ValuesSourceAggregationBuilder.LeafOnly metric,
+    private static List<AggregationBuilder> translateVSLeaf(ValuesSourceAggregationBuilder.LeafOnly<?,?> metric,
                                                             NamedWriteableRegistry registry) {
 
         List<AggregationBuilder> rolledMetrics;
@@ -480,7 +483,7 @@ public class RollupRequestTranslator {
                      NamedWriteableAwareStreamInput in =
                              new NamedWriteableAwareStreamInput(stream, registry)) {
 
-                    ValuesSourceAggregationBuilder serialized
+                    ValuesSourceAggregationBuilder<?> serialized
                             = ((ValuesSourceAggregationBuilder)in.readNamedWriteable(AggregationBuilder.class))
                             .field(RollupField.formatFieldName(metric, RollupField.VALUE));
 

@@ -170,12 +170,14 @@ GET /example/_search
 
 The following is a complete list of spatial relation operators available:
 
-* `INTERSECTS` - (default) Return all documents whose `geo_shape` field
+* `INTERSECTS` - (default) Return all documents whose `shape` field
 intersects the query geometry.
-* `DISJOINT` - Return all documents whose `geo_shape` field
+* `DISJOINT` - Return all documents whose `shape` field
 has nothing in common with the query geometry.
-* `WITHIN` - Return all documents whose `geo_shape` field
+* `WITHIN` - Return all documents whose `shape` field
 is within the query geometry.
+* `CONTAINS` - Return all documents whose `shape` field
+contains the query geometry.
 
 [float]
 ==== Ignore Unmapped

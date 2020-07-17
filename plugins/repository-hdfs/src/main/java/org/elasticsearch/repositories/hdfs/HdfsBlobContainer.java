@@ -26,12 +26,12 @@ import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
@@ -62,6 +62,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     // TODO: See if we can get precise result reporting.
     private static final DeleteResult DELETE_RESULT = new DeleteResult(1L, 0L);
+
+    @Override
+    public boolean blobExists(String blobName) throws IOException {
+        return store.execute(fileContext -> fileContext.util().exists(new Path(path, blobName)));
+    }
 
     @Override
     public DeleteResult delete() throws IOException {
@@ -103,6 +108,11 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");
         }
+    }
+
+    @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -149,20 +159,20 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
         FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path,
             path -> prefix == null || path.getName().startsWith(prefix)));
-        Map<String, BlobMetaData> map = new LinkedHashMap<>();
+        Map<String, BlobMetadata> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
             if (file.isFile()) {
-                map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+                map.put(file.getPath().getName(), new PlainBlobMetadata(file.getPath().getName(), file.getLen()));
             }
         }
         return Collections.unmodifiableMap(map);
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 

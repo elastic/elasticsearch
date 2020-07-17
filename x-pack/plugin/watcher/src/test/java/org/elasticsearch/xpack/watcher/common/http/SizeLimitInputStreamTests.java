@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-import static com.google.common.base.Charsets.UTF_8;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.is;
 
 public class SizeLimitInputStreamTests extends ESTestCase {

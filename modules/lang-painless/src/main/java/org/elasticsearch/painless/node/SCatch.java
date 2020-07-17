@@ -19,102 +19,98 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a catch block as part of a try-catch block.
  */
-public final class SCatch extends AStatement {
+public class SCatch extends AStatement {
 
-    private final DType baseException;
-    private final SDeclaration declaration;
-    private final SBlock block;
+    private final Class<?> baseException;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final SBlock blockNode;
 
-    Label begin = null;
-    Label end = null;
-    Label exception = null;
-
-    public SCatch(Location location, DType baseException, SDeclaration declaration, SBlock block) {
-        super(location);
+    public SCatch(int identifier, Location location, Class<?> baseException, String canonicalTypeName, String symbol, SBlock blockNode) {
+        super(identifier, location);
 
         this.baseException = Objects.requireNonNull(baseException);
-        this.declaration = Objects.requireNonNull(declaration);
-        this.block = block;
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.blockNode = blockNode;
+    }
+
+    public Class<?> getBaseException() {
+        return baseException;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        declaration.extractVariables(variables);
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitCatch(this, input);
+    }
 
-        if (block != null) {
-            block.extractVariables(variables);
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+
+        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
         }
-    }
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        declaration.analyze(scriptRoot, locals);
+        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-        Class<?> baseType = baseException.resolveType(scriptRoot.getPainlessLookup()).getType();
-        Class<?> type = declaration.variable.clazz;
+        if (type == null) {
+            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
+        }
 
-        if (baseType.isAssignableFrom(type) == false) {
+        Variable variable = semanticScope.defineVariable(getLocation(), type, symbol, false);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
+
+        if (baseException.isAssignableFrom(type) == false) {
             throw createError(new ClassCastException(
                     "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseType) + "]"));
+                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
         }
 
-        if (block != null) {
-            block.lastSource = lastSource;
-            block.inLoop = inLoop;
-            block.lastLoop = lastLoop;
-            block.analyze(scriptRoot, locals);
+        if (blockNode != null) {
+            semanticScope.replicateCondition(this, blockNode, LastSource.class);
+            semanticScope.replicateCondition(this, blockNode, InLoop.class);
+            semanticScope.replicateCondition(this, blockNode, LastLoop.class);
+            blockNode.analyze(semanticScope);
 
-            methodEscape = block.methodEscape;
-            loopEscape = block.loopEscape;
-            allEscape = block.allEscape;
-            anyContinue = block.anyContinue;
-            anyBreak = block.anyBreak;
-            statementCount = block.statementCount;
+            semanticScope.setCondition(this, MethodEscape.class);
+            semanticScope.setCondition(this, LoopEscape.class);
+            semanticScope.setCondition(this, AllEscape.class);
+            semanticScope.setCondition(this, AnyContinue.class);
+            semanticScope.setCondition(this, AnyBreak.class);
         }
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        Label jump = new Label();
-
-        methodWriter.mark(jump);
-        methodWriter.visitVarInsn(
-                MethodWriter.getType(declaration.variable.clazz).getOpcode(Opcodes.ISTORE), declaration.variable.getSlot());
-
-        if (block != null) {
-            block.continu = continu;
-            block.brake = brake;
-            block.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(declaration.variable.clazz).getInternalName());
-
-        if (exception != null && (block == null || !block.allEscape)) {
-            methodWriter.goTo(exception);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(baseException, declaration, block);
     }
 }

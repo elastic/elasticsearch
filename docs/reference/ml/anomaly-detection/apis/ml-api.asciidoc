@@ -3,9 +3,7 @@
 [[ml-apis]]
 == {ml-cap} {anomaly-detect} APIs
 
-You can use the following APIs to perform {ml} {anomaly-detect} activities. See
-<<ml-api-definitions, Definitions>> for the resource definitions used by the
-machine learning APIs and in advanced job configuration options in Kibana.
+You can use the following APIs to perform {ml} {anomaly-detect} activities.
 
 See also <<ml-df-analytics-apis>>. 
 
@@ -50,11 +48,6 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-preview-datafeed,Preview {dfeed}>>
 * <<ml-update-datafeed,Update {dfeed}>>
 
-[discrete]
-[[ml-api-job-endpoint]]
-=== Jobs
-
-See <<ml-api-anomaly-job-endpoint>>.
 
 [discrete]
 [[ml-api-snapshot-endpoint]]
@@ -120,6 +113,8 @@ include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
 include::delete-expired-data.asciidoc[]
+//ESTIMATE
+include::estimate-model-memory.asciidoc[]
 //FIND
 include::find-file-structure.asciidoc[]
 //FLUSH

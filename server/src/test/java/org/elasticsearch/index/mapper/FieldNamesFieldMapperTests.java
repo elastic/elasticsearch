@@ -21,13 +21,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -52,7 +53,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     void assertFieldNames(Set<String> expected, ParsedDocument doc) {
-        String[] got = doc.rootDoc().getValues("_field_names");
+        String[] got = TermVectorsService.getValues(doc.rootDoc().getFields("_field_names"));
         assertEquals(expected, set(got));
     }
 
@@ -75,10 +76,11 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .parse("type", new CompressedXContent(mapping));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
-        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType().indexOptions());
-        assertFalse(fieldNamesMapper.fieldType().tokenized());
-        assertFalse(fieldNamesMapper.fieldType().stored());
-        assertTrue(fieldNamesMapper.fieldType().omitNorms());
+
+        assertEquals(IndexOptions.DOCS, fieldNamesMapper.fieldType.indexOptions());
+        assertFalse(fieldNamesMapper.fieldType.tokenized());
+        assertFalse(fieldNamesMapper.fieldType.stored());
+        assertTrue(fieldNamesMapper.fieldType.omitNorms());
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
@@ -122,7 +124,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper docMapper = createIndex("test",
                 Settings.builder()
-                        .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
+                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                                 VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
                         .build()).mapperService()
                         .documentMapperParser()
@@ -152,17 +154,17 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("_field_names").field("enabled", false).endObject()
             .endObject().endObject());
         MapperService mapperService = createIndex("test", Settings.builder()
-                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
                         VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
                 .build()).mapperService();
 
-        DocumentMapper mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
         assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
-        mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapperEnabled
+            = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
         assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
@@ -170,7 +172,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         /**
-         * This is needed to force the index version with {@link IndexMetaData.SETTING_INDEX_VERSION_CREATED}.
+         * This is needed to force the index version with {@link IndexMetadata.SETTING_INDEX_VERSION_CREATED}.
          */
         return false;
     }

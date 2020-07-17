@@ -13,12 +13,15 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
  * Evaluation of regression results.
@@ -33,13 +36,13 @@ public class Regression implements Evaluation {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Regression, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(), a -> new Regression((String) a[0], (String) a[1], (List<RegressionMetric>) a[2]));
+        NAME.getPreferredName(), a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PREDICTED_FIELD);
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(RegressionMetric.class, n, c), METRICS);
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c), METRICS);
     }
 
     public static Regression fromXContent(XContentParser parser) {
@@ -61,22 +64,22 @@ public class Regression implements Evaluation {
     /**
      * The list of metrics to calculate
      */
-    private final List<RegressionMetric> metrics;
+    private final List<EvaluationMetric> metrics;
 
-    public Regression(String actualField, String predictedField, @Nullable List<RegressionMetric> metrics) {
+    public Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
         this.actualField = ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD);
         this.predictedField = ExceptionsHelper.requireNonNull(predictedField, PREDICTED_FIELD);
         this.metrics = initMetrics(metrics, Regression::defaultMetrics);
     }
 
-    private static List<RegressionMetric> defaultMetrics() {
+    private static List<EvaluationMetric> defaultMetrics() {
         return Arrays.asList(new MeanSquaredError(), new RSquared());
     }
 
     public Regression(StreamInput in) throws IOException {
         this.actualField = in.readString();
         this.predictedField = in.readString();
-        this.metrics = in.readNamedWriteableList(RegressionMetric.class);
+        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
     }
 
     @Override
@@ -95,7 +98,7 @@ public class Regression implements Evaluation {
     }
 
     @Override
-    public List<RegressionMetric> getMetrics() {
+    public List<EvaluationMetric> getMetrics() {
         return metrics;
     }
 
@@ -118,8 +121,8 @@ public class Regression implements Evaluation {
         builder.field(PREDICTED_FIELD.getPreferredName(), predictedField);
 
         builder.startObject(METRICS.getPreferredName());
-        for (RegressionMetric metric : metrics) {
-            builder.field(metric.getWriteableName(), metric);
+        for (EvaluationMetric metric : metrics) {
+            builder.field(metric.getName(), metric);
         }
         builder.endObject();
 

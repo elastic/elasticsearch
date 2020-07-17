@@ -51,16 +51,11 @@ public class OutlierDetection implements DataFrameAnalysis {
     static final ParseField OUTLIER_FRACTION = new ParseField("outlier_fraction");
     static final ParseField STANDARDIZATION_ENABLED = new ParseField("standardization_enabled");
 
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Builder::new);
 
     static {
         PARSER.declareInt(Builder::setNNeighbors, N_NEIGHBORS);
-        PARSER.declareField(Builder::setMethod, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Method.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, METHOD, ObjectParser.ValueType.STRING);
+        PARSER.declareString(Builder::setMethod, Method::fromString, METHOD);
         PARSER.declareDouble(Builder::setFeatureInfluenceThreshold, FEATURE_INFLUENCE_THRESHOLD);
         PARSER.declareBoolean(Builder::setComputeFeatureInfluence, COMPUTE_FEATURE_INFLUENCE);
         PARSER.declareDouble(Builder::setOutlierFraction, OUTLIER_FRACTION);

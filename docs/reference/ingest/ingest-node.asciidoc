@@ -372,7 +372,7 @@ is not null safe alternative, so an explicit null check is needed.
 
 [[ingest-conditional-complex]]
 === Complex Conditionals
-The `if` condition can be more then a simple equality check.
+The `if` condition can be more complex than a simple equality check.
 The full power of the <<modules-scripting-painless, Painless Scripting Language>> is available and
 running in the {painless}/painless-ingest-processor-context.html[ingest processor context].
 
@@ -401,7 +401,7 @@ support new line characters. However, Kibana's console supports
 a triple quote syntax to help with writing and debugging
 scripts like these.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/not_prod_dropper
 {
@@ -424,8 +424,43 @@ PUT _ingest/pipeline/not_prod_dropper
   ]
 }
 --------------------------------------------------
-// NOTCONSOLE
 // TEST[continued]
+
+or it can be built with a stored script:
+
+[source,console]
+--------------------------------------------------
+PUT _scripts/not_prod
+{
+  "script": {
+    "lang": "painless",
+    "source": """
+        Collection tags = ctx.tags;
+        if(tags != null){
+          for (String tag : tags) {
+              if (tag.toLowerCase().contains('prod')) {
+                  return false;
+              }
+          }
+        }
+        return true;
+    """
+  }
+}
+PUT _ingest/pipeline/not_prod_dropper
+{
+  "processors": [
+    {
+      "drop": {
+        "if": { "id": "not_prod" }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[continued]
+
+Either way, you can run it with:
 
 [source,console]
 --------------------------------------------------
@@ -798,7 +833,6 @@ See <<ingest-conditionals>> to learn more about the `if` field and conditional e
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 
-The <<cluster-nodes-info,node info API>> can be used to figure out what processors are available in a cluster.
 The <<cluster-nodes-info,node info API>> will provide a per node list of what processors are available.
 
 Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline
@@ -838,6 +872,7 @@ include::processors/geoip.asciidoc[]
 include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
 include::processors/html_strip.asciidoc[]
+include::processors/inference.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]

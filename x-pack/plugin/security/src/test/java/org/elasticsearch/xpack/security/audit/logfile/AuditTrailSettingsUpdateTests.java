@@ -99,7 +99,7 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.put(randomFrom(allSettingsKeys), invalidLuceneRegex);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder.build()).get());
-        assertThat(e.getMessage(), containsString("illegal value can't update"));
+        assertThat(e.getMessage(), containsString("invalid pattern [/invalid]"));
     }
 
     public void testDynamicHostSettings() {

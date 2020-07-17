@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +38,8 @@ import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
     public static final String NAME = "parent_id";
@@ -153,6 +156,11 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
+                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+        }
+
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
         if (joinFieldMapper == null) {
             if (ignoreUnmapped) {

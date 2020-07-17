@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileTree;
@@ -50,12 +52,16 @@ public class ConcatFilesTask extends DefaultTask {
 
     private File target;
 
+    private List<String> additionalLines = new ArrayList<>();
+
     public void setFiles(FileTree files) {
         this.files = files;
     }
 
     @InputFiles
-    public FileTree getFiles() { return files; }
+    public FileTree getFiles() {
+        return files;
+    }
 
     public void setHeaderLine(String headerLine) {
         this.headerLine = headerLine;
@@ -63,7 +69,9 @@ public class ConcatFilesTask extends DefaultTask {
 
     @Input
     @Optional
-    public String getHeaderLine() { return headerLine; }
+    public String getHeaderLine() {
+        return headerLine;
+    }
 
     public void setTarget(File target) {
         this.target = target;
@@ -74,13 +82,19 @@ public class ConcatFilesTask extends DefaultTask {
         return target;
     }
 
+    @Input
+    public List<String> getAdditionalLines() {
+        return additionalLines;
+    }
+
+    public void setAdditionalLines(List<String> additionalLines) {
+        this.additionalLines = additionalLines;
+    }
+
     @TaskAction
     public void concatFiles() throws IOException {
         if (getHeaderLine() != null) {
-            Files.write(
-                getTarget().toPath(),
-                (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8)
-            );
+            Files.write(getTarget().toPath(), (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8));
         }
 
         // To remove duplicate lines
@@ -88,9 +102,11 @@ public class ConcatFilesTask extends DefaultTask {
         for (File f : getFiles()) {
             uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
         }
-        Files.write(
-            getTarget().toPath(), uniqueLines, StandardCharsets.UTF_8, StandardOpenOption.APPEND
-        );
+        Files.write(getTarget().toPath(), uniqueLines, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+
+        for (String additionalLine : additionalLines) {
+            Files.write(getTarget().toPath(), (additionalLine + '\n').getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+        }
     }
 
 }

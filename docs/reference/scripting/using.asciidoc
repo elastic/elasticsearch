@@ -98,9 +98,11 @@ second version is only compiled once.
 
 If you compile too many unique scripts within a small amount of time,
 Elasticsearch will reject the new dynamic scripts with a
-`circuit_breaking_exception` error. By default, up to 15 inline scripts per
-minute will be compiled. You can change this setting dynamically by setting
-`script.max_compilations_rate`.
+`circuit_breaking_exception` error. By default, up to 75 scripts per
+5 minutes will be compiled for most contexts and 375 scripts per 5 minutes
+for ingest contexts. You can change these settings dynamically by setting
+`script.context.$CONTEXT.max_compilations_rate` eg.
+`script.context.field.max_compilations_rate=100/10m`.
 
 ========================================
 
@@ -135,6 +137,14 @@ The same script in the normal form:
 Scripts may be stored in and retrieved from the cluster state using the
 `_scripts` end-point.
 
+If the {es} {security-features} are enabled, you must have the following 
+privileges to create, retrieve, and delete stored scripts:
+
+* cluster: `all` or `manage`
+
+For more information, see <<security-privileges>>.
+
+
 [float]
 ==== Request examples
 
@@ -146,6 +156,22 @@ First, create the script called `calculate-score` in the cluster state:
 [source,console]
 -----------------------------------
 POST _scripts/calculate-score
+{
+  "script": {
+    "lang": "painless",
+    "source": "Math.log(_score * 2) + params.my_modifier"
+  }
+}
+-----------------------------------
+// TEST[setup:twitter]
+
+You may also specify a context as part of the url path to compile a
+stored script against that specific context in the form of
+`/_scripts/{id}/{context}`:
+
+[source,console]
+-----------------------------------
+POST _scripts/calculate-score/score
 {
   "script": {
     "lang": "painless",
@@ -225,3 +251,14 @@ NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then a
 <<modules-scripting-engine,native script engine>> should be considered.
+
+[float]
+[[modules-scripting-errors]]
+=== Script errors
+Elasticsearch returns error details when there is a compliation or runtime
+exception.  The contents of this response are useful for tracking down the
+problem.
+
+experimental[]
+
+The contents of `position` are experimental and subject to change.

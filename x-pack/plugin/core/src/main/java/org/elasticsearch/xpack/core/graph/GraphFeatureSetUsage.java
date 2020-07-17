@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.graph;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -20,4 +21,10 @@ public class GraphFeatureSetUsage extends XPackFeatureSet.Usage {
     public GraphFeatureSetUsage(boolean available, boolean enabled) {
         super(XPackField.GRAPH, available, enabled);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
+    }
+
 }

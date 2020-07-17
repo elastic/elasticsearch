@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -14,9 +15,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -28,6 +31,8 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexAliasesTests extends SecurityIntegTestCase {
 
@@ -588,6 +593,61 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("*").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
         assertAliases(client().admin().indices().prepareGetAliases().setAliases("*"), "bogus_index_1", "bogus_alias_1", "bogus_alias_2");
+    }
+
+    public void testAliasesForHiddenIndices() {
+        final String hiddenIndex = "test_hidden";
+        final String visibleAlias = "alias_visible";
+        final String hiddenAlias = "alias_hidden";
+
+        final Map<String, String> createHeaders = Collections.singletonMap(
+            BASIC_AUTH_HEADER, basicAuthHeaderValue("all_on_test", new SecureString("test123".toCharArray())));
+        final Client createClient = client(createHeaders);
+
+        final Map<String, String> aliasHeaders = Collections.singletonMap(
+            BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecureString("test123".toCharArray())));
+        final Client aliasesClient = client(aliasHeaders);
+
+        assertAcked(createClient.admin().indices().prepareCreate(hiddenIndex)
+            .setSettings(Settings.builder().put("index.hidden", true).build())
+            .get());
+
+        assertAcked(aliasesClient.admin().indices().prepareAliases()
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(visibleAlias)));
+
+        // The index should be returned here when queried by name or by wildcard because the alias is visible
+        final GetAliasesRequestBuilder req = aliasesClient.admin().indices().prepareGetAliases(visibleAlias);
+        GetAliasesResponse response = req.get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(visibleAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
+
+        response = client().admin().indices().prepareGetAliases("alias*").get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(visibleAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), nullValue());
+
+        // Now try with a hidden alias
+        assertAcked(aliasesClient.admin().indices().prepareAliases()
+            .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(hiddenIndex).alias(visibleAlias))
+            .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(hiddenIndex).alias(hiddenAlias).isHidden(true)));
+
+        // Querying by name directly should get the right result
+        response = aliasesClient.admin().indices().prepareGetAliases(hiddenAlias).get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(hiddenAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), Matchers.equalTo(true));
+
+        // querying by wildcard should get the right result because the indices options include hidden by default
+        response = aliasesClient.admin().indices().prepareGetAliases("alias*").get();
+        assertThat(response.getAliases().get(hiddenIndex), hasSize(1));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).alias(), Matchers.equalTo(hiddenAlias));
+        assertThat(response.getAliases().get(hiddenIndex).get(0).isHidden(), Matchers.equalTo(true));
+
+        // But we should get no results if we specify indices options that don't include hidden
+        response = aliasesClient.admin().indices().prepareGetAliases("alias*")
+            .setIndicesOptions(IndicesOptions.strictExpandOpen()).get();
+        assertThat(response.getAliases().get(hiddenIndex), nullValue());
     }
 
     private static Client client(final Map<String, String> headers) {

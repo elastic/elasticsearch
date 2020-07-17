@@ -45,13 +45,14 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -85,6 +86,7 @@ public class TestSearchContext extends SearchContext {
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     ContextIndexSearcher searcher;
+    int from;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
@@ -132,8 +134,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public long id() {
-        return 0;
+    public SearchContextId id() {
+        return new SearchContextId("", 0);
     }
 
     @Override
@@ -261,12 +263,12 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public DocValueFieldsContext docValueFieldsContext() {
+    public FetchDocValuesContext docValuesContext() {
         return null;
     }
 
     @Override
-    public SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext) {
+    public SearchContext docValuesContext(FetchDocValuesContext docValuesContext) {
         return null;
     }
 
@@ -431,12 +433,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public int from() {
-        return 0;
+        return from;
     }
 
     @Override
     public SearchContext from(int from) {
-        return null;
+        this.from = from;
+        return this;
     }
 
     @Override
@@ -575,9 +578,9 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public MappedFieldType smartNameFieldType(String name) {
+    public MappedFieldType fieldType(String name) {
         if (mapperService() != null) {
-            return mapperService().fullName(name);
+            return mapperService().fieldType(name);
         }
         return null;
     }

@@ -41,9 +41,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
     public void testResolveToAgg() {
         AggregationPath path = AggregationPath.parse("the_avg");
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(agg));
 
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -55,9 +54,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
     public void testResolveToAggValue() {
         AggregationPath path = AggregationPath.parse("the_avg.value");
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(agg));
 
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -69,9 +67,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
     public void testResolveToNothing() {
         AggregationPath path = AggregationPath.parse("foo.value");
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(agg));
 
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -84,9 +81,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
     public void testResolveToUnknown() {
         AggregationPath path = AggregationPath.parse("the_avg.unknown");
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(agg));
 
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -99,9 +95,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
     public void testResolveToBucketCount() {
         AggregationPath path = AggregationPath.parse("_bucket_count");
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(agg));
 
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -113,9 +108,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
     public void testResolveToCount() {
         AggregationPath path = AggregationPath.parse("_count");
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(agg));
 
         LongTerms.Bucket bucket = new LongTerms.Bucket(1, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -127,9 +121,8 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
     public void testResolveToKey() {
         AggregationPath path = AggregationPath.parse("_key");
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(agg));
 
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
@@ -142,16 +135,15 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
         AggregationPath path = AggregationPath.parse("string_terms['foo']>the_avg.value");
 
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalStringAggs = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalStringAggs = InternalAggregations.from(Collections.singletonList(agg));
         List<StringTerms.Bucket> stringBuckets = Collections.singletonList(new StringTerms.Bucket(
             new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
             internalStringAggs, false, 0, DocValueFormat.RAW));
 
-        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
+        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0,
             Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(termsAgg));
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
 
@@ -163,16 +155,15 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
         AggregationPath path = AggregationPath.parse("string_terms['bar']>the_avg.value");
 
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        InternalAggregation agg = new InternalAvg("the_avg", 2, 1,
-            DocValueFormat.RAW, Collections.emptyList(), Collections.emptyMap());
-        InternalAggregations internalStringAggs = new InternalAggregations(Collections.singletonList(agg));
+        InternalAggregation agg = new InternalAvg("the_avg", 2, 1, DocValueFormat.RAW, Collections.emptyMap());
+        InternalAggregations internalStringAggs = InternalAggregations.from(Collections.singletonList(agg));
         List<StringTerms.Bucket> stringBuckets = Collections.singletonList(new StringTerms.Bucket(
             new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
             internalStringAggs, false, 0, DocValueFormat.RAW));
 
-        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
+        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0,
             Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(termsAgg));
+        InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
 

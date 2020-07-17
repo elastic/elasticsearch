@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackModule('transform'), configuration: 'runtime')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('transform'))
 }
 
 // location for keys and certificates
@@ -29,7 +29,6 @@ testClusters.integTest {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', nodeKey.name

@@ -1,5 +1,5 @@
 [[analysis-tokenfilters]]
-== Token Filters
+== Token filter reference
 
 Token filters accept a stream of tokens from a
 <<analysis-tokenizers,tokenizer>> and can modify tokens

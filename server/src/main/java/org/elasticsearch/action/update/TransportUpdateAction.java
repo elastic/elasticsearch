@@ -22,6 +22,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -36,7 +37,7 @@ import org.elasticsearch.action.support.single.instance.TransportInstanceSingleO
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -71,6 +73,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
     private final NodeClient client;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
@@ -83,6 +86,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -102,23 +106,32 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected void resolveRequest(ClusterState state, UpdateRequest request) {
-        resolveAndValidateRouting(state.metaData(), request.concreteIndex(), request);
+        resolveAndValidateRouting(state.metadata(), request.concreteIndex(), request);
     }
 
-    public static void resolveAndValidateRouting(MetaData metaData, String concreteIndex, UpdateRequest request) {
-        request.routing((metaData.resolveWriteIndexRouting(request.routing(), request.index())));
+    public static void resolveAndValidateRouting(Metadata metadata, String concreteIndex, UpdateRequest request) {
+        request.routing((metadata.resolveWriteIndexRouting(request.routing(), request.index())));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
-        if (request.routing() == null && metaData.routingRequired(concreteIndex)) {
+        if (request.routing() == null && metadata.routingRequired(concreteIndex)) {
             throw new RoutingMissingException(concreteIndex, request.id());
         }
     }
 
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+        if (request.isRequireAlias() && (clusterService.state().getMetadata().hasAlias(request.index()) == false)) {
+            throw new IndexNotFoundException("["
+                + DocWriteRequest.REQUIRE_ALIAS
+                + "] request flag is [true] and ["
+                + request.index()
+                + "] is not an alias", request.index());
+        }
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
-            client.admin().indices().create(new CreateIndexRequest().index(request.index()).cause("auto(update api)")
-                    .masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            client.admin().indices().create(new CreateIndexRequest()
+                .index(request.index())
+                .cause("auto(update api)")
+                .masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(task, request, listener);

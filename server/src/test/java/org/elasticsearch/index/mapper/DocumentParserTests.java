@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +36,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return pluginList(InternalSettingsPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     public void testFieldDisabled() throws Exception {
@@ -154,11 +155,15 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             .endObject());
         ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON));
         assertNull(doc.dynamicMappingsUpdate()); // no update!
-        String[] values = doc.rootDoc().getValues("foo.bar.baz");
-        assertEquals(3, values.length);
-        assertEquals("123", values[0]);
-        assertEquals("456", values[1]);
-        assertEquals("789", values[2]);
+
+        IndexableField[] fields = doc.rootDoc().getFields("foo.bar.baz");
+        assertEquals(6, fields.length);
+        assertEquals(123, fields[0].numericValue());
+        assertEquals("123", fields[1].stringValue());
+        assertEquals(456, fields[2].numericValue());
+        assertEquals("456", fields[3].stringValue());
+        assertEquals(789, fields[4].numericValue());
+        assertEquals("789", fields[5].stringValue());
     }
 
     public void testDotsWithExistingNestedMapper() throws Exception {
@@ -286,14 +291,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNotNull(result.docs().get(0).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(0).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.NESTED_FIELD_TYPE, result.docs().get(0).getField(IdFieldMapper.NAME).fieldType());
-        assertNotNull(result.docs().get(0).getField(TypeFieldMapper.NAME));
-        assertEquals("__foo", result.docs().get(0).getField(TypeFieldMapper.NAME).stringValue());
+        assertNotNull(result.docs().get(0).getField(NestedPathFieldMapper.NAME));
+        assertEquals("foo", result.docs().get(0).getField(NestedPathFieldMapper.NAME).stringValue());
         assertEquals("value1", result.docs().get(0).getField("foo.bar").binaryValue().utf8ToString());
         // Root document:
         assertNotNull(result.docs().get(1).getField(IdFieldMapper.NAME));
         assertEquals(Uid.encodeId("1"), result.docs().get(1).getField(IdFieldMapper.NAME).binaryValue());
         assertEquals(IdFieldMapper.Defaults.FIELD_TYPE, result.docs().get(1).getField(IdFieldMapper.NAME).fieldType());
-        assertNull(result.docs().get(1).getField(TypeFieldMapper.NAME));
+        assertNull(result.docs().get(1).getField(NestedPathFieldMapper.NAME));
         assertEquals("value2", result.docs().get(1).getField("baz").binaryValue().utf8ToString());
     }
 
@@ -370,8 +375,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) throws Exception {
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+        IndexMetadata build = IndexMetadata.builder("")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(1).numberOfReplicas(0).build();
         IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
         ParseContext context = new ParseContext.InternalParseContext(settings,
@@ -733,7 +738,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("big-integer");
         assertEquals(2, fields.length);
-        assertTrue(fields[0].fieldType() instanceof KeywordFieldMapper.KeywordFieldType);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 
@@ -762,7 +766,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("big-decimal");
         assertEquals(2, fields.length);
-        assertTrue(fields[0].fieldType() instanceof KeywordFieldMapper.KeywordFieldType);
         assertEquals(new BytesRef(value.toString()), fields[0].binaryValue());
     }
 
@@ -1141,13 +1144,14 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testDocumentContainsMetadataField() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
+        DocumentMapper mapper = mapperParser.parse("_doc", new CompressedXContent(mapping));
 
-        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_ttl", 0).endObject());
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("_field_names", 0).endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertTrue(e.getMessage(), e.getMessage().contains("cannot be added inside a document"));
+        assertTrue(e.getMessage(),
+            e.getMessage().contains("Field [_field_names] is a metadata field and cannot be added inside a document."));
 
         BytesReference bytes2 = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
             .field("foo._ttl", 0).endObject());

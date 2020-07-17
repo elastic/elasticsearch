@@ -1,23 +1,25 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'default')
-  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
 // bring in machine learning rest test suite
-task copyMlRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/ml/**'
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk'
+    includeXpack 'ml', 'cat'
+  }
+  restTests {
+    includeXpack 'ml'
+  }
 }
 
-integTest.runner {
-  dependsOn copyMlRestTests
-}
 integTest.runner {
   systemProperty 'tests.rest.blacklist', [
     // Remove this test because it doesn't call an ML endpoint and we don't want
@@ -50,6 +52,7 @@ integTest.runner {
     'ml/data_frame_analytics_crud/Test put config with dest index same as source index',
     'ml/data_frame_analytics_crud/Test put config with dest index matching multiple indices',
     'ml/data_frame_analytics_crud/Test put config with dest index included in source via alias',
+    'ml/data_frame_analytics_crud/Test put config with remote source index',
     'ml/data_frame_analytics_crud/Test put config with unknown top level field',
     'ml/data_frame_analytics_crud/Test put config with unknown field in outlier detection analysis',
     'ml/data_frame_analytics_crud/Test put config given analyzed_fields include field excluded by source',
@@ -58,6 +61,7 @@ integTest.runner {
     'ml/data_frame_analytics_crud/Test put config given source with empty string in index array',
     'ml/data_frame_analytics_crud/Test put config given source without index',
     'ml/data_frame_analytics_crud/Test put config given missing dest',
+    'ml/data_frame_analytics_crud/Test put config given dest index contains uppercase chars',
     'ml/data_frame_analytics_crud/Test put config given dest with empty index',
     'ml/data_frame_analytics_crud/Test put config given dest without index',
     'ml/data_frame_analytics_crud/Test put config given missing analysis',
@@ -74,25 +78,29 @@ integTest.runner {
     'ml/data_frame_analytics_crud/Test put regression given negative gamma',
     'ml/data_frame_analytics_crud/Test put regression given eta less than 1e-3',
     'ml/data_frame_analytics_crud/Test put regression given eta greater than one',
-    'ml/data_frame_analytics_crud/Test put regression given maximum_number_trees is zero',
-    'ml/data_frame_analytics_crud/Test put regression given maximum_number_trees is greater than 2k',
+    'ml/data_frame_analytics_crud/Test put regression given max_trees is zero',
+    'ml/data_frame_analytics_crud/Test put regression given max_trees is greater than 2k',
     'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is negative',
     'ml/data_frame_analytics_crud/Test put regression given feature_bag_fraction is greater than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is less than one',
     'ml/data_frame_analytics_crud/Test put regression given training_percent is greater than hundred',
+    'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is zero',
+    'ml/data_frame_analytics_crud/Test put regression given loss_function_parameter is negative',
     'ml/data_frame_analytics_crud/Test put classification given dependent_variable is not defined',
     'ml/data_frame_analytics_crud/Test put classification given negative lambda',
     'ml/data_frame_analytics_crud/Test put classification given negative gamma',
     'ml/data_frame_analytics_crud/Test put classification given eta less than 1e-3',
     'ml/data_frame_analytics_crud/Test put classification given eta greater than one',
-    'ml/data_frame_analytics_crud/Test put classification given maximum_number_trees is zero',
-    'ml/data_frame_analytics_crud/Test put classification given maximum_number_trees is greater than 2k',
+    'ml/data_frame_analytics_crud/Test put classification given max_trees is zero',
+    'ml/data_frame_analytics_crud/Test put classification given max_trees is greater than 2k',
     'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is negative',
     'ml/data_frame_analytics_crud/Test put classification given feature_bag_fraction is greater than one',
     'ml/data_frame_analytics_crud/Test put classification given num_top_classes is less than zero',
     'ml/data_frame_analytics_crud/Test put classification given num_top_classes is greater than 1k',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is less than one',
     'ml/data_frame_analytics_crud/Test put classification given training_percent is greater than hundred',
+    'ml/estimate_model_memory/Test missing overall cardinality',
+    'ml/estimate_model_memory/Test missing max bucket cardinality',
     'ml/evaluate_data_frame/Test given missing index',
     'ml/evaluate_data_frame/Test given index does not exist',
     'ml/evaluate_data_frame/Test given missing evaluation',
@@ -124,17 +132,23 @@ integTest.runner {
     'ml/filter_crud/Test create filter api with mismatching body ID',
     'ml/filter_crud/Test create filter given invalid filter_id',
     'ml/filter_crud/Test get filter API with bad ID',
-    'ml/filter_crud/Test invalid param combinations',
     'ml/filter_crud/Test non-existing filter',
     'ml/filter_crud/Test update filter given remove item is not present',
     'ml/filter_crud/Test get all filter given index exists but no mapping for filter_id',
     'ml/get_datafeed_stats/Test get datafeed stats given missing datafeed_id',
     'ml/get_datafeeds/Test get datafeed given missing datafeed_id',
     'ml/inference_crud/Test delete given used trained model',
-    'ml/inference_crud/Test delete given unused trained model',
     'ml/inference_crud/Test delete with missing model',
     'ml/inference_crud/Test get given missing trained model',
     'ml/inference_crud/Test get given expression without matches and allow_no_match is false',
+    'ml/inference_crud/Test put ensemble with empty models',
+    'ml/inference_crud/Test put ensemble with tree where tree has out of bounds feature_names index',
+    'ml/inference_crud/Test put model with empty input.field_names',
+    'ml/inference_crud/Test PUT model where target type and inference config mismatch',
+    'ml/inference_processor/Test create processor with missing mandatory fields',
+    'ml/inference_processor/Test create and delete pipeline with inference processor',
+    'ml/inference_processor/Test create processor with deprecated fields',
+    'ml/inference_processor/Test simulate',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
     'ml/jobs_crud/Test cannot create job with existing categorizer state document',
@@ -146,6 +160,7 @@ integTest.runner {
     'ml/jobs_crud/Test put job after closing results index',
     'ml/jobs_crud/Test put job after closing state index',
     'ml/jobs_crud/Test put job with inconsistent body/param ids',
+    'ml/jobs_crud/Test put job with inconsistent model snapshot settings',
     'ml/jobs_crud/Test put job with time field in analysis_config',
     'ml/jobs_crud/Test put job with duplicate detector configurations',
     'ml/jobs_crud/Test job with categorization_analyzer and categorization_filters',
@@ -169,6 +184,7 @@ integTest.runner {
     'ml/job_groups/Test put job with id that matches an existing group',
     'ml/job_groups/Test put job with invalid group',
     'ml/ml_info/Test ml info',
+    'ml/pipeline_inference/Test setting results field is invalid',
     'ml/post_data/Test Flush data with invalid parameters',
     'ml/post_data/Test flushing and posting a closed job',
     'ml/post_data/Test open and close with non-existent job id',
@@ -176,7 +192,8 @@ integTest.runner {
     'ml/preview_datafeed/Test preview missing datafeed',
     'ml/revert_model_snapshot/Test revert model with invalid snapshotId',
     'ml/start_data_frame_analytics/Test start given missing source index',
-    'ml/start_data_frame_analytics/Test start given source index has no compatible fields',
+    'ml/start_data_frame_analytics/Test start outlier_detection given source index has no fields',
+    'ml/start_data_frame_analytics/Test start regression given source index only has dependent variable',
     'ml/start_data_frame_analytics/Test start with inconsistent body/param ids',
     'ml/start_data_frame_analytics/Test start given dest index is not empty',
     'ml/start_data_frame_analytics/Test start with compatible fields but no data',

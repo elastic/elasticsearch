@@ -75,16 +75,16 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
         assertThat(nodeInfo.getVersion(), equalTo(readNodeInfo.getVersion()));
-        compareJsonOutput(nodeInfo.getHttp(), readNodeInfo.getHttp());
-        compareJsonOutput(nodeInfo.getJvm(), readNodeInfo.getJvm());
-        compareJsonOutput(nodeInfo.getProcess(), readNodeInfo.getProcess());
+        compareJsonOutput(nodeInfo.getInfo(HttpInfo.class), readNodeInfo.getInfo(HttpInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(JvmInfo.class), readNodeInfo.getInfo(JvmInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(ProcessInfo.class), readNodeInfo.getInfo(ProcessInfo.class));
         compareJsonOutput(nodeInfo.getSettings(), readNodeInfo.getSettings());
-        compareJsonOutput(nodeInfo.getThreadPool(), readNodeInfo.getThreadPool());
-        compareJsonOutput(nodeInfo.getTransport(), readNodeInfo.getTransport());
+        compareJsonOutput(nodeInfo.getInfo(ThreadPoolInfo.class), readNodeInfo.getInfo(ThreadPoolInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(TransportInfo.class), readNodeInfo.getInfo(TransportInfo.class));
         compareJsonOutput(nodeInfo.getNode(), readNodeInfo.getNode());
-        compareJsonOutput(nodeInfo.getOs(), readNodeInfo.getOs());
-        compareJsonOutput(nodeInfo.getPlugins(), readNodeInfo.getPlugins());
-        compareJsonOutput(nodeInfo.getIngest(), readNodeInfo.getIngest());
+        compareJsonOutput(nodeInfo.getInfo(OsInfo.class), readNodeInfo.getInfo(OsInfo.class));
+        compareJsonOutput(nodeInfo.getInfo(PluginsAndModules.class), readNodeInfo.getInfo(PluginsAndModules.class));
+        compareJsonOutput(nodeInfo.getInfo(IngestInfo.class), readNodeInfo.getInfo(IngestInfo.class));
     }
 
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {

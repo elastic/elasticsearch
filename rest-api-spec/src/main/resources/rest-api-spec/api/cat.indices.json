@@ -68,7 +68,6 @@
           "yellow",
           "red"
         ],
-        "default":null,
         "description":"A health status (\"green\", \"yellow\", or \"red\" to filter only indices matching the specified health status"
       },
       "help":{
@@ -89,13 +88,13 @@
         "type":"enum",
         "description":"The unit in which to display time values",
         "options":[
-          "d (Days)",
-          "h (Hours)",
-          "m (Minutes)",
-          "s (Seconds)",
-          "ms (Milliseconds)",
-          "micros (Microseconds)",
-          "nanos (Nanoseconds)"
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
         ]
       },
       "v":{
@@ -107,6 +106,18 @@
         "type":"boolean",
         "description":"If set to true segment stats will include stats for segments that are not currently loaded into memory",
         "default":false
+      },
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default": "all",
+        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       }
     }
   }

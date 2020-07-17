@@ -21,10 +21,8 @@ package org.elasticsearch.client.ml.dataframe.explain;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,7 +55,7 @@ public class FieldSelection implements ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<FieldSelection, Void> PARSER = new ConstructingObjectParser<>("field_selection", true,
+    public static final ConstructingObjectParser<FieldSelection, Void> PARSER = new ConstructingObjectParser<>("field_selection", true,
         a -> new FieldSelection((String) a[0], new HashSet<>((List<String>) a[1]), (boolean) a[2], (boolean) a[3], (FeatureType) a[4],
             (String) a[5]));
 
@@ -66,12 +64,7 @@ public class FieldSelection implements ToXContentObject {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), MAPPING_TYPES);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_INCLUDED);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IS_REQUIRED);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return FeatureType.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, FEATURE_TYPE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FeatureType::fromString, FEATURE_TYPE);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REASON);
     }
 

@@ -23,58 +23,55 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
-public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
+public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
 
-    protected ValuesSourceConfig<VS> config;
+    protected ValuesSourceConfig config;
 
-    public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig<VS> config, QueryShardContext queryShardContext,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metaData);
+    public ValuesSourceAggregatorFactory(String name, ValuesSourceConfig config, QueryShardContext queryShardContext,
+                                         AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                         Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
         this.config = config;
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, boolean collectsFromSingleBucket,
-                                     List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        VS vs = config.toValuesSource(queryShardContext, this::resolveMissingAny);
-        if (vs == null) {
-            return createUnmapped(searchContext, parent, pipelineAggregators, metaData);
+    public Aggregator createInternal(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality,
+                                     Map<String, Object> metadata) throws IOException {
+        if (config.hasValues() == false) {
+            return createUnmapped(searchContext, parent, metadata);
         }
-        return doCreateInternal(vs, searchContext, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
+        return doCreateInternal(searchContext, parent, cardinality, metadata);
     }
 
     /**
-     * This method provides a hook for aggregations that need finer grained control over the ValuesSource selected when the user supplies a
-     * missing value and there is no mapped field to infer the type from.  This will only be called for aggregations that specify the
-     * CoreValuesSourceType.ANY in their constructors (On the builder class).  The user supplied object is passed as a parameter, so its
-     * type * may be inspected as needed.
-     *
-     * Generally, only the type of the returned ValuesSource is used, so returning the EMPTY instance of the chosen type is recommended.
-     *
-     * @param missing The user supplied missing value
-     * @return A ValuesSource instance compatible with the supplied parameter
+     * Create the {@linkplain Aggregator} for a {@link ValuesSource} that
+     * doesn't have values.
      */
-    protected ValuesSource resolveMissingAny(Object missing) {
-        return ValuesSource.Bytes.WithOrdinals.EMPTY;
-    }
-
     protected abstract Aggregator createUnmapped(SearchContext searchContext,
                                                  Aggregator parent,
-                                                 List<PipelineAggregator> pipelineAggregators,
-                                                 Map<String, Object> metaData) throws IOException;
+                                                 Map<String, Object> metadata) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(VS valuesSource,
-                                                   SearchContext searchContext,
+    /**
+     * Create the {@linkplain Aggregator} for a {@link ValuesSource} that has
+     * values.
+     *
+     * @param cardinality Upper bound of the number of {@code owningBucketOrd}s
+     *                    that the {@link Aggregator} created by this method
+     *                    will be asked to collect.
+     */
+    protected abstract Aggregator doCreateInternal(SearchContext searchContext,
                                                    Aggregator parent,
-                                                   boolean collectsFromSingleBucket,
-                                                   List<PipelineAggregator> pipelineAggregators,
-                                                   Map<String, Object> metaData) throws IOException;
+                                                   CardinalityUpperBound cardinality,
+                                                   Map<String, Object> metadata) throws IOException;
 
+    @Override
+    public String getStatsSubtype() {
+        return config.valueSourceType().typeName();
+    }
 }

@@ -19,68 +19,78 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a decimal constant.
  */
-public final class EDecimal extends AExpression {
+public class EDecimal extends AExpression {
 
-    private final String value;
+    private final String decimal;
 
-    public EDecimal(Location location, String value) {
-        super(location);
+    public EDecimal(int identifier, Location location, String decimal) {
+        super(identifier, location);
 
-        this.value = Objects.requireNonNull(value);
+        this.decimal = Objects.requireNonNull(decimal);
+    }
+
+    public String getDecimal() {
+        return decimal;
+    }
+
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDecimal(this, input);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // Do nothing.
+    void analyze(SemanticScope semanticScope) {
+        analyze(semanticScope, false);
     }
 
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (!read) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+    void analyze(SemanticScope semanticScope, boolean negate) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to decimal constant [" + decimal + "]"));
         }
 
-        if (value.endsWith("f") || value.endsWith("F")) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException("not a statement: decimal constant [" + decimal + "] not used"));
+        }
+
+        Class<?> valueType;
+        Object constant;
+
+        String decimal = negate ? "-" + this.decimal : this.decimal;
+
+        if (decimal.endsWith("f") || decimal.endsWith("F")) {
             try {
-                constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = float.class;
+                constant = Float.parseFloat(decimal.substring(0, decimal.length() - 1));
+                valueType = float.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid float constant [" + decimal + "]."));
             }
         } else {
-            String toParse = value;
-            if (toParse.endsWith("d") || value.endsWith("D")) {
-                toParse = toParse.substring(0, value.length() - 1);
+            String toParse = decimal;
+            if (toParse.endsWith("d") || decimal.endsWith("D")) {
+                toParse = toParse.substring(0, decimal.length() - 1);
             }
             try {
                 constant = Double.parseDouble(toParse);
-                actual = double.class;
+                valueType = double.class;
             } catch (NumberFormatException exception) {
-                throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
+                throw createError(new IllegalArgumentException("Invalid double constant [" + decimal + "]."));
             }
         }
-    }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(value);
+        semanticScope.putDecoration(this, new ValueType(valueType));
+        semanticScope.putDecoration(this, new StandardConstant(constant));
     }
 }

@@ -1,0 +1,30 @@
+{
+  "idp.saml_get_metadata": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/idp-saml-metadata.html"
+    },
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_idp/saml/metadata/{sp_entity_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "sp_entity_id": {
+              "type": "string",
+              "description": "The SAML entity ID of the Service Provider that will consume the metadata"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "acs": {
+        "type": "string",
+        "description": "The assertion consumer service URL of the Service Provider that will consume the metadata"
+      }
+    }
+  }
+}

@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   name 'painless-whitelist'
@@ -33,7 +35,7 @@ dependencies {
 }
 
 testClusters.integTest {
-  testDistribution = 'oss'
+  testDistribution = 'OSS'
 }
 
 test.enabled = false

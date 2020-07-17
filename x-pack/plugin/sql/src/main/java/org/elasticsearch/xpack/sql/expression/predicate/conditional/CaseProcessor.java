@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,18 +48,6 @@ public class CaseProcessor implements Processor {
         }
         // resort to default value
         return processors.get(processors.size() - 1).process(input);
-    }
-
-    public static Object apply(List<Object> objects) {
-        // Check every condition in sequence and if it evaluates to TRUE,
-        // evaluate and return the result associated with that condition.
-        for (int i = 0; i < objects.size() - 2; i += 2) {
-            if (objects.get(i) == Boolean.TRUE) {
-                return objects.get(i + 1);
-            }
-        }
-        // resort to default value
-        return objects.get(objects.size() - 1);
     }
 
     @Override

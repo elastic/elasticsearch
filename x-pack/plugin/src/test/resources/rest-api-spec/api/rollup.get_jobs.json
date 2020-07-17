@@ -1,7 +1,8 @@
 {
   "rollup.get_jobs":{
     "documentation":{
-      "url":""
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-job.html",
+      "description":"Retrieves the configuration, stats, and status of rollup jobs."
     },
     "stability":"experimental",
     "url":{

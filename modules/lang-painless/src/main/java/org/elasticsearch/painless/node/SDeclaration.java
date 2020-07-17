@@ -19,90 +19,73 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a single variable declaration.
  */
-public final class SDeclaration extends AStatement {
+public class SDeclaration extends AStatement {
 
-    private final DType type;
-    private final String name;
-    private AExpression expression;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final AExpression valueNode;
 
-    Variable variable = null;
+    public SDeclaration(int identifier, Location location, String canonicalTypeName, String symbol, AExpression valueNode) {
+        super(identifier, location);
 
-    public SDeclaration(Location location, DType type, String name, AExpression expression) {
-        super(location);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.valueNode = valueNode;
+    }
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.expression = expression;
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        if (expression != null) {
-            expression.extractVariables(variables);
-        }
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitDeclaration(this, input);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        DResolvedType resolvedType = type.resolveType(scriptRoot.getPainlessLookup());
+    void analyze(SemanticScope semanticScope) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
-        if (expression != null) {
-            expression.expected = resolvedType.getType();
-            expression.analyze(scriptRoot, locals);
-            expression = expression.cast(scriptRoot, locals);
+        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
         }
 
-        variable = locals.addVariable(location, resolvedType.getType(), name, false);
-    }
+        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        if (expression == null) {
-            Class<?> sort = variable.clazz;
-
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expression.write(classWriter, methodWriter, globals);
+        if (type == null) {
+            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
         }
 
-        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
-    }
-
-    @Override
-    public String toString() {
-        if (expression == null) {
-            return singleLineToString(type, name);
+        if (valueNode != null) {
+            semanticScope.setCondition(valueNode, Read.class);
+            semanticScope.putDecoration(valueNode, new TargetType(type));
+            AExpression.analyze(valueNode, semanticScope);
+            valueNode.cast(semanticScope);
         }
-        return singleLineToString(type, name, expression);
+
+        Variable variable = semanticScope.defineVariable(getLocation(), type, symbol, false);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
     }
 }

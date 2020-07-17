@@ -29,8 +29,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -42,11 +44,11 @@ import java.util.stream.Stream;
  */
 public class Shell {
 
-    public static final int TAIL_WHEN_TOO_MUCH_OUTPUT = 1000;
-    public static final Result NO_OP = new Shell.Result(0, "","");
-    protected final Logger logger =  LogManager.getLogger(getClass());
+    public static final Result NO_OP = new Shell.Result(0, "", "");
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     final Map<String, String> env = new HashMap<>();
+    String umask;
     Path workingDirectory;
 
     public Shell() {
@@ -59,6 +61,7 @@ public class Shell {
     public void reset() {
         env.clear();
         workingDirectory = null;
+        umask = null;
     }
 
     public Map<String, String> getEnv() {
@@ -67,6 +70,10 @@ public class Shell {
 
     public void setWorkingDirectory(Path workingDirectory) {
         this.workingDirectory = workingDirectory;
+    }
+
+    public void setUmask(String umask) {
+        this.umask = umask;
     }
 
     /**
@@ -86,19 +93,36 @@ public class Shell {
 
     public void chown(Path path) throws Exception {
         Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
-        Platforms.onWindows(() -> run(
-            "$account = New-Object System.Security.Principal.NTAccount '" + System.getenv("username")  + "'; " +
-                "$tempConf = Get-ChildItem '" + path + "' -Recurse; " +
-                "$tempConf += Get-Item '" + path + "'; " +
-                "$tempConf | ForEach-Object { " +
-                "$acl = Get-Acl $_.FullName; " +
-                "$acl.SetOwner($account); " +
-                "Set-Acl $_.FullName $acl " +
-                "}"
-        ));
+        Platforms.onWindows(
+            () -> run(
+                String.format(
+                    Locale.ROOT,
+                    "$account = New-Object System.Security.Principal.NTAccount '%s'; "
+                        + "$pathInfo = Get-Item '%s'; "
+                        + "$toChown = @(); "
+                        + "if ($pathInfo.PSIsContainer) { "
+                        + "  $toChown += Get-ChildItem '%s' -Recurse; "
+                        + "}"
+                        + "$toChown += $pathInfo; "
+                        + "$toChown | ForEach-Object { "
+                        + "  $acl = Get-Acl $_.FullName; "
+                        + "  $acl.SetOwner($account); "
+                        + "  Set-Acl $_.FullName $acl "
+                        + "}",
+                    System.getenv("username"),
+                    path,
+                    path
+                )
+            )
+        );
     }
 
-    public Result run( String command, Object... args) {
+    public void extractZip(Path zipPath, Path destinationDir) throws Exception {
+        Platforms.onLinux(() -> run("unzip \"" + zipPath + "\" -d \"" + destinationDir + "\""));
+        Platforms.onWindows(() -> run("Expand-Archive -Path \"" + zipPath + "\" -DestinationPath \"" + destinationDir + "\""));
+    }
+
+    public Result run(String command, Object... args) {
         String formattedCommand = String.format(Locale.ROOT, command, args);
         return run(formattedCommand);
     }
@@ -111,8 +135,16 @@ public class Shell {
         }
     }
 
-    private static String[] bashCommand(String script) {
-        return new String[] { "bash", "-c", script };
+    private String[] bashCommand(String script) {
+        List<String> command = new ArrayList<>();
+        command.add("bash");
+        command.add("-c");
+        if (umask == null) {
+            command.add(script);
+        } else {
+            command.add(String.format(Locale.ROOT, "umask %s && %s", umask, script));
+        }
+        return command.toArray(new String[0]);
     }
 
     private static String[] powershellCommand(String script) {
@@ -123,7 +155,7 @@ public class Shell {
         logger.warn("Running command with env: " + env);
         Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
-            throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
+            throw new ShellException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
         }
         return result;
     }
@@ -156,22 +188,13 @@ public class Shell {
                 if (process.isAlive()) {
                     process.destroyForcibly();
                 }
-                Result result = new Result(
-                    -1,
-                    readFileIfExists(stdOut),
-                    readFileIfExists(stdErr)
-                );
+                Result result = new Result(-1, readFileIfExists(stdOut), readFileIfExists(stdErr));
                 throw new IllegalStateException(
-                    "Timed out running shell command: " + command + "\n" +
-                    "Result:\n" + result
+                    "Timed out running shell command: " + Arrays.toString(command) + "\n" + "Result:\n" + result
                 );
             }
 
-            Result result = new Result(
-                process.exitValue(),
-                readFileIfExists(stdOut),
-                readFileIfExists(stdErr)
-            );
+            Result result = new Result(process.exitValue(), readFileIfExists(stdOut), readFileIfExists(stdErr));
             logger.info("Ran: {} {}", Arrays.toString(command), result);
             return result;
 
@@ -194,7 +217,7 @@ public class Shell {
         if (Files.exists(path)) {
             long size = Files.size(path);
             if (size > 100 * 1024) {
-                return "<<Too large to read: " + size  + " bytes>>";
+                return "<<Too large to read: " + size + " bytes>>";
             }
             try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
                 return lines.collect(Collectors.joining("\n"));
@@ -216,15 +239,7 @@ public class Shell {
     }
 
     public String toString() {
-        return new StringBuilder()
-            .append(" ")
-            .append("env = [")
-            .append(env)
-            .append("]")
-            .append("workingDirectory = [")
-            .append(workingDirectory)
-            .append("]")
-            .toString();
+        return String.format(Locale.ROOT, " env = [%s] workingDirectory = [%s]", env, workingDirectory);
     }
 
     public static class Result {
@@ -243,18 +258,21 @@ public class Shell {
         }
 
         public String toString() {
-            return new StringBuilder()
-                .append("exitCode = [")
-                .append(exitCode)
-                .append("] ")
-                .append("stdout = [")
-                .append(stdout.trim())
-                .append("] ")
-                .append("stderr = [")
-                .append(stderr.trim())
-                .append("]")
-                .toString();
+            return String.format(Locale.ROOT, "exitCode = [%d] stdout = [%s] stderr = [%s]", exitCode, stdout.trim(), stderr.trim());
         }
     }
 
+    /**
+     * An exception to model failures to run a shell command. This exists so that calling code can differentiate between
+     * shell / command errors, and other runtime errors.
+     */
+    public static class ShellException extends RuntimeException {
+        public ShellException(String message) {
+            super(message);
+        }
+
+        public ShellException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 }

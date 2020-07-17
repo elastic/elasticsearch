@@ -60,6 +60,10 @@
                     "type": "kuromoji_tokenizer",
                     "nbest_examples" : "/鳩山積み-鳩山/鳩山積み-鳩/",
                     "nbest_cost" : "1000"
+                },
+                "kuromoji_discard_compound_token": {
+                    "type": "kuromoji_tokenizer",
+                    "discard_compound_token": true
                 }
             },
             "analyzer" : {
@@ -68,7 +72,7 @@
                     "tokenizer" : "kuromoji_tokenizer"
                 }
             }
-            
+
         }
     }
 }

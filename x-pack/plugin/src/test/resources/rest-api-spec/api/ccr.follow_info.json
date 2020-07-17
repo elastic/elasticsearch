@@ -1,7 +1,8 @@
 {
   "ccr.follow_info":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-info.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-info.html",
+      "description": "Retrieves information about all follower indices, including parameters and status for each follower index"
     },
     "stability":"stable",
     "url":{

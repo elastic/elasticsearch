@@ -11,12 +11,14 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContextId;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.audit.AuditUtil;
 
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGINATING_ACTION_KEY;
@@ -32,12 +34,12 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationService.ORIGIN
  */
 public final class SecuritySearchOperationListener implements SearchOperationListener {
 
-    private final ThreadContext threadContext;
+    private final SecurityContext securityContext;
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
 
-    public SecuritySearchOperationListener(ThreadContext threadContext, XPackLicenseState licenseState, AuditTrailService auditTrail) {
-        this.threadContext = threadContext;
+    public SecuritySearchOperationListener(SecurityContext securityContext, XPackLicenseState licenseState, AuditTrailService auditTrail) {
+        this.securityContext = securityContext;
         this.licenseState = licenseState;
         this.auditTrailService = auditTrail;
     }
@@ -47,9 +49,8 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void onNewScrollContext(SearchContext searchContext) {
-        if (licenseState.isAuthAllowed()) {
-            searchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY,
-                    Authentication.getAuthentication(threadContext));
+        if (licenseState.isSecurityEnabled()) {
+            searchContext.scrollContext().putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
         }
     }
 
@@ -59,10 +60,11 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void validateSearchContext(SearchContext searchContext, TransportRequest request) {
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             if (searchContext.scrollContext() != null) {
                 final Authentication originalAuth = searchContext.scrollContext().getFromContext(AuthenticationField.AUTHENTICATION_KEY);
-                final Authentication current = Authentication.getAuthentication(threadContext);
+                final Authentication current = securityContext.getAuthentication();
+                final ThreadContext threadContext = securityContext.getThreadContext();
                 final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);
                 ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, searchContext.id(), action, request,
                         AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));
@@ -77,7 +79,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      * (or lookup) realm. To work around this we compare the username and the originating realm type.
      */
     static void ensureAuthenticatedUserIsSame(Authentication original, Authentication current, AuditTrailService auditTrailService,
-                                              long id, String action, TransportRequest request, String requestId,
+                                              SearchContextId id, String action, TransportRequest request, String requestId,
                                               AuthorizationInfo authorizationInfo) {
         // this is really a best effort attempt since we cannot guarantee principal uniqueness
         // and realm names can change between nodes.
@@ -97,7 +99,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
         final boolean sameUser = samePrincipal && sameRealmType;
         if (sameUser == false) {
-            auditTrailService.accessDenied(requestId, current, action, request, authorizationInfo);
+            auditTrailService.get().accessDenied(requestId, current, action, request, authorizationInfo);
             throw new SearchContextMissingException(id);
         }
     }

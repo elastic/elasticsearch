@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -13,12 +14,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -37,27 +41,30 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
 
         private final String modelId;
         private final List<Map<String, Object>> objectsToInfer;
-        private final InferenceConfig config;
+        private final InferenceConfigUpdate update;
         private final boolean previouslyLicensed;
 
         public Request(String modelId, boolean previouslyLicensed) {
-            this(modelId, Collections.emptyList(), RegressionConfig.EMPTY_PARAMS, previouslyLicensed);
+            this(modelId, Collections.emptyList(), RegressionConfigUpdate.EMPTY_PARAMS, previouslyLicensed);
         }
 
         public Request(String modelId,
                        List<Map<String, Object>> objectsToInfer,
-                       InferenceConfig inferenceConfig,
+                       InferenceConfigUpdate inferenceConfig,
                        boolean previouslyLicensed) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
-            this.config = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
+            this.update = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
         }
 
-        public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfig config, boolean previouslyLicensed) {
+        public Request(String modelId,
+                       Map<String, Object> objectToInfer,
+                       InferenceConfigUpdate update,
+                       boolean previouslyLicensed) {
             this(modelId,
-                Arrays.asList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
-                config,
+                Collections.singletonList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
+                update,
                 previouslyLicensed);
         }
 
@@ -65,7 +72,18 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             super(in);
             this.modelId = in.readString();
             this.objectsToInfer = Collections.unmodifiableList(in.readList(StreamInput::readMap));
-            this.config = in.readNamedWriteable(InferenceConfig.class);
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+                this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
+            } else {
+                InferenceConfig oldConfig = in.readNamedWriteable(InferenceConfig.class);
+                if (oldConfig instanceof RegressionConfig) {
+                    this.update = RegressionConfigUpdate.fromConfig((RegressionConfig)oldConfig);
+                } else if (oldConfig instanceof ClassificationConfig) {
+                    this.update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) oldConfig);
+                } else {
+                    throw new IOException("Unexpected configuration type [" + oldConfig.getName() + "]");
+                }
+            }
             this.previouslyLicensed = in.readBoolean();
         }
 
@@ -77,8 +95,8 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             return objectsToInfer;
         }
 
-        public InferenceConfig getConfig() {
-            return config;
+        public InferenceConfigUpdate getUpdate() {
+            return update;
         }
 
         public boolean isPreviouslyLicensed() {
@@ -95,7 +113,11 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             super.writeTo(out);
             out.writeString(modelId);
             out.writeCollection(objectsToInfer, StreamOutput::writeMap);
-            out.writeNamedWriteable(config);
+            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+                out.writeNamedWriteable(update);
+            } else {
+                out.writeNamedWriteable(update.toConfig());
+            }
             out.writeBoolean(previouslyLicensed);
         }
 
@@ -105,14 +127,14 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             if (o == null || getClass() != o.getClass()) return false;
             InternalInferModelAction.Request that = (InternalInferModelAction.Request) o;
             return Objects.equals(modelId, that.modelId)
-                && Objects.equals(config, that.config)
+                && Objects.equals(update, that.update)
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
                 && Objects.equals(objectsToInfer, that.objectsToInfer);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, objectsToInfer, config, previouslyLicensed);
+            return Objects.hash(modelId, objectsToInfer, update, previouslyLicensed);
         }
 
     }

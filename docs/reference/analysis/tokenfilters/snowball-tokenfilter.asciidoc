@@ -1,5 +1,8 @@
 [[analysis-snowball-tokenfilter]]
-=== Snowball Token Filter
+=== Snowball token filter
+++++
+<titleabbrev>Snowball</titleabbrev>
+++++
 
 A filter that stems words using a Snowball-generated stemmer. The
 `language` parameter controls the stemmer with the following available

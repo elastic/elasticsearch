@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * @deprecated used for backward compatibility with 7.x only
+ */
+@Deprecated
 public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
     private final int fieldCount;
 
@@ -24,13 +28,18 @@ public class FlattenedFeatureSetUsage extends XPackFeatureSet.Usage {
         this.fieldCount = input.getVersion().onOrAfter(Version.V_7_6_0) ? input.readInt() : 0;
     }
 
-    public FlattenedFeatureSetUsage(boolean available, boolean enabled, int fieldCount) {
-        super(XPackField.FLATTENED, available, enabled);
+    public FlattenedFeatureSetUsage(boolean available, int fieldCount) {
+        super(XPackField.FLATTENED, available, true);
         this.fieldCount = fieldCount;
     }
 
     int fieldCount() {
         return fieldCount;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_3_0;
     }
 
     @Override

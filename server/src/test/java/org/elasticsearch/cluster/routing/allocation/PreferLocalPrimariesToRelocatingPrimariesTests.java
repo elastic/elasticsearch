@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -52,20 +52,20 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
 
         logger.info("create 2 indices with [{}] no replicas, and wait till all are allocated", numberOfShards);
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT))
+        Metadata metadata = Metadata.builder()
+                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT))
                     .numberOfShards(numberOfShards).numberOfReplicas(0))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT))
+                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT))
                     .numberOfShards(numberOfShards).numberOfReplicas(0))
                 .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metaData.index("test1"))
-                .addAsNew(metaData.index("test2"))
+                .addAsNew(metadata.index("test1"))
+                .addAsNew(metadata.index("test2"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("adding two nodes and performing rerouting till all are allocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
@@ -80,19 +80,19 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
 
         logger.info("remove one of the nodes and apply filter to move everything from another node");
 
-        metaData = MetaData.builder()
-                .put(IndexMetaData.builder(clusterState.metaData().index("test1")).settings(settings(Version.CURRENT)
+        metadata = Metadata.builder()
+                .put(IndexMetadata.builder(clusterState.metadata().index("test1")).settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", numberOfShards)
                         .put("index.number_of_replicas", 0)
                         .put("index.routing.allocation.exclude._name", "node2")
                         .build()))
-                .put(IndexMetaData.builder(clusterState.metaData().index("test2")).settings(settings(Version.CURRENT)
+                .put(IndexMetadata.builder(clusterState.metadata().index("test2")).settings(settings(Version.CURRENT)
                         .put("index.number_of_shards", numberOfShards)
                         .put("index.number_of_replicas", 0)
                         .put("index.routing.allocation.exclude._name", "node2")
                         .build()))
                 .build();
-        clusterState = ClusterState.builder(clusterState).metaData(metaData)
+        clusterState = ClusterState.builder(clusterState).metadata(metadata)
             .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
         clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
 

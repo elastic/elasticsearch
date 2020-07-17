@@ -35,12 +35,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.joda.time.DateTime;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.ByteArrayInputStream;
@@ -69,6 +71,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -313,6 +316,14 @@ public abstract class StreamInput extends InputStream {
         }
         i |= ((long) b) << 63;
         return i;
+    }
+
+    @Nullable
+    public Long readOptionalVLong() throws IOException {
+        if (readBoolean()) {
+            return readVLong();
+        }
+        return null;
     }
 
     public long readZLong() throws IOException {
@@ -669,6 +680,25 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read {@link ImmutableOpenMap} using given key and value readers.
+     *
+     * @param keyReader   key reader
+     * @param valueReader value reader
+     */
+    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
+            throws IOException {
+        final int size = readVInt();
+        if (size == 0) {
+            return ImmutableOpenMap.of();
+        }
+        final ImmutableOpenMap.Builder<K,V> builder = ImmutableOpenMap.builder(size);
+        for (int i = 0; i < size; i++) {
+            builder.put(keyReader.read(this), valueReader.read(this));
+        }
+        return builder.build();
+    }
+
+    /**
      * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
      * be immutable if it is empty.
      */
@@ -726,6 +756,10 @@ public abstract class StreamInput extends InputStream {
                 return readGeoPoint();
             case 23:
                 return readZonedDateTime();
+            case 24:
+                return readCollection(StreamInput::readGenericValue, LinkedHashSet::new, Collections.emptySet());
+            case 25:
+                return readCollection(StreamInput::readGenericValue, HashSet::new, Collections.emptySet());
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
@@ -760,9 +794,12 @@ public abstract class StreamInput extends InputStream {
         return list;
     }
 
-    private DateTime readDateTime() throws IOException {
-        final String timeZoneId = readString();
-        return new DateTime(readLong(), DateTimeZone.forID(timeZoneId));
+    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
+        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
+        // here we are on a new node so we always want a compat datetime
+        final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
+        long millis = readLong();
+        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -1086,6 +1123,14 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Get the registry of named writeables if this stream has one,
+     * {@code null} otherwise.
+     */
+    public NamedWriteableRegistry namedWriteableRegistry() {
+        return null;
+    }
+
+    /**
      * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
      * the corresponding entry in the registry by name, so that the proper object can be read and returned.
      * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
@@ -1143,6 +1188,23 @@ public abstract class StreamInput extends InputStream {
      */
     public List<String> readStringList() throws IOException {
         return readList(StreamInput::readString);
+    }
+
+    /**
+     * Reads an optional list of strings. The list is expected to have been written using
+     * {@link StreamOutput#writeOptionalStringCollection(Collection)}. If the returned list contains any entries it will be mutable.
+     * If it is empty it might be immutable.
+     *
+     * @return the list of strings
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public List<String> readOptionalStringList() throws IOException {
+        final boolean isPresent = readBoolean();
+        if (isPresent) {
+            return readList(StreamInput::readString);
+        } else {
+            return null;
+        }
     }
 
     /**

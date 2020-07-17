@@ -24,34 +24,32 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, RareTermsAggregationBuilder> {
+public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<RareTermsAggregationBuilder> {
     public static final String NAME = "rare_terms";
 
     private static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
     private static final ParseField PRECISION = new ParseField("precision");
 
     private static final int MAX_MAX_DOC_COUNT = 100;
-    private static final ObjectParser<RareTermsAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<RareTermsAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, RareTermsAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(RareTermsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareLong(RareTermsAggregationBuilder::maxDocCount, MAX_DOC_COUNT_FIELD_NAME);
 
         PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
@@ -63,33 +61,40 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         PARSER.declareDouble(RareTermsAggregationBuilder::setPrecision, PRECISION);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RareTermsAggregationBuilder(aggregationName, null), null);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        RareTermsAggregatorFactory.registerAggregators(builder);
     }
 
     private IncludeExclude includeExclude = null;
     private int maxDocCount = 1;
     private double precision = 0.001;
 
-    public RareTermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, CoreValuesSourceType.ANY, valueType);
+    public RareTermsAggregationBuilder(String name) {
+        super(name);
     }
 
-    private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    private RareTermsAggregationBuilder(RareTermsAggregationBuilder clone,
+                                        AggregatorFactories.Builder factoriesBuilder,
+                                        Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.includeExclude = clone.includeExclude;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new RareTermsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.BYTES;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new RareTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public RareTermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         maxDocCount = in.readVInt();
     }
@@ -162,12 +167,16 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                     ValuesSourceConfig<ValuesSource> config,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new RareTermsAggregatorFactory(name, config, includeExclude,
-            queryShardContext, parent, subFactoriesBuilder, metaData, maxDocCount, precision);
+            queryShardContext, parent, subFactoriesBuilder, metadata, maxDocCount, precision);
     }
 
     @Override

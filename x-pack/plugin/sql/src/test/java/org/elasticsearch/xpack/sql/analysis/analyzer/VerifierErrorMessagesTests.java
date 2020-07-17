@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Truncate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Char;
@@ -21,11 +23,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
-import org.elasticsearch.xpack.sql.type.TypesTests;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -34,23 +32,29 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
 
-    private SqlParser parser = new SqlParser();
-    private IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-        TypesTests.loadMapping("mapping-multi-field-with-nested.json")));
+    private final SqlParser parser = new SqlParser();
+    private final IndexResolution indexResolution = IndexResolution.valid(
+        new EsIndex("test", loadMapping("mapping-multi-field-with-nested.json"))
+    );
 
     private String error(String sql) {
         return error(indexResolution, sql);
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
-        assertTrue(e.getMessage().startsWith("Found "));
-        String header = "Found 1 problem(s)\nline ";
-        return e.getMessage().substring(header.length());
+        String message = e.getMessage();
+        assertTrue(message.startsWith("Found "));
+        String pattern = "\nline ";
+        int index = message.indexOf(pattern);
+        return message.substring(index + pattern.length());
     }
 
     private LogicalPlan accept(String sql) {
@@ -59,18 +63,18 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private EsIndex getTestEsIndex() {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-with-nested.json");
         return new EsIndex("test", mapping);
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(TestUtils.TEST_CFG, new FunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
     private IndexResolution incompatible() {
-        Map<String, EsField> basicMapping = TypesTests.loadMapping("mapping-basic.json", true);
-        Map<String, EsField> incompatible = TypesTests.loadMapping("mapping-basic-incompatible.json");
+        Map<String, EsField> basicMapping = loadMapping("mapping-basic.json", true);
+        Map<String, EsField> incompatible = loadMapping("mapping-basic-incompatible.json");
 
         assertNotEquals(basicMapping, incompatible);
         IndexResolution resolution = IndexResolverTests.merge(new EsIndex("basic", basicMapping),
@@ -114,8 +118,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testFieldAliasTypeWithoutHierarchy() {
         Map<String, EsField> mapping = new LinkedHashMap<>();
 
-        mapping.put("field", new EsField("field", DataType.OBJECT,
-                singletonMap("alias", new EsField("alias", DataType.KEYWORD, emptyMap(), true)), false));
+        mapping.put("field", new EsField("field", OBJECT, singletonMap("alias", new EsField("alias", KEYWORD, emptyMap(), true)), false));
 
         IndexResolution resolution = IndexResolution.valid(new EsIndex("test", mapping));
 
@@ -209,11 +212,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testDateTruncValidArgs() {
+        accept("SELECT DATE_TRUNC('decade', date) FROM test");
+        accept("SELECT DATE_TRUNC('decades', date) FROM test");
+        accept("SELECT DATETRUNC('day', date) FROM test");
+        accept("SELECT DATETRUNC('days', date) FROM test");
+        accept("SELECT DATE_TRUNC('dd', date) FROM test");
+        accept("SELECT DATE_TRUNC('d', date) FROM test");
+    }
+
     public void testDateTruncInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_TRUNC(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_TRUNC(int, date) FROM test"));
-        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date or datetime], found value [keyword] " +
-                "type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
+        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date, datetime or an interval data type]," +
+            " found value [keyword] type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
         assertEquals("1:8: first argument of [DATE_TRUNC('invalid', keyword)] must be one of [MILLENNIUM, CENTURY, DECADE, " + "" +
                 "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
                 "or their aliases; found value ['invalid']",
@@ -282,15 +294,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT DATE_DIFF('dz', int, date) FROM test"));
     }
 
-    public void testDateTruncValidArgs() {
-        accept("SELECT DATE_TRUNC('decade', date) FROM test");
-        accept("SELECT DATE_TRUNC('decades', date) FROM test");
-        accept("SELECT DATETRUNC('day', date) FROM test");
-        accept("SELECT DATETRUNC('days', date) FROM test");
-        accept("SELECT DATE_TRUNC('dd', date) FROM test");
-        accept("SELECT DATE_TRUNC('d', date) FROM test");
-    }
-
     public void testDatePartInvalidArgs() {
         assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
             error("SELECT DATE_PART(int, date) FROM test"));
@@ -315,6 +318,39 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_PART('dayofyear', date) FROM test");
         accept("SELECT DATE_PART('dy', date) FROM test");
         accept("SELECT DATE_PART('ms', date) FROM test");
+    }
+
+    public void testDateTimeFormatValidArgs() {
+        accept("SELECT DATETIME_FORMAT(date, 'HH:mm:ss.SSS VV') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT DATETIME_FORMAT(date::time, 'HH:mm:ss Z') FROM test");
+    }
+
+    public void testDateTimeFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_FORMAT(date, int) FROM test")
+        );
+    }
+
+    public void testDateTimeParseValidArgs() {
+        accept("SELECT DATETIME_PARSE(keyword, 'MM/dd/uuuu HH:mm:ss') FROM test");
+        accept("SELECT DATETIME_PARSE('04/07/2020 10:20:30 Europe/Berlin', 'MM/dd/uuuu HH:mm:ss VV') FROM test");
+    }
+
+    public void testDateTimeParseInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [DATETIME_PARSE(int, keyword)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [DATETIME_PARSE(keyword, int)] must be [string], found value [int] type [integer]",
+            error("SELECT DATETIME_PARSE(keyword, int) FROM test")
+        );
     }
 
     public void testValidDateTimeFunctionsOnTime() {
@@ -454,6 +490,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByAggregate() {
         assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
                 error("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
+        assertEquals("1:65: Cannot use an aggregate [AVG] for grouping",
+                error("SELECT ROUND(AVG(int),2), AVG(int), COUNT(*) FROM test GROUP BY AVG(int) ORDER BY AVG(int)"));
     }
 
     public void testStarOnNested() {
@@ -469,11 +507,46 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOnNested() {
         assertEquals("1:38: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
                 error("SELECT dep.dep_id FROM test GROUP BY dep.dep_id"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
+                error("SELECT dep.dep_id AS a FROM test GROUP BY a"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
+                error("SELECT dep.dep_id AS a FROM test GROUP BY 1"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id, dep.start_date]",
+                error("SELECT dep.dep_id AS a, dep.start_date AS b FROM test GROUP BY 1, 2"));
+        assertEquals("1:8: Grouping isn't (yet) compatible with nested fields [dep.dep_id, dep.start_date]",
+                error("SELECT dep.dep_id AS a, dep.start_date AS b FROM test GROUP BY a, b"));
     }
 
     public void testHavingOnNested() {
         assertEquals("1:51: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
                 error("SELECT int FROM test GROUP BY int HAVING AVG(YEAR(dep.start_date)) > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS average FROM test GROUP BY int HAVING average > 1980"));
+        assertEquals("1:22: HAVING isn't (yet) compatible with nested fields [dep.start_date, dep.end_date]",
+                error("SELECT int, AVG(YEAR(dep.start_date)) AS a, MAX(MONTH(dep.end_date)) AS b " +
+                      "FROM test GROUP BY int " +
+                      "HAVING a > 1980 AND b < 10"));
+    }
+
+    public void testWhereOnNested() {
+        assertEquals("1:33: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT int FROM test WHERE YEAR(dep.start_date) + 10 > 0"));
+        assertEquals("1:13: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT YEAR(dep.start_date) + 10 AS a FROM test WHERE int > 10 AND (int < 3 OR NOT (a > 5))"));
+        accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL)");
+        accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL) " +
+               "OR NOT(dep.start_date >= '2020-01-01')");
+    }
+
+    public void testOrderByOnNested() {
+        assertEquals("1:36: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT int FROM test ORDER BY YEAR(dep.start_date) + 10"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields [dep.start_date]",
+                error("SELECT YEAR(dep.start_date) + 10  FROM test ORDER BY 1"));
+        assertEquals("1:13: ORDER BY isn't (yet) compatible with scalar functions on nested fields " +
+                        "[dep.start_date, dep.end_date]",
+                error("SELECT YEAR(dep.start_date) + 10 AS a, MONTH(dep.end_date) - 10 as b FROM test ORDER BY 1, 2"));
+        accept("SELECT int FROM test ORDER BY dep.start_date, dep.end_date");
     }
 
     public void testGroupByScalarFunctionWithAggOnTarget() {
@@ -482,21 +555,35 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testUnsupportedType() {
-        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:8: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT unsupported FROM test"));
     }
 
     public void testUnsupportedStarExpansion() {
-        assertEquals("1:8: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:8: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT unsupported.* FROM test"));
     }
 
     public void testUnsupportedTypeInFilter() {
-        assertEquals("1:26: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:26: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test WHERE unsupported > 1"));
     }
 
-    public void testTermEqualitOnInexact() {
+    public void testValidRootFieldWithUnsupportedChildren() {
+        accept("SELECT x FROM test");
+    }
+
+    public void testUnsupportedTypeInHierarchy() {
+        assertEquals("1:8: Cannot use field [x.y.z.w] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.w FROM test"));
+        assertEquals("1:8: Cannot use field [x.y.z.v] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.v FROM test"));
+        assertEquals("1:8: Cannot use field [x.y.z] with unsupported type [foobar] in hierarchy (field [y])",
+                error("SELECT x.y.z.* FROM test"));
+        assertEquals("1:8: Cannot use field [x.y] with unsupported type [foobar]", error("SELECT x.y FROM test"));
+    }
+
+    public void testTermEqualityOnInexact() {
         assertEquals("1:26: [text = 'value'] cannot operate on first argument field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text = 'value'"));
@@ -509,12 +596,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testUnsupportedTypeInFunction() {
-        assertEquals("1:12: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:12: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT ABS(unsupported) FROM test"));
     }
 
     public void testUnsupportedTypeInOrder() {
-        assertEquals("1:29: Cannot use field [unsupported] type [ip_range] as is unsupported",
+        assertEquals("1:29: Cannot use field [unsupported] with unsupported type [ip_range]",
                 error("SELECT * FROM test ORDER BY unsupported"));
     }
 
@@ -567,7 +654,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithFieldInListOfValues() {
-        assertEquals("1:26: Comparisons against variables are not (currently) supported; offender [int] in [int IN (1, int)]",
+        assertEquals("1:26: Comparisons against fields are not (currently) supported; offender [int] in [int IN (1, int)]",
             error("SELECT * FROM test WHERE int IN (1, int)"));
     }
 
@@ -695,6 +782,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:26: [text RLIKE 'foo'] cannot operate on field of data type [text]: " +
                 "No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
             error("SELECT * FROM test WHERE text RLIKE 'foo'"));
+    }
+
+    public void testMatchAndQueryFunctionsNotAllowedInSelect() {
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo') AS fullTextSearch FROM test"));
+        assertEquals("1:38: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT int > 10 AND (bool = false OR QUERY('foo*')) AS fullTextSearch FROM test"));
+        assertEquals("1:8: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause\n" +
+                "line 1:28: Cannot use MATCH() or QUERY() full-text search functions in the SELECT clause",
+                error("SELECT MATCH(text, 'foo'), MATCH(text, 'bar') FROM test"));
+        accept("SELECT * FROM test WHERE MATCH(text, 'foo')");
     }
 
     public void testAllowCorrectFieldsInIncompatibleMappings() {
@@ -922,6 +1022,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
     }
 
+    public void testProjectUnresolvedAliasWithSameNameInFilter() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test WHERE i > 10 GROUP BY i"));
+    }
+
+    public void testProjectUnresolvedAliasWithSameNameInOrderBy() {
+        assertEquals("1:8: Unknown column [i]", error("SELECT i AS i FROM test ORDER BY i"));
+    }
+
     public void testGeoShapeInWhereClause() {
         assertEquals("1:49: geo shapes cannot be used for filtering",
             error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));
@@ -997,5 +1105,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testPivotValuesWithMultipleDifferencesThanColumn() {
         assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
                 error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
+
+    public void testErrorMessageForMatrixStatsWithScalars() {
+        assertEquals("1:17: [KURTOSIS()] cannot be used on top of operators or scalars",
+                error("SELECT KURTOSIS(ABS(int * 10.123)) FROM test"));
+        assertEquals("1:17: [SKEWNESS()] cannot be used on top of operators or scalars",
+                error("SELECT SKEWNESS(ABS(int * 10.123)) FROM test"));
     }
 }

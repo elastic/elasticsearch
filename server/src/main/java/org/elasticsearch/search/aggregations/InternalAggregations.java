@@ -24,15 +24,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -52,49 +53,53 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
     };
 
-    private final List<SiblingPipelineAggregator> topLevelPipelineAggregators;
-
     /**
      * Constructs a new aggregation.
      */
-    public InternalAggregations(List<InternalAggregation> aggregations) {
+    private InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
-        this.topLevelPipelineAggregators = Collections.emptyList();
     }
 
-    /**
-     * Constructs a new aggregation providing its {@link InternalAggregation}s and {@link SiblingPipelineAggregator}s
-     */
-    public InternalAggregations(List<InternalAggregation> aggregations, List<SiblingPipelineAggregator> topLevelPipelineAggregators) {
-        super(aggregations);
-        this.topLevelPipelineAggregators = Objects.requireNonNull(topLevelPipelineAggregators);
+    public static InternalAggregations from(List<InternalAggregation> aggregations) {
+        if (aggregations.isEmpty()) {
+            return EMPTY;
+        }
+        return new InternalAggregations(aggregations);
     }
 
-    public InternalAggregations(StreamInput in) throws IOException {
-        super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
-        this.topLevelPipelineAggregators = in.readList(
-            stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
+    public static InternalAggregations readFrom(StreamInput in) throws IOException {
+        return from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
-        out.writeNamedWriteableList(topLevelPipelineAggregators);
+        out.writeNamedWriteableList(getInternalAggregations());
     }
 
     /**
-     * Returns the top-level pipeline aggregators.
-     * Note that top-level pipeline aggregators become normal aggregation once the final reduction has been performed, after which they
-     * become part of the list of {@link InternalAggregation}s.
+     * Make a mutable copy of the aggregation results.
      */
-    public List<SiblingPipelineAggregator> getTopLevelPipelineAggregators() {
-        return topLevelPipelineAggregators;
+    public List<InternalAggregation> copyResults() {
+        return new ArrayList<>(getInternalAggregations());
     }
 
     @SuppressWarnings("unchecked")
     private List<InternalAggregation> getInternalAggregations() {
         return (List<InternalAggregation>) aggregations;
+    }
+
+    /**
+     * Get value to use when sorting by a descendant of the aggregation containing this.
+     */
+    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+        InternalAggregation aggregation = get(head.name);
+        if (aggregation == null) {
+            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name + "]");
+        }
+        if (tail.hasNext()) {
+            return aggregation.sortValue(tail.next(), tail);
+        }
+        return aggregation.sortValue(head.key);
     }
 
     /**
@@ -114,16 +119,15 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
-                .map(agg -> agg.reducePipelines(agg, context))
+                .map(agg -> agg.reducePipelines(agg, context, context.pipelineTreeRoot().subTree(agg.getName())))
                 .collect(Collectors.toList());
 
-            List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
-            for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
-                InternalAggregation newAgg
-                    = pipelineAggregator.doReduce(new InternalAggregations(reducedInternalAggs), context);
+            for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
+                SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
+                InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
-            return new InternalAggregations(reducedInternalAggs);
+            return from(reducedInternalAggs);
         }
         return reduced;
     }
@@ -138,7 +142,6 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (aggregationsList.isEmpty()) {
             return null;
         }
-        List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
 
         // first we collect all aggregations of the same type and list them together
         Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
@@ -161,6 +164,6 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             reducedAggregations.add(first.reduce(aggregations, context));
         }
 
-        return new InternalAggregations(reducedAggregations, topLevelPipelineAggregators);
+        return from(reducedAggregations);
     }
 }

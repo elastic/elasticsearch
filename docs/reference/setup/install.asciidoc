@@ -7,7 +7,7 @@
 You can run Elasticsearch on your own hardware, or use our
 https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
 on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
-https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
+{ess-trial}[Try out the
 Elasticsearch Service for free].
 
 [float]

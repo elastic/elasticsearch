@@ -3,17 +3,13 @@
 [[sql-client-apps-tableau]]
 === Tableau Desktop
 
-[quote, https://www.tableau.com/products/what-is-tableau]
-____
-https://www.tableau.com/products/desktop[Tableau] is the most powerful, secure, and flexible end-to-end analytics platform
-for your data.
-____
+You can use the {es} ODBC driver to access {es} data from Tableau Desktop.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* Tableau 2018 or higher
+* https://www.tableau.com/products/desktop[Tableau Desktop] 2018 or higher
 * {es-sql} <<sql-odbc, ODBC driver>>
 * A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 

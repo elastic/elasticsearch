@@ -6,7 +6,7 @@
 
 Adds or removes index aliases.
 
-include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
+include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----
@@ -42,7 +42,7 @@ searching, and routing values. An alias cannot have the same name as an index.
 [[indices-aliases-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[indices-aliases-api-request-body]]
@@ -75,6 +75,8 @@ used to perform the action.
 +
 If the `indices` parameter is not specified,
 this parameter is required.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `indices`::
 (Array)
@@ -83,6 +85,8 @@ used to perform the action.
 +
 If the `index` parameter is not specified,
 this parameter is required.
++
+NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `alias`::
 (String)
@@ -93,8 +97,8 @@ If the `aliases` parameter is not specified,
 this parameter is required for the `add` or `remove` action.
 
 `aliases`::
-(String)
-Comma-separated list or wildcard expression of index alias names to
+(Array of strings)
+Array of index alias names to
 add, remove, or delete.
 +
 If the `alias` parameter is not specified,
@@ -102,9 +106,20 @@ this parameter is required for the `add` or `remove` action.
 
 `filter`::
 (Optional, query object)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 +
 See <<filtered>> for an example.
+
+`is_hidden`::
+(Optional, boolean)
+If `true`, the alias will be excluded from wildcard expressions by default,
+unless overriden in the request using the `expand_wildcards` parameter,
+similar to <<index-hidden,hidden indices>>. This property must be set to the
+same value on all indices that share an alias. Defaults to `false`.
+
+`must_exist`::
+(Optional, boolean)
+If `true`, the alias to remove must exist. Defaults to `false`.
 
 `is_write_index`::
 (Optional, boolean)
@@ -123,7 +138,7 @@ until an additional index is referenced. At that point, there will be no write i
 writes will be rejected.
 ====
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 +
 See <<aliases-routing>> for an example.
 
@@ -135,7 +150,6 @@ for the alias's indexing operations.
 See <<aliases-routing>> for an example.
 
 `search_routing`::
-`index_routing`::
 (Optional, string)
 Custom <<mapping-routing-field, routing value>> used
 for the alias's search operations.
@@ -252,7 +266,11 @@ indices that match this pattern are added/removed.
 
 It is an error to index to an alias which points to more than one index.
 
-It is also possible to swap an index with an alias in one operation:
+It is also possible to swap an index with an alias in one, atomic operation.
+This means there will be no point in time where the alias points to no
+index in the cluster state. However, as indexing and searches involve multiple
+steps, it is possible for the in-flight or queued requests to fail
+due to a temporarily non-existent index.
 
 [source,console]
 --------------------------------------------------

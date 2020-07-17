@@ -393,7 +393,7 @@ public class BulkProcessor implements Closeable {
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline,
+            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null,
                 true, xContentType);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
@@ -420,8 +420,7 @@ public class BulkProcessor implements Closeable {
                 }
             };
         }
-        final Runnable flushRunnable = scheduler.preserveContext(new Flush());
-        return scheduler.scheduleWithFixedDelay(flushRunnable, flushInterval, ThreadPool.Names.GENERIC);
+        return scheduler.scheduleWithFixedDelay(new Flush(), flushInterval, ThreadPool.Names.GENERIC);
     }
 
     // needs to be executed under a lock

@@ -20,20 +20,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collections;
 import java.util.Map;
 
 /** Mapper for the _version field. */
@@ -45,43 +44,35 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
 
         public static final String NAME = VersionFieldMapper.NAME;
-        public static final MappedFieldType FIELD_TYPE = new VersionFieldType();
+        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final MappedFieldType MAPPED_FIELD_TYPE = new VersionFieldType();
 
         static {
-            FIELD_TYPE.setName(NAME);
             FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.freeze();
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
                                                        ParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(NAME + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new VersionFieldMapper(indexSettings);
+        public MetadataFieldMapper getDefault(ParserContext context) {
+            return new VersionFieldMapper();
         }
     }
 
     static final class VersionFieldType extends MappedFieldType {
 
-        VersionFieldType() {
-        }
+        public static final VersionFieldType INSTANCE = new VersionFieldType();
 
-        protected VersionFieldType(VersionFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new VersionFieldType(this);
+        private VersionFieldType() {
+            super(NAME, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -100,8 +91,8 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private VersionFieldMapper(Settings indexSettings) {
-        super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
+    private VersionFieldMapper() {
+        super(Defaults.FIELD_TYPE, Defaults.MAPPED_FIELD_TYPE);
     }
 
     @Override
@@ -110,11 +101,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context) throws IOException {
         // see InternalEngine.updateVersion to see where the real version value is set
         final Field version = new NumericDocValuesField(NAME, -1L);
         context.version(version);
-        fields.add(version);
+        context.doc().add(version);
     }
 
     @Override
@@ -143,8 +134,4 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         return builder;
     }
 
-    @Override
-    protected void doMerge(Mapper mergeWith) {
-        // nothing to do
-    }
 }

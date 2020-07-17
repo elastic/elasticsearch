@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
@@ -57,7 +57,7 @@ public class RandomScoreFunction extends ScoreFunction {
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedBinaryDocValues values;
         if (fieldData != null) {
-            AtomicFieldData leafData = fieldData.load(ctx);
+            LeafFieldData leafData = fieldData.load(ctx);
             values = leafData.getBytesValues();
             if (values == null) throw new NullPointerException("failed to get fielddata");
         } else {

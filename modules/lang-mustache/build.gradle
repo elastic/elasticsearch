@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Mustache scripting integration for Elasticsearch'
@@ -23,6 +24,12 @@ esplugin {
 }
 
 dependencies {
-  compile "com.github.spullara.mustache.java:compiler:0.9.6"
+  api "com.github.spullara.mustache.java:compiler:0.9.6"
 }
 
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
+      'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
+  }
+}

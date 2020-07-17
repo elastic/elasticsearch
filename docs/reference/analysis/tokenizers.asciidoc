@@ -1,5 +1,5 @@
 [[analysis-tokenizers]]
-== Tokenizers
+== Tokenizer reference
 
 A _tokenizer_  receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For
@@ -139,8 +139,6 @@ include::tokenizers/lowercase-tokenizer.asciidoc[]
 include::tokenizers/ngram-tokenizer.asciidoc[]
 
 include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
-
-include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]
 
 include::tokenizers/pattern-tokenizer.asciidoc[]
 

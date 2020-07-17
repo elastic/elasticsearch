@@ -110,6 +110,14 @@ public class ByteBufferStreamInput extends StreamInput {
         }
     }
 
+    public void position(int newPosition) throws IOException {
+        buffer.position(newPosition);
+    }
+
+    public int position() throws IOException {
+        return buffer.position();
+    }
+
     @Override
     public void reset() throws IOException {
         buffer.reset();

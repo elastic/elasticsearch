@@ -53,8 +53,8 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ReverseNestedAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ReverseNestedAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -91,6 +91,11 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.ONE;
+    }
+
+    @Override
     protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
         if (findNestedAggregatorFactory(parent) == null) {
@@ -101,7 +106,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         if (path != null) {
             parentObjectMapper = queryShardContext.getObjectMapper(path);
             if (parentObjectMapper == null) {
-                return new ReverseNestedAggregatorFactory(name, true, null, queryShardContext, parent, subFactoriesBuilder, metaData);
+                return new ReverseNestedAggregatorFactory(name, true, null, queryShardContext, parent, subFactoriesBuilder, metadata);
             }
             if (parentObjectMapper.nested().isNested() == false) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
@@ -112,7 +117,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         try {
             nestedScope.nextLevel(parentObjectMapper);
             return new ReverseNestedAggregatorFactory(name, false, parentObjectMapper, queryShardContext, parent, subFactoriesBuilder,
-                    metaData);
+                    metadata);
         } finally {
             nestedScope.previousLevel();
         }

@@ -24,10 +24,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 public interface Compressor {
 
     boolean isCompressed(BytesReference bytes);
+
+    int headerLength();
 
     StreamInput streamInput(StreamInput in) throws IOException;
 
@@ -35,5 +38,5 @@ public interface Compressor {
      * Creates a new stream output that compresses the contents and writes to the provided stream
      * output. Closing the returned {@link StreamOutput} will close the provided stream output.
      */
-    StreamOutput streamOutput(StreamOutput out) throws IOException;
+    StreamOutput streamOutput(OutputStream out) throws IOException;
 }

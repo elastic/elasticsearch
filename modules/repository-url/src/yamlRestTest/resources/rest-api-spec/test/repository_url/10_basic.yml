@@ -1,0 +1,274 @@
+# Integration tests for repository-url
+#
+# This test is based on 3 repositories, all registered before this
+# test is executed. The repository-fs is used to create snapshots
+# in a shared directory on the filesystem. Then the test uses a URL
+# repository with a "http://" prefix to test the restore of the
+# snapshots. In order to do that it uses a URLFixture that exposes
+# the content of the shared directory over HTTP. A second URL
+# repository is used to test the snapshot restore but this time
+# with a "file://" prefix.
+setup:
+
+  # Ensure that the FS repository is registered, so we can create
+  # snapshots that we later restore using the URL repository
+  - do:
+      snapshot.get_repository:
+        repository: repository-fs
+
+  # Index documents
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: docs
+              _id:    1
+          - snapshot: one
+          - index:
+              _index: docs
+              _id:    2
+          - snapshot: one
+          - index:
+              _index: docs
+              _id:    3
+          - snapshot: one
+
+  # Create a first snapshot using the FS repository
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot-one
+        wait_for_completion: true
+
+  # Index more documents
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: docs
+              _id:    4
+          - snapshot: two
+          - index:
+              _index: docs
+              _id:    5
+          - snapshot: two
+          - index:
+              _index: docs
+              _id:    6
+          - snapshot: two
+          - index:
+              _index: docs
+              _id:    7
+          - snapshot: two
+
+  # Create a second snapshot
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot-two
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: repository-fs
+        snapshot: snapshot-one,snapshot-two
+
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: docs
+        ignore_unavailable: true
+
+  # Remove the snapshots
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot-two
+
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot-one
+
+---
+"Module repository-url is loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - contains: { nodes.$master.modules: { name: repository-url } }
+
+---
+"Restore with repository-url using http://":
+  - skip:
+      version: " - 7.99.99"
+      reason: "8.0 changes get snapshots response format"
+
+  # Ensure that the URL repository is registered
+  - do:
+      snapshot.get_repository:
+        repository: repository-url
+
+  - match: { repository-url.type : "url" }
+  - match: { repository-url.settings.url: '/http://(.+):\d+/' }
+
+  - do:
+      snapshot.get:
+        repository: repository-url
+        snapshot: snapshot-one,snapshot-two
+
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.state : SUCCESS }
+  - match: { responses.0.snapshots.1.state : SUCCESS }
+
+  # Delete the index
+  - do:
+      indices.delete:
+        index: docs
+
+  # Restore the second snapshot
+  - do:
+      snapshot.restore:
+        repository: repository-url
+        snapshot: snapshot-two
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: {count: 7}
+
+  # Delete the index again
+  - do:
+      indices.delete:
+        index: docs
+
+  # Restore the first snapshot
+  - do:
+      snapshot.restore:
+        repository: repository-url
+        snapshot: snapshot-one
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: {count: 3}
+
+  - do:
+      catch: /cannot delete snapshot from a readonly repository/
+      snapshot.delete:
+        repository: repository-url
+        snapshot: snapshot-two
+
+---
+"Restore with repository-url using file://":
+  - skip:
+      version: " - 7.99.99"
+      reason: "8.0 changes get snapshots response format"
+
+  # Ensure that the URL repository is registered
+  - do:
+      snapshot.get_repository:
+        repository: repository-file
+
+  - match: { repository-file.type : "url" }
+  - match: { repository-file.settings.url: '/file://(.+)/' }
+
+  - do:
+      snapshot.get:
+        repository: repository-file
+        snapshot: snapshot-one,snapshot-two
+
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.state : SUCCESS }
+  - match: { responses.0.snapshots.1.state : SUCCESS }
+
+  # Delete the index
+  - do:
+      indices.delete:
+        index: docs
+
+  # Restore the second snapshot
+  - do:
+      snapshot.restore:
+        repository: repository-file
+        snapshot: snapshot-two
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: {count: 7}
+
+  # Delete the index again
+  - do:
+      indices.delete:
+        index: docs
+
+  # Restore the first snapshot
+  - do:
+      snapshot.restore:
+        repository: repository-file
+        snapshot: snapshot-one
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: {count: 3}
+
+  - do:
+      catch: /cannot delete snapshot from a readonly repository/
+      snapshot.delete:
+        repository: repository-file
+        snapshot: snapshot-one
+
+---
+"Get a non existing snapshot":
+  - skip:
+      version: " - 7.99.99"
+      reason: "8.0 changes get snapshots response format"
+
+  - do:
+      snapshot.get:
+        repository: repository-url
+        snapshot: missing
+
+  - is_true: responses.0.error
+  - match: { responses.0.error.type: snapshot_missing_exception }
+
+---
+"Delete a non existing snapshot":
+
+  - do:
+      catch: /snapshot_missing_exception/
+      snapshot.delete:
+        repository: repository-url
+        snapshot: missing
+
+---
+"Restore a non existing snapshot":
+
+  - do:
+      catch: /snapshot_restore_exception/
+      snapshot.restore:
+        repository: repository-url
+        snapshot: missing
+        wait_for_completion: true

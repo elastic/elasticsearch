@@ -19,125 +19,89 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
+import org.elasticsearch.painless.symbol.Decorations.ContinuousLoop;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a while loop.
  */
-public final class SWhile extends AStatement {
+public class SWhile extends AStatement {
 
-    private AExpression condition;
-    private final SBlock block;
+    private final AExpression conditionNode;
+    private final SBlock blockNode;
 
-    private boolean continuous = false;
+    public SWhile(int identifier, Location location, AExpression conditionNode, SBlock blockNode) {
+        super(identifier, location);
 
-    public SWhile(Location location, AExpression condition, SBlock block) {
-        super(location);
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.blockNode = blockNode;
+    }
 
-        this.condition = Objects.requireNonNull(condition);
-        this.block = block;
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        condition.extractVariables(variables);
-        if (block != null) {
-            block.extractVariables(variables);
-        }
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitWhile(this, input);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        locals = Locals.newLocalScope(locals);
+    void analyze(SemanticScope semanticScope) {
+        semanticScope = semanticScope.newLocalScope();
 
-        condition.expected = boolean.class;
-        condition.analyze(scriptRoot, locals);
-        condition = condition.cast(scriptRoot, locals);
+        semanticScope.setCondition(conditionNode, Read.class);
+        semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
+        AExpression.analyze(conditionNode, semanticScope);
+        conditionNode.cast(semanticScope);
 
-        if (condition.constant != null) {
-            continuous = (boolean)condition.constant;
+        boolean continuous = false;
 
-            if (!continuous) {
+        if (conditionNode instanceof EBooleanConstant) {
+            continuous = ((EBooleanConstant)conditionNode).getBool();
+
+            if (continuous == false) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));
+            } else {
+                semanticScope.setCondition(this, ContinuousLoop.class);
             }
 
-            if (block == null) {
+            if (blockNode == null) {
                 throw createError(new IllegalArgumentException("While loop has no escape."));
             }
         }
 
-        if (block != null) {
-            block.beginLoop = true;
-            block.inLoop = true;
+        if (blockNode != null) {
+            semanticScope.setCondition(blockNode, BeginLoop.class);
+            semanticScope.setCondition(blockNode, InLoop.class);
+            blockNode.analyze(semanticScope);
 
-            block.analyze(scriptRoot, locals);
-
-            if (block.loopEscape && !block.anyContinue) {
-                throw createError(new IllegalArgumentException("Extraneous while loop."));
+            if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
+                    semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
+                throw createError(new IllegalArgumentException("Extraneous for loop."));
             }
 
-            if (continuous && !block.anyBreak) {
-                methodEscape = true;
-                allEscape = true;
-            }
-
-            block.statementCount = Math.max(1, block.statementCount);
-        }
-
-        statementCount = 1;
-
-        if (locals.hasVariable(Locals.LOOP)) {
-            loopCounter = locals.getVariable(location, Locals.LOOP);
-        }
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        if (!continuous) {
-            condition.write(classWriter, methodWriter, globals);
-            methodWriter.ifZCmp(Opcodes.IFEQ, end);
-        }
-
-        if (block != null) {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
-            }
-
-            block.continu = begin;
-            block.brake = end;
-            block.write(classWriter, methodWriter, globals);
-        } else {
-            if (loopCounter != null) {
-                methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
+            if (continuous && semanticScope.getCondition(blockNode, AnyBreak.class) == false) {
+                semanticScope.setCondition(this, MethodEscape.class);
+                semanticScope.setCondition(this, AllEscape.class);
             }
         }
-
-        if (block == null || !block.allEscape) {
-            methodWriter.goTo(begin);
-        }
-
-        methodWriter.mark(end);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, block);
     }
 }

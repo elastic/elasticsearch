@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
@@ -42,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
+import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
@@ -122,18 +125,24 @@ public class ClusterFormationFailureHelper {
         private final List<DiscoveryNode> foundPeers;
         private final long currentTerm;
         private final ElectionStrategy electionStrategy;
+        private final StatusInfo statusInfo;
 
         ClusterFormationState(Settings settings, ClusterState clusterState, List<TransportAddress> resolvedAddresses,
-                              List<DiscoveryNode> foundPeers, long currentTerm, ElectionStrategy electionStrategy) {
+                              List<DiscoveryNode> foundPeers, long currentTerm, ElectionStrategy electionStrategy,
+                              StatusInfo statusInfo) {
             this.settings = settings;
             this.clusterState = clusterState;
             this.resolvedAddresses = resolvedAddresses;
             this.foundPeers = foundPeers;
             this.currentTerm = currentTerm;
             this.electionStrategy = electionStrategy;
+            this.statusInfo = statusInfo;
         }
 
         String getDescription() {
+            if (statusInfo.getStatus() == UNHEALTHY) {
+                return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
+            }
             final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
                 .map(n -> n.value.toString()).collect(Collectors.toList());
 
@@ -156,7 +165,6 @@ public class ClusterFormationFailureHelper {
                 if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
                     bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
                 } else {
-                    // TODO update this when we can bootstrap on only a quorum of the initial nodes
                     bootstrappingDescription = String.format(Locale.ROOT,
                         "this node must discover master-eligible nodes %s to bootstrap a cluster",
                         INITIAL_MASTER_NODES_SETTING.get(settings));
@@ -206,7 +214,12 @@ public class ClusterFormationFailureHelper {
             assert requiredNodes <= realNodeIds.size() : nodeIds;
 
             if (nodeIds.size() == 1) {
-                return "a node with id " + realNodeIds;
+                if (nodeIds.contains(GatewayMetaState.STALE_STATE_CONFIG_NODE_ID)) {
+                    return "one or more nodes that have already participated as master-eligible nodes in the cluster but this node was " +
+                        "not master-eligible the last time it joined the cluster";
+                } else {
+                    return "a node with id " + realNodeIds;
+                }
             } else if (nodeIds.size() == 2) {
                 return "two nodes with ids " + realNodeIds;
             } else {

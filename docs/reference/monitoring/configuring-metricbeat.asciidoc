@@ -44,7 +44,7 @@ view the cluster settings and `manage` cluster privileges to change them.
 For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 
-. {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on each
+. {metricbeat-ref}/metricbeat-installation-configuration.html[Install {metricbeat}] on each
 {es} node in the production cluster.
 
 . Enable the {es} {xpack} module in {metricbeat} on each {es} node. +
@@ -84,6 +84,7 @@ The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
       - ml_job
       - node_stats
       - shard
+      - enrich
     period: 10s
     hosts: ["http://localhost:9200"]
     #username: "user"

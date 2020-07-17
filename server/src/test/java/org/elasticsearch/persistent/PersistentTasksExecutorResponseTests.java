@@ -21,7 +21,7 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -36,7 +36,7 @@ public class PersistentTasksExecutorResponseTests extends AbstractWireSerializin
             return new PersistentTaskResponse(
                     new PersistentTask<PersistentTaskParams>(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME,
                             new TestPersistentTasksPlugin.TestParams("test"),
-                            randomLong(), PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT));
+                            randomLong(), PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT));
         } else {
             return new PersistentTaskResponse((PersistentTask<?>) null);
         }

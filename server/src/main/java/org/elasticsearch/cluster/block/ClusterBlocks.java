@@ -21,8 +21,8 @@ package org.elasticsearch.cluster.block;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -357,33 +357,33 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             return this;
         }
 
-        public Builder addBlocks(IndexMetaData indexMetaData) {
-            String indexName = indexMetaData.getIndex().getName();
-            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-                addIndexBlock(indexName, MetaDataIndexStateService.INDEX_CLOSED_BLOCK);
+        public Builder addBlocks(IndexMetadata indexMetadata) {
+            String indexName = indexMetadata.getIndex().getName();
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                addIndexBlock(indexName, MetadataIndexStateService.INDEX_CLOSED_BLOCK);
             }
-            if (IndexMetaData.INDEX_READ_ONLY_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_BLOCK);
+            if (IndexMetadata.INDEX_READ_ONLY_SETTING.get(indexMetadata.getSettings())) {
+                addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_BLOCK);
             }
-            if (IndexMetaData.INDEX_BLOCKS_READ_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexName, IndexMetaData.INDEX_READ_BLOCK);
+            if (IndexMetadata.INDEX_BLOCKS_READ_SETTING.get(indexMetadata.getSettings())) {
+                addIndexBlock(indexName, IndexMetadata.INDEX_READ_BLOCK);
             }
-            if (IndexMetaData.INDEX_BLOCKS_WRITE_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexName, IndexMetaData.INDEX_WRITE_BLOCK);
+            if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexMetadata.getSettings())) {
+                addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK);
             }
-            if (IndexMetaData.INDEX_BLOCKS_METADATA_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexName, IndexMetaData.INDEX_METADATA_BLOCK);
+            if (IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.get(indexMetadata.getSettings())) {
+                addIndexBlock(indexName, IndexMetadata.INDEX_METADATA_BLOCK);
             }
-            if (IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.get(indexMetaData.getSettings())) {
-                addIndexBlock(indexName, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+            if (IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.get(indexMetadata.getSettings())) {
+                addIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             }
             return this;
         }
 
-        public Builder updateBlocks(IndexMetaData indexMetaData) {
+        public Builder updateBlocks(IndexMetadata indexMetadata) {
             // let's remove all blocks for this index and add them back -- no need to remove all individual blocks....
-            indices.remove(indexMetaData.getIndex().getName());
-            return addBlocks(indexMetaData);
+            indices.remove(indexMetadata.getIndex().getName());
+            return addBlocks(indexMetadata);
         }
 
         public Builder addGlobalBlock(ClusterBlock block) {

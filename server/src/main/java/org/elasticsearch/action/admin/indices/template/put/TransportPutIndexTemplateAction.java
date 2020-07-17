@@ -28,9 +28,9 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,12 +49,12 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
 
     private static final Logger logger = LogManager.getLogger(TransportPutIndexTemplateAction.class);
 
-    private final MetaDataIndexTemplateService indexTemplateService;
+    private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
     public TransportPutIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                           ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
+                                           ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            IndexScopedSettings indexScopedSettings) {
         super(PutIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
@@ -87,9 +87,9 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
             cause = "api";
         }
         final Settings.Builder templateSettingsBuilder = Settings.builder();
-        templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
+        templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
-        indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
+        indexTemplateService.putTemplate(new MetadataIndexTemplateService.PutRequest(cause, request.name())
                 .patterns(request.patterns())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())
@@ -99,9 +99,9 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                 .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
 
-                new MetaDataIndexTemplateService.PutListener() {
+                new MetadataIndexTemplateService.PutListener() {
                     @Override
-                    public void onResponse(MetaDataIndexTemplateService.PutResponse response) {
+                    public void onResponse(MetadataIndexTemplateService.PutResponse response) {
                         listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
                     }
 

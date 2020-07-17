@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -152,7 +151,7 @@ public class RolloverRequestTests extends ESTestCase {
             try (StreamInput in = new NamedWriteableAwareStreamInput(bytes.streamInput(), writeableRegistry)) {
                 RolloverRequest cloneRequest = new RolloverRequest(in);
                 assertThat(cloneRequest.getNewIndexName(), equalTo(originalRequest.getNewIndexName()));
-                assertThat(cloneRequest.getAlias(), equalTo(originalRequest.getAlias()));
+                assertThat(cloneRequest.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     //here we compare the string representation as there is some information loss when serializing
@@ -191,7 +190,7 @@ public class RolloverRequestTests extends ESTestCase {
         ActionRequestValidationException validationException = rolloverRequest.validate();
         assertNotNull(validationException);
         assertEquals(1, validationException.validationErrors().size());
-        assertEquals("index alias is missing", validationException.validationErrors().get(0));
+        assertEquals("rollover target is missing", validationException.validationErrors().get(0));
     }
 
     private static List<Consumer<RolloverRequest>> conditionsGenerator = new ArrayList<>();
@@ -201,23 +200,4 @@ public class RolloverRequestTests extends ESTestCase {
         conditionsGenerator.add((request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())));
     }
 
-    private static RolloverRequest createTestItem() throws IOException {
-        RolloverRequest rolloverRequest = new RolloverRequest();
-        if (randomBoolean()) {
-            String type = randomAlphaOfLengthBetween(3, 10);
-            rolloverRequest.getCreateIndexRequest().mapping(type, RandomCreateIndexGenerator.randomMapping(type));
-        }
-        if (randomBoolean()) {
-            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
-        }
-        if (randomBoolean()) {
-            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
-        }
-        int numConditions = randomIntBetween(0, 3);
-        List<Consumer<RolloverRequest>> conditions = randomSubsetOf(numConditions, conditionsGenerator);
-        for (Consumer<RolloverRequest> consumer : conditions) {
-            consumer.accept(rolloverRequest);
-        }
-        return rolloverRequest;
-    }
 }

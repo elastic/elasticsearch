@@ -6,33 +6,48 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.io.IOException;
 import java.util.Map;
 
 public class PreviewTransformsActionResponseWireTests extends AbstractWireSerializingTransformTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
-        int size = randomIntBetween(0, 10);
-        List<Map<String, Object>> data = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            Map<String, Object> datum = new HashMap<>();
-            Map<String, Object> entry = new HashMap<>();
-            entry.put("value1", randomIntBetween(1, 100));
-            datum.put(randomAlphaOfLength(10), entry);
-            data.add(datum);
-        }
-        return new Response(data);
+        return PreviewTransformsActionResponseTests.randomPreviewResponse();
     }
 
     @Override
     protected Reader<Response> instanceReader() {
         return Response::new;
+    }
+
+    public void testBackwardsSerialization76() throws IOException {
+        Response response = PreviewTransformsActionResponseTests.randomPreviewResponse();
+
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(Version.V_7_6_0);
+            output.writeInt(response.getDocs().size());
+            for (Map<String, Object> doc : response.getDocs()) {
+                output.writeMapWithConsistentOrder(doc);
+            }
+
+            output.writeMap(response.getGeneratedDestIndexSettings().getMappings());
+            try (StreamInput in = output.bytes().streamInput()) {
+                in.setVersion(Version.V_7_6_0);
+                Response streamedResponse = new Response(in);
+                assertEquals(
+                    response.getGeneratedDestIndexSettings().getMappings(),
+                    streamedResponse.getGeneratedDestIndexSettings().getMappings()
+                );
+                assertEquals(response.getDocs(), streamedResponse.getDocs());
+            }
+        }
     }
 
 }

@@ -4,36 +4,13 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply from : "$rootDir/gradle/bwc-test.gradle"
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
-tasks.register("bwcTest") {
-  description = 'Runs backwards compatibility tests.'
-  group = 'verification'
-}
-
-configurations {
-  restSpec
-}
-
-dependencies {
-  restSpec project(':rest-api-spec')
-}
-
-processTestResources {
-  dependsOn configurations.restSpec
-  from({ zipTree(configurations.restSpec.singleFile) }) {
-    include 'rest-api-spec/api/**'
-  }
-  from(project(xpackProject('plugin').path).sourceSets.test.resources) {
-    include 'rest-api-spec/api/**'
-  }
-}
-
-
-for (Version bwcVersion : bwcVersions.wireCompatible) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
 
   testClusters {
@@ -44,11 +21,9 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
 
       setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
       setting 'xpack.security.enabled', 'false'
-      setting 'xpack.monitoring.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'xpack.license.self_generated.type', 'basic'
-      javaHome = BuildParams.runtimeJavaHome
     }
   }
 
@@ -61,7 +36,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }
 
-
+  String oldVersion = bwcVersion.toString().replace('-SNAPSHOT', '')
   tasks.register("${baseName}#oneThirdUpgradedTest", RestTestRunnerTask) {
     dependsOn "${baseName}#oldClusterTest"
     useCluster testClusters."${baseName}"
@@ -72,7 +47,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", RestTestRunnerTask) {
@@ -85,7 +60,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
   tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
@@ -97,27 +72,10 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
-    systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+    systemProperty 'tests.upgrade_from_version', oldVersion
   }
 
-  tasks.register("${baseName}#bwcTest") {
+  tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
-
-  if (project.bwc_tests_enabled) {
-    bwcTest.dependsOn("${baseName}#bwcTest")
-  }
 }
-
-task bwcTestSnapshots {
-  if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
-      dependsOn "v${version}#bwcTest"
-    }
-  }
-}
-check.dependsOn(bwcTestSnapshots)
-
-compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
-
-test.enabled = false

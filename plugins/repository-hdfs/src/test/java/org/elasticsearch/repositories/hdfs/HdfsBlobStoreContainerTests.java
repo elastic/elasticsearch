@@ -28,13 +28,11 @@ import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.test.ESTestCase;
 
 import javax.security.auth.Subject;
-import java.io.IOException;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
@@ -45,13 +43,12 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 
-@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
-public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
+import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
 
-    @Override
-    protected BlobStore newBlobStore() throws IOException {
-        return new HdfsBlobStore(createTestContext(), "temp", 1024, false);
-    }
+@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
+public class HdfsBlobStoreContainerTests extends ESTestCase {
 
     private FileContext createTestContext() {
         FileContext fileContext;
@@ -134,6 +131,6 @@ public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "foo", data.length), data);
-        assertTrue(BlobStoreTestUtil.blobExists(container, "foo"));
+        assertTrue(container.blobExists("foo"));
     }
 }

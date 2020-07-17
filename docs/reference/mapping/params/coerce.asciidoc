@@ -7,7 +7,7 @@ be rendered as a string, e.g. `"5"`.  Alternatively, a number that should be
 an integer might instead be rendered as a floating point, e.g. `5.0`, or even
 `"5.0"`.
 
-Coercion attempts to clean up dirty values to fit the datatype of a field.
+Coercion attempts to clean up dirty values to fit the data type of a field.
 For instance:
 
 * Strings will be coerced to numbers.

@@ -1,0 +1,148 @@
+[[avoid-oversharding]]
+== Avoid oversharding
+
+In some cases, reducing the number of shards in a cluster while maintaining the
+same amount of data leads to a more effective use of system resources
+(CPU, RAM, IO). In these situations, we consider the cluster _oversharded_.
+
+The number of shards where this inflection point occurs depends on a variety
+of factors, including:
+
+* available hardware
+* indexing load
+* data volume
+* the types of queries executed against the clusters
+* the rate of these queries being issued
+* the volume of data being queried
+
+Testing against production data with production queries on production hardware
+is the only way to calibrate optimal shard sizes. Shard sizes of tens of GB
+are commonly used, and this may be a useful starting point from which to
+experiment. {kib}'s {kibana-ref}/elasticsearch-metrics.html[{es} monitoring]
+provides a useful view of historical cluster performance when evaluating the
+impact of different shard sizes.
+
+[discrete]
+[[oversharding-inefficient]]
+=== Why oversharding is inefficient
+
+Each segment has metadata that needs to be kept in heap memory. These include
+lists of fields, the number of documents, and terms dictionaries. As a shard
+grows in size, the size of its segments generally grow because smaller segments
+are <<index-modules-merge,merged>> into fewer, larger segments. This typically
+reduces the amount of heap required by a shard’s segment metadata for a given
+data volume. At a bare minimum shards should be at least larger than 1GB to
+make the most efficient use of memory. 
+
+However, even though shards start to be more memory efficient at around 1GB,
+a cluster full of 1GB shards will likely still perform poorly. This is because
+having many small shards can also have a negative impact on search and
+indexing operations. Each query or indexing operation is executed in a single
+thread per shard of indices being queried or indexed to. The node receiving
+a request from a client becomes responsible for distributing that request to
+the appropriate shards as well as reducing the results from those individual
+shards into a single response. Even assuming that a cluster has sufficient
+<<modules-threadpool,search threadpool threads>> available to immediately
+process the requested action against all shards required by the request, the
+overhead associated with making network requests to the nodes holding those
+shards and with having to merge the results of results from many small shards
+can lead to increased latency. This in turn can lead to exhaustion of the
+threadpool and, as a result, decreased throughput.
+
+[discrete]
+[[reduce-shard-counts-increase-shard-size]]
+=== How to reduce shard counts and increase shard size
+
+Try these methods to reduce oversharding.
+
+[discrete]
+[[reduce-shards-for-new-indices]]
+==== Reduce the number of shards for new indices
+
+You can specify the `index.number_of_shards` setting  for new indices created
+with the <<indices-create-index,create index API>> or as part of
+<<indices-templates,index templates>> for indices automatically created by
+<<index-lifecycle-management,{ilm} ({ilm-init})>>.
+
+You can override the `index.number_of_shards`  when rolling over an index
+using the <<rollover-index-api-example,rollover index API>>.
+
+[discrete]
+[[create-larger-shards-by-increasing-rollover-thresholds]]
+==== Create larger shards by increasing rollover thresholds
+
+You can roll over indices using the
+<<indices-rollover-index,rollover index API>> or by specifying the
+<<ilm-rollover-action,rollover action>> in an {ilm-init} policy. If using an
+{ilm-init} policy, increase the rollover condition thresholds (`max_age`,
+  `max_docs`, `max_size`)  to allow the indices to grow to a larger size
+  before being rolled over, which creates larger shards.
+
+Take special note of any empty indices. These may be managed by an {ilm-init}
+policy that is rolling over the indices because the `max_age` threshold is met.
+In this case, you may need to adjust the policy to make use of the `max_docs`
+or `max_size` properties to prevent the creation of these empty indices. One
+example where this may happen is if one or more {beats} stop sending data. If
+the {ilm-init}-managed indices for those {beats} are configured to roll over
+  daily, then new, empty indices will be generated each day. Empty indices can
+  be identified using the <<cat-count,cat count API>>.
+
+[discrete]
+[[create-larger-shards-with-index-patterns]]
+==== Create larger shards by using index patterns spanning longer time periods
+
+Creating indices covering longer time periods reduces index and shard counts
+while increasing index sizes. For example, instead of daily indices, you can
+create monthly, or even yearly indices.
+
+If creating indices using {ls}, the 
+{logstash-ref}/plugins-outputs-elasticsearch.html#plugins-outputs-elasticsearch-index[index]
+property of the {es} output can be modified to a
+<<date-math-index-names,date math expression>> covering a longer time period.
+For example, use `logstash-%{+YYYY.MM}` instead of `logstash-%{+YYYY.MM.dd}`
+to create monthly, rather than daily, indices. {beats} also lets you change the
+date math expression defined in the `index` property of the {es} output, such
+as for {filebeat-ref}/elasticsearch-output.html#index-option-es[Filebeat].
+
+[discrete]
+[[shrink-existing-index-to-fewer-shards]]
+==== Shrink an existing index to fewer shards
+
+You can use the <<indices-shrink-index,shrink index API>> to shrink an
+existing index down to fewer shards.
+
+<<index-lifecycle-management,{ilm}>> also has a
+<<ilm-shrink-action,shrink action>> available for indices in the warm phase.
+
+[discrete]
+[[reindex-an-existing-index-to-fewer-shards]]
+==== Reindex an existing index to fewer shards
+
+You can use the <<docs-reindex,reindex API>> to reindex from an existing index
+to a new index with fewer shards. After the data has been reindexed, the
+oversharded index can be deleted.
+
+[discrete]
+[[reindex-indices-from-shorter-periods-into-longer-periods]]
+==== Reindex indices from shorter periods into longer periods
+
+You can use the <<docs-reindex,reindex API>> to reindex multiple small indices
+covering shorter time periods into a larger index covering a longer time period.
+For example, daily indices from October with naming patterns such as
+`foo-2019.10.11` could be combined into a monthly `foo-2019.10` index,
+like this:
+
+[source,console]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "foo-2019.10.*"
+  },
+  "dest": {
+    "index": "foo-2019.10"
+  }
+}
+--------------------------------------------------
+
+ 

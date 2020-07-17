@@ -15,7 +15,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -41,15 +44,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_INDEX_PREFIX;
-import static org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT.getStepKeyForIndex;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,11 +71,18 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         return true;
     }
 
+    // as we are testing the SLM history entries we'll preserve the "slm-history-ilm-policy" policy as it'll be associated with the
+    // .slm-history-* indices and we won't be able to delete it when we wipe out the cluster
+    @Override
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return true;
+    }
+
     public void testMissingRepo() throws Exception {
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("test-policy", "snap",
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("missing-repo-policy", "snap",
             "*/1 * * * * ?", "missing-repo", Collections.emptyMap(), SnapshotRetentionConfiguration.EMPTY);
 
-        Request putLifecycle = new Request("PUT", "/_slm/policy/test-policy");
+        Request putLifecycle = new Request("PUT", "/_slm/policy/missing-repo-policy");
         XContentBuilder lifecycleBuilder = JsonXContent.contentBuilder();
         policy.toXContent(lifecycleBuilder, ToXContent.EMPTY_PARAMS);
         putLifecycle.setJsonEntity(Strings.toString(lifecycleBuilder));
@@ -82,10 +95,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/50358")
     public void testFullPolicySnapshot() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
-        final String repoId = "my-repo";
+        final String policyName = "full-policy";
+        final String repoId = "full-policy-repo";
         int docCount = randomIntBetween(10, 50);
         List<IndexRequestBuilder> indexReqs = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
@@ -97,6 +111,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
 
+        // A test for whether the repository's snapshots have any snapshots starting with "snap-"
+        Predicate<Map<String, Object>> repoHasSnapshot = snapMap -> Optional.ofNullable((String) snapMap.get("snapshot"))
+            .map(snapName -> snapName.startsWith("snap-"))
+            .orElse(false);
+
         // Check that the snapshot was actually taken
         assertBusy(() -> {
             Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/_all"));
@@ -106,18 +125,23 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             }
             assertThat(snapshotResponseMap.size(), greaterThan(0));
             List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
-                .findFirst()
+                .peek(m -> logger.info("--> responses: {}", m))
                 .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
+                .peek(allReposSnapshots -> logger.info("--> all repository's snapshots: {}", allReposSnapshots))
+                .filter(allReposSnapshots -> allReposSnapshots.stream().anyMatch(repoHasSnapshot))
+                .peek(allRepos -> logger.info("--> snapshots with 'snap-' snapshot: {}", allRepos))
+                .findFirst()
                 .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
-            assertThat(snapResponse.size(), greaterThan(0));
-            assertThat(snapResponse.get(0).get("snapshot").toString(), startsWith("snap-"));
             assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
             Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));
-            assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
+        });
 
-            // Check that the last success date was written to the cluster state
+        assertBusy(() -> assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION));
+
+        // Check that the last success date was written to the cluster state
+        assertBusy(() -> {
             Request getReq = new Request("GET", "/_slm/policy/" + policyName);
             Response policyMetadata = client().performRequest(getReq);
             Map<String, Object> policyResponseMap;
@@ -135,9 +159,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
             String lastSnapshotName = (String) lastSuccessObject.get("snapshot_name");
             assertThat(lastSnapshotName, startsWith("snap-"));
+        });
 
-            assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
-
+        // Check that the stats are written
+        assertBusy(() -> {
             Map<String, Object> stats = getSLMStats();
             Map<String, Object> policyStats = policyStatsAsMap(stats);
             Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
@@ -153,8 +178,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPolicyFailure() throws Exception {
-        final String policyName = "test-policy";
-        final String repoName = "test-repo";
+        final String policyName = "failure-policy";
+        final String repoName = "policy-failure-repo";
         final String indexPattern = "index-doesnt-exist";
         initializeRepo(repoName);
 
@@ -202,8 +227,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         issueUrl = "https://github.com/elastic/elasticsearch/issues/48531")
     public void testPolicyManualExecution() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
-        final String repoId = "my-repo";
+        final String policyName = "manual-policy";
+        final String repoId = "manual-execution-repo";
         int docCount = randomIntBetween(10, 50);
         for (int i = 0; i < docCount; i++) {
             index(client(), indexName, "" + i, "foo", "bar");
@@ -347,10 +372,10 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     @TestIssueLogging(value = "org.elasticsearch.xpack.slm:TRACE,org.elasticsearch.xpack.core.slm:TRACE,org.elasticsearch.snapshots:TRACE",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/48017")
-    public void testBasicTimeBasedRetenion() throws Exception {
+    public void testBasicTimeBasedRetention() throws Exception {
         final String indexName = "test";
-        final String policyName = "test-policy";
-        final String repoId = "my-repo";
+        final String policyName = "basic-time-policy";
+        final String repoId = "time-based-retention-repo";
         int docCount = randomIntBetween(10, 50);
         List<IndexRequestBuilder> indexReqs = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
@@ -420,8 +445,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 int retentionRun = (int) stats.get(SnapshotLifecycleStats.RETENTION_RUNS.getPreferredName());
                 int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
                 int totalDeleted = (int) stats.get(SnapshotLifecycleStats.TOTAL_DELETIONS.getPreferredName());
-                assertThat(snapsTaken, equalTo(1));
-                assertThat(totalTaken, equalTo(1));
+                assertThat(snapsTaken, greaterThanOrEqualTo(1));
+                assertThat(totalTaken, greaterThanOrEqualTo(1));
                 assertThat(retentionRun, greaterThanOrEqualTo(1));
                 assertThat(snapsDeleted, greaterThanOrEqualTo(1));
                 assertThat(totalDeleted, greaterThanOrEqualTo(1));
@@ -438,6 +463,48 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 client().performRequest(r);
             }
         }
+    }
+
+    public void testDataStreams() throws Exception {
+        String dataStreamName = "ds-test";
+        String repoId = "ds-repo";
+        String policyName = "ds-policy";
+
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"@timestamp\": {\n" +
+            "          \"type\": \"date\"\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }";
+        Template template = new Template(null, new CompressedXContent(mapping), null);
+        createComposableTemplate(client(), "ds-template", dataStreamName, template);
+
+        client().performRequest(new Request("PUT", "_data_stream/" + dataStreamName));
+
+        // Create a snapshot repo
+        initializeRepo(repoId);
+
+        createSnapshotPolicy(policyName, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoId, dataStreamName, true);
+
+        final String snapshotName = executePolicy(policyName);
+
+        // Check that the executed snapshot is created
+        assertBusy(() -> {
+            try {
+                Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/" + snapshotName));
+                Map<String, Object> snapshotResponseMap;
+                try (InputStream is = response.getEntity().getContent()) {
+                    snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                assertThat(snapshotResponseMap.size(), greaterThan(0));
+                final Map<String, Object> snapshot = extractSnapshot(snapshotResponseMap, snapshotName);
+                assertEquals(Collections.singletonList(dataStreamName), snapshot.get("data_streams"));
+                assertEquals(Collections.singletonList(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), snapshot.get("indices"));
+            } catch (ResponseException e) {
+                fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -528,13 +595,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> extractMetadata(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
+        return (Map<String, Object>) extractSnapshot(snapshotResponseMap, snapshotPrefix).get("metadata");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> extractSnapshot(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
         List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("responses")).stream()
             .findFirst()
             .map(m -> (List<Map<String, Object>>) m.get("snapshots"))
             .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
         return snapResponse.stream()
             .filter(snapshot -> ((String) snapshot.get("snapshot")).startsWith(snapshotPrefix))
-            .map(snapshot -> (Map<String, Object>) snapshot.get("metadata"))
             .findFirst()
             .orElse(null);
     }
@@ -552,6 +623,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     // This method should be called inside an assertBusy, it has no retry logic of its own
+    @SuppressWarnings("unchecked")
     private void assertHistoryIsPresent(String policyName, boolean success, String repository, String operation) throws IOException {
         final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
         historySearchRequest.setJsonEntity("{\n" +
@@ -602,7 +674,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     private void assertHistoryIndexWaitingForRollover() throws IOException {
-        Step.StepKey stepKey = getStepKeyForIndex(SLM_HISTORY_INDEX_PREFIX + "000001");
+        Step.StepKey stepKey = getStepKeyForIndex(client(), SLM_HISTORY_INDEX_PREFIX + "000001");
         assertEquals("hot", stepKey.getPhase());
         assertEquals(RolloverAction.NAME, stepKey.getAction());
         assertEquals(WaitForRolloverReadyStep.NAME, stepKey.getName());

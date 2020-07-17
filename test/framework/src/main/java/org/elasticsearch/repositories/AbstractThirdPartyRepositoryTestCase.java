@@ -24,10 +24,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -76,6 +76,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     @Override
     public void tearDown() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
+        client().admin().cluster().prepareDeleteRepository("test-repo").get();
         super.tearDown();
     }
 
@@ -155,7 +156,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertBlobsByPrefix(repo.basePath(), "fo", Collections.emptyMap());
         assertChildren(repo.basePath().add("foo"), List.of("nested", "nested2"));
         assertBlobsByPrefix(repo.basePath().add("foo"), "nest",
-            Collections.singletonMap("nested-blob", new PlainBlobMetaData("nested-blob", testBlobLen)));
+            Collections.singletonMap("nested-blob", new PlainBlobMetadata("nested-blob", testBlobLen)));
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
         if (randomBoolean()) {
             deleteAndAssertEmpty(repo.basePath());
@@ -164,13 +165,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
-    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
+    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetadata> blobs) throws Exception {
         BlobStoreTestUtil.assertBlobsByPrefix(getRepository(), path, prefix, blobs);
     }
 
     public void testCleanup() throws Exception {
-        createRepository("test-repo");
-
         createIndex("test-idx-1");
         createIndex("test-idx-2");
         createIndex("test-idx-3");
@@ -252,9 +251,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         executor.execute(ActionRunnable.supply(future, () -> {
             final BlobStore blobStore = repo.blobStore();
             return blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath().add("indices").add("foo")), "bar")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "meta-foo.dat")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "snap-foo.dat");
+                && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists("bar")
+                && blobStore.blobContainer(repo.basePath()).blobExists("meta-foo.dat")
+                && blobStore.blobContainer(repo.basePath()).blobExists("snap-foo.dat");
         }));
         return future.actionGet();
     }

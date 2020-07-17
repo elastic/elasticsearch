@@ -20,17 +20,13 @@ public class EnrichSecurityFailureIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_enrich_no_privs", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testFailure() throws Exception {

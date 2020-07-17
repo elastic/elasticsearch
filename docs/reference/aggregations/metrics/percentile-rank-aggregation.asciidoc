@@ -183,7 +183,7 @@ number of significant digits). This means that if data is recorded with values f
 microseconds) in a histogram set to 3 significant digits, it will maintain a value resolution of 1 microsecond for values up to
 1 millisecond and 3.6 seconds (or better) for the maximum tracked value (1 hour).
 
-The HDR Histogram can be used by specifying the `method` parameter in the request:
+The HDR Histogram can be used by specifying the `hdr` object in the request:
 
 [source,console]
 --------------------------------------------------

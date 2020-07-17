@@ -19,104 +19,126 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
+import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.IterablePainlessMethod;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
-import java.util.Set;
+
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a for-each loop and defers to subnodes depending on type.
  */
 public class SEach extends AStatement {
 
-    private final String type;
-    private final String name;
-    private AExpression expression;
-    private final SBlock block;
+    private final String canonicalTypeName;
+    private final String symbol;
+    private final AExpression iterableNode;
+    private final SBlock blockNode;
 
-    private AStatement sub = null;
+    public SEach(int identifier, Location location, String canonicalTypeName, String symbol, AExpression iterableNode, SBlock blockNode) {
+        super(identifier, location);
 
-    public SEach(Location location, String type, String name, AExpression expression, SBlock block) {
-        super(location);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.iterableNode = Objects.requireNonNull(iterableNode);
+        this.blockNode = blockNode;
+    }
 
-        this.type = Objects.requireNonNull(type);
-        this.name = Objects.requireNonNull(name);
-        this.expression = Objects.requireNonNull(expression);
-        this.block = block;
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public AExpression getIterableNode() {
+        return iterableNode;
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        variables.add(name);
-
-        expression.extractVariables(variables);
-
-        if (block != null) {
-            block.extractVariables(variables);
-        }
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitEach(this, input);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        expression.analyze(scriptRoot, locals);
-        expression.expected = expression.actual;
-        expression = expression.cast(scriptRoot, locals);
+    void analyze(SemanticScope semanticScope) {
+        semanticScope.setCondition(iterableNode, Read.class);
+        AExpression.analyze(iterableNode, semanticScope);
+        Class<?> iterableValueType = semanticScope.getDecoration(iterableNode, ValueType.class).getValueType();
 
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
         if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
         }
 
-        locals = Locals.newLocalScope(locals);
-        Variable variable = locals.addVariable(location, clazz, name, true);
+        semanticScope = semanticScope.newLocalScope();
+        Variable variable = semanticScope.defineVariable(getLocation(), clazz, symbol, true);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
 
-        if (expression.actual.isArray()) {
-            sub = new SSubEachArray(location, variable, expression, block);
-        } else if (expression.actual == def.class || Iterable.class.isAssignableFrom(expression.actual)) {
-            sub = new SSubEachIterable(location, variable, expression, block);
-        } else {
-            throw createError(new IllegalArgumentException("Illegal for each type " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
-        }
-
-        sub.analyze(scriptRoot, locals);
-
-        if (block == null) {
+        if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
         }
 
-        block.beginLoop = true;
-        block.inLoop = true;
-        block.analyze(scriptRoot, locals);
-        block.statementCount = Math.max(1, block.statementCount);
+        semanticScope.setCondition(blockNode, BeginLoop.class);
+        semanticScope.setCondition(blockNode, InLoop.class);
+        blockNode.analyze(semanticScope);
 
-        if (block.loopEscape && !block.anyContinue) {
+        if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
+                semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
             throw createError(new IllegalArgumentException("Extraneous for loop."));
         }
 
-        statementCount = 1;
+        if (iterableValueType.isArray()) {
+            PainlessCast painlessCast =
+                    AnalyzerCaster.getLegalCast(getLocation(), iterableValueType.getComponentType(), variable.getType(), true, true);
 
-        if (locals.hasVariable(Locals.LOOP)) {
-            sub.loopCounter = locals.getVariable(location, Locals.LOOP);
+            if (painlessCast != null) {
+                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+            }
+        } else if (iterableValueType == def.class || Iterable.class.isAssignableFrom(iterableValueType)) {
+            if (iterableValueType != def.class) {
+                PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().
+                        lookupPainlessMethod(iterableValueType, false, "iterator", 0);
+
+                if (method == null) {
+                    throw createError(new IllegalArgumentException(
+                            "method [" + typeToCanonicalTypeName(iterableValueType) + ", iterator/0] not found"));
+                }
+
+                semanticScope.putDecoration(this, new IterablePainlessMethod(method));
+            }
+
+            PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), def.class, variable.getType(), true, true);
+
+            if (painlessCast != null) {
+                semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+            }
+        } else {
+            throw createError(new IllegalArgumentException("Illegal for each type " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(iterableValueType) + "]."));
         }
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.write(classWriter, methodWriter, globals);
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, name, expression, block);
     }
 }

@@ -19,87 +19,68 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.InstanceType;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents {@code instanceof} operator.
  * <p>
  * Unlike java's, this works for primitive types too.
  */
-public final class EInstanceof extends AExpression {
-    private AExpression expression;
-    private final String type;
+public class EInstanceof extends AExpression {
 
-    private Class<?> resolvedType;
-    private Class<?> expressionType;
-    private boolean primitiveExpression;
+    private final AExpression expressionNode;
+    private final String canonicalTypeName;
 
-    public EInstanceof(Location location, AExpression expression, String type) {
-        super(location);
-        this.expression = Objects.requireNonNull(expression);
-        this.type = Objects.requireNonNull(type);
+    public EInstanceof(int identifier, Location location, AExpression expression, String canonicalTypeName) {
+        super(identifier, location);
+
+        this.expressionNode = Objects.requireNonNull(expression);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitInstanceof(this, input);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        // ensure the specified type is part of the definition
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
         }
 
-        // map to wrapped type for primitive types
-        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.typeToBoxedType(clazz) :
-                PainlessLookupUtility.typeToJavaType(clazz);
-
-        // analyze and cast the expression
-        expression.analyze(scriptRoot, locals);
-        expression.expected = expression.actual;
-        expression = expression.cast(scriptRoot, locals);
-
-        // record if the expression returns a primitive
-        primitiveExpression = expression.actual.isPrimitive();
-        // map to wrapped type for primitive types
-        expressionType = expression.actual.isPrimitive() ?
-            PainlessLookupUtility.typeToBoxedType(expression.actual) : PainlessLookupUtility.typeToJavaType(clazz);
-
-        actual = boolean.class;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        // primitive types
-        if (primitiveExpression) {
-            // run the expression anyway (who knows what it does)
-            expression.write(classWriter, methodWriter, globals);
-            // discard its result
-            methodWriter.writePop(MethodWriter.getType(expression.actual).getSize());
-            // push our result: its a primitive so it cannot be null.
-            methodWriter.push(resolvedType.isAssignableFrom(expressionType));
-        } else {
-            // ordinary instanceof
-            expression.write(classWriter, methodWriter, globals);
-            methodWriter.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
         }
-    }
 
-    @Override
-    public String toString() {
-        return singleLineToString(expression, type);
+        Class<?> instanceType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+
+        if (instanceType == null) {
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
+        }
+
+        semanticScope.setCondition(expressionNode, Read.class);
+        analyze(expressionNode, semanticScope);
+
+        semanticScope.putDecoration(this, new ValueType(boolean.class));
+        semanticScope.putDecoration(this, new InstanceType(instanceType));
     }
 }

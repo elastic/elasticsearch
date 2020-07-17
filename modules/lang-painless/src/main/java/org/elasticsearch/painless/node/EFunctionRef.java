@@ -19,76 +19,116 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
+import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ReferenceDecoration;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
+import java.util.Collections;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a function reference.
  */
-public final class EFunctionRef extends AExpression implements ILambda {
-    private final String type;
-    private final String call;
+public class EFunctionRef extends AExpression {
 
-    private FunctionRef ref;
-    private String defPointer;
+    private final String symbol;
+    private final String methodName;
 
-    public EFunctionRef(Location location, String type, String call) {
-        super(location);
+    public EFunctionRef(int identifier, Location location, String symbol, String methodName) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
-        this.call = Objects.requireNonNull(call);
+        this.symbol = Objects.requireNonNull(symbol);
+        this.methodName = Objects.requireNonNull(methodName);
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    public String getCall() {
+        return methodName;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        // do nothing
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitFunctionRef(this, input);
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (expected == null) {
-            ref = null;
-            actual = String.class;
-            defPointer = "S" + type + "." + call + ",0";
+    void analyze(SemanticScope semanticScope) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+        boolean read = semanticScope.getCondition(this, Read.class);
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+
+        Class<?> valueType;
+        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
+
+        if (symbol.equals("this") || type != null)  {
+            if (semanticScope.getCondition(this, Write.class)) {
+                throw createError(new IllegalArgumentException(
+                        "invalid assignment: cannot assign a value to function reference [" + symbol + ":" + methodName + "]"));
+            }
+
+            if (read == false) {
+                throw createError(new IllegalArgumentException(
+                        "not a statement: function reference [" + symbol + ":" + methodName + "] not used"));
+            }
+
+            if (targetType == null) {
+                valueType = String.class;
+                String defReferenceEncoding = "S" + symbol + "." + methodName + ",0";
+                semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
+            } else {
+                FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
+                        getLocation(), targetType.getTargetType(), symbol, methodName, 0);
+                valueType = targetType.getTargetType();
+                semanticScope.putDecoration(this, new ReferenceDecoration(ref));
+            }
         } else {
-            defPointer = null;
-            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(), location, expected, type, call, 0);
-            actual = expected;
+            if (semanticScope.getCondition(this, Write.class)) {
+                throw createError(new IllegalArgumentException(
+                        "invalid assignment: cannot assign a value to capturing function reference [" + symbol + ":"  + methodName + "]"));
+            }
+
+            if (read == false) {
+                throw createError(new IllegalArgumentException(
+                        "not a statement: capturing function reference [" + symbol + ":"  + methodName + "] not used"));
+            }
+
+            SemanticScope.Variable captured = semanticScope.getVariable(getLocation(), symbol);
+            semanticScope.putDecoration(this, new CapturesDecoration(Collections.singletonList(captured)));
+            if (targetType == null) {
+                String defReferenceEncoding;
+                if (captured.getType() == def.class) {
+                    // dynamic implementation
+                    defReferenceEncoding = "D" + symbol + "." + methodName + ",1";
+                } else {
+                    // typed implementation
+                    defReferenceEncoding = "S" + captured.getCanonicalTypeName() + "." + methodName + ",1";
+                }
+                valueType = String.class;
+                semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
+            } else {
+                valueType = targetType.getTargetType();
+                // static case
+                if (captured.getType() != def.class) {
+                    FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), getLocation(),
+                            targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1);
+                    semanticScope.putDecoration(this, new ReferenceDecoration(ref));
+                }
+            }
         }
-    }
 
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        if (ref != null) {
-            methodWriter.writeDebugInfo(location);
-            methodWriter.invokeLambdaCall(ref);
-        } else {
-            // TODO: don't do this: its just to cutover :)
-            methodWriter.push((String)null);
-        }
-    }
-
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
-
-    @Override
-    public Type[] getCaptures() {
-        return new Type[0]; // no captures
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type, call);
+        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

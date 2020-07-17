@@ -5,20 +5,21 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -30,18 +31,36 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     private final String resultsField;
     private final String classificationLabel;
     private final List<TopClassEntry> topClasses;
+    private final PredictionFieldType predictionFieldType;
 
     public ClassificationInferenceResults(double value,
                                           String classificationLabel,
                                           List<TopClassEntry> topClasses,
                                           InferenceConfig config) {
-        super(value);
-        assert config instanceof ClassificationConfig;
-        ClassificationConfig classificationConfig = (ClassificationConfig)config;
+        this(value, classificationLabel, topClasses, Collections.emptyList(), (ClassificationConfig)config);
+    }
+
+    public ClassificationInferenceResults(double value,
+                                          String classificationLabel,
+                                          List<TopClassEntry> topClasses,
+                                          List<FeatureImportance> featureImportance,
+                                          InferenceConfig config) {
+        this(value, classificationLabel, topClasses, featureImportance, (ClassificationConfig)config);
+    }
+
+    private ClassificationInferenceResults(double value,
+                                           String classificationLabel,
+                                           List<TopClassEntry> topClasses,
+                                           List<FeatureImportance> featureImportance,
+                                           ClassificationConfig classificationConfig) {
+        super(value,
+            SingleValueInferenceResults.takeTopFeatureImportances(featureImportance,
+                classificationConfig.getNumTopFeatureImportanceValues()));
         this.classificationLabel = classificationLabel;
         this.topClasses = topClasses == null ? Collections.emptyList() : Collections.unmodifiableList(topClasses);
         this.topNumClassesField = classificationConfig.getTopClassesResultsField();
         this.resultsField = classificationConfig.getResultsField();
+        this.predictionFieldType = classificationConfig.getPredictionFieldType();
     }
 
     public ClassificationInferenceResults(StreamInput in) throws IOException {
@@ -50,6 +69,11 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.topClasses = Collections.unmodifiableList(in.readList(TopClassEntry::new));
         this.topNumClassesField = in.readString();
         this.resultsField = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+            this.predictionFieldType = in.readEnum(PredictionFieldType.class);
+        } else {
+            this.predictionFieldType = PredictionFieldType.STRING;
+        }
     }
 
     public String getClassificationLabel() {
@@ -60,6 +84,10 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return topClasses;
     }
 
+    public PredictionFieldType getPredictionFieldType() {
+        return predictionFieldType;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -67,6 +95,9 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         out.writeCollection(topClasses);
         out.writeString(topNumClassesField);
         out.writeString(resultsField);
+        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
+            out.writeEnum(predictionFieldType);
+        }
     }
 
     @Override
@@ -74,16 +105,24 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         if (object == this) { return true; }
         if (object == null || getClass() != object.getClass()) { return false; }
         ClassificationInferenceResults that = (ClassificationInferenceResults) object;
-        return Objects.equals(value(), that.value()) &&
-            Objects.equals(classificationLabel, that.classificationLabel) &&
-            Objects.equals(resultsField, that.resultsField) &&
-            Objects.equals(topNumClassesField, that.topNumClassesField) &&
-            Objects.equals(topClasses, that.topClasses);
+        return Objects.equals(value(), that.value())
+            && Objects.equals(classificationLabel, that.classificationLabel)
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(topNumClassesField, that.topNumClassesField)
+            && Objects.equals(topClasses, that.topClasses)
+            && Objects.equals(predictionFieldType, that.predictionFieldType)
+            && Objects.equals(getFeatureImportance(), that.getFeatureImportance());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value(), classificationLabel, topClasses, resultsField, topNumClassesField);
+        return Objects.hash(value(),
+            classificationLabel,
+            topClasses,
+            resultsField,
+            topNumClassesField,
+            getFeatureImportance(),
+            predictionFieldType);
     }
 
     @Override
@@ -92,14 +131,28 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     }
 
     @Override
+    public Object predictedValue() {
+        return predictionFieldType.transformPredictedValue(value(), valueAsString());
+    }
+
+    @Override
     public void writeResult(IngestDocument document, String parentResultField) {
         ExceptionsHelper.requireNonNull(document, "document");
         ExceptionsHelper.requireNonNull(parentResultField, "parentResultField");
-        document.setFieldValue(parentResultField + "." + this.resultsField, valueAsString());
-        if (topClasses.size() > 0) {
-            document.setFieldValue(parentResultField + "." + topNumClassesField,
-                topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
+        document.setFieldValue(parentResultField, asMap());
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
+        if (topClasses.isEmpty() == false) {
+            map.put(topNumClassesField, topClasses.stream().map(TopClassEntry::asValueMap).collect(Collectors.toList()));
         }
+        if (getFeatureImportance().isEmpty() == false) {
+            map.put(FEATURE_IMPORTANCE, getFeatureImportance().stream().map(FeatureImportance::toMap).collect(Collectors.toList()));
+        }
+        return map;
     }
 
     @Override
@@ -107,58 +160,15 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         return NAME;
     }
 
-
-    public static class TopClassEntry implements Writeable {
-
-        public final ParseField CLASSIFICATION = new ParseField("classification");
-        public final ParseField PROBABILITY = new ParseField("probability");
-
-        private final String classification;
-        private final double probability;
-
-        public TopClassEntry(String classification, Double probability) {
-            this.classification = ExceptionsHelper.requireNonNull(classification, CLASSIFICATION);
-            this.probability = ExceptionsHelper.requireNonNull(probability, PROBABILITY);
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(resultsField, predictionFieldType.transformPredictedValue(value(), valueAsString()));
+        if (topClasses.size() > 0) {
+            builder.field(topNumClassesField, topClasses);
         }
-
-        public TopClassEntry(StreamInput in) throws IOException {
-            this.classification = in.readString();
-            this.probability = in.readDouble();
+        if (getFeatureImportance().size() > 0) {
+            builder.field(FEATURE_IMPORTANCE, getFeatureImportance());
         }
-
-        public String getClassification() {
-            return classification;
-        }
-
-        public double getProbability() {
-            return probability;
-        }
-
-        public Map<String, Object> asValueMap() {
-            Map<String, Object> map = new HashMap<>(2);
-            map.put(CLASSIFICATION.getPreferredName(), classification);
-            map.put(PROBABILITY.getPreferredName(), probability);
-            return map;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(classification);
-            out.writeDouble(probability);
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            if (object == this) { return true; }
-            if (object == null || getClass() != object.getClass()) { return false; }
-            TopClassEntry that = (TopClassEntry) object;
-            return Objects.equals(classification, that.classification) &&
-                Objects.equals(probability, that.probability);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(classification, probability);
-        }
+        return builder;
     }
 }

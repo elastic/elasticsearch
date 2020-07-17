@@ -66,7 +66,7 @@ public class TransportExecuteSnapshotLifecycleAction
                                    final ActionListener<ExecuteSnapshotLifecycleAction.Response> listener) {
         try {
             final String policyId = request.getLifecycleId();
-            SnapshotLifecycleMetadata snapMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
             if (snapMeta == null) {
                 listener.onFailure(new IllegalArgumentException("no such snapshot lifecycle policy [" + policyId + "]"));
                 return;

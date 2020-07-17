@@ -20,16 +20,19 @@
 package org.elasticsearch.client.transform.transforms.pivot;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class HistogramGroupSourceTests extends AbstractXContentTestCase<HistogramGroupSource> {
 
     public static HistogramGroupSource randomHistogramGroupSource() {
         String field = randomAlphaOfLengthBetween(1, 20);
+        Script script = randomBoolean() ? new Script(randomAlphaOfLengthBetween(1, 10)) : null;
         double interval = randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false);
-        return new HistogramGroupSource(field, interval);
+        return new HistogramGroupSource(field, script, interval);
     }
 
     @Override
@@ -45,5 +48,11 @@ public class HistogramGroupSourceTests extends AbstractXContentTestCase<Histogra
     @Override
     protected HistogramGroupSource createTestInstance() {
         return randomHistogramGroupSource();
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // allow unknown fields in the root of the object only
+        return field -> !field.isEmpty();
     }
 }

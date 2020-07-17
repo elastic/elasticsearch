@@ -20,7 +20,6 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -319,7 +318,7 @@ public final class Settings implements ToXContentFragment {
      * {@link Setting} object constructed in, for example, {@link org.elasticsearch.env.Environment}.
      */
     static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Settings.class));
+        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Settings.class);
     }
 
     /**
@@ -690,14 +689,17 @@ public final class Settings implements ToXContentFragment {
 
     /** Returns the fully qualified setting names contained in this settings object. */
     public Set<String> keySet() {
-        synchronized (keys) {
-            if (keys.get() == null) {
-                if (secureSettings == null) {
-                    keys.set(settings.keySet());
-                } else {
-                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
-                    // uniquify, since for legacy reasons the same setting name may exist in both
-                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+        if (keys.get() == null) {
+            synchronized (keys) {
+                // Check that the keys are still null now that we have acquired the lock
+                if (keys.get() == null) {
+                    if (secureSettings == null) {
+                        keys.set(settings.keySet());
+                    } else {
+                        Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
+                        // uniquify, since for legacy reasons the same setting name may exist in both
+                        keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+                    }
                 }
             }
         }

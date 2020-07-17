@@ -20,6 +20,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-rollover-index>>
 * <<freeze-index-api>>
 * <<unfreeze-index-api>>
+* <<indices-resolve-index-api>>
 
 
 [float]
@@ -50,9 +51,14 @@ index settings, aliases, mappings, and index templates.
 [[index-templates]]
 === Index templates:
 * <<indices-templates>>
-* <<indices-delete-template>>
+* <<indices-put-template>>
 * <<indices-get-template>>
+* <<indices-delete-template>>
+* <<indices-component-template>>
+* <<getting-component-templates>>
 * <<indices-template-exists>>
+* <<indices-simulate-index>>
+* <<indices-simulate-template>>
 
 [float]
 [[monitoring]]
@@ -68,8 +74,15 @@ index settings, aliases, mappings, and index templates.
 * <<indices-clearcache>>
 * <<indices-refresh>>
 * <<indices-flush>>
-* <<indices-synced-flush-api>>
 * <<indices-forcemerge>>
+
+[float]
+[[dangling-indices-api]]
+=== Dangling indices:
+* <<dangling-indices-list>>
+* <<dangling-index-import>>
+* <<dangling-index-delete>>
+
 
 
 include::indices/add-alias.asciidoc[]
@@ -124,6 +137,10 @@ include::indices/template-exists.asciidoc[]
 
 include::indices/open-close.asciidoc[]
 
+include::indices/index-templates.asciidoc[]
+
+include::indices/component-templates.asciidoc[]
+
 include::indices/templates.asciidoc[]
 
 include::indices/put-mapping.asciidoc[]
@@ -134,12 +151,22 @@ include::indices/rollover-index.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
 
-include::indices/split-index.asciidoc[]
+include::indices/simulate-index.asciidoc[]
 
-include::indices/synced-flush.asciidoc[]
+include::indices/simulate-template.asciidoc[]
+
+include::indices/split-index.asciidoc[]
 
 include::indices/apis/unfreeze.asciidoc[]
 
 include::indices/aliases.asciidoc[]
 
 include::indices/update-settings.asciidoc[]
+
+include::indices/resolve.asciidoc[]
+
+include::indices/dangling-indices-list.asciidoc[]
+
+include::indices/dangling-index-import.asciidoc[]
+
+include::indices/dangling-index-delete.asciidoc[]

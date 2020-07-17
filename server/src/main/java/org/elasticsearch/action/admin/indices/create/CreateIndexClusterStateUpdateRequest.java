@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
@@ -38,6 +38,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private final String cause;
     private final String index;
+    private String dataStreamName;
     private final String providedName;
     private Index recoverFrom;
     private ResizeType resizeType;
@@ -124,7 +125,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     /**
      * The name that was provided by the user. This might contain a date math expression.
-     * @see IndexMetaData#SETTING_INDEX_PROVIDED_NAME
+     * @see IndexMetadata#SETTING_INDEX_PROVIDED_NAME
      */
     public String getProvidedName() {
         return providedName;
@@ -145,11 +146,25 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return copySettings;
     }
 
+    /**
+     * Returns the name of the data stream this new index will be part of.
+     * If this new index will not be part of a data stream then this returns <code>null</code>.
+     */
+    public String dataStreamName() {
+        return dataStreamName;
+    }
+
+    public CreateIndexClusterStateUpdateRequest dataStreamName(String dataStreamName) {
+        this.dataStreamName = dataStreamName;
+        return this;
+    }
+
     @Override
     public String toString() {
         return "CreateIndexClusterStateUpdateRequest{" +
             "cause='" + cause + '\'' +
             ", index='" + index + '\'' +
+            ", dataStreamName='" + dataStreamName + '\'' +
             ", providedName='" + providedName + '\'' +
             ", recoverFrom=" + recoverFrom +
             ", resizeType=" + resizeType +

@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -40,8 +41,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,7 +63,7 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
 
-    private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
+    private final Logger logger = LogManager.getLogger(RemoteClusterService.class);
 
     /**
      * The initial connect timeout for remote cluster connections
@@ -80,45 +83,41 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE =
         Setting.simpleString("cluster.remote.node.attr", Setting.Property.NodeScope);
 
-    /**
-     * If <code>true</code> connecting to remote clusters is supported on this node. If <code>false</code> this node will not establish
-     * connections to any remote clusters configured. Search requests executed against this node (where this node is the coordinating node)
-     * will fail if remote cluster syntax is used as an index pattern. The default is <code>true</code>
-     */
-    public static final Setting<Boolean> ENABLE_REMOTE_CLUSTERS =
-        Setting.boolSetting(
-            "cluster.remote.connect",
-            true,
-            Setting.Property.NodeScope);
-
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_SKIP_UNAVAILABLE =
         Setting.affixKeySetting(
             "cluster.remote.",
             "skip_unavailable",
-            key -> boolSetting(
+            (ns, key) -> boolSetting(
                 key,
                 false,
+                new RemoteConnectionEnabled<>(ns, key),
                 Setting.Property.Dynamic,
-                Setting.Property.NodeScope),
-            () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+                Setting.Property.NodeScope));
 
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.ping_schedule",
-        key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+        (ns, key) -> timeSetting(key, TransportSettings.PING_SCHEDULE, new RemoteConnectionEnabled<>(ns, key),
+            Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
-        key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
-        () -> SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS);
+        (ns, key) -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS,
+            new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
+
+    private final boolean enabled;
+
+    public boolean isEnabled() {
+        return enabled;
+    }
 
     private final TransportService transportService;
     private final Map<String, RemoteClusterConnection> remoteClusters = ConcurrentCollections.newConcurrentMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
+        this.enabled = DiscoveryNode.isRemoteClusterClient(settings);
         this.transportService = transportService;
     }
 
@@ -198,6 +197,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
+        if (enabled == false) {
+            throw new IllegalArgumentException(
+                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+        }
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
             throw new NoSuchRemoteClusterException(cluster);
@@ -334,6 +337,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * function on success.
      */
     public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
+        if (enabled == false) {
+            throw new IllegalArgumentException(
+                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+        }
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
             if (remoteClusters.containsKey(cluster) == false) {
@@ -377,6 +384,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        if (transportService.getRemoteClusterService().isEnabled() == false) {
+            throw new IllegalArgumentException(
+                "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+        }
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
@@ -386,4 +397,38 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     Collection<RemoteClusterConnection> getConnections() {
         return remoteClusters.values();
     }
+
+    private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {
+
+        private final String clusterAlias;
+        private final String key;
+
+        private RemoteConnectionEnabled(String clusterAlias, String key) {
+            this.clusterAlias = clusterAlias;
+            this.key = key;
+        }
+
+        @Override
+        public void validate(T value) {
+        }
+
+        @Override
+        public void validate(T value, Map<Setting<?>, Object> settings, boolean isPresent) {
+            if (isPresent && RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings) == false) {
+                throw new IllegalArgumentException("Cannot configure setting [" + key + "] if remote cluster is not enabled.");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return Stream.concat(Stream.of(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias)),
+                settingsStream()).iterator();
+        }
+
+        private Stream<Setting<?>> settingsStream() {
+            return Arrays.stream(RemoteConnectionStrategy.ConnectionStrategy.values())
+                .flatMap(strategy -> strategy.getEnablementSettings().get())
+                .map(as -> as.getConcreteSettingForNamespace(clusterAlias));
+        }
+    };
 }

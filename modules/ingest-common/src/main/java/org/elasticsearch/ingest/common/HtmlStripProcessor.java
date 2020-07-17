@@ -30,8 +30,8 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "html_strip";
 
-    HtmlStripProcessor(String tag, String field, boolean ignoreMissing, String targetField) {
-        super(tag, field, ignoreMissing, targetField);
+    HtmlStripProcessor(String tag, String description, String field, boolean ignoreMissing, String targetField) {
+        super(tag, description, ignoreMissing, targetField, field);
     }
 
     @Override
@@ -41,13 +41,11 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
             return value;
         }
 
-        HTMLStripCharFilter filter = new HTMLStripCharFilter(new StringReader(value));
-
         StringBuilder builder = new StringBuilder();
-        int ch;
-        try {
+        try (HTMLStripCharFilter filter = new HTMLStripCharFilter(new StringReader(value))) {
+            int ch;
             while ((ch = filter.read()) != -1) {
-                builder.append((char)ch);
+                builder.append((char) ch);
             }
         } catch (IOException e) {
             throw new ElasticsearchException(e);
@@ -68,9 +66,9 @@ public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected HtmlStripProcessor newProcessor(String tag, Map<String, Object> config, String field,
+        protected HtmlStripProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
                                              boolean ignoreMissing, String targetField) {
-            return new HtmlStripProcessor(tag, field, ignoreMissing, targetField);
+            return new HtmlStripProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }
 }

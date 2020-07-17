@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -347,8 +348,12 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         if (!lifecycle.started()) {
             return;
         }
-        try {
-            UpdateTask updateTask = new UpdateTask(config.priority(), source, new SafeClusterApplyListener(listener, logger), executor);
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(true);
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.markAsSystemContext();
+            final UpdateTask updateTask = new UpdateTask(config.priority(), source,
+                new SafeClusterApplyListener(listener, supplier, logger), executor);
             if (config.timeout() != null) {
                 threadPoolExecutor.execute(updateTask, config.timeout(),
                     () -> threadPool.generic().execute(
@@ -473,9 +478,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
-        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
+        if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metadataChanged()) {
             logger.debug("applying settings from cluster state with version {}", newClusterState.version());
-            final Settings incomingSettings = clusterChangedEvent.state().metaData().settings();
+            final Settings incomingSettings = clusterChangedEvent.state().metadata().settings();
             try (Releasable ignored = stopWatch.timing("applying settings")) {
                 clusterSettings.applySettings(incomingSettings);
             }
@@ -528,16 +533,18 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private static class SafeClusterApplyListener implements ClusterApplyListener {
         private final ClusterApplyListener listener;
+        protected final Supplier<ThreadContext.StoredContext> context;
         private final Logger logger;
 
-        SafeClusterApplyListener(ClusterApplyListener listener, Logger logger) {
+        SafeClusterApplyListener(ClusterApplyListener listener, Supplier<ThreadContext.StoredContext> context, Logger logger) {
             this.listener = listener;
+            this.context = context;
             this.logger = logger;
         }
 
         @Override
         public void onFailure(String source, Exception e) {
-            try {
+            try (ThreadContext.StoredContext ignore = context.get()) {
                 listener.onFailure(source, e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
@@ -548,7 +555,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
         @Override
         public void onSuccess(String source) {
-            try {
+            try (ThreadContext.StoredContext ignore = context.get()) {
                 listener.onSuccess(source);
             } catch (Exception e) {
                 logger.error(new ParameterizedMessage(

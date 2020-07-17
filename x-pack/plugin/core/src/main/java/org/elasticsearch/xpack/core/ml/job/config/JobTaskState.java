@@ -11,11 +11,10 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 
 import java.io.IOException;
@@ -37,12 +36,7 @@ public class JobTaskState implements PersistentTaskState {
                     args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2]));
 
     static {
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return JobState.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), JobState::fromString, STATE);
         PARSER.declareLong(constructorArg(), ALLOCATION_ID);
         PARSER.declareString(optionalConstructorArg(), REASON);
     }

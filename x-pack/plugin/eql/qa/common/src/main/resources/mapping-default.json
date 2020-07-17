@@ -1,0 +1,91 @@
+{
+    "properties" : {
+        "command_line" : {
+            "type" : "keyword"
+        },
+        "event_type" : {
+            "type" : "keyword"
+        },
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "alias",
+                    "path" : "event_type"
+                },
+                "sequence" : {
+                    "type" : "alias",
+                    "path" : "serial_event_id"
+                }
+            }
+        },
+        "md5" : {
+            "type" : "keyword"
+        },
+        "parent_process_name": {
+            "type" : "keyword"
+        },
+        "parent_process_path": {
+            "type" : "keyword"
+        },
+        "pid" : {
+            "type" : "long"
+        },
+        "ppid" : {
+            "type" : "long"
+        },
+        "process_name": {
+            "type" : "keyword"
+        },
+        "process_path": {
+            "type" : "keyword"
+        },
+        "subtype" : {
+            "type" : "keyword"
+        },
+        "timestamp" : {
+            "type" : "date"
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "user" : {
+            "type" : "keyword"
+        },
+        "user_name" : {
+            "type" : "keyword"
+        },
+        "user_domain": {
+            "type" : "keyword"
+        },
+        "hostname" : {
+            "type" : "text",
+            "fields" : {
+                "keyword" : {
+                    "type" : "keyword",
+                    "ignore_above" : 256
+                }
+            }
+        },
+        "opcode" : {
+            "type" : "long"
+        },
+        "file_name" : {
+            "type" : "text",
+            "fields" : {
+                "keyword" : {
+                    "type" : "keyword",
+                    "ignore_above" : 256
+                }
+            }
+        },
+        "serial_event_id" : {
+            "type" : "long"
+        },
+        "source_address" : {
+            "type" : "ip"
+        },
+        "exit_code" : {
+            "type" : "long"
+        }
+    }
+}

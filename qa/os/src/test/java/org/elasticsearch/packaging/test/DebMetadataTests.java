@@ -23,7 +23,7 @@ import junit.framework.TestCase;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.regex.Pattern;
 
@@ -32,11 +32,12 @@ import static org.junit.Assume.assumeTrue;
 
 public class DebMetadataTests extends PackagingTestCase {
 
-    @Before
-    public void filterDistros() {
+    @BeforeClass
+    public static void filterDistros() {
         assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58730")
     public void test05CheckLintian() {
         String extraArgs = "";
         if (sh.run("lintian --help").stdout.contains("fail-on-warnings")) {

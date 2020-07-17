@@ -19,7 +19,7 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -71,8 +71,17 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_4_2 = new Version(7040299, org.apache.lucene.util.Version.LUCENE_8_2_0);
     public static final Version V_7_5_0 = new Version(7050099, org.apache.lucene.util.Version.LUCENE_8_3_0);
     public static final Version V_7_5_1 = new Version(7050199, org.apache.lucene.util.Version.LUCENE_8_3_0);
+    public static final Version V_7_5_2 = new Version(7050299, org.apache.lucene.util.Version.LUCENE_8_3_0);
     public static final Version V_7_6_0 = new Version(7060099, org.apache.lucene.util.Version.LUCENE_8_4_0);
-    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_4_0);
+    public static final Version V_7_6_1 = new Version(7060199, org.apache.lucene.util.Version.LUCENE_8_4_0);
+    public static final Version V_7_6_2 = new Version(7060299, org.apache.lucene.util.Version.LUCENE_8_4_0);
+    public static final Version V_7_7_0 = new Version(7070099, org.apache.lucene.util.Version.LUCENE_8_5_1);
+    public static final Version V_7_7_1 = new Version(7070199, org.apache.lucene.util.Version.LUCENE_8_5_1);
+    public static final Version V_7_8_0 = new Version(7080099, org.apache.lucene.util.Version.LUCENE_8_5_1);
+    public static final Version V_7_8_1 = new Version(7080199, org.apache.lucene.util.Version.LUCENE_8_5_1);
+    public static final Version V_7_9_0 = new Version(7090099, org.apache.lucene.util.Version.LUCENE_8_6_0);
+    public static final Version V_7_10_0 = new Version(7100099, org.apache.lucene.util.Version.LUCENE_8_6_0);
+    public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_6_0);
     public static final Version CURRENT = V_8_0_0;
 
     private static final ImmutableOpenIntMap<Version> idToVersion;
@@ -156,16 +165,16 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
      *
      * @throws IllegalStateException if the given index settings doesn't contain a value for the key
-     *         {@value IndexMetaData#SETTING_VERSION_CREATED}
+     *         {@value IndexMetadata#SETTING_VERSION_CREATED}
      */
     public static Version indexCreated(Settings indexSettings) {
-        final Version indexVersion = IndexMetaData.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
         if (indexVersion == V_EMPTY) {
             final String message = String.format(
                     Locale.ROOT,
                     "[%s] is not present in the index settings for index with UUID [%s]",
-                    IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
-                    indexSettings.get(IndexMetaData.SETTING_INDEX_UUID));
+                    IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                    indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
             throw new IllegalStateException(message);
         }
         return indexVersion;

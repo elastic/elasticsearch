@@ -15,6 +15,7 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -38,7 +39,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -46,22 +47,22 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).checkFeature(Feature.MONITORING);
         }
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final NodeStatsCollector collector = new NodeStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
-        verify(licenseState).isMonitoringAllowed();
+        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollectWithFailures() throws Exception {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
 
         final TimeValue timeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), NodeStatsCollectorTests.class.getName());
         withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
@@ -84,7 +85,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollect() throws Exception {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
 
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
         withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
@@ -115,8 +116,8 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertEquals(1, results.size());
 

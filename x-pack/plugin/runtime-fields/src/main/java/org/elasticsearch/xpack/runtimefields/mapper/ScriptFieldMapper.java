@@ -117,7 +117,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
                 StringScriptFieldScript.Factory factory = scriptCompiler.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
                 mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script.getValue(), factory, meta.getValue());
             } else {
-                throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
+                throw new IllegalArgumentException("runtime_type [" + runtimeType.getValue() + "] not supported");
             }
             // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
             return new ScriptFieldMapper(

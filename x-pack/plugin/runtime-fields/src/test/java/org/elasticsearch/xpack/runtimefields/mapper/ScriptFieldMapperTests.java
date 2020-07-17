@@ -95,6 +95,27 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testUnsupportedRuntimeType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "script")
+            .field("runtime_type", "unsupported")
+            .startObject("script")
+            .field("source", "value('test')")
+            .field("lang", "test")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        MapperParsingException exc = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
+        assertEquals("Failed to parse mapping: runtime_type [unsupported] not supported", exc.getMessage());
+    }
+
     public void testDefaultMapping() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()

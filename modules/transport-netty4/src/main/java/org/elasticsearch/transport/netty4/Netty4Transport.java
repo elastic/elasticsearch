@@ -213,26 +213,24 @@ public class Netty4Transport extends TcpTransport {
         serverBootstrap.childOption(ChannelOption.TCP_NODELAY, profileSettings.tcpNoDelay);
         serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, profileSettings.tcpKeepAlive);
         if (profileSettings.tcpKeepAlive) {
-            // Netty logs a warning if it can't set the option, so try this only on supported platforms
-            if (IOUtils.LINUX || IOUtils.MAC_OS_X) {
-                if (profileSettings.tcpKeepIdle >= 0) {
-                    final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
-                    if (keepIdleOption != null) {
-                        serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), profileSettings.tcpKeepIdle);
-                    }
+            // Note that Netty logs a warning if it can't set the option
+            if (profileSettings.tcpKeepIdle >= 0) {
+                final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                if (keepIdleOption != null) {
+                    serverBootstrap.childOption(NioChannelOption.of(keepIdleOption), profileSettings.tcpKeepIdle);
                 }
-                if (profileSettings.tcpKeepInterval >= 0) {
-                    final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
-                    if (keepIntervalOption != null) {
-                        serverBootstrap.childOption(NioChannelOption.of(keepIntervalOption), profileSettings.tcpKeepInterval);
-                    }
+            }
+            if (profileSettings.tcpKeepInterval >= 0) {
+                final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                if (keepIntervalOption != null) {
+                    serverBootstrap.childOption(NioChannelOption.of(keepIntervalOption), profileSettings.tcpKeepInterval);
+                }
 
-                }
-                if (profileSettings.tcpKeepCount >= 0) {
-                    final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
-                    if (keepCountOption != null) {
-                        serverBootstrap.childOption(NioChannelOption.of(keepCountOption), profileSettings.tcpKeepCount);
-                    }
+            }
+            if (profileSettings.tcpKeepCount >= 0) {
+                final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                if (keepCountOption != null) {
+                    serverBootstrap.childOption(NioChannelOption.of(keepCountOption), profileSettings.tcpKeepCount);
                 }
             }
         }

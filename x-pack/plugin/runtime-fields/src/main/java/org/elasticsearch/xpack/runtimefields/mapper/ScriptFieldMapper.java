@@ -89,7 +89,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Script> script = new Parameter<>(
             "script",
             true,
-            null,
+            () -> null,
             Builder::parseScript,
             mapper -> toType(mapper).script
         ).setValidator(script -> {

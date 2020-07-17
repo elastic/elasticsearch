@@ -112,6 +112,11 @@ include::request/docvalue-fields.asciidoc[]
 
 include::request/collapse.asciidoc[]
 
+[[request-body-search-highlighting]]
+==== Highlighting
+
+See <<highlighting>>.
+
 include::request/index-boost.asciidoc[]
 
 include::request/inner-hits.asciidoc[]

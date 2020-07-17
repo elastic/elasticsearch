@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -26,19 +28,11 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BulkScorer;
-import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -54,73 +48,39 @@ import static org.mockito.Mockito.when;
 
 public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
 
-    /**
-     * Usually all documents get collected into ordinal 0 unless they are part of a sub aggregation
-     * @return a query that collects the i'th document into bucket ordinal i
-     */
-    private Query getQueryToCollectIntoDifferentOrdinals() {
-        return new Query() {
+    public MergingBucketsDeferringCollector getMergingBucketsDeferringCollector(SearchContext searchContext){
+
+        return new MergingBucketsDeferringCollector(searchContext, false) {
+
             @Override
-            public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-                return new ConstantScoreWeight(this, boost) {
+            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                super.getLeafCollector(ctx);
+
+                return new LeafBucketCollector() {
+                    int lastDoc = 0;
 
                     @Override
-                    public Scorer scorer(LeafReaderContext context) throws IOException {
-                        return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.all(context.reader().maxDoc()));
-                    }
+                    public void collect(int doc, long bucket) throws IOException {
+                        // Force each doc to be collected into a different ordinal so that there are buckets to merge
+                        // Otherwise, they will all be collected into ordinal 0 by default
+                        bucket = doc;
 
-                    @Override
-                    public boolean isCacheable(LeafReaderContext ctx) {
-                        return false;
-                    }
-
-                    @Override
-                    public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                        if (scoreMode == ScoreMode.TOP_SCORES) {
-                            return super.bulkScorer(context);
+                        if (context == null) {
+                            context = ctx;
+                            docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+                            bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                         }
-                        final float score = score();
-                        final int maxDoc = context.reader().maxDoc();
-                        return new BulkScorer() {
-                            @Override
-                            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
-                                LeafBucketCollector leafBucketCollector = (LeafBucketCollector) collector;
-                                max = Math.min(max, maxDoc);
-                                for (int doc = min; doc < max; ++doc) {
-                                    if (acceptDocs == null || acceptDocs.get(doc)) {
-                                        leafBucketCollector.collect(doc, doc);
-                                    }
-                                }
-                                return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
-                            }
-
-                            @Override
-                            public long cost() {
-                                return maxDoc;
-                            }
-                        };
+                        docDeltasBuilder.add(doc - lastDoc);
+                        bucketsBuilder.add(bucket);
+                        lastDoc = doc;
+                        maxBucket = Math.max(maxBucket, bucket);
                     }
                 };
             }
 
             @Override
-            public String toString(String field) {
-                return "*:*";
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                return sameClassAs(o);
-            }
-
-            @Override
-            public int hashCode() {
-                return classHash();
-            }
-
-            @Override
-            public void visit(QueryVisitor visitor) {
-                visitor.visitLeaf(this);
+            public ScoreMode scoreMode() {
+                return ScoreMode.COMPLETE;
             }
         };
     }
@@ -139,17 +99,12 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-                Query query = getQueryToCollectIntoDifferentOrdinals();
+                Query query = new MatchAllDocsQuery();
                 Query rewrittenQuery = indexSearcher.rewrite(query);
 
                 SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
                 when(searchContext.query()).thenReturn(rewrittenQuery);
-                MergingBucketsDeferringCollector deferringCollector = new MergingBucketsDeferringCollector(searchContext, false) {
-                    @Override
-                    public ScoreMode scoreMode() {
-                        return ScoreMode.COMPLETE;
-                    }
-                };
+                MergingBucketsDeferringCollector deferringCollector = getMergingBucketsDeferringCollector(searchContext);
 
                 BucketCollector bc = new BucketCollector() {
 
@@ -208,17 +163,12 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-                Query query = getQueryToCollectIntoDifferentOrdinals();
+                Query query = new MatchAllDocsQuery();
                 Query rewrittenQuery = indexSearcher.rewrite(query);
 
                 SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
                 when(searchContext.query()).thenReturn(rewrittenQuery);
-                MergingBucketsDeferringCollector deferringCollector = new MergingBucketsDeferringCollector(searchContext, false) {
-                    @Override
-                    public ScoreMode scoreMode() {
-                        return ScoreMode.COMPLETE;
-                    }
-                };
+                MergingBucketsDeferringCollector deferringCollector = getMergingBucketsDeferringCollector(searchContext);
 
                 BucketCollector bc = new BucketCollector() {
 
@@ -227,6 +177,7 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
                         return new LeafBucketCollector() {
                             @Override
                             public void collect(int doc, long bucket) throws IOException {
+                                bucket = doc;
                                 if (doc == 9) {
                                     // Apply two merge operations once we reach the last bucket
                                     // In the end, only the buckets where (bucket % 4 = 0) will remain

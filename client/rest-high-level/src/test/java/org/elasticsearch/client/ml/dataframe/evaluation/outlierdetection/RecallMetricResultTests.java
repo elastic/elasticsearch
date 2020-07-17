@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -26,26 +26,24 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetricConfusionMatrixTests.randomConfusionMatrix;
+public class RecallMetricResultTests extends AbstractXContentTestCase<RecallMetric.Result> {
 
-public class ConfusionMatrixMetricResultTests extends AbstractXContentTestCase<ConfusionMatrixMetric.Result> {
-
-    public static ConfusionMatrixMetric.Result randomResult() {
-        return new ConfusionMatrixMetric.Result(
+    public static RecallMetric.Result randomResult() {
+        return new RecallMetric.Result(
             Stream
-                .generate(() -> randomConfusionMatrix())
+                .generate(() -> randomDouble())
                 .limit(randomIntBetween(1, 5))
                 .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
     }
 
     @Override
-    protected ConfusionMatrixMetric.Result createTestInstance() {
+    protected RecallMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected ConfusionMatrixMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return ConfusionMatrixMetric.Result.fromXContent(parser);
+    protected RecallMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return RecallMetric.Result.fromXContent(parser);
     }
 
     @Override

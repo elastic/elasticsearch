@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -26,27 +26,26 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetricAucRocPointTests.randomPoint;
+import static org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricConfusionMatrixTests.randomConfusionMatrix;
 
-public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetric.Result> {
+public class ConfusionMatrixMetricResultTests extends AbstractXContentTestCase<ConfusionMatrixMetric.Result> {
 
-    public static AucRocMetric.Result randomResult() {
-        return new AucRocMetric.Result(
-            randomDouble(),
+    public static ConfusionMatrixMetric.Result randomResult() {
+        return new ConfusionMatrixMetric.Result(
             Stream
-                .generate(() -> randomPoint())
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()));
+                .generate(() -> randomConfusionMatrix())
+                .limit(randomIntBetween(1, 5))
+                .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
     }
 
     @Override
-    protected AucRocMetric.Result createTestInstance() {
+    protected ConfusionMatrixMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected AucRocMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return AucRocMetric.Result.fromXContent(parser);
+    protected ConfusionMatrixMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return ConfusionMatrixMetric.Result.fromXContent(parser);
     }
 
     @Override
@@ -56,7 +55,7 @@ public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetr
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object only
-        return field -> !field.isEmpty();
+        // disallow unknown fields in the root of the object as field names must be parsable as numbers
+        return field -> field.isEmpty();
     }
 }

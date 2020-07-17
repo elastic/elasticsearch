@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,7 +48,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
     @Override
     public String getWriteableName() {
-        return registeredMetricName(BinarySoftClassification.NAME, NAME);
+        return registeredMetricName(OutlierDetection.NAME, NAME);
     }
 
     @Override
@@ -131,7 +131,7 @@ public class ConfusionMatrix extends AbstractConfusionMatrixMetric {
 
         @Override
         public String getWriteableName() {
-            return registeredMetricName(BinarySoftClassification.NAME, NAME);
+            return registeredMetricName(OutlierDetection.NAME, NAME);
         }
 
         @Override

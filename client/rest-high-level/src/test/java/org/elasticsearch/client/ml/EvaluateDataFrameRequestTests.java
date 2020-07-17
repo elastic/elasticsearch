@@ -22,7 +22,7 @@ import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RegressionTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassificationTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetectionTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -49,7 +49,7 @@ public class EvaluateDataFrameRequestTests extends AbstractXContentTestCase<Eval
         QueryConfig queryConfig = randomBoolean()
             ? new QueryConfig(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)))
             : null;
-        Evaluation evaluation = randomBoolean() ? BinarySoftClassificationTests.createRandom() : RegressionTests.createRandom();
+        Evaluation evaluation = randomBoolean() ? OutlierDetectionTests.createRandom() : RegressionTests.createRandom();
         return new EvaluateDataFrameRequest(indices, queryConfig, evaluation);
     }
 

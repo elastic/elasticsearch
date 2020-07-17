@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -26,10 +26,10 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class RecallMetricResultTests extends AbstractXContentTestCase<RecallMetric.Result> {
+public class PrecisionMetricResultTests extends AbstractXContentTestCase<PrecisionMetric.Result> {
 
-    public static RecallMetric.Result randomResult() {
-        return new RecallMetric.Result(
+    public static PrecisionMetric.Result randomResult() {
+        return new PrecisionMetric.Result(
             Stream
                 .generate(() -> randomDouble())
                 .limit(randomIntBetween(1, 5))
@@ -37,13 +37,13 @@ public class RecallMetricResultTests extends AbstractXContentTestCase<RecallMetr
     }
 
     @Override
-    protected RecallMetric.Result createTestInstance() {
+    protected PrecisionMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected RecallMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return RecallMetric.Result.fromXContent(parser);
+    protected PrecisionMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return PrecisionMetric.Result.fromXContent(parser);
     }
 
     @Override

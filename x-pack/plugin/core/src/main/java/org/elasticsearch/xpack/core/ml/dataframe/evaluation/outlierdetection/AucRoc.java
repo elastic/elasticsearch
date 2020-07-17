@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -38,7 +38,7 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
-import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification.actualIsTrueQuery;
+import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetection.actualIsTrueQuery;
 
 /**
  * Area under the curve (AUC) of the receiver operating characteristic (ROC).
@@ -93,7 +93,7 @@ public class AucRoc implements EvaluationMetric {
 
     @Override
     public String getWriteableName() {
-        return registeredMetricName(BinarySoftClassification.NAME, NAME);
+        return registeredMetricName(OutlierDetection.NAME, NAME);
     }
 
     @Override
@@ -339,7 +339,7 @@ public class AucRoc implements EvaluationMetric {
 
         @Override
         public String getWriteableName() {
-            return registeredMetricName(BinarySoftClassification.NAME, NAME);
+            return registeredMetricName(OutlierDetection.NAME, NAME);
         }
 
         @Override

@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -26,24 +26,25 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class PrecisionMetricResultTests extends AbstractXContentTestCase<PrecisionMetric.Result> {
+public class AucRocMetricResultTests extends AbstractXContentTestCase<AucRocMetric.Result> {
 
-    public static PrecisionMetric.Result randomResult() {
-        return new PrecisionMetric.Result(
+    public static AucRocMetric.Result randomResult() {
+        return new AucRocMetric.Result(
+            randomDouble(),
             Stream
-                .generate(() -> randomDouble())
-                .limit(randomIntBetween(1, 5))
-                .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
+                .generate(() -> AucRocMetricAucRocPointTests.randomPoint())
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList()));
     }
 
     @Override
-    protected PrecisionMetric.Result createTestInstance() {
+    protected AucRocMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected PrecisionMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return PrecisionMetric.Result.fromXContent(parser);
+    protected AucRocMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return AucRocMetric.Result.fromXContent(parser);
     }
 
     @Override
@@ -53,7 +54,7 @@ public class PrecisionMetricResultTests extends AbstractXContentTestCase<Precisi
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // disallow unknown fields in the root of the object as field names must be parsable as numbers
-        return field -> field.isEmpty();
+        // allow unknown fields in the root of the object only
+        return field -> !field.isEmpty();
     }
 }

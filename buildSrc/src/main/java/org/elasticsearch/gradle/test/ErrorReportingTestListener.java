@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
-    private static final Logger LOGGER = Logging.getLogger(ErrorReportingTestListener.class);
     private static final String REPRODUCE_WITH_PREFIX = "REPRODUCE WITH";
 
     private final TestExceptionFormatter formatter;
@@ -140,7 +139,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                 try {
                     writer.close();
                 } catch (IOException e) {
-                    LOGGER.error("Failed to close test suite output stream", e);
+                    taskLogger.error("Failed to close test suite output stream", e);
                 }
             }
         }

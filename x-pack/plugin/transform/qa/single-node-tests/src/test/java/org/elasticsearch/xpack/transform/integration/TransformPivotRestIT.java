@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -448,11 +447,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         double actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", user26searchResult)).get(0);
         assertThat(actual, greaterThan(3.92));
 
-        Map<String, Object> user42searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_42");
-        assertEquals(1, XContentMapValues.extractValue("hits.total.value", user42searchResult));
-        actual = (Double) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", user42searchResult)).get(0);
-        assertThat(actual, greaterThan(0.0));
-        assertThat(actual, lessThan(5.0));
+        assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_42", 2.0);
     }
 
     public void testHistogramPivot() throws Exception {

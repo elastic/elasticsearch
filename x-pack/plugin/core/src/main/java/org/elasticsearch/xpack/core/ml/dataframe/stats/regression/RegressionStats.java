@@ -115,7 +115,7 @@ public class RegressionStats implements AnalysisStats {
         builder.field(ITERATION.getPreferredName(), iteration);
         builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
         builder.field(TIMING_STATS.getPreferredName(), timingStats);
-        builder.field(VALIDATION_LOSS.getPreferredName(), validationLoss);
+        builder.field(VALIDATION_LOSS.getPreferredName(), validationLoss, params);
         builder.endObject();
         return builder;
     }

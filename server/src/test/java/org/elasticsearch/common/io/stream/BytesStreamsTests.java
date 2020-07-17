@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.TimeValue;
@@ -498,6 +499,38 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(expected, equalTo(loaded));
     }
 
+    public void testWriteImmutableMap() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final ImmutableOpenMap.Builder<String, String> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expectedBuilder.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
+        }
+
+        final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+
+        assertThat(expected, equalTo(loaded));
+    }
+
+    public void testWriteImmutableMapOfWritable() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final ImmutableOpenMap.Builder<TestWriteable, TestWriteable> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expectedBuilder.put(new TestWriteable(randomBoolean()), new TestWriteable(randomBoolean()));
+        }
+
+        final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
+
+        assertThat(expected, equalTo(loaded));
+    }
+
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
         final Map<String, List<String>> expected = new HashMap<>(size);
@@ -627,6 +660,16 @@ public class BytesStreamsTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(value);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof TestWriteable && value == ((TestWriteable) o).value;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
         }
     }
 

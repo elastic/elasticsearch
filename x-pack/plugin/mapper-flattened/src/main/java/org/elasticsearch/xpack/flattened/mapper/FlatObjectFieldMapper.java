@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -416,11 +415,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             return false;
         }
 
-        @Override
-        public Index index() {
-            return delegate.index();
-        }
-
         public static class Builder implements IndexFieldData.Builder {
             private final String key;
             private final ValuesSourceType valuesSourceType;
@@ -437,7 +431,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                                            CircuitBreakerService breakerService,
                                            MapperService mapperService) {
                 String fieldName = fieldType.name();
-                IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(indexSettings,
+                IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(
                     cache, fieldName, valuesSourceType, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
                 return new KeyedFlatObjectFieldData(key, delegate);
             }

@@ -440,10 +440,8 @@ allprojects {
       dependsOn tasks.withType(ComposePull)
     }
     doLast {
-      configurations.findAll {
-        it.isCanBeResolved() &&
-          it.name.equals("testCompile") == false &&
-          it.name.equals("compile") == false
+      configurations.findAll { it.isCanBeResolved() &&
+        ((it instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) && it.canSafelyBeResolved())
       }.each { it.resolve() }
     }
   }

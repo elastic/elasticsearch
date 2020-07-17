@@ -42,10 +42,31 @@ public class BulkRequestParserTests extends ESTestCase {
                     assertFalse(parsed.get());
                     assertEquals("foo", indexRequest.index());
                     assertEquals("bar", indexRequest.id());
+                    assertFalse(indexRequest.isRequireAlias());
                     parsed.set(true);
                 },
                 req -> fail(), req -> fail());
         assertTrue(parsed.get());
+
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            (indexRequest, type) -> {
+                assertTrue(indexRequest.isRequireAlias());
+            },
+            req -> fail(), req -> fail());
+
+        request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
+            (indexRequest, type) -> {
+                assertTrue(indexRequest.isRequireAlias());
+            },
+            req -> fail(), req -> fail());
+
+        request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            (indexRequest, type) -> {
+                assertFalse(indexRequest.isRequireAlias());
+            },
+            req -> fail(), req -> fail());
     }
 
     public void testDeleteRequest() throws IOException {
@@ -73,13 +94,37 @@ public class BulkRequestParserTests extends ESTestCase {
                     assertFalse(parsed.get());
                     assertEquals("foo", updateRequest.index());
                     assertEquals("bar", updateRequest.id());
+                    assertFalse(updateRequest.isRequireAlias());
                     parsed.set(true);
                 },
                 req -> fail());
         assertTrue(parsed.get());
+
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            (req, type) -> fail(),
+            updateRequest -> {
+                assertTrue(updateRequest.isRequireAlias());
+            },
+            req -> fail());
+
+        request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
+            (req, type) -> fail(),
+            updateRequest -> {
+                assertTrue(updateRequest.isRequireAlias());
+            },
+            req -> fail());
+
+        request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
+        parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
+            (req, type) -> fail(),
+            updateRequest -> {
+                assertFalse(updateRequest.isRequireAlias());
+            },
+            req -> fail());
     }
 
-    public void testBarfOnLackOfTrailingNewline() throws IOException {
+    public void testBarfOnLackOfTrailingNewline() {
         BytesArray request = new BytesArray("{ \"index\":{ \"_id\": \"bar\" } }\n{}");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -88,7 +133,7 @@ public class BulkRequestParserTests extends ESTestCase {
         assertEquals("The bulk request must be terminated by a newline [\\n]", e.getMessage());
     }
 
-    public void testFailOnExplicitIndex() throws IOException {
+    public void testFailOnExplicitIndex() {
         BytesArray request = new BytesArray("{ \"index\":{ \"_index\": \"foo\", \"_id\": \"bar\" } }\n{}\n");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         
@@ -121,7 +166,7 @@ public class BulkRequestParserTests extends ESTestCase {
                 + "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\" } }\n{}\n");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
         final List<IndexRequest> indexRequests = new ArrayList<>();
-        parser.parse(request, null, null, null, null, true, XContentType.JSON,
+        parser.parse(request, null, null, null, null, null, true, XContentType.JSON,
                 indexRequests::add,
                 req -> fail(), req -> fail());
         assertThat(indexRequests, Matchers.hasSize(2));

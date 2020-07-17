@@ -230,4 +230,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         request.setPipeline(pipeline);
         return this;
     }
+
+    /**
+     * Sets the require_alias flag
+     */
+    public IndexRequestBuilder setRequireAlias(boolean requireAlias) {
+        request.setRequireAlias(requireAlias);
+        return this;
+    }
 }

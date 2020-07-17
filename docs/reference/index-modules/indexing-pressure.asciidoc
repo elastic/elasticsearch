@@ -28,7 +28,7 @@ Elasticsearch exposes a node setting `.memory.limitindexing_pressure` which
 restricts the number of bytes for outstanding indexing requests. By default,
 this setting is configured to be 10% of the heap.
 
-At the beginning of each <<indexing stage,here>>, Elasticsearch accounts for the
+At the beginning of each indexing stage, Elasticsearch accounts for the
 bytes consumed by an indexing request. This accounting is only released at the
 end of the indexing stage. This means that upstream stages will account for the
 request overheard until all downstream stages are complete. For example, the

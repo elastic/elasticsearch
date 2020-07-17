@@ -71,6 +71,14 @@ expressions (`*`) are supported.
 +
 To target all data streams in a cluster, omit this parameter or use `*`.
 
+[[data-stream-stats-api-query-params]]
+==== {api-query-parms-title}
+
+`human`::
+(Optional, boolean)
+If `true`, the response includes statistics in human-readable <<byte-units,byte
+values.>> Defaults to `false`.
+
 
 [role="child_attributes"]
 [[data-stream-stats-api-response-body]]

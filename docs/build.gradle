@@ -171,7 +171,7 @@ Closure setupMyLogs = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
         indices.create:
-          index: my_logs
+          index: my_logs-000001
           body:
             settings:
               number_of_shards: 1
@@ -180,8 +180,6 @@ Closure setupMyLogs = { String name, int count ->
               properties:
                 message:
                   type: text
-                login_attempts:
-                  type: long
                 "@timestamp":
                   type: date
                 user:
@@ -190,7 +188,7 @@ Closure setupMyLogs = { String name, int count ->
                       type: keyword
   - do:
         bulk:
-          index: my_logs
+          index: my_logs-000001
           refresh: true
           body: |'''
   for (int i = 0; i < count; i++) {
@@ -204,7 +202,7 @@ Closure setupMyLogs = { String name, int count ->
     }
     buildRestTests.setups[name] += """
             { "index":{"_id": "$i"} }
-            { "message": "$message", "login_attempts": $i, "@timestamp": "2099-11-15T14:12:12", "user": { "name": "$user_name" } }"""
+            { "message": "$message", "@timestamp": "2099-11-15T14:12:12", "user": { "name": "$user_name" } }"""
   }
 }
 setupMyLogs('my_logs', 5)

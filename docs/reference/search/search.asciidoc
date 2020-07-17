@@ -8,7 +8,7 @@ Returns search hits that match the query defined in the request.
 
 [source,console]
 ----
-GET /my_logs/_search
+GET /my_logs-000001/_search
 ----
 // TEST[setup:my_logs]
 
@@ -594,7 +594,7 @@ Key is the field name. Value is the value for the field.
 
 [source,console]
 ----
-GET /my_logs/_search?q=user.name:kimchy
+GET /my_logs-000001/_search?q=user.name:kimchy
 ----
 // TEST[setup:my_logs]
 
@@ -619,11 +619,10 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "my_logs",
+        "_index": "my_logs-000001",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "login_attempts": 0,
           "@timestamp": "2099-11-15T14:12:12",
           "message": "Login successful",
           "user": {
@@ -642,10 +641,10 @@ The API returns the following response:
 
 [source,console]
 ----
-GET /my_logs,my_logs_2/_search?q=user.name:kimchy
+GET /my_logs-000001,my_logs-000002/_search?q=user.name:kimchy
 ----
 // TEST[setup:my_logs]
-// TEST[s/^/PUT my_logs_2\n/]
+// TEST[s/^/PUT my_logs-000002\n/]
 
 [[search-api-all-ex]]
 ===== Search a cluster using the `q` query parameter
@@ -679,7 +678,7 @@ GET /*/_search?q=user.name:kimchy
 
 [source,console]
 ----
-GET /my_logs/_search
+GET /my_logs-000001/_search
 {
   "query": {
     "term": {
@@ -711,11 +710,10 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "my_logs",
+        "_index": "my_logs-000001",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "login_attempts": 0,
           "@timestamp": "2099-11-15T14:12:12",
           "message": "Login successful",
           "user": {

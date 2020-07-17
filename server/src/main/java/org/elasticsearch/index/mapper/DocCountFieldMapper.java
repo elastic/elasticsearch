@@ -89,15 +89,6 @@ public class DocCountFieldMapper extends FieldMapper {
             this(name, true, Collections.emptyMap());
         }
 
-        DocCountFieldType(DocCountFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new DocCountFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -111,7 +102,6 @@ public class DocCountFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
             throw new QueryShardException(context, "Field [" + name() + " ]of type [" + CONTENT_TYPE + "] is not searchable");
-
         }
     }
 

@@ -104,6 +104,10 @@ Total number of selected data streams.
 (integer)
 Total number of backing indices for the selected data streams.
 
+`total_store_sizes`::
+(<<byte-units,byte value>>)
+Total size of all shards for the selected data streams.
+
 `total_store_size_bytes`::
 (integer)
 Total size, in bytes, of all shards for the selected data streams.
@@ -122,6 +126,10 @@ Name of the data stream.
 `backing_indices`::
 (integer)
 Current number of backing indices for the data stream.
+
+`store_size`::
+(<<byte-units,byte value>>)
+Total size of all shards for the data stream's backing indices.
 
 `store_size_bytes`::
 (integer)

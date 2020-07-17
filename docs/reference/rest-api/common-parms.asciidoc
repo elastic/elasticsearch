@@ -570,6 +570,12 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::require-alias[]
+`require_alias`::
+(Optional, boolean) When true, this requires the destination to be an alias.
+Defaults to false.
+end::require-alias[]
+
 tag::node-filter[]
 `<node_filter>`::
 (Optional, string)

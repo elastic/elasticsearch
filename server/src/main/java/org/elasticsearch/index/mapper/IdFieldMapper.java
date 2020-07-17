@@ -32,7 +32,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -175,12 +174,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
                         breakerService, mapperService);
                     return new IndexFieldData<LeafFieldData>() {
-
-                        @Override
-                        public Index index() {
-                            return fieldData.index();
-                        }
-
                         @Override
                         public String getFieldName() {
                             return fieldData.getFieldName();

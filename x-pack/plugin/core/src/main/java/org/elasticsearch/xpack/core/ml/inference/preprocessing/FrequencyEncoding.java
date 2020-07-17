@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -79,11 +78,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         this.field = in.readString();
         this.featureName = in.readString();
         this.frequencyMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.custom = in.readBoolean();
-        } else {
-            this.custom = false;
-        }
+        this.custom = in.readBoolean();
     }
 
     /**
@@ -151,9 +146,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
         out.writeString(field);
         out.writeString(featureName);
         out.writeMap(frequencyMap, StreamOutput::writeString, StreamOutput::writeDouble);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(custom);
-        }
+        out.writeBoolean(custom);
     }
 
     @Override

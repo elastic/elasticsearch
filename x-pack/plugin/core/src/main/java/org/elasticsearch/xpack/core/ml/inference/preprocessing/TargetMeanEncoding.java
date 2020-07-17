@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -83,11 +82,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         this.featureName = in.readString();
         this.meanMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
         this.defaultValue = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.custom = in.readBoolean();
-        } else {
-            this.custom = false;
-        }
+        this.custom = in.readBoolean();
     }
 
     /**
@@ -163,9 +158,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         out.writeString(featureName);
         out.writeMap(meanMap, StreamOutput::writeString, StreamOutput::writeDouble);
         out.writeDouble(defaultValue);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(custom);
-        }
+        out.writeBoolean(custom);
     }
 
     @Override

@@ -69,8 +69,12 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     private final StringScriptFieldScript.Factory scriptFactory;
     private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
 
-    private ScriptBinaryFieldData(IndexSettings indexSettings, String fieldName,
-                                  Script script, StringScriptFieldScript.Factory scriptFactory) {
+    private ScriptBinaryFieldData(
+        IndexSettings indexSettings,
+        String fieldName,
+        Script script,
+        StringScriptFieldScript.Factory scriptFactory
+    ) {
         super(indexSettings);
         this.fieldName = fieldName;
         this.script = script;

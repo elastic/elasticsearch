@@ -61,8 +61,10 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                RuntimeKeywordMappedFieldType ft = build("for (def v : source.foo) {value(v.toString() + params.param)}",
-                    Map.of("param", "-suffix"));
+                RuntimeKeywordMappedFieldType ft = build(
+                    "for (def v : source.foo) {value(v.toString() + params.param)}",
+                    Map.of("param", "-suffix")
+                );
                 IndexMetadata imd = IndexMetadata.builder("test")
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT))
                     .numberOfShards(1)

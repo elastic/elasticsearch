@@ -106,7 +106,7 @@ You can retrieve the last value in a similar way:
 
 [discrete]
 [[painless-time-features]]
-==== Getting time features as scripted fields
+==== Getting time features by using aggregations
 
 This snippet shows how to extract time based features by using Painless in a 
 {transform}. The snippet uses an index where `@timestamp` is defined as a `date` 
@@ -115,37 +115,39 @@ type field.
 [source,js]
 --------------------------------------------------
 "aggregations": {
-  "script_fields": {
-      "hour_of_day": { <1>
-        "script": {
-          "lang": "painless",
-          "source": """
-            ZonedDateTime date =  doc['@timestamp'].value; <2>
-            return date.getHour(); <3>
-          """
-        }
-      },
-      "month_of_year": { <4>
-        "script": {
-          "lang": "painless",
-          "source": """
-            ZonedDateTime date =  doc['@timestamp'].value; <5>
-            return date.getMonthValue(); <6>
-          """
-        }
+  "avg_hour_of_day": { <1>
+    "avg":{
+      "script": { <2>
+        "source": """
+          ZonedDateTime date =  doc['@timestamp'].value; <3>
+          return date.getHour(); <4>
+        """
       }
-    },
-  ...
+    }  
+  },
+  "avg_month_of_year": { <5>
+    "avg":{
+      "script": { <6> 
+        "source": """
+          ZonedDateTime date =  doc['@timestamp'].value; <7>
+          return date.getMonthValue(); <8>
+        """
+      }
+    }
+  },
+ ...
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-<1> Contains the Painless script that returns the hour of the day.
-<2> Sets `date` based on the timestamp of the document.
-<3> Returns the hour value from `date`.
-<4> Contains the Painless script that returns the month of the year.
-<5> Sets `date` based on the timestamp of the document.
-<6> Returns the month value from `date`.
+<1> Name of the aggregation.
+<2> Contains the Painless script that returns the hour of the day.
+<3> Sets `date` based on the timestamp of the document.
+<4> Returns the hour value from `date`.
+<5> Name of the aggregation.
+<6> Contains the Painless script that returns the month of the year.
+<7> Sets `date` based on the timestamp of the document.
+<8> Returns the month value from `date`.
 
 
 [discrete]

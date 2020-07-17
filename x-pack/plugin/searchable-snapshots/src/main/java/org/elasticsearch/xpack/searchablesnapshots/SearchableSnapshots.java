@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchab
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportRepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.NodeEnvironmentCacheCleaner;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestRepositoryStatsAction;
@@ -70,8 +71,11 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 /**
@@ -182,7 +186,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            final CacheService cacheService = new CacheService(settings);
+            final CacheService cacheService = new CacheService(new NodeEnvironmentCacheCleaner(nodeEnvironment), settings);
             this.cacheService.set(cacheService);
             this.repositoriesServiceSupplier = repositoriesServiceSupplier;
             this.threadPool.set(threadPool);
@@ -279,19 +283,27 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
-            return List.of(executorBuilder());
+            return List.of(executorBuilders());
         } else {
             return List.of();
         }
     }
 
-    public static ExecutorBuilder<?> executorBuilder() {
-        return new ScalingExecutorBuilder(
-            SEARCHABLE_SNAPSHOTS_THREAD_POOL_NAME,
-            0,
-            32,
-            TimeValue.timeValueSeconds(30L),
-            "xpack.searchable_snapshots.thread_pool"
-        );
+    public static ScalingExecutorBuilder[] executorBuilders() {
+        return new ScalingExecutorBuilder[] {
+            new ScalingExecutorBuilder(
+                CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+                0,
+                32,
+                TimeValue.timeValueSeconds(30L),
+                CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
+            ),
+            new ScalingExecutorBuilder(
+                CACHE_PREWARMING_THREAD_POOL_NAME,
+                0,
+                32,
+                TimeValue.timeValueSeconds(30L),
+                CACHE_PREWARMING_THREAD_POOL_SETTING
+            ) };
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.IndexInputStats;
@@ -31,12 +32,18 @@ import static org.hamcrest.Matchers.equalTo;
 public final class TestUtils {
     private TestUtils() {}
 
+    public static void noOpCacheCleaner() {}
+
+    public static CacheService createDefaultCacheService() {
+        return new CacheService(TestUtils::noOpCacheCleaner, Settings.EMPTY);
+    }
+
     public static CacheService createCacheService(final Random random) {
         final ByteSizeValue cacheSize = new ByteSizeValue(
             randomIntBetween(random, 1, 100),
             randomFrom(random, List.of(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB, ByteSizeUnit.GB))
         );
-        return new CacheService(cacheSize, randomCacheRangeSize(random));
+        return new CacheService(TestUtils::noOpCacheCleaner, cacheSize, randomCacheRangeSize(random));
     }
 
     public static ByteSizeValue randomCacheRangeSize(final Random random) {
@@ -149,6 +156,11 @@ public final class TestUtils {
 
         @Override
         public BlobPath path() {
+            throw unsupportedException();
+        }
+
+        @Override
+        public boolean blobExists(String blobName) {
             throw unsupportedException();
         }
 

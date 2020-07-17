@@ -75,19 +75,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType {
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry, Geometry> {
         public ShapeFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, indexed, hasDocValues, meta);
-        }
-
-        public ShapeFieldType(ShapeFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public ShapeFieldType clone() {
-            return new ShapeFieldType(this);
         }
 
         @Override

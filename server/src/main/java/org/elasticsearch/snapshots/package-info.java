@@ -98,5 +98,42 @@
  * <li>After the deletion of the snapshot's data from the repository finishes, the {@code SnapshotsService} will submit a cluster state
  * update to remove the deletion's entry in {@code SnapshotDeletionsInProgress} which concludes the process of deleting a snapshot.</li>
  * </ol>
+ *
+ * <h2>Concurrent Snapshot Operations</h2>
+ *
+ * Snapshot create and delete operations may be started concurrently. Operations targeting different repositories run independently of
+ * each other. Multiple operations targeting the same repository are executed according to the following rules:
+ *
+ * <h3>Concurrent Snapshot Creation</h3>
+ *
+ * If multiple snapshot creation jobs are started at the same time, the data-node operations of multiple snapshots may run in parallel
+ * across different shards. If multiple snapshots want to snapshot a certain shard, then the shard snapshots for that shard will be
+ * executed one by one. This is enforced by the master node setting the shard's snapshot state to
+ * {@link org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus#UNASSIGNED_QUEUED} for all but one snapshot. The order of
+ * operations on a single shard is given by the order in which the snapshots were started.
+ * As soon as all shards for a given snapshot have finished, it will be finalized as explained above. Finalization will happen one snapshot
+ * at a time, working in the order in which snapshots had their shards completed.
+ *
+ * <h3>Concurrent Snapshot Deletes</h3>
+ *
+ * A snapshot delete will be executed as soon as there are no more shard snapshots or snapshot finalizations executing running for a given
+ * repository. Before a delete is executed on the repository it will be set to state
+ * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#STARTED}. If it cannot be executed when it is received it will be
+ * set to state {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.State#WAITING} initially.
+ * If a delete is received for a given repository while there is already an ongoing delete for the same repository, there are two possible
+ * scenarios:
+ * 1. If the delete is in state {@code META_DATA} (i.e. already running on the repository) then the new delete will be added in state
+ * {@code WAITING} and will be executed after the current delete. The only exception here would be the case where the new delete covers
+ * the exact same snapshots as the already running delete. In this case no new delete operation is added and second delete request will
+ * simply wait for the existing delete to return.
+ * 2. If the existing delete is in state {@code WAITING} then the existing
+ * {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.Entry} in the cluster state will be updated to cover both the snapshots
+ * in the existing delete as well as additional snapshots that may be found in the second delete request.
+ *
+ * In either of the above scenarios, in-progress snapshots will be aborted in the same cluster state update that adds a delete to the
+ * cluster state, if a delete applies to them.
+ *
+ * If a snapshot request is received while there already is a delete in the cluster state for the same repository, that snapshot will not
+ * start doing any shard snapshots until the delete has been executed.
  */
 package org.elasticsearch.snapshots;

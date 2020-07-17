@@ -36,6 +36,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -54,6 +55,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * This defines the core properties and functions to operate on a field.
@@ -358,5 +361,30 @@ public abstract class MappedFieldType {
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
+    }
+
+    /**
+     * Throw an exception if expensive queries aren't allowed. Called by the
+     * code that builds expensive queries to fail the search if they
+     * aren't allowed.
+     */
+    public static void checkAllowExpensiveQueries(QueryShardContext context, String format, Object... args) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException(format, args);
+        }
+    }
+
+    /**
+     * Throw an exception if expensive queries aren't allowed. Called by the
+     * code that builds expensive queries to fail the search if they
+     * aren't allowed.
+     */
+    public static void checkAllowExpensiveQueries(QueryShardContext context, String query) {
+        checkAllowExpensiveQueries(
+            context,
+            "[{}] queries cannot be executed when '{}' is set to false.",
+            query,
+            ALLOW_EXPENSIVE_QUERIES.getKey()
+        );
     }
 }

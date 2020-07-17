@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("deprecation") // It tests deprecated code
 public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGeoShapeFieldMapper.Builder> {
 
     @Override
@@ -771,7 +772,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase<LegacyGe
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> geoShapeFieldMapper.fieldType().geometryQueryBuilder().process(
                         new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, queryShardContext));
-        assertEquals("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " +
+        assertEquals("[geo_shape] queries on [PrefixTree geo shapes] cannot be executed when " +
                         "'search.allow_expensive_queries' is set to false.", e.getMessage());
         assertFieldWarnings("tree");
     }

@@ -165,7 +165,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         ParentIdQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> queryBuilder.toQuery(queryShardContext));
-        assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+        assertEquals("[parent_id] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
                 e.getMessage());
     }
 }

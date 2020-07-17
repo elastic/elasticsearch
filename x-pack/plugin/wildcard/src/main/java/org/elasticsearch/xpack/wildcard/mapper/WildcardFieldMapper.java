@@ -300,11 +300,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            if (context.allowExpensiveQueries() == false) {
-                throw new ElasticsearchException(
-                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
-                );
-            }
+            checkAllowExpensiveQueries(context, "regexp");
 
             RegExp ngramRegex = new RegExp(addLineEndChars(toLowerCase(value)), flags);
 

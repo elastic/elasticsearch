@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -366,5 +367,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     @Override
     public final String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    /**
+     * Throw an exception if expensive queries aren't allowed. Called by the
+     * code that builds expensive queries to fail the search if they
+     * aren't allowed.
+     */
+    protected final void checkAllowExpensiveQueries(QueryShardContext context) {
+        MappedFieldType.checkAllowExpensiveQueries(context, getName());
     }
 }

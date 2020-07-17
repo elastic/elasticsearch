@@ -216,7 +216,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testTemplate() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Map<String, Object> indexTemplate = indexTemplate(SearchableSnapshotsTemplateRegistry.SNAPSHOTS_CACHE_TEMPLATE_NAME);
-            logger.fatal(indexTemplate);
             assertThat("Expected searchable snapshots index template to exist", indexTemplate, notNullValue());
             assertThat(extractValue(indexTemplate, "name"), equalTo(SearchableSnapshotsTemplateRegistry.SNAPSHOTS_CACHE_TEMPLATE_NAME));
             assertThat(

@@ -79,6 +79,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private String globalType;
+    private Boolean globalRequireAlias;
 
     private long sizeInBytes = 0;
 
@@ -258,7 +259,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     @Deprecated
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, true, xContentType);
+        return add(data, defaultIndex, defaultType, null, null, null, null, true, xContentType);
     }
 
     /**
@@ -266,7 +267,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, true, xContentType);
+        return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, null, true, xContentType);
     }
 
     /**
@@ -276,7 +277,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     @Deprecated
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, allowExplicitIndex, xContentType);
+        return add(data, defaultIndex, defaultType, null, null, null, null, allowExplicitIndex, xContentType);
     }
 
     /**
@@ -284,7 +285,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, allowExplicitIndex, xContentType);
+        return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, null, null, null, null, allowExplicitIndex, xContentType);
     }
 
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
@@ -292,7 +293,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             @Nullable String defaultPipeline, boolean allowExplicitIndex,
             XContentType xContentType) throws IOException {
         return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, defaultRouting, defaultFetchSourceContext,
-                defaultPipeline, allowExplicitIndex, xContentType);
+                defaultPipeline, null, allowExplicitIndex, xContentType);
     }
 
     /**
@@ -301,11 +302,12 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     @Deprecated
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-                           @Nullable String defaultPipeline, boolean allowExplicitIndex,
+                           @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
-        new BulkRequestParser(true).parse(data, defaultIndex, defaultType, routing, defaultFetchSourceContext, pipeline,
+        Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
+        new BulkRequestParser(true).parse(data, defaultIndex, defaultType, routing, defaultFetchSourceContext, pipeline, requireAlias,
                 allowExplicitIndex, xContentType, this::internalAdd, this::internalAdd, this::add);
         return this;
     }
@@ -379,6 +381,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRouting;
     }
 
+    public Boolean requireAlias() {
+        return globalRequireAlias;
+    }
+
+    public BulkRequest requireAlias(Boolean globalRequireAlias) {
+        this.globalRequireAlias = globalRequireAlias;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -429,6 +440,13 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     private static String valueOrDefault(String value, String globalDefault) {
         if (Strings.isNullOrEmpty(value) && !Strings.isNullOrEmpty(globalDefault)) {
+            return globalDefault;
+        }
+        return value;
+    }
+
+    private static Boolean valueOrDefault(Boolean value, Boolean globalDefault) {
+        if (Objects.isNull(value) && !Objects.isNull(globalDefault)) {
             return globalDefault;
         }
         return value;

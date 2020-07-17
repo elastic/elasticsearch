@@ -89,7 +89,6 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
-        exception.printStackTrace();
         assertEquals(
             "Failed to parse mapping: stored scripts specified but not supported when defining script field [my_field]",
             exception.getMessage()

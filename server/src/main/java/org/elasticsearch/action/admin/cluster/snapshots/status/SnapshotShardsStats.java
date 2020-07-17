@@ -167,7 +167,7 @@ public class SnapshotShardsStats implements ToXContentObject {
         PARSER.declareInt(constructorArg(), new ParseField(Fields.TOTAL));
     }
 
-    public static SnapshotShardsStats fromXContent(XContentParser parser) throws IOException {
+    public static SnapshotShardsStats fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 

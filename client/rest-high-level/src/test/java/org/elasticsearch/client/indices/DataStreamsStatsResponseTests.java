@@ -20,7 +20,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.indices.datastream.DataStreamsStatsAction;
+import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;

@@ -139,6 +139,29 @@ PUT /logs/_mapping
 }
 ----
 ====
++
+To add the mapping only to the stream's write index, set the put mapping API's
+`write_index_only` query parameter to `true`.
++
+.*Example*
+[%collapsible]
+====
+The following put mapping request adds the new `message` field mapping only to
+the `logs` stream's write index. The new field mapping is not added to the
+stream's other backing indices.
+
+[source,console]
+----
+PUT /logs/_mapping?write_index_only=true
+{
+  "properties": {
+    "message": {
+      "type": "text"
+    }
+  }
+}
+----
+====
 
 [discrete]
 [[change-existing-field-mapping-in-a-data-stream]]
@@ -200,6 +223,34 @@ data stream. The request changes the argument for the `host.ip` field's
 [source,console]
 ----
 PUT /logs/_mapping
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "ip": {
+          "type": "ip",
+          "ignore_malformed": true
+        }
+      }
+    }
+  }
+}
+----
+====
++
+To apply the mapping changes only to the stream's write index, set the put mapping API's
+`write_index_only` query parameter to `true`.
++
+.*Example*
+[%collapsible]
+====
+The following put mapping request changes the `host.ip` field's mapping only for
+the `logs` stream's write index. The change is not applied to the stream's other
+backing indices.
+
+[source,console]
+----
+PUT /logs/_mapping?write_index_only=true
 {
   "properties": {
     "host": {

@@ -22,7 +22,7 @@ PUT /_snapshot/my_backup/snapshot_3?wait_for_completion=true
 
 ////
 
-Use the <<delete-snapshot-api,Delete snapshot API>> to delete a snapshot
+Use the <<delete-snapshot-api,delete snapshot API>> to delete a snapshot
 from the repository:
 
 [source,console]

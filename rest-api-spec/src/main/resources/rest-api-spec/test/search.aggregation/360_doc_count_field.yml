@@ -1,4 +1,7 @@
 setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: "Doc count fields are only implemented in 8.0"
   - do:
       indices.create:
         index: test_1
@@ -32,6 +35,9 @@ setup:
 
 ---
 "Test numeric terms agg with doc_count":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Doc count fields are only implemented in 8.0"
 
   - do:
       search:
@@ -50,7 +56,9 @@ setup:
 
 ---
 "Test string terms agg with doc_count":
-
+  - skip:
+      version: " - 7.99.99"
+      reason: "Doc count fields are only implemented in 8.0"
   - do:
       search:
         rest_total_hits_as_int: true

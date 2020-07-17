@@ -122,7 +122,7 @@ teardown:
     - match: { hits.hits.1._source.join_field.parent: "1" }
 
 ---
-"HasChild disallow expensive queries":
+"parent_id is expensive":
   - skip:
       version: " - 7.6.99"
       reason: "implemented in 7.7.0"
@@ -138,7 +138,7 @@ teardown:
   - match: {transient: {search.allow_expensive_queries: "false"}}
 
   - do:
-      catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      catch: /\[parent_id\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
       search:
         body:
           sort: [ "id" ]

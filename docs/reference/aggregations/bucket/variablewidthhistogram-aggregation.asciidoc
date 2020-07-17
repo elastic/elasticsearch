@@ -78,7 +78,7 @@ after the reduction step. Increasing the `shard_size` will improve the accuracy 
 also make it more expensive to compute the final result because bigger priority queues will have to be managed on a
 shard level, and the data transfers between the nodes and the client will be larger.
 
-TIP: Parameters `buckets`, `shard_size`, and `initial_buffer` are optional. By default, `buckets = 10`, `shard_size = 500` and `initial_buffer = min(50 * shard_size, 50000)`.
+TIP: Parameters `buckets`, `shard_size`, and `initial_buffer` are optional. By default, `buckets = 10`, `shard_size = buckets * 50`, and `initial_buffer = min(10 * shard_size, 50000)`.
 
 ==== Initial Buffer
 The `initial_buffer` parameter can be used to specify the number of individual documents that will be stored in memory

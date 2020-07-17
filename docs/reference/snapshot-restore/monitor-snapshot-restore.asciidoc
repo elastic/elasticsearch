@@ -4,8 +4,8 @@
 <titleabbrev>Monitor snapshot and restore</titleabbrev>
 ++++
 
-Use the <<get-snapshot-api,Get snapshot API>> or the
-<<get-snapshot-status-api,Get snapshot status API>> to monitor the
+Use the <<get-snapshot-api,get snapshot API>> or the
+<<get-snapshot-status-api,get snapshot status API>> to monitor the
 progress of snapshot operations. Both APIs support the
 `wait_for_completion` parameter that blocks the client until the
 operation finishes, which is the simplest method of being notified
@@ -93,15 +93,17 @@ about the snapshot, such as metadata, start and end time, number of shards that 
 [discrete]
 [[get-snapshot-detailed-status]]
 === Retrieving snapshot status
-To retrieve more detailed information about snapshots, use the <<get-snapshot-status-api,Get snapshot status API>>. While snapshot request returns only basic information about the snapshot in progress, the snapshot status request returns
+To retrieve more detailed information about snapshots, use the <<get-snapshot-status-api,get snapshot status API>>. While snapshot request returns only basic information about the snapshot in progress, the snapshot status request returns
 complete breakdown of the current state for each shard participating in the snapshot.
 
+// tag::get-snapshot-status-warning[]
 [WARNING]
 ====
-Using the Get snapshot status API to return any status results other than the currently running snapshots (`_current`) can be very expensive. Each request to retrieve snapshot status results in file reads from every shard in a snapshot, for each snapshot.
+Using the get snapshot status API to return any status results other than the currently running snapshots (`_current`) can be very expensive. Each request to retrieve snapshot status results in file reads from every shard in a snapshot, for each snapshot. Such requests are taxing to machine resources and can also incur high processing costs when running in the cloud.
 
 For example, if you have 100 snapshots with 1,000 shards each, the API request will result in 100,000 file reads (100 snapshots * 1,000 shards). Depending on the latency of your file storage, the request can take extremely long to retrieve results.
 ====
+// end::get-snapshot-status-warning[]
 
 The following request retrieves all currently running snapshots with
 detailed status information:
@@ -145,10 +147,10 @@ detailed insight into the current state of the recovery process by using <<indic
 <<cat-recovery, cat recovery>> APIs.
 
 [discrete]
+[[get-snapshot-stop-snapshot]]
 === Stop snapshot and restore operations
-
 The snapshot and restore framework allows running only one snapshot or one restore operation at a time. If a currently
-running snapshot was started by mistake, or takes unusually long, it can be stopped using the <<delete-snapshot-api,Delete snapshot API>>.
+running snapshot was started by mistake, or takes unusually long, it can be stopped using the <<delete-snapshot-api,delete snapshot API>>.
 This operation checks whether the deleted snapshot is currently running. If it is, the delete snapshot operation stops
 that snapshot before deleting the snapshot data from the repository.
 
@@ -162,8 +164,8 @@ be canceled by deleting data streams and indices that are being restored. Data f
 from the cluster as a result of this operation.
 
 [discrete]
+[[get-snapshot-cluster-blocks]]
 === Effect of cluster blocks on snapshot and restore
-
 Many snapshot and restore operations are affected by cluster and index blocks. For example, registering and unregistering
 repositories require global metadata write access. The snapshot operation requires that all indices, backing indices, and their metadata (including
 global metadata) are readable. The restore operation requires the global metadata to be writable. However,

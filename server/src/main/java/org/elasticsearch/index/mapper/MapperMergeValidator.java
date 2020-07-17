@@ -119,7 +119,7 @@ class MapperMergeValidator {
                                                DocumentMapper newMapper) {
         validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
         validateFieldAliasTargets(fieldAliasMappers, fullPathObjectMappers);
-        validateMetadataFieldMappers(metadataMappers, newMapper);
+        validateFieldMappers(fieldMappers, newMapper);
     }
 
     private static void validateCopyTo(List<FieldMapper> fieldMappers,
@@ -174,9 +174,9 @@ class MapperMergeValidator {
         }
     }
 
-    private static void validateMetadataFieldMappers(MetadataFieldMapper[] metadataMappers, DocumentMapper newMapper) {
-        for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
-            metadataFieldMapper.validate(newMapper.mappers());
+    private static void validateFieldMappers(List<FieldMapper> fieldMappers, DocumentMapper newMapper) {
+        for (FieldMapper fieldMapper : fieldMappers) {
+            fieldMapper.validate(newMapper.mappers());
         }
     }
 

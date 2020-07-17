@@ -32,6 +32,7 @@ import org.junit.Before;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
@@ -133,10 +134,8 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
     /**
      * Test that invalid field mapping containing more than one doc_count fields
      */
-    @AwaitsFix(bugUrl = "")
     public void testInvalidMappingWithMultipleDocCounts() throws Exception {
         ensureGreen();
-
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
@@ -152,12 +151,15 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
         );
-
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> parser.parse("_doc", new CompressedXContent(mapping))
+            () -> indexService.mapperService()
+                .merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE)
         );
-        assertThat(e.getMessage(), containsString("Property [metrics] must be set for field [metric]."));
+        assertThat(
+            e.getMessage(),
+            equalTo("Field [doc_count] conflicts with field [another_doc_count]. Only one field of type [doc_count] is allowed.")
+        );
     }
 
     public void testInvalidDocument_NegativeDocCount() throws Exception {

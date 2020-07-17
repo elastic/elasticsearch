@@ -369,6 +369,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Called when mapping gets merged. Provides the opportunity to validate other fields a field mapper
+     * is supposed to work with before a mapping update is completed.
+     */
+    public void validate(DocumentFieldMappers lookup) {
+        // noop by default
+    }
+
+    /**
      * Merge type-specific options and check for incompatible settings in mappings to be merged
      */
     protected abstract void mergeOptions(FieldMapper other, List<String> conflicts);

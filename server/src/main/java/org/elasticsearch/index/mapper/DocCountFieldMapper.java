@@ -124,7 +124,7 @@ public class DocCountFieldMapper extends FieldMapper {
         if (value != null) {
             if (value.longValue() <= 0 || value.floatValue() != value.longValue()) {
                 throw new IllegalArgumentException(
-                    "Field [" + fieldType().name() + "] must be a positive integer");
+                    "Field [" + fieldType().name() + "] must be a positive integer.");
             }
 
             final Field docCount = new NumericDocValuesField(name(), value.longValue());
@@ -145,5 +145,16 @@ public class DocCountFieldMapper extends FieldMapper {
     @Override
     protected void mergeOptions(FieldMapper mergeWith, List<String> conflicts) {
         // nothing to do
+    }
+
+    public void validate(DocumentFieldMappers lookup) {
+        // Make sure that only one doc_count field exists in the mapping
+        for (Mapper mapper : lookup) {
+            if (typeName().equals(mapper.typeName()) && name().equals(mapper.name()) == false) {
+                throw new IllegalArgumentException(
+                    "Field [" + name() + "] conflicts with field [" + mapper.name()
+                        + "]. Only one field of type [" + typeName() + "] is allowed.");
+            }
+        }
     }
 }

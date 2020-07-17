@@ -19,49 +19,15 @@
 
 package org.elasticsearch.gradle
 
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
-import spock.lang.Specification
 
 import java.lang.management.ManagementFactory
 
-class InternalDistributionDownloadPluginFuncTest extends Specification {
-
-    @Rule
-    TemporaryFolder testProjectDir = new TemporaryFolder()
-
-    File settingsFile
-    File buildFile
-
-    def setup() {
-        settingsFile = testProjectDir.newFile('settings.gradle')
-        settingsFile << "rootProject.name = 'hello-world'"
-        buildFile = testProjectDir.newFile('build.gradle')
-    }
-
-    private File internalBuild() {
-        buildFile << """plugins {
-          id 'elasticsearch.global-build-info'
-        }
-        import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.info.BuildParams
-
-        BuildParams.init { it.setIsInternal(true) }
-
-        import org.elasticsearch.gradle.BwcVersions
-        import org.elasticsearch.gradle.Version
-
-        Version currentVersion = Version.fromString("9.0.0")
-        BwcVersions versions = new BwcVersions(new TreeSet<>(
-        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
-            currentVersion)
-
-        BuildParams.init { it.setBwcVersions(versions) }
-
-        """
-    }
+class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     def "plugin application fails on non internal build"() {
         given:
@@ -70,14 +36,16 @@ class InternalDistributionDownloadPluginFuncTest extends Specification {
              id 'elasticsearch.internal-distribution-download'
             }
         """
+
         when:
-        def buildOutput = gradleRunner("createExtractedTestDistro").buildAndFail()
+        def result = gradleRunner("createExtractedTestDistro").buildAndFail()
+
         then:
-        buildOutput.output.contains("Plugin 'elasticsearch.internal-distribution-download' is not supported. " +
+        assertOutputContains(result.output, "Plugin 'elasticsearch.internal-distribution-download' is not supported. " +
             "Use 'elasticsearch.distribution-download' plugin instead")
     }
 
-    def testCurrent() {
+    def "resolves current version from local build"() {
         given:
         internalBuild()
         localDistroSetup()
@@ -97,15 +65,17 @@ class InternalDistributionDownloadPluginFuncTest extends Specification {
                 dependsOn elasticsearch_distributions.test_distro.extracted
             }
         """
+
         when:
-        def buildOutput = gradleRunner("createExtractedTestDistro").build()
+        def result = gradleRunner("createExtractedTestDistro").build()
+
         then:
-        buildOutput.task(":distribution:archives:linux-tar:buildTar").outcome == TaskOutcome.SUCCESS
-        buildOutput.task(":extractElasticsearchLinux$distroVersion").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:linux-tar:buildTar").outcome == TaskOutcome.SUCCESS
+        result.task(":extractElasticsearchLinux$distroVersion").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated(distroVersion, 'current-marker.txt')
     }
 
-    def testBwc() {
+    def "resolves bwc versions from source"() {
         given:
         internalBuild()
         bwcMinorProjectSetup()
@@ -126,21 +96,34 @@ class InternalDistributionDownloadPluginFuncTest extends Specification {
             }
         """
         when:
-        def buildOutput = gradleRunner("createExtractedTestDistro").build()
+        def result = gradleRunner("createExtractedTestDistro").build()
         then:
-        buildOutput.task(":distribution:bwc:minor:buildBwcTask").outcome == TaskOutcome.SUCCESS
-        buildOutput.task(":extractElasticsearchLinux8.1.0").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:minor:buildBwcTask").outcome == TaskOutcome.SUCCESS
+        result.task(":extractElasticsearchLinux8.1.0").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated(distroVersion,'bwc-marker.txt')
     }
 
-    private GradleRunner gradleRunner(String... arguments) {
-        GradleRunner.create()
-            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-            .withProjectDir(testProjectDir.root)
-            .withArguments(arguments)
-            .withPluginClasspath()
-            .forwardOutput()
+    private File internalBuild() {
+        buildFile << """plugins {
+          id 'elasticsearch.global-build-info'
+        }
+        import org.elasticsearch.gradle.Architecture
+        import org.elasticsearch.gradle.info.BuildParams
+
+        BuildParams.init { it.setIsInternal(true) }
+
+        import org.elasticsearch.gradle.BwcVersions
+        import org.elasticsearch.gradle.Version
+
+        Version currentVersion = Version.fromString("9.0.0")
+        BwcVersions versions = new BwcVersions(new TreeSet<>(
+        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
+            currentVersion)
+
+        BuildParams.init { it.setBwcVersions(versions) }
+        """
     }
+
 
     private void bwcMinorProjectSetup() {
         settingsFile << """

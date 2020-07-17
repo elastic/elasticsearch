@@ -31,7 +31,6 @@ import org.gradle.api.Project;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
@@ -52,14 +51,15 @@ import static org.elasticsearch.gradle.util.Util.capitalize;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.
- * <p>
- * The source of the distribution could be from a local snapshot, a locally built
- * bwc snapshot, or the Elastic downloads service.
+ *
+ * The plugin provides hooks to register custom distribution resolutions.
+ * This plugin resolves distributions from the Elastic downloads service if
+ * no registered resolution strategy can resolve to a distribution.
  */
 public class DistributionDownloadPlugin implements Plugin<Project> {
 
-    private static final String CONTAINER_NAME = "elasticsearch_distributions";
     static final String RESOLUTION_CONTAINER_NAME = "elasticsearch_distributions-resolutions";
+    private static final String CONTAINER_NAME = "elasticsearch_distributions";
     private static final String FAKE_IVY_GROUP = "elasticsearch-distribution";
     private static final String FAKE_SNAPSHOT_IVY_GROUP = "elasticsearch-distribution-snapshot";
     private static final String DOWNLOAD_REPO_NAME = "elasticsearch-downloads";
@@ -218,17 +218,15 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      * Returns a dependency object representing the given distribution.
      * <p>
      * The returned object is suitable to be passed to {@link DependencyHandler}.
-     * The concrete type of the object will either be a project {@link Dependency} or
-     * a set of maven coordinates as a {@link String}. Project dependencies point to
-     * a project in the Elasticsearch repo either under `:distribution:bwc`,
-     * `:distribution:archives` or :distribution:packages`. Maven coordinates point to
-     * either the integ-test-zip coordinates on maven central, or a set of artificial
+     * The concrete type of the object will be a set of maven coordinates as a {@link String}.
+     * Maven coordinates point to either the integ-test-zip coordinates on maven central, or a set of artificial
      * coordinates that resolve to the Elastic download service through an ivy repository.
      */
     private Object dependencyNotation(ElasticsearchDistribution distribution) {
         if (distribution.getType() == Type.INTEG_TEST_ZIP) {
             return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
+
         Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
         String classifier = ":x86_64";

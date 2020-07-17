@@ -156,7 +156,6 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
             args.add("-D" + sysProps[i] + "=" + sysProps[i + 1]);
         }
         args.add("-i");
-        args.add("--stacktrace");
         GradleRunner runner = getGradleRunner("distribution-download").withArguments(args);
 
         BuildResult result = runner.build();

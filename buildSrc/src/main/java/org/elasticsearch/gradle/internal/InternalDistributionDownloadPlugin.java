@@ -35,6 +35,11 @@ import org.gradle.api.Project;
 
 import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
 
+/**
+ * An internal elasticsearch build plugin that registers additional
+ * distribution resolution strategies to the 'elasticsearch.download-distribution' plugin
+ * to resolve distributions from a local snapshot or a locally built bwc snapshot.
+ */
 public class InternalDistributionDownloadPlugin implements Plugin<Project> {
 
     private BwcVersions bwcVersions = null;
@@ -54,7 +59,16 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
     }
 
+    /**
+     * Registers internal distribution resolutions.
+     *
+     * Elasticsearch distributions are resolved as project dependencies either representing
+     * the current version pointing to a project either under `:distribution:archives` or :distribution:packages`.
+     *
+     * BWC versions are resolved as project to projects under `:distribution:bwc`.
+     * */
     private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
+
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 // non-external project, so depend on local build

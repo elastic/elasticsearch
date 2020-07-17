@@ -435,8 +435,7 @@ allprojects {
     }
     doLast {
       configurations.findAll { it.isCanBeResolved() &&
-        it.name.equals("testCompile") == false &&
-        it.name.equals("compile") == false
+        ((it instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) && it.canSafelyBeResolved())
       }.each { it.resolve() }
     }
   }

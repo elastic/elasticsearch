@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
-import java.util.Collections;
-
 public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final XPackLicenseState licenseState;
     private final Client client;

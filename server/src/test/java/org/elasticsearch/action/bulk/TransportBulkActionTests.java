@@ -169,7 +169,7 @@ public class TransportBulkActionTests extends ESTestCase {
         UpdateRequest badUpsertRequest = new UpdateRequest("index", "type", "id1");
         assertNull(TransportBulkAction.getIndexWriteRequest(badUpsertRequest));
     }
-    
+
     public void testProhibitAppendWritesInBackingIndices() throws Exception {
         String dataStreamName = "logs-foobar";
         ClusterState clusterState = createDataStream(dataStreamName);

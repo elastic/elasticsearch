@@ -95,7 +95,7 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .actionGet();
 
         final IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> client().prepareIndex("index").setId("1").setSource(Map.of("field", "value")).get());
+            () -> client().prepareIndex("index", "_doc").setId("1").setSource(Collections.singletonMap("field", "value")).get());
         assertThat(e, hasToString(containsString("final pipeline [final_pipeline] can't change the target index")));
     }
 
@@ -119,9 +119,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .actionGet();
 
         IndexResponse indexResponse = client()
-            .prepareIndex("index")
+            .prepareIndex("index", "_doc")
             .setId("1")
-            .setSource(Map.of("field", "value"))
+            .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
@@ -150,9 +150,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .actionGet();
 
         IndexResponse indexResponse = client()
-            .prepareIndex("index")
+            .prepareIndex("index", "_doc")
             .setId("1")
-            .setSource(Map.of("field", "value"))
+            .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
@@ -181,9 +181,9 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .actionGet();
 
         IndexResponse indexResponse = client()
-            .prepareIndex("index")
+            .prepareIndex("index", "_doc")
             .setId("1")
-            .setSource(Map.of("field", "value"))
+            .setSource(Collections.singletonMap("field", "value"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertEquals(RestStatus.CREATED, indexResponse.status());

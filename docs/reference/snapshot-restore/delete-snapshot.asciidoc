@@ -1,8 +1,5 @@
 [[delete-snapshots]]
 == Delete a snapshot
-++++
-<titleabbrev>Delete snapshot</titleabbrev>
-++++
 
 ////
 [source,console]

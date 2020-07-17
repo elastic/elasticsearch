@@ -11,18 +11,23 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.asyncsearch.AsyncSearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
+import org.hamcrest.CustomMatcher;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -33,7 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.XPackPlugin.ASYNC_RESULTS_INDEX;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -70,55 +75,42 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
     public void testWithDlsAndFls() throws Exception {
         Response submitResp = submitAsyncSearch("*", "*", TimeValue.timeValueSeconds(10), "user_dls");
         assertOK(submitResp);
-        Map<String, Object> submitRespMap = toMap(submitResp);
-        List<Map<String, Map<String, Object>>> hits = extractHits(submitRespMap);
-        assertThat(hits, contains(new BaseMatcher<>() {
-            @Override
-            @SuppressWarnings("unchecked")
-            public boolean matches(Object actual) {
-                if (actual instanceof Map) {
-                    Map<String, Object> searchHit = (Map<String, Object>) actual;
-                    return "index".equals(searchHit.get("_index")) &&
-                            "1".equals(searchHit.get("_id")) &&
-                            ((Map<String, Object>) searchHit.get("_source")).isEmpty();
-                }
-                return false;
-            }
+        String id = extractResponseId(submitResp);
+        Response getResp = getAsyncSearch(id, "user_dls");
+        AsyncSearchResponse searchResponse = AsyncSearchResponse.fromXContent(XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                new BytesArray(EntityUtils.toByteArray(getResp.getEntity())),
+                XContentType.JSON));
+        SearchHit[] hits = searchResponse.getSearchResponse().getHits().getHits();
 
-            @Override
-            public void describeTo(Description description) { }
-        }, new BaseMatcher<>() {
-            @Override
-            @SuppressWarnings("unchecked")
-            public boolean matches(Object actual) {
-                if (actual instanceof Map) {
-                    Map<String, Object> searchHit = (Map<String, Object>) actual;
-                    return "index".equals(searchHit.get("_index")) &&
-                            "2".equals(searchHit.get("_id")) &&
-                            ((Map<String, Object>) searchHit.get("_source")).size() == 1 &&
-                            "boo".equals(((Map<String, Object>) searchHit.get("_source")).get("baz"));
-                }
-                return false;
-            }
-
-            @Override
-            public void describeTo(Description description) {}
-        }, new BaseMatcher<>() {
-            @Override
-            @SuppressWarnings("unchecked")
-            public boolean matches(Object actual) {
-                if (actual instanceof Map) {
-                    Map<String, Object> searchHit = (Map<String, Object>) actual;
-                    return "index-user2".equals(searchHit.get("_index")) &&
-                            "1".equals(searchHit.get("_id")) &&
-                            ((Map<String, Object>) searchHit.get("_source")).isEmpty();
-                }
-                return false;
-            }
-
-            @Override
-            public void describeTo(Description description) { }
-        }));
+        assertThat(hits, arrayContainingInAnyOrder(
+                new CustomMatcher<SearchHit>("\"index\" doc 1 matcher") {
+                    @Override
+                    public boolean matches(Object actual) {
+                        SearchHit hit = (SearchHit) actual;
+                        return "index".equals(hit.getIndex()) &&
+                                "1".equals(hit.getId()) &&
+                                hit.getSourceAsMap().isEmpty();
+                    }
+                },
+                new CustomMatcher<SearchHit>("\"index\" doc 2 matcher") {
+                    @Override
+                    public boolean matches(Object actual) {
+                        SearchHit hit = (SearchHit) actual;
+                        return "index".equals(hit.getIndex()) &&
+                                "2".equals(hit.getId()) &&
+                                "boo".equals(hit.getSourceAsMap().get("baz"));
+                    }
+                },
+                new CustomMatcher<SearchHit>("\"index-user2\" doc 1 matcher") {
+                    @Override
+                    public boolean matches(Object actual) {
+                        SearchHit hit = (SearchHit) actual;
+                        return "index-user2".equals(hit.getIndex()) &&
+                                "1".equals(hit.getId()) &&
+                                hit.getSourceAsMap().isEmpty();
+                    }
+                }));
     }
 
     public void testWithUsers() throws Exception {

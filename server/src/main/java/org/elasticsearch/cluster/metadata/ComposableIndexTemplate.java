@@ -267,8 +267,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         /**
          * @return a mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
-        public Map<String, Object> getDataSteamMappingSnippet() {
-            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_data_stream_timestamp", Map.of("path", FIXED_TIMESTAMP_FIELD)));
+        public Map<String, Object> getDataStreamMappingSnippet() {
+            // _data_stream_timestamp meta fields default to @timestamp:
+            return Map.of(MapperService.SINGLE_MAPPING_NAME, Map.of("_data_stream_timestamp", Map.of("enabled", true)));
         }
 
         @Override

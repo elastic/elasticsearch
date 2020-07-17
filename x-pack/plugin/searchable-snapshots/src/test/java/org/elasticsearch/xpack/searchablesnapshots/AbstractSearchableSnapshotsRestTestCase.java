@@ -40,6 +40,8 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
@@ -214,17 +216,14 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testTemplate() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Map<String, Object> indexTemplate = indexTemplate(SearchableSnapshotsTemplateRegistry.SNAPSHOTS_CACHE_TEMPLATE_NAME);
-            assertThat("Expected searchable snapshots index template to exist", indexTemplate.size(), greaterThan(0));
-
             logger.fatal(indexTemplate);
-            final int templateVersion = extractValue(indexTemplate, "version");
+            assertThat("Expected searchable snapshots index template to exist", indexTemplate, notNullValue());
+            assertThat(extractValue(indexTemplate, "name"), equalTo(SearchableSnapshotsTemplateRegistry.SNAPSHOTS_CACHE_TEMPLATE_NAME));
             assertThat(
-                "Searchable snapshots index template version is not up to date",
-                templateVersion,
+                extractValue(indexTemplate, "index_template.version"),
                 equalTo(SearchableSnapshotsTemplateRegistry.INDEX_TEMPLATE_VERSION)
             );
-
-            final Version version = Version.fromString(extractValue(indexTemplate, "mappings._doc._meta.searchable-snapshot-version"));
+            final Version version = Version.fromString(extractValue(indexTemplate, "template.mappings._meta.searchable-snapshot-version"));
             assertThat("Searchable snapshots index template plugin version is not up to date", version, equalTo(Version.CURRENT));
         });
     }
@@ -426,13 +425,19 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     }
 
     protected static Map<String, Object> indexTemplate(String template) throws IOException {
-        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_template/" + template));
+        final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_index_template/" + template));
         assertThat(
             "Failed to get index template [" + template + "]: " + response,
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
-        return extractValue(responseAsMap(response), ".snapshots");
+        final List<?> indexTemplates = extractValue(responseAsMap(response), "index_templates");
+        assertThat(indexTemplates, notNullValue());
+        assertThat(indexTemplates, hasSize(greaterThanOrEqualTo(1)));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> indexTemplate = (Map<String, Object>) indexTemplates.get(0);
+        return indexTemplate;
     }
 
     protected static Map<String, Object> responseAsMap(Response response) throws IOException {

@@ -11,16 +11,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,11 +31,13 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsTemplateRegistry.SNAPSHOTS_CACHE_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,11 +83,11 @@ public class SearchableSnapshotsTemplateRegistryTests extends ESTestCase {
     public void testTemplateDoesNotExist() throws Exception {
         final ClusterState.Builder clusterState = newEmptyClusterState();
 
-        final PlainActionFuture<PutIndexTemplateRequest> executed = PlainActionFuture.newFuture();
+        final PlainActionFuture<PutComposableIndexTemplateAction.Request> executed = PlainActionFuture.newFuture();
         executeTest(clusterState, (action, request) -> {
-            if (action instanceof PutIndexTemplateAction) {
-                assertThat(request, instanceOf(PutIndexTemplateRequest.class));
-                executed.onResponse((PutIndexTemplateRequest) request);
+            if (action instanceof PutComposableIndexTemplateAction) {
+                assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
+                executed.onResponse((PutComposableIndexTemplateAction.Request) request);
                 return new AcknowledgedResponse(true);
             } else {
                 executed.onFailure(unsupportedAction(action));
@@ -93,14 +95,7 @@ public class SearchableSnapshotsTemplateRegistryTests extends ESTestCase {
             }
         });
 
-        final PutIndexTemplateRequest templateRequest = executed.get();
-        assertThat(templateRequest.name(), equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME));
-        assertThat(templateRequest.version(), equalTo(INDEX_TEMPLATE_VERSION));
-        assertThat(templateRequest.patterns(), hasItem(equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME + "-" + INDEX_TEMPLATE_VERSION)));
-        assertThat(templateRequest.patterns(), hasSize(1));
-        final List<String> aliases = templateRequest.aliases().stream().map(Alias::name).collect(Collectors.toList());
-        assertThat(aliases, hasItem(equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME)));
-        assertThat(aliases, hasSize(1));
+        assertComposableIndexTemplateRequest(executed.get());
     }
 
     public void testTemplateAlreadyExists() {
@@ -108,11 +103,15 @@ public class SearchableSnapshotsTemplateRegistryTests extends ESTestCase {
         clusterState.metadata(
             Metadata.builder()
                 .put(
-                    IndexTemplateMetadata.builder(".snapshots")
-                        .patterns(List.of(""))
-                        .version(1)
-                        .putAlias(AliasMetadata.builder(".snapshots").build())
-                        .build()
+                    ".snapshots",
+                    new ComposableIndexTemplate(
+                        List.of(".snapshots-0"),
+                        new Template(Settings.EMPTY, null, Map.of(".snapshots", AliasMetadata.builder(".snapshots").build())),
+                        null,
+                        123L,
+                        1L,
+                        emptyMap()
+                    )
                 )
                 .build()
         );
@@ -140,11 +139,11 @@ public class SearchableSnapshotsTemplateRegistryTests extends ESTestCase {
                 .build()
         );
 
-        final PlainActionFuture<PutIndexTemplateRequest> executed = PlainActionFuture.newFuture();
+        final PlainActionFuture<PutComposableIndexTemplateAction.Request> executed = PlainActionFuture.newFuture();
         executeTest(clusterState, (action, request) -> {
-            if (action instanceof PutIndexTemplateAction) {
-                assertThat(request, instanceOf(PutIndexTemplateRequest.class));
-                executed.onResponse((PutIndexTemplateRequest) request);
+            if (action instanceof PutComposableIndexTemplateAction) {
+                assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));
+                executed.onResponse((PutComposableIndexTemplateAction.Request) request);
                 return new AcknowledgedResponse(true);
             } else {
                 executed.onFailure(unsupportedAction(action));
@@ -152,14 +151,7 @@ public class SearchableSnapshotsTemplateRegistryTests extends ESTestCase {
             }
         });
 
-        final PutIndexTemplateRequest templateRequest = executed.get();
-        assertThat(templateRequest.name(), equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME));
-        assertThat(templateRequest.version(), equalTo(INDEX_TEMPLATE_VERSION));
-        assertThat(templateRequest.patterns(), hasItem(equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME + "-" + INDEX_TEMPLATE_VERSION)));
-        assertThat(templateRequest.patterns(), hasSize(1));
-        final List<String> aliases = templateRequest.aliases().stream().map(Alias::name).collect(Collectors.toList());
-        assertThat(aliases, hasItem(equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME)));
-        assertThat(aliases, hasSize(1));
+        assertComposableIndexTemplateRequest(executed.get());
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
@@ -174,6 +166,17 @@ public class SearchableSnapshotsTemplateRegistryTests extends ESTestCase {
         });
         assertThat(clusterState.build().nodes().getMasterNode(), nullValue());
         assertThat(executed.get(), is(false));
+    }
+
+    private static void assertComposableIndexTemplateRequest(final PutComposableIndexTemplateAction.Request templateRequest) {
+        assertThat(templateRequest.name(), equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME));
+        final ComposableIndexTemplate indexTemplate = templateRequest.indexTemplate();
+        assertThat(indexTemplate.version(), equalTo((long) INDEX_TEMPLATE_VERSION));
+        assertThat(indexTemplate.indexPatterns(), hasItem(equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME + "-" + INDEX_TEMPLATE_VERSION)));
+        assertThat(indexTemplate.indexPatterns(), hasSize(1));
+        final List<String> aliases = new ArrayList<>(indexTemplate.template().aliases().keySet());
+        assertThat(aliases, hasItem(equalTo(SNAPSHOTS_CACHE_TEMPLATE_NAME)));
+        assertThat(aliases, hasSize(1));
     }
 
     private Exception unsupportedAction(ActionType<?> action) {

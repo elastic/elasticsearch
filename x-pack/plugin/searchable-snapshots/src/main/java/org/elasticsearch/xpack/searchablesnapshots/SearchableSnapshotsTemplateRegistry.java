@@ -61,7 +61,7 @@ public class SearchableSnapshotsTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
+    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
         if (SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
             return List.of(
                 new IndexTemplateConfig(

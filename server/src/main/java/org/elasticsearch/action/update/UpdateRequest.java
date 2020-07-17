@@ -124,6 +124,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
+    private boolean requireAlias = false;
 
     @Nullable
     private IndexRequest doc;
@@ -160,6 +161,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         ifPrimaryTerm = in.readVLong();
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            requireAlias = in.readBoolean();
+        } else {
+            requireAlias = false;
+        }
     }
 
     public UpdateRequest(String index, String id) {
@@ -809,6 +815,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
+    public boolean isRequireAlias() {
+        return requireAlias;
+    }
+
+    public UpdateRequest setRequireAlias(boolean requireAlias) {
+        this.requireAlias = requireAlias;
+        return this;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         doWrite(out, false);
@@ -867,6 +883,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(requireAlias);
+        }
     }
 
     @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -71,6 +73,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
     private final NodeClient client;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
@@ -83,6 +86,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
@@ -115,6 +119,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
+        if (request.isRequireAlias() && (clusterService.state().getMetadata().hasAlias(request.index()) == false)) {
+            throw new IndexNotFoundException("["
+                + DocWriteRequest.REQUIRE_ALIAS
+                + "] request flag is [true] and ["
+                + request.index()
+                + "] is not an alias", request.index());
+        }
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             client.admin().indices().create(new CreateIndexRequest()

@@ -23,6 +23,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public final class ScriptBinaryFieldData extends AbstractIndexComponent
@@ -44,9 +44,11 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
 
     public static class Builder implements IndexFieldData.Builder {
 
+        private final Script script;
         private final StringScriptFieldScript.Factory scriptFactory;
 
-        public Builder(StringScriptFieldScript.Factory scriptFactory) {
+        public Builder(Script script, StringScriptFieldScript.Factory scriptFactory) {
+            this.script = script;
             this.scriptFactory = scriptFactory;
         }
 
@@ -58,23 +60,25 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            return new ScriptBinaryFieldData(indexSettings, fieldType.name(), scriptFactory);
+            return new ScriptBinaryFieldData(indexSettings, fieldType.name(), script, scriptFactory);
         }
     }
 
     private final String fieldName;
+    private final Script script;
     private final StringScriptFieldScript.Factory scriptFactory;
     private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
 
-    private ScriptBinaryFieldData(IndexSettings indexSettings, String fieldName, StringScriptFieldScript.Factory scriptFactory) {
+    private ScriptBinaryFieldData(IndexSettings indexSettings, String fieldName,
+                                  Script script, StringScriptFieldScript.Factory scriptFactory) {
         super(indexSettings);
         this.fieldName = fieldName;
+        this.script = script;
         this.scriptFactory = scriptFactory;
     }
 
     public void setSearchLookup(SearchLookup searchLookup) {
-        // TODO wire the params from the mappings definition, we don't parse them yet
-        this.leafFactory.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup));
+        this.leafFactory.set(scriptFactory.newFactory(script.getParams(), searchLookup));
     }
 
     @Override

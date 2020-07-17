@@ -59,8 +59,7 @@ using metrics.
       HTTP connection information.
 
   `indexing_pressure`::
-        Indexing pressure statistics about current and total indexing load and
-        indexing rejections.
+        Statistics about the node's indexing load and related rejections.
 
   `indices`::
       Indices stats about size, document count, indexing and deletion times,
@@ -2113,30 +2112,40 @@ Contains <<index-modules-indexing-pressure,indexing pressure>> statistics for th
 ======
 `total`::
 (object)
-Contains statistics for cumulative indexing load since the node started.
+Contains statistics for the cumulative indexing load since the node started.
 +
 .Properties of `<total>`
 [%collapsible%open]
 =======
-`coordinating_and_primary_bytes`::
+`combined_coordinating_and_primary_bytes`::
 (integer)
-Bytes consumed by indexing requests in the coordinating or primary stage.
+Bytes consumed by indexing requests in the coordinating or primary stage. This
+value is not the sum of coordinating_bytes and primary_bytes as a node can reuse
+the coordinating bytes if the primary is executed locally.
 
-`replica_bytes`::
+`coordinating_bytes`::
 (integer)
-Bytes consumed by indexing requests in the replica stage.
+Bytes consumed by indexing requests in the coordinating stage.
+
+`primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the primary stage.
 
 `all_bytes`::
 (integer)
 Bytes consumed by indexing requests in the coordinating, primary, or replica stage.
 
-`coordinating_and_primary_memory_limit_rejections`::
+`coordinating_rejections`::
 (integer)
-Rejections of indexing requests in the coordinating or primary stage.
+Number of indexing requests rejected in the coordinating stage.
 
-`replica_memory_limit_rejections`::
+`primary_rejections`::
 (integer)
-Rejections of indexing requests in the replica stage.
+Number of indexing requests rejected in the primary stage.
+
+`replica_rejections`::
+(integer)
+Number of indexing requests rejected in the replica stage.
 =======
 `current`::
 (object)
@@ -2145,9 +2154,19 @@ Contains statistics for current indexing load.
 .Properties of `<current>`
 [%collapsible%open]
 =======
-`coordinating_and_primary_bytes`::
+`combined_coordinating_and_primary_bytes`::
 (integer)
-Bytes consumed by indexing requests in the coordinating or primary stage.
+Bytes consumed by indexing requests in the coordinating or primary stage. This
+value is not the sum of coordinating_bytes and primary_bytes as a node can reuse
+the coordinating bytes if the primary is executed locally.
+
+`coordinating_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating stage.
+
+`primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the primary stage.
 
 `replica_bytes`::
 (integer)

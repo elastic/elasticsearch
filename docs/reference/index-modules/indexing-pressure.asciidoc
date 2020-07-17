@@ -15,20 +15,22 @@ replication.
 Elasticsearch internally monitors indexing load. When the load exceeds
 certain limits, new indexing work will be rejected.
 
-[float]
+[discrete]
+[[indexing-stages]]
 === Indexing stages
 
 External indexing operations go through three stages: coordinating, primary, and
-replica. This write model is explained <<basic-write-model,here>>.
+replica. See <<basic-write-model,here>>.
 
-[float]
+[discrete]
+[[memory-limits]]
 === Memory limits
 
-Elasticsearch exposes a node setting `.memory.limitindexing_pressure` which
-restricts the number of bytes for outstanding indexing requests. By default,
-this setting is configured to be 10% of the heap.
+The `indexing_pressure.memory.limit` node setting restricts the number of bytes
+available for outstanding indexing requests. This setting defaults to 10% of
+the heap.
 
-At the beginning of each indexing stage, Elasticsearch accounts for the
+At the beginning of each indexing stage, {es} accounts for the
 bytes consumed by an indexing request. This accounting is only released at the
 end of the indexing stage. This means that upstream stages will account for the
 request overheard until all downstream stages are complete. For example, the
@@ -38,13 +40,13 @@ in-sync replica has responded to enable replica retries if necessary.
 
 A node will start rejecting new indexing work at the coordinating or primary
 stage when the number of outstanding coordinating, primary, and replica indexing
-bytes are greater than the configured limit.
+bytes exceeds the configured limit.
 
 A node will start rejecting new indexing work at the replica stage when the
-number of outstanding replica indexing bytes are greater than 1.5x the
-configured limit. This design means that as indexing pressure builds on nodes,
-they will naturally stop accepting coordinating and primary work in favor of
-outstanding replica work.
+number of outstanding replica indexing bytes exceeds 1.5x the configured limit.
+This design means that as indexing pressure builds on nodes, they will naturally
+stop accepting coordinating and primary work in favor of outstanding replica
+work.
 
 The default limit `indexing_pressure.memory.limit` (10%) is generously sized and
 should only be modified after careful consideration. Only indexing requests
@@ -53,13 +55,16 @@ contribute to this limit meaning that there is additional indexing overhead
 components of Elasticsearch also require memory. Configuring this limit to be
 too high can starve other system components of operating memory.
 
-[float]
+[discrete]
+[[indexing-pressure-monitoring]]
 === Monitoring
 
-Indexing pressure metrics are exposed by the
-<<cluster-nodes-stats-api-response-body-indexing-pressure,Node Stats API>>.
+You can use the
+<<cluster-nodes-stats-api-response-body-indexing-pressure,node stats API>> to
+retrieve indexing pressure metrics.
 
-[float]
+[discrete]
+[[indexing-pressure-settings]]
 === Indexing pressure settings
 
 `indexing_pressure`::

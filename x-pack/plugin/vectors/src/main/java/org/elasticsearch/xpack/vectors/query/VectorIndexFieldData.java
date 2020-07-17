@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -28,16 +27,14 @@ import org.elasticsearch.search.sort.SortOrder;
 
 public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldData> {
 
-    protected final Index index;
     protected final String fieldName;
     private final boolean isDense;
     protected final ValuesSourceType valuesSourceType;
 
-    public VectorIndexFieldData(Index index, String fieldName, boolean isDense, ValuesSourceType valuesSourceType) {
+    public VectorIndexFieldData(String fieldName, boolean isDense, ValuesSourceType valuesSourceType) {
+        this.fieldName = fieldName;
         this.isDense = isDense;
         this.valuesSourceType = valuesSourceType;
-        this.index = index;
-        this.fieldName = fieldName;
     }
 
     @Override
@@ -53,11 +50,6 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
     @Override
     public final void clear() {
         // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
     }
 
     @Override
@@ -93,7 +85,7 @@ public class VectorIndexFieldData implements IndexFieldData<VectorDVLeafFieldDat
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             final String fieldName = fieldType.name();
-            return new VectorIndexFieldData(indexSettings.getIndex(), fieldName, isDense, valuesSourceType);
+            return new VectorIndexFieldData(fieldName, isDense, valuesSourceType);
         }
 
     }

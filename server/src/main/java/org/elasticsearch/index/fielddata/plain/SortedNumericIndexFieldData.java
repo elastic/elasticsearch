@@ -29,7 +29,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -73,17 +72,15 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new SortedNumericIndexFieldData(indexSettings.getIndex(), fieldName, numericType);
+            return new SortedNumericIndexFieldData(fieldName, numericType);
         }
     }
 
     private final NumericType numericType;
-    protected final Index index;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
-    public SortedNumericIndexFieldData(Index index, String fieldName, NumericType numericType) {
-        this.index = index;
+    public SortedNumericIndexFieldData(String fieldName, NumericType numericType) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         this.valuesSourceType = numericType.getValuesSourceType();
@@ -102,11 +99,6 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     @Override
     public final void clear() {
         // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
     }
 
     @Override

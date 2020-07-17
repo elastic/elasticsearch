@@ -221,6 +221,16 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     }
 
     @Override
+    public List<String> inputFields() {
+        return Collections.singletonList(fieldName);
+    }
+
+    @Override
+    public List<String> outputFields() {
+        return Collections.singletonList(destField);
+    }
+
+    @Override
     public void process(Map<String, Object> fields) {
         Object field = fields.get(fieldName);
         if ((field instanceof String) == false) {
@@ -239,6 +249,11 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     @Override
     public Map<String, String> reverseLookup() {
         return Collections.singletonMap(destField, fieldName);
+    }
+
+    @Override
+    public boolean isCustom() {
+        return false;
     }
 
     @Override

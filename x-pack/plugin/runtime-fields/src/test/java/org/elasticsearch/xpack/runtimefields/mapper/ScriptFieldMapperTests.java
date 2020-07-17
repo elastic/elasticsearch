@@ -25,6 +25,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +35,12 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
 
-    private static final String[] SUPPORTED_RUNTIME_TYPES = new String[] { "keyword" };
+    private final String[] runtimeTypes;
+
+    public ScriptFieldMapperTests() {
+        this.runtimeTypes = ScriptFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
+        Arrays.sort(runtimeTypes);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -49,7 +55,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("my_field")
             .field("type", "script")
-            .field("script", "value('test')")
+            .field("script", "keyword('test')")
             .endObject()
             .endObject()
             .endObject()
@@ -67,7 +73,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("my_field")
             .field("type", "script")
-            .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
+            .field("runtime_type", randomFrom(runtimeTypes))
             .endObject()
             .endObject()
             .endObject()
@@ -84,7 +90,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("my_field")
             .field("type", "script")
-            .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
+            .field("runtime_type", randomFrom(runtimeTypes))
             .startObject("script")
             .field("id", "test")
             .endObject()
@@ -99,49 +105,72 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testUnsupportedRuntimeType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "script")
+            .field("runtime_type", "unsupported")
+            .startObject("script")
+            .field("source", "keyword('test')")
+            .field("lang", "test")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        MapperParsingException exc = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
+        assertEquals("Failed to parse mapping: runtime_type [unsupported] not supported", exc.getMessage());
+    }
+
     public void testFieldCaps() throws Exception {
-        {
-            XContentBuilder mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "script")
-                .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
-                .startObject("script")
-                .field("source", "value('test')")
-                .field("lang", "test")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-            createIndex("test_script", Settings.EMPTY, mapping);
+        for (String runtimeType : runtimeTypes) {
+            {
+                XContentBuilder mapping = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "script")
+                    .field("runtime_type", runtimeType)
+                    .startObject("script")
+                    .field("source", runtimeType + "('test')")
+                    .field("lang", "test")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject();
+                createIndex("test_script", Settings.EMPTY, mapping);
+            }
+            {
+                XContentBuilder mapping = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", runtimeType)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject();
+                createIndex("test_concrete", Settings.EMPTY, mapping);
+            }
+            FieldCapabilitiesResponse response = client().prepareFieldCaps("test_*").setFields("field").get();
+            assertThat(response.getIndices(), arrayContainingInAnyOrder("test_script", "test_concrete"));
+            Map<String, FieldCapabilities> field = response.getField("field");
+            assertEquals(1, field.size());
+            FieldCapabilities fieldCapabilities = field.get(KeywordFieldMapper.CONTENT_TYPE);
+            assertTrue(fieldCapabilities.isSearchable());
+            assertTrue(fieldCapabilities.isAggregatable());
+            assertEquals(runtimeType, fieldCapabilities.getType());
+            assertNull(fieldCapabilities.nonAggregatableIndices());
+            assertNull(fieldCapabilities.nonSearchableIndices());
+            assertEquals("field", fieldCapabilities.getName());
         }
-        {
-            XContentBuilder mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("_doc")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-            createIndex("test_concrete", Settings.EMPTY, mapping);
-        }
-        FieldCapabilitiesResponse response = client().prepareFieldCaps("test_*").setFields("field").get();
-        assertThat(response.getIndices(), arrayContainingInAnyOrder("test_script", "test_concrete"));
-        Map<String, FieldCapabilities> field = response.getField("field");
-        assertEquals(1, field.size());
-        FieldCapabilities fieldCapabilities = field.get(KeywordFieldMapper.CONTENT_TYPE);
-        assertTrue(fieldCapabilities.isSearchable());
-        assertTrue(fieldCapabilities.isAggregatable());
-        assertEquals(KeywordFieldMapper.CONTENT_TYPE, fieldCapabilities.getType());
-        assertNull(fieldCapabilities.nonAggregatableIndices());
-        assertNull(fieldCapabilities.nonSearchableIndices());
-        assertEquals("field", fieldCapabilities.getName());
     }
 
     public void testDefaultMapping() throws Exception {
@@ -151,9 +180,9 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("field")
             .field("type", "script")
-            .field("runtime_type", randomFrom(SUPPORTED_RUNTIME_TYPES))
+            .field("runtime_type", randomFrom(runtimeTypes))
             .startObject("script")
-            .field("source", "value('test')")
+            .field("source", "keyword('test')")
             .field("lang", "test")
             .endObject()
             .endObject()
@@ -183,7 +212,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
                     ScriptContext<FactoryType> context,
                     Map<String, String> paramsMap
                 ) {
-                    if ("value('test')".equals(code)) {
+                    if ("keyword('test')".equals(code)) {
                         StringScriptFieldScript.Factory factory = (params, lookup) -> ctx -> new StringScriptFieldScript(
                             params,
                             lookup,

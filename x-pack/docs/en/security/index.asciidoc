@@ -9,7 +9,6 @@ measures such as encrypting communications, role-based access control,
 IP filtering, and auditing.
 
 * <<elasticsearch-security>>
-* <<encrypting-communications>>
 * <<configuring-security>>
 * <<setting-up-authentication>>
 * <<saml-guide>>

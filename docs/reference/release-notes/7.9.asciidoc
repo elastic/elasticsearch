@@ -7,12 +7,6 @@ Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 [float]
 === Breaking changes
 
-Aggregations::
-* Improve cardinality measure used to build aggs {es-pull}56533[#56533] (issue: {es-issue}56487[#56487])
-
-Features/Ingest::
-* Add optional description parameter to ingest processors. {es-pull}57906[#57906] (issue: {es-issue}56000[#56000])
-
 Script Cache::
 * Script cache size and rate limiting are per-context {es-pull}55753[#55753] (issue: {es-issue}50152[#50152])
 
@@ -44,15 +38,26 @@ Dangling indices::
   <<deprecate_auto_import_dangling_indices,migration notes>>.
   {es-pull}58176[#58176] {es-pull}58898[#58898] (issue: {es-issue}48366[#48366])
 
+[[breaking-java-7.9.0]]
+[float]
+=== Breaking Java changes
+
+Aggregations::
+* Improve cardinality measure used to build aggs {es-pull}56533[#56533] (issue: {es-issue}56487[#56487])
+
+Features/Ingest::
+* Add optional description parameter to ingest processors. {es-pull}57906[#57906] (issue: {es-issue}56000[#56000])
+
+
 
 [[feature-7.9.0]]
 [float]
 === New features
 
 Aggregations::
-* Add Variable Width Histogram Aggregation {es-pull}42035[#42035] (issues: {es-issue}9572[#9572], {es-issue}50863[#50863])
 * Add moving percentiles pipeline aggregation {es-pull}55441[#55441] (issue: {es-issue}49452[#49452])
 * Add Normalize Pipeline Aggregation {es-pull}56399[#56399] (issue: {es-issue}51005[#51005])
+* Add Variable Width Histogram Aggregation {es-pull}42035[#42035] (issues: {es-issue}9572[#9572], {es-issue}50863[#50863])
 * Pipeline Inference Aggregation {es-pull}58193[#58193]
 * Speed up time interval arounding around dst {es-pull}56371[#56371] (issue: {es-issue}55559[#55559])
 
@@ -101,6 +106,7 @@ Allocation::
 Analysis::
 * Add max_token_length setting to the CharGroupTokenizer {es-pull}56860[#56860] (issue: {es-issue}56676[#56676])
 * Expose discard_compound_token option to kuromoji_tokenizer {es-pull}57421[#57421]
+* Support multiple tokens on LHS in stemmer_override rules (#56113) {es-pull}56484[#56484] (issue: {es-issue}56113[#56113])
 
 Authentication::
 * Add http proxy support for OIDC realm {es-pull}57039[#57039] (issue: {es-issue}53379[#53379])
@@ -152,6 +158,9 @@ Features/Java Low Level REST Client::
 * Add isRunning method to RestClient {es-pull}57973[#57973] (issue: {es-issue}42133[#42133])
 * Add RequestConfig support to RequestOptions {es-pull}57972[#57972]
 
+Infra/Circuit Breakers::
+* Enhance real memory circuit breaker with G1 GC {es-pull}58674[#58674] (issue: {es-issue}57202[#57202])
+
 Infra/Core::
 * Introduce node.roles setting {es-pull}54998[#54998]
 
@@ -165,6 +174,7 @@ Infra/Resiliency::
 * Adds resiliency to read-only filesystems #45286 {es-pull}52680[#52680] (issue: {es-issue}45286[#45286])
 
 Machine Learning::
+* Accounting for model size when models are not cached. {es-pull}58670[#58670]
 * Adds new for_export flag to GET _ml/inference API {es-pull}57351[#57351]
 * Adds WKT geometry detection in find_file_structure {es-pull}57014[#57014] (issue: {es-issue}56967[#56967])
 * Calculate cache misses for inference and return in stats {es-pull}58252[#58252]
@@ -192,17 +202,18 @@ Reindex::
 * Throw an illegal_argument_exception when max_docs is less than slices {es-pull}54901[#54901] (issue: {es-issue}52786[#52786])
 
 SQL::
-* Implement DATE_PARSE function for parsing strings into DATE values [OPEN] {es-pull}57391[#57391] (issue: {es-issue}54962[#54962])
 * Implement TIME_PARSE function for parsing strings into TIME values {es-pull}55223[#55223] (issues: {es-issue}54963[#54963], {es-issue}55095[#55095])
 * Implement TOP as an alternative to LIMIT {es-pull}57428[#57428] (issue: {es-issue}41195[#41195])
 * Implement TRIM function {es-pull}57518[#57518] (issue: {es-issue}41195[#41195])
 * Improve performances of LTRIM/RTRIM {es-pull}57603[#57603] (issue: {es-issue}57594[#57594])
 * Make CASTing string to DATETIME more lenient {es-pull}57451[#57451]
+* Redact credentials in connection exceptions {es-pull}58650[#58650] (issue: {es-issue}56474[#56474])
 * Relax parsing of date/time escaped literals {es-pull}58336[#58336] (issue: {es-issue}58262[#58262])
 * SQL/EQL: Add support for scalars within LIKE/RLIKE {es-pull}56495[#56495] (issue: {es-issue}55058[#55058])
 
 Search::
 * Add description to submit and get async search, as well as cancel tasks {es-pull}57745[#57745]
+* Add matchBoolPrefix static method in query builders {es-pull}58637[#58637] (issue: {es-issue}58388[#58388])
 * Add range query support to wildcard field {es-pull}57881[#57881] (issue: {es-issue}57816[#57816])
 * Executes incremental reduce in the search thread pool [OPEN] {es-pull}58461[#58461] (issues: {es-issue}51857[#51857], {es-issue}53411[#53411])
 * Group docIds by segment in FetchPhase to better use LRU cache {es-pull}57273[#57273]
@@ -291,6 +302,7 @@ Search::
 * Fix casting of scaled_float in sorts {es-pull}57207[#57207]
 
 Snapshot/Restore::
+* Account for recovery throttling when restoring snapshot {es-pull}58658[#58658] (issue: {es-issue}57023[#57023])
 * Fix Noisy Logging during Snapshot Delete {es-pull}56264[#56264]
 * Fix S3ClientSettings Leak {es-pull}56703[#56703] (issue: {es-issue}56702[#56702])
 

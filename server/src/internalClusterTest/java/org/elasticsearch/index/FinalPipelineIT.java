@@ -418,7 +418,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
                         public String getType() {
                             return "request";
                         }
-                    },
+                    });
+            map.put(
                 "changing_dest", (processorFactories, tag, description, config) ->
                     new AbstractProcessor(tag, description) {
                         @Override

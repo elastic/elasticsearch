@@ -70,7 +70,7 @@ See <<paginate-search-results>>.
 
 [role="exclude",id="search-request-highlighting"]
 === Highlight parameter for request body search API
-See <<request-body-search-highlighting>>.
+See <<highlighting>>.
 
 [role="exclude",id="search-request-index-boost"]
 === Index boost parameter for request body search API
@@ -936,4 +936,12 @@ See <<source-filtering, source filtering>>.
 ==== Doc value fields
 
 See <<docvalue-fields, doc value fields>>.
+
+[role="exclude",id="request-body-search-highlighting"]
+==== Highlighting
+See <<highlighting>>.
+
+[role="exclude",id="highlighter-internal-work"]
+==== How highlighters work internally
+See <<how-highlighters-work-internally>>.
 ////

@@ -72,11 +72,18 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         static final Map<String, BiFunction<Builder, BuilderContext, MappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
-            KeywordFieldMapper.CONTENT_TYPE, (builder, context) -> {
+            KeywordFieldMapper.CONTENT_TYPE,
+            (builder, context) -> {
                 StringScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
-                    builder.script.getValue(), StringScriptFieldScript.CONTEXT);
+                    builder.script.getValue(),
+                    StringScriptFieldScript.CONTEXT
+                );
                 return new RuntimeKeywordMappedFieldType(
-                    builder.buildFullName(context), builder.script.getValue(), factory, builder.meta.getValue());
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
             }
         );
 
@@ -123,7 +130,9 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScriptFieldMapper build(BuilderContext context) {
-            BiFunction<Builder, BuilderContext, MappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(runtimeType.getValue());
+            BiFunction<Builder, BuilderContext, MappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+                runtimeType.getValue()
+            );
             if (fieldTypeResolver == null) {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType.getValue() + "] not supported");
             }

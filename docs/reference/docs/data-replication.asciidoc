@@ -48,10 +48,10 @@ The primary shard follows this basic flow:
 Each in-sync replica copy performs the indexing operation locally so that it has a copy. This stage of indexing is the replication
 stage.
 
-These indexing stages (coordinating, primary, and replication) are sequential. However, each upstream stage is inclusive of the
-downstream stages. The coordinating stage is not complete until each primary stage (which might be spread out across different
-primary shards) has completed. Each primary stage will not complete until the in-sync replicas have completed replication and
-responded to the replication requests.
+These indexing stages (coordinating, primary, and replica) are sequential. However, the lifetime of each stage encompasses
+the lifetimes of subsequent stages in order to enable internal retries. The coordinating stage is not complete until each primary
+stage (which might be spread out across different primary shards) has completed. Each primary stage will not complete until the
+in-sync replicas have completed indexing the docs locally and responded to the replica requests.
 
 [float]
 ===== Failure handling

@@ -19,32 +19,32 @@ certain limits, new indexing work will be rejected.
 === Indexing Stages
 
 External indexing operations go through three stages: coordinating, primary, and
-replication. This write model is explain <<basic-write-model,here>>.
+replica. This write model is explained <<basic-write-model,here>>.
 
 [float]
 === Memory Limits
 
 Elasticsearch exposes a node setting `indexing_pressure.memory.limit` which
-restricts the number of bytes for outstanding indexing requests. Be default,
+restricts the number of bytes for outstanding indexing requests. By default,
 this setting is configured to be 10% of the heap.
 
 At the beginning of each <<indexing stage,here>>, Elasticsearch accounts for the
 bytes consumed by an indexing request. This accounting is only released at the
 end of the indexing stage. This means that upstream stages will account for the
 request overheard until all downstream stages are complete. For example, the
-coordinating request will remain accounted for until primary and replication
-stages are complete. The primary request will remain accounted for until the
-replication stage is complete.
+coordinating request will remain accounted for until primary and replica
+stages are complete. The primary request will remain accounted for until each
+in-sync replica has responded to enable replica retries if necessary.
 
 A node will start rejecting new indexing work at the coordinating or primary
 stage when the number of outstanding coordinating, primary, and replica indexing
 bytes are greater than the configured limit.
 
-A node will start rejecting new indexing work at the replication stage when the
-number of outstanding replication indexing bytes are greater than 1.5x the
+A node will start rejecting new indexing work at the replica stage when the
+number of outstanding replica indexing bytes are greater than 1.5x the
 configured limit. This design means that as indexing pressure builds on nodes,
 they will naturally stop accepting coordinating and primary work in favor of
-outstanding replication work.
+outstanding replica work.
 
 The default limit `indexing_pressure.memory.limit` (10%) is generously sized and
 should only be modified after careful consideration. Only indexing requests

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
@@ -69,6 +71,22 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
+        static final Map<String, BiFunction<Builder, BuilderContext, MappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+            KeywordFieldMapper.CONTENT_TYPE,
+            (builder, context) -> {
+                StringScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    StringScriptFieldScript.CONTEXT
+                );
+                return new RuntimeKeywordMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            }
+        );
+
         private static ScriptFieldMapper toType(FieldMapper in) {
             return (ScriptFieldMapper) in;
         }
@@ -112,13 +130,13 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScriptFieldMapper build(BuilderContext context) {
-            MappedFieldType mappedFieldType;
-            if (runtimeType.getValue().equals("keyword")) {
-                StringScriptFieldScript.Factory factory = scriptCompiler.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
-                mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script.getValue(), factory, meta.getValue());
-            } else {
+            BiFunction<Builder, BuilderContext, MappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+                runtimeType.getValue()
+            );
+            if (fieldTypeResolver == null) {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType.getValue() + "] not supported");
             }
+            MappedFieldType mappedFieldType = fieldTypeResolver.apply(this, context);
             // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
             return new ScriptFieldMapper(
                 name,

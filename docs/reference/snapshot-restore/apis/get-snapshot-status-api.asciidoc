@@ -88,9 +88,7 @@ Use the get snapshot status API to retrieve detailed information about snapshots
 
 If you specify both the repository name and snapshot, the request retrieves detailed status information for the given snapshot, even if not currently running.
 
-WARNING: Using this API to return any status results other than the currently running snapshots (`_current`) can be very expensive. Each request to retrieve snapshot status results in file reads from every shard in a snapshot, for each snapshot.
-+
-For example, if you have 100 snapshots with 1,000 shards each, the API request will result in 100,000 file reads (100 snapshots * 1,000 shards). Depending on the latency of your file storage, the request can take extremely long to retrieve results.
+include::{es-ref-dir}/snapshot-restore/monitor-snapshot-restore.asciidoc[tag=get-snapshot-status-warning]
 
 [[get-snapshot-status-api-path-params]]
 ==== {api-path-parms-title}

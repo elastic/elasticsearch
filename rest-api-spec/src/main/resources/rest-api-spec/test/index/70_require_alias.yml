@@ -1,9 +1,8 @@
 ---
 "Set require_alias flag":
   - skip:
-      # TODO adjust after backport
-      version: " - 7.99.99"
-      reason: "require_alias flag added in 7.9+"
+      version: " - 7.9.99"
+      reason: "require_alias flag added in 7.10"
   - do:
       catch: missing
       index:

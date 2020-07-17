@@ -164,7 +164,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             ifSeqNo = UNASSIGNED_SEQ_NO;
             ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
@@ -767,7 +767,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
                     "Stream version [" + out.getVersion() + "]");
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
     }

@@ -49,21 +49,21 @@ public class BulkRequestParserTests extends ESTestCase {
         assertTrue(parsed.get());
 
         parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
-            (indexRequest, type) -> {
+            indexRequest -> {
                 assertTrue(indexRequest.isRequireAlias());
             },
             req -> fail(), req -> fail());
 
         request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
-            (indexRequest, type) -> {
+            indexRequest -> {
                 assertTrue(indexRequest.isRequireAlias());
             },
             req -> fail(), req -> fail());
 
         request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
         parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
-            (indexRequest, type) -> {
+            indexRequest -> {
                 assertFalse(indexRequest.isRequireAlias());
             },
             req -> fail(), req -> fail());
@@ -101,7 +101,7 @@ public class BulkRequestParserTests extends ESTestCase {
         assertTrue(parsed.get());
 
         parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
-            (req, type) -> fail(),
+            req -> fail(),
             updateRequest -> {
                 assertTrue(updateRequest.isRequireAlias());
             },
@@ -109,7 +109,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
         request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON,
-            (req, type) -> fail(),
+            req -> fail(),
             updateRequest -> {
                 assertTrue(updateRequest.isRequireAlias());
             },
@@ -117,7 +117,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
         request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
         parser.parse(request, "foo", null, null, null, true, false, XContentType.JSON,
-            (req, type) -> fail(),
+            req -> fail(),
             updateRequest -> {
                 assertFalse(updateRequest.isRequireAlias());
             },
@@ -136,7 +136,7 @@ public class BulkRequestParserTests extends ESTestCase {
     public void testFailOnExplicitIndex() {
         BytesArray request = new BytesArray("{ \"index\":{ \"_index\": \"foo\", \"_id\": \"bar\" } }\n{}\n");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean());
-        
+
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse(request, null, null, null, null, null, false, XContentType.JSON,
                         req -> fail(), req -> fail(), req -> fail()));

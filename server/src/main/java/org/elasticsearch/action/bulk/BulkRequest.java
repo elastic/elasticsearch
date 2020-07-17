@@ -259,7 +259,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     @Deprecated
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, defaultType, null, null, null, true, xContentType);
+        return add(data, defaultIndex, defaultType, null, null, null, null, true, xContentType);
     }
 
     /**
@@ -293,7 +293,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             @Nullable String defaultPipeline, boolean allowExplicitIndex,
             XContentType xContentType) throws IOException {
         return add(data, defaultIndex, MapperService.SINGLE_MAPPING_NAME, defaultRouting, defaultFetchSourceContext,
-                defaultPipeline, allowExplicitIndex, xContentType);
+                defaultPipeline, null, allowExplicitIndex, xContentType);
     }
 
     /**
@@ -308,7 +308,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
         new BulkRequestParser(true).parse(data, defaultIndex, defaultType, routing, defaultFetchSourceContext, pipeline, requireAlias,
-                allowExplicitIndex, xContentType, (indexRequest, type) -> internalAdd(indexRequest), this::internalAdd, this::add);
+                allowExplicitIndex, xContentType, this::internalAdd, this::internalAdd, this::add);
         return this;
     }
 

@@ -1687,17 +1687,6 @@ less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
 =======
 
-`least_usage_estimate`::
-(object)
-Contains statistics for the file store with the least estimated usage. See
-<<cluster-nodes-stats-fs-data,`fs.data`>> for a list of child parameters.
-
-
-`most_usage_estimate`::
-(object)
-Contains statistics for the file store with the most estimated usage. See
-<<cluster-nodes-stats-fs-data,`fs.data`>> for a list of child parameters.
-
 [[cluster-nodes-stats-fs-data]]
 `data`::
 (array of objects)
@@ -1713,9 +1702,6 @@ Path to the file store.
 `mount`::
 (string)
 Mount point of the file store (ex: /dev/sda2).
-+
-NOTE: This parameter is not provided for the `least_usage_estimate` or
-`most_usage_estimate` file stores.
 
 `type`::
 (string)

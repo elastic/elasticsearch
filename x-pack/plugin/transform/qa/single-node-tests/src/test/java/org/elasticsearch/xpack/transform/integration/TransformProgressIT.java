@@ -135,10 +135,10 @@ public class TransformProgressIT extends ESRestTestCase {
         assertGetProgress(randomIntBetween(1, 25));
     }
 
-    public void assertGetProgress(int skipUserAsMissing) throws Exception {
+    public void assertGetProgress(int userWithMissingBuckets) throws Exception {
         String transformId = "get_progress_transform";
-        boolean missingBucket = skipUserAsMissing > 0;
-        createReviewsIndex(skipUserAsMissing);
+        boolean missingBucket = userWithMissingBuckets > 0;
+        createReviewsIndex(userWithMissingBuckets);
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
         DestConfig destConfig = new DestConfig("unnecessary", null);
         GroupConfig histgramGroupConfig = new GroupConfig(

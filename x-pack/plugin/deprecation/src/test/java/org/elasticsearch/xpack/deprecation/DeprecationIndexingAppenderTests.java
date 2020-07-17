@@ -110,7 +110,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
      * Wraps up the steps for extracting an index request payload from the mocks.
      */
     private Map<String, Object> getWriteRequest(String key, ESLogMessage message) {
-        message.field("x-key", key);
+        message.field("key", key);
         LogEvent logEvent = mock(LogEvent.class);
         when(logEvent.getMessage()).thenReturn(message);
 
@@ -126,7 +126,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
 
     private LogEvent buildEvent() {
         LogEvent logEvent = mock(LogEvent.class);
-        when(logEvent.getMessage()).thenReturn(DeprecatedMessage.of(null, "a message").field("x-key", "a key"));
+        when(logEvent.getMessage()).thenReturn(DeprecatedMessage.of(null, "a message").field("key", "a key"));
         return logEvent;
     }
 }

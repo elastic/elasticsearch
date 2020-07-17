@@ -19,5 +19,5 @@
 
 esplugin {
   description 'Plugin for logging deprecation messages'
-  classname 'org.elasticsearch.kibana.DeprecationPlugin'
+  classname 'org.elasticsearch.deprecation.DeprecationPlugin'
 }

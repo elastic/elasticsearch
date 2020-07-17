@@ -27,6 +27,8 @@ package org.elasticsearch.xpack.deprecation.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Filter;
+import org.apache.logging.log4j.core.filter.CompositeFilter;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -36,9 +38,10 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.RateLimitingFilter;
+import org.elasticsearch.common.logging.UnionFilter;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +49,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION_ONLY;
+import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION_ONLY_FILTER;
 
 public class DeprecationIndexingComponent extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
@@ -60,24 +63,24 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     private final DeprecationIndexingAppender appender;
 
-    public DeprecationIndexingComponent(ClusterService clusterService, ThreadPool threadPool, Client client) {
-        this.appender = new DeprecationIndexingAppender(
-            buildIndexRequestConsumer(threadPool, client),
-            "DeprecationIndexer",
-            DEPRECATION_ONLY
-        );
+    public DeprecationIndexingComponent(ThreadPool threadPool, Client client) {
+        final Consumer<IndexRequest> consumer = buildIndexRequestConsumer(threadPool, client);
+        final Filter filter = UnionFilter.createFilters(DEPRECATION_ONLY_FILTER, new RateLimitingFilter());
+        filter.start();
 
-        clusterService.addListener(this);
+        this.appender = new DeprecationIndexingAppender(consumer, "DeprecationIndexer", filter);
     }
 
     @Override
     protected void doStart() {
+        this.appender.start();
         Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
     }
 
     @Override
     protected void doStop() {
         Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        this.appender.stop();
     }
 
     @Override

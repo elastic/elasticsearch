@@ -20,16 +20,18 @@
 package org.elasticsearch.deprecation;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Appender;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.Loggers;
 
-import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION_ONLY;
+import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION_ONLY_FILTER;
 
 public class DeprecationComponent extends AbstractLifecycleComponent {
-    private final HeaderWarningAppender appender;
+    private final Appender appender;
 
     public DeprecationComponent() {
-        this.appender = new HeaderWarningAppender("HeaderWarning", DEPRECATION_ONLY);
+        this.appender = new HeaderWarningAppender("HeaderWarning", DEPRECATION_ONLY_FILTER);
+        this.appender.start();
     }
 
     @Override

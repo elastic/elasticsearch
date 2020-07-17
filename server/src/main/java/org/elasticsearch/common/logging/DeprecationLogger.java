@@ -40,7 +40,7 @@ public class DeprecationLogger {
     public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
 
     // Only handle log events with the custom DEPRECATION level
-    public static final LevelRangeFilter DEPRECATION_ONLY = LevelRangeFilter.createFilter(
+    public static final LevelRangeFilter DEPRECATION_ONLY_FILTER = LevelRangeFilter.createFilter(
         DEPRECATION,
         DEPRECATION,
         Filter.Result.ACCEPT,
@@ -55,7 +55,7 @@ public class DeprecationLogger {
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
-    public DeprecationLogger(Logger parentLogger) {
+    private DeprecationLogger(Logger parentLogger) {
         this.logger = parentLogger;
     }
 
@@ -93,7 +93,7 @@ public class DeprecationLogger {
     public class DeprecationLoggerBuilder {
 
         public DeprecationLoggerBuilder withDeprecation(String key, String msg, Object[] params) {
-            ESLogMessage deprecationMessage = DeprecatedMessage.of(HeaderWarning.getXOpaqueId(), msg, params).field("x-key", key);
+            ESLogMessage deprecationMessage = DeprecatedMessage.of(HeaderWarning.getXOpaqueId(), msg, params).field("key", key);
 
             logger.log(DEPRECATION, deprecationMessage);
 

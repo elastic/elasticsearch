@@ -77,7 +77,7 @@ To target all data streams in a cluster, omit this parameter or use `*`.
 `human`::
 (Optional, boolean)
 If `true`, the response includes statistics in human-readable <<byte-units,byte
-values.>> Defaults to `false`.
+values>>. Defaults to `false`.
 
 
 [role="child_attributes"]
@@ -115,6 +115,7 @@ Total number of backing indices for the selected data streams.
 `total_store_sizes`::
 (<<byte-units,byte value>>)
 Total size of all shards for the selected data streams.
+This property is included only if the `human` query parameter is `true`.
 
 `total_store_size_bytes`::
 (integer)
@@ -138,6 +139,7 @@ Current number of backing indices for the data stream.
 `store_size`::
 (<<byte-units,byte value>>)
 Total size of all shards for the data stream's backing indices.
+This parameter is only returned if the `human` query parameter is `true`.
 
 `store_size_bytes`::
 (integer)

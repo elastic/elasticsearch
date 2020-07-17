@@ -265,7 +265,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 }
             }
 
-            mergeBuckets(mergeMap, shardSize);
+            mergeBuckets(mergeMap, bucketOrd + 1);
             if (deferringCollector != null) {
                 deferringCollector.mergeBuckets(mergeMap);
             }

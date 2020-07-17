@@ -83,7 +83,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
-        assertThat("the original index must've been deleted", indexExists(backingIndexName), is(false));
+        assertBusy(() -> assertThat("the original index must've been deleted", indexExists(backingIndexName), is(false)));
     }
 
     public void testShrinkAfterRollover() throws Exception {

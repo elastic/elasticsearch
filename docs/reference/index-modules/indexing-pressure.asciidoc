@@ -1,5 +1,5 @@
 [[index-modules-indexing-pressure]]
-== Indexing Pressure
+== Indexing pressure
 
 Indexing documents into Elasticsearch introduces system load in the form of
 memory and CPU load. Each indexing operation includes coordinating, primary, and
@@ -16,15 +16,15 @@ Elasticsearch internally monitors indexing load. When the load exceeds
 certain limits, new indexing work will be rejected.
 
 [float]
-=== Indexing Stages
+=== Indexing stages
 
 External indexing operations go through three stages: coordinating, primary, and
 replica. This write model is explained <<basic-write-model,here>>.
 
 [float]
-=== Memory Limits
+=== Memory limits
 
-Elasticsearch exposes a node setting `indexing_pressure.memory.limit` which
+Elasticsearch exposes a node setting `.memory.limitindexing_pressure` which
 restricts the number of bytes for outstanding indexing requests. By default,
 this setting is configured to be 10% of the heap.
 
@@ -58,3 +58,13 @@ too high can starve other system components of operating memory.
 
 Indexing pressure metrics are exposed by the
 <<cluster-nodes-stats-api-response-body-indexing-pressure,Node Stats API>>.
+
+[float]
+=== Indexing pressure settings
+
+`indexing_pressure`::
+
+  A configurable limit for the number of outstanding bytes consumed by indexing
+  requests. New coordinating and primary operations will start being rejected
+  once this limit is hit. New replica operations will start being rejected when
+  replica operations consumed 1.5X this limit. Defaults to `10%` of the heap.

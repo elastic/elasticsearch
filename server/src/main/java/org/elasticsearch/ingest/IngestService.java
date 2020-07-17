@@ -36,16 +36,22 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
@@ -90,6 +96,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
+    private volatile ClusterState state;
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
@@ -122,6 +129,109 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         }
         return Collections.unmodifiableMap(processorFactories);
+    }
+
+    public static boolean resolvePipelines(final DocWriteRequest<?> originalRequest, final IndexRequest indexRequest,
+                                           final Metadata metadata) {
+        if (indexRequest.isPipelineResolved() == false) {
+            final String requestPipeline = indexRequest.getPipeline();
+            indexRequest.setPipeline(NOOP_PIPELINE_NAME);
+            indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+            String defaultPipeline = null;
+            String finalPipeline = null;
+            IndexMetadata indexMetadata = null;
+            // start to look for default or final pipelines via settings found in the index meta data
+            if (originalRequest != null) {
+                indexMetadata = metadata.indices().get(originalRequest.index());
+            }
+            // check the alias for the index request (this is how normal index requests are modeled)
+            if (indexMetadata == null && indexRequest.index() != null) {
+                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexRequest.index());
+                if (indexAbstraction != null) {
+                    indexMetadata = indexAbstraction.getWriteIndex();
+                }
+            }
+            // check the alias for the action request (this is how upserts are modeled)
+            if (indexMetadata == null && originalRequest != null && originalRequest.index() != null) {
+                IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(originalRequest.index());
+                if (indexAbstraction != null) {
+                    indexMetadata = indexAbstraction.getWriteIndex();
+                }
+            }
+            if (indexMetadata != null) {
+                final Settings indexSettings = indexMetadata.getSettings();
+                if (IndexSettings.DEFAULT_PIPELINE.exists(indexSettings)) {
+                    // find the default pipeline if one is defined from an existing index setting
+                    defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
+                    indexRequest.setPipeline(defaultPipeline);
+                }
+                if (IndexSettings.FINAL_PIPELINE.exists(indexSettings)) {
+                    // find the final pipeline if one is defined from an existing index setting
+                    finalPipeline = IndexSettings.FINAL_PIPELINE.get(indexSettings);
+                    indexRequest.setFinalPipeline(finalPipeline);
+                }
+            } else if (indexRequest.index() != null) {
+                // the index does not exist yet (and this is a valid request), so match index
+                // templates to look for pipelines in either a matching V2 template (which takes
+                // precedence), or if a V2 template does not match, any V1 templates
+                String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
+                if (v2Template != null) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
+                    if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                        defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                        // we can not break in case a lower-order template has a final pipeline that we need to collect
+                    }
+                    if (IndexSettings.FINAL_PIPELINE.exists(settings)) {
+                        finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
+                        // we can not break in case a lower-order template has a default pipeline that we need to collect
+                    }
+                    indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
+                    indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
+                } else {
+                    List<IndexTemplateMetadata> templates =
+                            MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
+                    // order of templates are highest order first
+                    for (final IndexTemplateMetadata template : templates) {
+                        final Settings settings = template.settings();
+                        if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                            defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
+                            // we can not break in case a lower-order template has a final pipeline that we need to collect
+                        }
+                        if (finalPipeline == null && IndexSettings.FINAL_PIPELINE.exists(settings)) {
+                            finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
+                            // we can not break in case a lower-order template has a default pipeline that we need to collect
+                        }
+                        if (defaultPipeline != null && finalPipeline != null) {
+                            // we can break if we have already collected a default and final pipeline
+                            break;
+                        }
+                    }
+                    indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
+                    indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
+                }
+            }
+
+            if (requestPipeline != null) {
+                indexRequest.setPipeline(requestPipeline);
+            }
+
+            /*
+             * We have to track whether or not the pipeline for this request has already been resolved. It can happen that the
+             * pipeline for this request has already been derived yet we execute this loop again. That occurs if the bulk request
+             * has been forwarded by a non-ingest coordinating node to an ingest node. In this case, the coordinating node will have
+             * already resolved the pipeline for this request. It is important that we are able to distinguish this situation as we
+             * can not double-resolve the pipeline because we will not be able to distinguish the case of the pipeline having been
+             * set from a request pipeline parameter versus having been set by the resolution. We need to be able to distinguish
+             * these cases as we need to reject the request if the pipeline was set by a required pipeline and there is a request
+             * pipeline parameter too.
+             */
+            indexRequest.isPipelineResolved(true);
+        }
+
+
+        // return whether this index request has a pipeline
+        return NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false
+            || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }
 
     public ClusterService getClusterService() {
@@ -367,12 +477,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setPipeline(NOOP_PIPELINE_NAME);
                     final String finalPipelineId = indexRequest.getFinalPipeline();
                     indexRequest.setFinalPipeline(NOOP_PIPELINE_NAME);
+                    boolean hasFinalPipeline = true;
                     final List<String> pipelines;
                     if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false
                         && IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
                         pipelines = Arrays.asList(pipelineId, finalPipelineId);
                     } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipelineId) == false ) {
                         pipelines = Collections.singletonList(pipelineId);
+                        hasFinalPipeline = false;
                     } else if (IngestService.NOOP_PIPELINE_NAME.equals(finalPipelineId) == false) {
                         pipelines = Collections.singletonList(finalPipelineId);
                     } else {
@@ -383,7 +495,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         continue;
                     }
 
-                    executePipelines(i, pipelines.iterator(), indexRequest, onDropped, onFailure, counter, onCompletion, originalThread);
+                    executePipelines(i, pipelines.iterator(), hasFinalPipeline, indexRequest, onDropped, onFailure, counter,
+                                     onCompletion, originalThread);
 
                     i++;
                 }
@@ -394,6 +507,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private void executePipelines(
         final int slot,
         final Iterator<String> it,
+        final boolean hasFinalPipeline,
         final IndexRequest indexRequest,
         final IntConsumer onDropped,
         final BiConsumer<Integer, Exception> onFailure,
@@ -409,13 +523,40 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
                 }
                 Pipeline pipeline = holder.pipeline;
+                String originalIndex = indexRequest.indices()[0];
                 innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                     if (e != null) {
                         onFailure.accept(slot, e);
                     }
 
-                    if (it.hasNext()) {
-                        executePipelines(slot, it, indexRequest, onDropped, onFailure, counter, onCompletion, originalThread);
+                    Iterator<String> newIt = it;
+                    boolean newHasFinalPipeline = hasFinalPipeline;
+                    String newIndex = indexRequest.indices()[0];
+
+                    if (Objects.equals(originalIndex, newIndex) == false) {
+                        if (hasFinalPipeline && it.hasNext() == false) {
+                            totalMetrics.ingestFailed();
+                            onFailure.accept(slot, new IllegalStateException("final pipeline [" + pipelineId +
+                                "] can't change the target index"));
+                        } else {
+
+                            //Drain old it so it's not looped over
+                            it.forEachRemaining($ -> {
+                            });
+                            indexRequest.isPipelineResolved(false);
+                            resolvePipelines(null, indexRequest, state.metadata());
+                            if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false) {
+                                newIt = Collections.singleton(indexRequest.getFinalPipeline()).iterator();
+                                newHasFinalPipeline = true;
+                            } else {
+                                newIt = Collections.emptyIterator();
+                            }
+                        }
+                    }
+
+                    if (newIt.hasNext()) {
+                        executePipelines(slot, newIt, newHasFinalPipeline, indexRequest, onDropped, onFailure, counter, onCompletion,
+                            originalThread);
                     } else {
                         if (counter.decrementAndGet() == 0) {
                             onCompletion.accept(originalThread, null);
@@ -539,7 +680,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     @Override
     public void applyClusterState(final ClusterChangedEvent event) {
-        ClusterState state = event.state();
+        state = event.state();
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }

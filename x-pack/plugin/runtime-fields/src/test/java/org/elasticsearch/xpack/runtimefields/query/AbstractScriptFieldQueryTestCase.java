@@ -32,6 +32,7 @@ public abstract class AbstractScriptFieldQueryTestCase<T extends AbstractScriptF
     public final void testToString() {
         T query = createTestInstance();
         assertThat(query.toString(), equalTo(query.fieldName() + ":" + query.toString(query.fieldName())));
+        assertToString(query);
     }
 
     protected abstract void assertToString(T query);

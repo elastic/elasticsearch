@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.exc.InputCoercionException;
+
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -748,44 +749,17 @@ public class NumberFieldMapper extends FieldMapper {
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
                                     boolean hasDocValues, QueryShardContext context) {
-                long l = Long.MIN_VALUE;
-                long u = Long.MAX_VALUE;
-                if (lowerTerm != null) {
-                    l = parse(lowerTerm, true);
-                    // if the lower bound is decimal:
-                    // - if the bound is positive then we increment it:
-                    //      if lowerTerm=1.5 then the (inclusive) bound becomes 2
-                    // - if the bound is negative then we leave it as is:
-                    //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
-                    boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
-                            (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
-                        if (l == Long.MAX_VALUE) {
-                            return new MatchNoDocsQuery();
+                return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
+                    Query query = LongPoint.newRangeQuery(field, l, u); 
+                    if (hasDocValues) {
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
+                        query = new IndexOrDocValuesQuery(query, dvQuery);
+                        if (context.indexSortedOnField(field)) {
+                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
                         }
-                        ++l;
                     }
-                }
-                if (upperTerm != null) {
-                    u = parse(upperTerm, true);
-                    boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
-                            (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
-                        if (u == Long.MIN_VALUE) {
-                            return new MatchNoDocsQuery();
-                        }
-                        --u;
-                    }
-                }
-                Query query = LongPoint.newRangeQuery(field, l, u);
-                if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
-                    if (context.indexSortedOnField(field)) {
-                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
-                    }
-                }
-                return query;
+                    return query;
+                });
             }
 
             @Override
@@ -855,7 +829,7 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Returns -1, 0, or 1 if the value is lower than, equal to, or greater than 0
          */
-        double signum(Object value) {
+        static double signum(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 return Math.signum(doubleValue);
@@ -905,6 +879,51 @@ public class NumberFieldMapper extends FieldMapper {
             // longs need special handling so we don't lose precision while parsing
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             return Numbers.toLong(stringValue, coerce);
+        }
+
+        @FunctionalInterface
+        public interface RangeQueryBuilder {
+            Query build(long lower, long upper);
+        }
+        /**
+         * Processes query bounds into {@code long}s and delegates the
+         * provided {@code builder} to build a range query.
+         */
+        public static Query longRangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            RangeQueryBuilder builder
+        ) {
+            long l = Long.MIN_VALUE;
+            long u = Long.MAX_VALUE;
+            if (lowerTerm != null) {
+                l = objectToLong(lowerTerm, true);
+                // if the lower bound is decimal:
+                // - if the bound is positive then we increment it:
+                // if lowerTerm=1.5 then the (inclusive) bound becomes 2
+                // - if the bound is negative then we leave it as is:
+                // if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
+                boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
+                if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
+                    if (l == Long.MAX_VALUE) {
+                        return new MatchNoDocsQuery();
+                    }
+                    ++l;
+                }
+            }
+            if (upperTerm != null) {
+                u = objectToLong(upperTerm, true);
+                boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
+                if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
+                    if (u == Long.MIN_VALUE) {
+                        return new MatchNoDocsQuery();
+                    }
+                    --u;
+                }
+            }
+            return builder.build(l, u);
         }
     }
 

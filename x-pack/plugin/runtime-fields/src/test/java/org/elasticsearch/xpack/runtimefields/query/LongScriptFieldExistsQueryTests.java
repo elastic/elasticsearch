@@ -36,6 +36,6 @@ public class LongScriptFieldExistsQueryTests extends AbstractLongScriptFieldQuer
 
     @Override
     protected void assertToString(LongScriptFieldExistsQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo("ScriptFieldExists"));
+        assertThat(query.toString(query.fieldName()), equalTo("LongScriptFieldExistsQuery"));
     }
 }

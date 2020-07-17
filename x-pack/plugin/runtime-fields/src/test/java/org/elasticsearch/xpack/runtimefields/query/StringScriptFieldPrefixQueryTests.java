@@ -58,7 +58,7 @@ public class StringScriptFieldPrefixQueryTests extends AbstractStringScriptField
 
     @Override
     protected void assertToString(StringScriptFieldPrefixQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo(query.prefix()));
+        assertThat(query.toString(query.fieldName()), equalTo(query.prefix() + "*"));
     }
 
     @Override

@@ -105,6 +105,42 @@ public class ScriptLongMappedFieldTypeTests extends AbstractScriptMappedFieldTyp
         checkExpensiveQuery(ScriptLongMappedFieldType::existsQuery);
     }
 
+    public void testRangeQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(
+                    searcher.count(build("value(source.foo)").rangeQuery("2", "3", true, true, null, null, null, mockContext())),
+                    equalTo(1)
+                );
+                assertThat(
+                    searcher.count(build("value(source.foo)").rangeQuery(2, 3, true, true, null, null, null, mockContext())),
+                    equalTo(1)
+                );
+                assertThat(
+                    searcher.count(build("value(source.foo)").rangeQuery(1.1, 3, true, true, null, null, null, mockContext())),
+                    equalTo(1)
+                );
+                assertThat(
+                    searcher.count(build("value(source.foo)").rangeQuery(1.1, 3, false, true, null, null, null, mockContext())),
+                    equalTo(1)
+                );
+                assertThat(
+                    searcher.count(build("value(source.foo)").rangeQuery(2, 3, false, true, null, null, null, mockContext())),
+                    equalTo(0)
+                );
+            }
+        }
+    }
+
+    public void testRangeQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(
+            (ft, ctx) -> ft.rangeQuery(randomLong(), randomLong(), randomBoolean(), randomBoolean(), null, null, null, ctx)
+        );
+    }
+
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -124,6 +160,25 @@ public class ScriptLongMappedFieldTypeTests extends AbstractScriptMappedFieldTyp
 
     public void testTermQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomLong(), ctx));
+    }
+
+    public void testTermsQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                assertThat(searcher.count(build("value(source.foo)").termsQuery(List.of("1"), mockContext())), equalTo(1));
+                assertThat(searcher.count(build("value(source.foo)").termsQuery(List.of(1), mockContext())), equalTo(1));
+                assertThat(searcher.count(build("value(source.foo)").termsQuery(List.of(1.1), mockContext())), equalTo(0));
+                assertThat(searcher.count(build("value(source.foo)").termsQuery(List.of(1.1, 2), mockContext())), equalTo(1));
+                assertThat(searcher.count(build("value(source.foo)").termsQuery(List.of(2, 1), mockContext())), equalTo(2));
+            }
+        }
+    }
+
+    public void testTermsQueryIsExpensive() throws IOException {
+        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(randomLong()), ctx));
     }
 
     private ScriptLongMappedFieldType build(String code) throws IOException {

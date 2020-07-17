@@ -65,6 +65,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
+        Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -73,7 +74,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
-            null, defaultPipeline, true, request.getXContentType());
+            null, defaultPipeline, defaultRequireAlias, true, request.getXContentType());
 
         // short circuit the call to the transport layer
         return channel -> {

@@ -1,0 +1,30 @@
+---
+"Set require_alias flag":
+  - skip:
+      # TODO adjust after backport
+      version: " - 7.99.99"
+      reason: "require_alias flag added in 7.9+"
+  - do:
+      catch: missing
+      index:
+        index:   test_require_alias
+        require_alias: true
+        body:    { foo: bar }
+  - do:
+      catch: missing
+      indices.get:
+        index: test_require_alias
+
+  - do:
+      indices.create:
+        index: backing_index
+        body:
+          mappings: {}
+          aliases:
+            test_require_alias: {}
+
+  - do:
+      index:
+        index:   test_require_alias
+        require_alias: true
+        body:    { foo: bar }

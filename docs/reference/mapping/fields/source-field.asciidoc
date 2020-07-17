@@ -35,7 +35,7 @@ available then a number of features are not supported:
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
 and <<docs-reindex,`reindex`>> APIs.
 
-* On the fly <<request-body-search-highlighting,highlighting>>.
+* On the fly <<highlighting,highlighting>>.
 
 * The ability to reindex from one Elasticsearch index to another, either
   to change mappings or analysis, or to upgrade an index to a new major

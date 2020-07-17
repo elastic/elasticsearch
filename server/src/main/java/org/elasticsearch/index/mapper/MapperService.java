@@ -219,6 +219,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
         assert newIndexMetadata.getIndex().equals(index()) : "index mismatch: expected " + index()
             + " but was " + newIndexMetadata.getIndex();
+
+        if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
+            assertMappingVersion(currentIndexMetadata, newIndexMetadata, Collections.emptyMap());
+            return false;
+        }
+
         // go over and add the relevant mappings (or update them)
         Set<String> existingMappers = new HashSet<>();
         if (mapper != null) {
@@ -230,7 +236,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final Map<String, DocumentMapper> updatedEntries;
         try {
             // only update entries if needed
-            updatedEntries = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY, true);
+            updatedEntries = internalMerge(newIndexMetadata, MergeReason.MAPPING_RECOVERY);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
@@ -278,7 +284,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private void assertMappingVersion(
         final IndexMetadata currentIndexMetadata,
         final IndexMetadata newIndexMetadata,
-        final Map<String, DocumentMapper> updatedEntries) {
+        final Map<String, DocumentMapper> updatedEntries) throws IOException {
         if (Assertions.ENABLED
             && currentIndexMetadata != null
             && currentIndexMetadata.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
@@ -302,10 +308,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     assert currentSource.equals(newSource) :
                         "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
                             + "to be the same as new mapping [" + newSource + "]";
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
+                    assert currentSource.equals(mapperSource) :
+                        "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
+                            + "to be the same as new mapping [" + mapperSource + "]";
                 }
 
             } else {
-                // if the mapping version is changed, it should increase, there should be updates, and the mapping should be different
+                // the mapping version should increase, there should be updates, and the mapping should be different
                 final long currentMappingVersion = currentIndexMetadata.getMappingVersion();
                 final long newMappingVersion = newIndexMetadata.getMappingVersion();
                 assert currentMappingVersion < newMappingVersion :
@@ -352,27 +362,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
-        internalMerge(indexMetadata, reason, false);
+        internalMerge(indexMetadata, reason);
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
         return internalMerge(Collections.singletonMap(type, mappingSource), reason).get(type);
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetadata indexMetadata,
-                                                                   MergeReason reason, boolean onlyUpdateIfNeeded) {
+    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
         for (ObjectCursor<MappingMetadata> cursor : indexMetadata.getMappings().values()) {
             MappingMetadata mappingMetadata = cursor.value;
-            if (onlyUpdateIfNeeded) {
-                DocumentMapper existingMapper = documentMapper(mappingMetadata.type());
-                if (existingMapper == null || mappingMetadata.source().equals(existingMapper.mappingSource()) == false) {
-                    map.put(mappingMetadata.type(), mappingMetadata.source());
-                }
-            } else {
-                map.put(mappingMetadata.type(), mappingMetadata.source());
-            }
+            map.put(mappingMetadata.type(), mappingMetadata.source());
         }
         return internalMerge(map, reason);
     }

@@ -306,6 +306,11 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     @Override
+    public boolean isRequireAlias() {
+        return false;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeBody(out);

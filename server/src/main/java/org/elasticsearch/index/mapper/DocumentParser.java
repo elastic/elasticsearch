@@ -41,6 +41,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.mapper.FieldMapper.IGNORE_MALFORMED_SETTING;
+
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
 
@@ -644,14 +646,6 @@ final class DocumentParser {
         return new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.FLOAT);
     }
 
-    private static Mapper.Builder<?> newDateBuilder(String name, DateFormatter dateTimeFormatter, Version indexCreated) {
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder(name);
-        if (dateTimeFormatter != null) {
-            builder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
-        }
-        return builder;
-    }
-
     private static Mapper.Builder<?> createBuilderFromDynamicValue(final ParseContext context,
                                                                      XContentParser.Token token,
                                                                      String currentFieldName) throws IOException {
@@ -697,17 +691,16 @@ final class DocumentParser {
                         // failure to parse this, continue
                         continue;
                     }
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
+                    Mapper.Builder builder
+                        = context.root().findTemplateBuilder(context, currentFieldName, dateTimeFormatter);
                     if (builder == null) {
-                        builder = newDateBuilder(currentFieldName, dateTimeFormatter, context.indexSettings().getIndexVersionCreated());
-                    }
-                    if (builder instanceof DateFieldMapper.Builder) {
-                        DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
-                        if (dateBuilder.isFormatterSet() == false) {
-                            dateBuilder.format(dateTimeFormatter.pattern()).locale(dateTimeFormatter.locale());
-                        }
+                        boolean ignoreMalformed = IGNORE_MALFORMED_SETTING.get(context.indexSettings().getSettings());
+                        Version indexCreatedVersion = context.indexSettings().getIndexVersionCreated();
+                        builder = new DateFieldMapper.Builder(currentFieldName, indexCreatedVersion,
+                            DateFieldMapper.Resolution.MILLISECONDS, dateTimeFormatter, ignoreMalformed);
                     }
                     return builder;
+
                 }
             }
 

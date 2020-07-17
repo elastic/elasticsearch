@@ -201,7 +201,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 return new BinaryFieldMapper.TypeParser();
             }
             return null;
-        }, version, () -> null);
+        }, version, () -> null, null);
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));

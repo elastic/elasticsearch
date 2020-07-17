@@ -1,8 +1,5 @@
 [[snapshots-restore-snapshot]]
 == Restore a snapshot
-++++
-<titleabbrev>Restore snapshot</titleabbrev>
-++++
 
 ////
 [source,console]

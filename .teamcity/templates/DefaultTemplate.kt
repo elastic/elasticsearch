@@ -58,7 +58,7 @@ object DefaultTemplate : Template({
 
     steps {
         script {
-            name = "Setup Build Environment"
+            name = "Setup Build Environment (Unix)"
 
             conditions {
                 doesNotContain("teamcity.agent.jvm.os.name", "Windows")
@@ -68,8 +68,11 @@ object DefaultTemplate : Template({
                 #!/usr/bin/env bash
                 # drop page cache and kernel slab objects on linux
                 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
-                rm -Rfv ~/.gradle/init.d
-                mkdir -p ~/.gradle/init.d && cp -v .ci/teamcity.init.gradle ~/.gradle/init.d
+
+                # Copy Gradle init script to user home directory
+                rm -Rfv ~/.gradle/init.d && mkdir -p ~/.gradle/init.d && cp -v .ci/teamcity.init.gradle ~/.gradle/init.d
+
+                # Calculate number of Gradle worker threads to use
                 if [ -f /proc/cpuinfo ] ; then
                    MAX_WORKERS=`grep '^cpu\scores' /proc/cpuinfo  | uniq | sed 's/\s\+//g' |  cut -d':' -f 2`
                 else
@@ -85,6 +88,7 @@ object DefaultTemplate : Template({
                    MAX_WORKERS=${'$'}((${'$'}MAX_WORKERS*2/3))
                 fi
 
+                # Override default max workers build parameter to be used in subsequent build steps
                 echo "##teamcity[setParameter name='gradle.max.workers' value='${'$'}MAX_WORKERS']"
             """.trimIndent()
         }

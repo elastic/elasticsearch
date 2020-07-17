@@ -37,4 +37,11 @@ if (buildCacheUrl) {
       }
     }
   }
+
+  settings.pluginManager.withPlugin('com.gradle.enterprise') {
+    settings.gradleEnterprise.buildScan.buildScanPublished { scan ->
+      // Update build configuration parameter with latest published build scan
+      println "##teamcity[setParameter name='gradle.build.scan' value='${scan.buildScanUri}']"
+    }
+  }
 }

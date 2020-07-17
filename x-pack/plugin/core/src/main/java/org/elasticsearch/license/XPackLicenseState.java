@@ -72,15 +72,13 @@ public class XPackLicenseState {
 
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),
 
-        ANALYTICS(OperationMode.MISSING, true),
-
         SEARCHABLE_SNAPSHOTS(OperationMode.PLATINUM, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
-            assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0;
+            assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
             this.minimumOperationMode = minimumOperationMode;
             this.needsActive = needsActive;
         }

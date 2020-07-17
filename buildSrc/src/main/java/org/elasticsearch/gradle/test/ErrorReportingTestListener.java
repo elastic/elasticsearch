@@ -54,12 +54,14 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
     private final TestExceptionFormatter formatter;
     private final File outputDirectory;
+    private final Logger taskLogger;
     private Map<Descriptor, EventWriter> eventWriters = new ConcurrentHashMap<>();
     private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
 
-    public ErrorReportingTestListener(TestLogging testLogging, File outputDirectory) {
+    public ErrorReportingTestListener(TestLogging testLogging, Logger taskLogger, File outputDirectory) {
         this.formatter = new FullExceptionFormatter(testLogging);
+        this.taskLogger = taskLogger;
         this.outputDirectory = outputDirectory;
     }
 
@@ -117,6 +119,15 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                                 out.println(message);
                             }
                         }
+                    }
+                }
+            }
+            if (suite.getParent() == null) {
+                // per test task top level gradle test run suite finished
+                if (getFailedTests().size() > 0) {
+                    taskLogger.lifecycle("\nTests with failures:");
+                    for (ErrorReportingTestListener.Descriptor failure : getFailedTests()) {
+                        taskLogger.lifecycle(" - " + failure.getFullName());
                     }
                 }
             }

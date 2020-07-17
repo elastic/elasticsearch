@@ -70,7 +70,7 @@ Inner hits support the following options:
 
 Inner hits also supports the following per document features:
 
-* <<request-body-search-highlighting,Highlighting>>
+* <<highlighting,Highlighting>>
 * <<request-body-search-explain,Explain>>
 * <<request-body-search-source-filtering,Source filtering>>
 * <<request-body-search-script-fields,Script fields>>

@@ -7,6 +7,8 @@ coming::[7.8.2]
 [[release-notes-7.8.1]]
 == {es} version 7.8.1
 
+coming::[7.8.1]
+
 Also see <<breaking-changes-7.8,Breaking changes in 7.8>>.
 
 [[breaking-7.8.1]]

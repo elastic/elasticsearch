@@ -1556,11 +1556,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 public MetadataFieldMapper.Builder<?> parse(String name,
                                                             Map<String, Object> node,
                                                             ParserContext parserContext) throws MapperParsingException {
-                    String path = (String) node.remove("path");
+                    Boolean enabled = (Boolean) node.remove("enabled");
                     return new MetadataFieldMapper.Builder(name, new FieldType()) {
                         @Override
                         public MetadataFieldMapper build(Mapper.BuilderContext context) {
-                            return newInstance(path);
+                            return newInstance(enabled);
                         }
                     };
                 }
@@ -1570,7 +1570,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     return newInstance(null);
                 }
 
-                MetadataFieldMapper newInstance(String path) {
+                MetadataFieldMapper newInstance(Boolean enabled) {
                     FieldType fieldType = new FieldType();
                     fieldType.freeze();
                     MappedFieldType mappedFieldType =
@@ -1603,12 +1603,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
                         @Override
                         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                            if (path == null) {
+                            if (enabled == null) {
                                 return builder;
                             }
 
                             builder.startObject(simpleName());
-                            builder.field("path", path);
+                            builder.field("enabled", enabled);
                             return builder.endObject();
                         }
 

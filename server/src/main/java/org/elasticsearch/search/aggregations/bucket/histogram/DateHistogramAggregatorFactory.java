@@ -53,7 +53,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     private final BucketOrder order;
     private final boolean keyed;
     private final long minDocCount;
-    private final ExtendedBounds extendedBounds;
+    private final LongBounds extendedBounds;
+    private final LongBounds hardBounds;
     private final Rounding rounding;
 
     public DateHistogramAggregatorFactory(
@@ -63,7 +64,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         boolean keyed,
         long minDocCount,
         Rounding rounding,
-        ExtendedBounds extendedBounds,
+        LongBounds extendedBounds,
+        LongBounds hardBounds,
         QueryShardContext queryShardContext,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -74,6 +76,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
+        this.hardBounds = hardBounds;
         this.rounding = rounding;
     }
 
@@ -107,6 +110,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
             keyed,
             minDocCount,
             extendedBounds,
+            hardBounds,
             config,
             searchContext,
             parent,
@@ -119,7 +123,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     protected Aggregator createUnmapped(SearchContext searchContext,
                                             Aggregator parent,
                                             Map<String, Object> metadata) throws IOException {
-        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds,
+        return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
             config, searchContext, parent, CardinalityUpperBound.NONE, metadata);
     }
 }

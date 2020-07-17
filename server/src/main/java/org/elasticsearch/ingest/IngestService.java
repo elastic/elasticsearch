@@ -185,8 +185,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         finalPipeline = IndexSettings.FINAL_PIPELINE.get(settings);
                         // we can not break in case a lower-order template has a default pipeline that we need to collect
                     }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
-                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
+                    indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
+                    indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
                 } else {
                     List<IndexTemplateMetadata> templates =
                             MetadataIndexTemplateService.findV1Templates(metadata, indexRequest.index(), null);
@@ -206,8 +206,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             break;
                         }
                     }
-                    indexRequest.setPipeline(Objects.requireNonNullElse(defaultPipeline, NOOP_PIPELINE_NAME));
-                    indexRequest.setFinalPipeline(Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME));
+                    indexRequest.setPipeline(defaultPipeline != null ? defaultPipeline : NOOP_PIPELINE_NAME);
+                    indexRequest.setFinalPipeline(finalPipeline != null ? finalPipeline : NOOP_PIPELINE_NAME);
                 }
             }
 

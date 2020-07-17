@@ -167,7 +167,7 @@ higher `@timestamp` values.
 
 [source,console]
 ----
-GET /_data_stream/my-data-stream*/_stats
+GET /_data_stream/my-data-stream*/_stats?human=true
 ----
 
 The API returns the following response.
@@ -182,23 +182,29 @@ The API returns the following response.
   },
   "data_stream_count": 2,
   "backing_indices": 5,
+  "total_store_size": "7kb",
   "total_store_size_bytes": 7268,
   "data_streams": [
     {
       "data_stream": "my-data-stream",
       "backing_indices": 3,
+      "store_size": "3.7kb",
       "store_size_bytes": 3772,
       "maximum_timestamp": 1607512028000
     },
     {
       "data_stream": "my-data-stream-two",
       "backing_indices": 2,
+      "store_size": "3.4kb",
       "store_size_bytes": 3496,
       "maximum_timestamp": 1607425567000
     }
   ]
 }
 ----
+// TESTRESPONSE[s/"total_store_size": "7kb"/"total_store_size": $body.total_store_size/]
 // TESTRESPONSE[s/"total_store_size_bytes": 7268/"total_store_size_bytes": $body.total_store_size_bytes/]
+// TESTRESPONSE[s/"store_size": "3.7kb"/"store_size": $body.data_streams.0.store_size/]
 // TESTRESPONSE[s/"store_size_bytes": 3772/"store_size_bytes": $body.data_streams.0.store_size_bytes/]
+// TESTRESPONSE[s/"store_size": "3.4kb"/"store_size": $body.data_streams.1.store_size/]
 // TESTRESPONSE[s/"store_size_bytes": 3496/"store_size_bytes": $body.data_streams.1.store_size_bytes/]

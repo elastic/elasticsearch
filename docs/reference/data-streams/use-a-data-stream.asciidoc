@@ -287,7 +287,7 @@ The following data stream stats API request retrieves statistics for the
 
 [source,console]
 ----
-GET /_data_stream/logs/_stats
+GET /_data_stream/logs/_stats?human=true
 ----
 
 The API returns the following response.
@@ -302,18 +302,22 @@ The API returns the following response.
   },
   "data_stream_count": 1,
   "backing_indices": 3,
+  "total_store_size": "624b",
   "total_store_size_bytes": 624,
   "data_streams": [
     {
       "data_stream": "logs",
       "backing_indices": 3,
+      "store_size": "624b",
       "store_size_bytes": 624,
       "maximum_timestamp": 1607339167000
     }
   ]
 }
 ----
+// TESTRESPONSE[s/"total_store_size": "624b"/"total_store_size": $body.total_store_size/]
 // TESTRESPONSE[s/"total_store_size_bytes": 624/"total_store_size_bytes": $body.total_store_size_bytes/]
+// TESTRESPONSE[s/"store_size": "624b"/"store_size": $body.data_streams.0.store_size/]
 // TESTRESPONSE[s/"store_size_bytes": 624/"store_size_bytes": $body.data_streams.0.store_size_bytes/]
 ====
 

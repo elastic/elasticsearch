@@ -21,9 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConditionalNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Explicit;
@@ -71,7 +68,7 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]"));
         }
@@ -80,26 +77,23 @@ public class EConditional extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: result not used from conditional operation [?:]"));
         }
 
-        Output output = new Output();
-
-
         semanticScope.setCondition(conditionNode, Read.class);
         semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-        Output conditionOutput = analyze(conditionNode, classNode, semanticScope);
-        PainlessCast conditionCast = conditionNode.cast(semanticScope);
-
+        analyze(conditionNode, semanticScope);
+        conditionNode.cast(semanticScope);
+        
         semanticScope.setCondition(trueNode, Read.class);
         semanticScope.copyDecoration(this, trueNode, TargetType.class);
         semanticScope.replicateCondition(this, trueNode, Explicit.class);
         semanticScope.replicateCondition(this, trueNode, Internal.class);
-        Output leftOutput = analyze(trueNode, classNode, semanticScope);
+        analyze(trueNode, semanticScope);
         Class<?> leftValueType = semanticScope.getDecoration(trueNode, ValueType.class).getValueType();
 
         semanticScope.setCondition(falseNode, Read.class);
         semanticScope.copyDecoration(this, falseNode, TargetType.class);
         semanticScope.replicateCondition(this, falseNode, Explicit.class);
         semanticScope.replicateCondition(this, falseNode, Internal.class);
-        Output rightOutput = analyze(falseNode, classNode, semanticScope);
+        analyze(falseNode, semanticScope);
         Class<?> rightValueType = semanticScope.getDecoration(falseNode, ValueType.class).getValueType();
 
         TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
@@ -120,20 +114,10 @@ public class EConditional extends AExpression {
         } else {
             valueType = targetType.getTargetType();
         }
-
-        PainlessCast leftCast = trueNode.cast(semanticScope);
-        PainlessCast rightCast = falseNode.cast(semanticScope);
+        
+        trueNode.cast(semanticScope);
+        falseNode.cast(semanticScope);
 
         semanticScope.putDecoration(this, new ValueType(valueType));
-
-        ConditionalNode conditionalNode = new ConditionalNode();
-        conditionalNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
-        conditionalNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-        conditionalNode.setConditionNode(cast(conditionOutput.expressionNode, conditionCast));
-        conditionalNode.setLocation(getLocation());
-        conditionalNode.setExpressionType(valueType);
-        output.expressionNode = conditionalNode;
-
-        return output;
     }
 }

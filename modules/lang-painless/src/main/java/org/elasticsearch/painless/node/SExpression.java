@@ -20,11 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.ir.ReturnNode;
-import org.elasticsearch.painless.ir.StatementExpressionNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.Internal;
@@ -61,7 +56,7 @@ public class SExpression extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         Class<?> rtnType = semanticScope.getReturnType();
         boolean isVoid = rtnType == void.class;
         boolean lastSource = semanticScope.getCondition(this, LastSource.class);
@@ -70,7 +65,7 @@ public class SExpression extends AStatement {
             semanticScope.setCondition(expressionNode, Read.class);
         }
         
-        AExpression.Output expressionOutput = AExpression.analyze(expressionNode, classNode, semanticScope);
+        AExpression.analyze(expressionNode, semanticScope);
         Class<?> expressionValueType = semanticScope.getDecoration(expressionNode, ValueType.class).getValueType();
 
         boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
@@ -80,32 +75,12 @@ public class SExpression extends AStatement {
             semanticScope.setCondition(expressionNode, Internal.class);
         }
 
-        PainlessCast expressionCast = expressionNode.cast(semanticScope);
-
-        Output output = new Output();
+        expressionNode.cast(semanticScope);
 
         if (rtn) {
             semanticScope.setCondition(this, MethodEscape.class);
             semanticScope.setCondition(this, LoopEscape.class);
             semanticScope.setCondition(this, AllEscape.class);
         }
-
-        ExpressionNode expressionNode = AExpression.cast(expressionOutput.expressionNode, expressionCast);
-
-        if (rtn) {
-            ReturnNode returnNode = new ReturnNode();
-            returnNode.setExpressionNode(expressionNode);
-            returnNode.setLocation(getLocation());
-
-            output.statementNode = returnNode;
-        } else {
-            StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
-            statementExpressionNode.setExpressionNode(expressionNode);
-            statementExpressionNode.setLocation(getLocation());
-
-            output.statementNode = statementExpressionNode;
-        }
-
-        return output;
     }
 }

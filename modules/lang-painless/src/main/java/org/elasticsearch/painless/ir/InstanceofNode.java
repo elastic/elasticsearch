@@ -22,48 +22,26 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
 
 public class InstanceofNode extends UnaryNode {
     
     /* ---- begin node data ---- */
-
+    
     private Class<?> instanceType;
-    private Class<?> resolvedType;
-    private boolean isPrimitiveResult;
 
     public void setInstanceType(Class<?> instanceType) {
         this.instanceType = instanceType;
     }
-    
+
     public Class<?> getInstanceType() {
         return instanceType;
     }
-    
+
     public String getInstanceCanonicalTypeName() {
         return PainlessLookupUtility.typeToCanonicalTypeName(instanceType);
-    }
-
-    public void setResolvedType(Class<?> resolvedType) {
-        this.resolvedType = resolvedType;
-    }
-
-    public Class<?> getResolvedType() {
-        return resolvedType;
-    }
-
-    public String getResolvedCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(resolvedType);
-    }
-    
-    public void setPrimitiveResult(boolean isPrimitiveResult) {
-        this.isPrimitiveResult = isPrimitiveResult;
-    }
-
-    public boolean isPrimitiveResult() {
-        return isPrimitiveResult;
     }
 
     /* ---- end node data, begin visitor ---- */
@@ -79,15 +57,15 @@ public class InstanceofNode extends UnaryNode {
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
         getChildNode().write(classWriter, methodWriter, writeScope);
 
-        // primitive types
-        if (isPrimitiveResult) {
-            // discard child's result result
+        if (instanceType == def.class) {
             methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());
-            // push our result: its' a primitive so it cannot be null
-            methodWriter.push(resolvedType.isAssignableFrom(instanceType));
+            methodWriter.push(true);
+        } else if (getChildNode().getExpressionType().isPrimitive()) {
+            methodWriter.writePop(MethodWriter.getType(getExpressionType()).getSize());
+            methodWriter.push(PainlessLookupUtility.typeToBoxedType(instanceType).isAssignableFrom(
+                    PainlessLookupUtility.typeToBoxedType(getChildNode().getExpressionType())));
         } else {
-            // ordinary instanceof
-            methodWriter.instanceOf(Type.getType(resolvedType));
+            methodWriter.instanceOf(MethodWriter.getType(PainlessLookupUtility.typeToBoxedType(instanceType)));
         }
     }
 }

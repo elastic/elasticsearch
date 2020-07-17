@@ -171,8 +171,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         MergeBucketsPhase(DoubleArray buffer, int bufferSize) {
             // Cluster the documents to reduce the number of buckets
-            // Target shardSizes * (3/4) buckets so that there's room for more distant buckets to be added during rest of collection
-            bucketBufferedDocs(buffer, bufferSize, shardSize * 3 / 4);
+            bucketBufferedDocs(buffer, bufferSize, mergePhaseInitialBucketCount(shardSize));
 
             if(bufferSize > 1) {
                 updateAvgBucketDistance();
@@ -233,7 +232,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * By just creating a merge map, we eliminate the need to actually sort <code>buffer</code>. We can just
          * use the merge map to find any doc's sorted index.
          */
-        private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets){
+        private void bucketBufferedDocs(final DoubleArray buffer, final int bufferSize, final int numBuckets) {
             // Allocate space for the clusters about to be created
             clusterMins = bigArrays.newDoubleArray(1);
             clusterMaxes = bigArrays.newDoubleArray(1);
@@ -586,5 +585,9 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         Releasables.close(collector);
     }
 
+    public static int mergePhaseInitialBucketCount(int shardSize) {
+        // Target shardSizes * (3/4) buckets so that there's room for more distant buckets to be added during rest of collection
+        return (int) ((long) shardSize * 3 / 4);
+    }
 }
 

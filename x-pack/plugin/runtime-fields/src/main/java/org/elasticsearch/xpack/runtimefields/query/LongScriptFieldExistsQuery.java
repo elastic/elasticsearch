@@ -22,9 +22,9 @@ public class LongScriptFieldExistsQuery extends AbstractLongScriptFieldQuery {
     @Override
     public final String toString(String field) {
         if (fieldName().contentEquals(field)) {
-            return "ScriptFieldExists";
+            return getClass().getSimpleName();
         }
-        return fieldName() + ":ScriptFieldExists";
+        return fieldName() + ":" + getClass().getSimpleName();
     }
 
     // Superclass's equals and hashCode are great for this class

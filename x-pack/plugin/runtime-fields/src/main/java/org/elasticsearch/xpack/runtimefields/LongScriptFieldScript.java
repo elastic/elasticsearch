@@ -68,7 +68,7 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
         return count;
     }
 
-    protected final void add(long v) {
+    private final void collectValue(long v) {
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
@@ -83,7 +83,7 @@ public abstract class LongScriptFieldScript extends AbstractScriptFieldScript {
         }
 
         public void value(long v) {
-            script.add(v);
+            script.collectValue(v);
         }
     }
 }

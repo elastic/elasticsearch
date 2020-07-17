@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -34,8 +34,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class ScriptBinaryFieldData extends AbstractIndexComponent
     implements
@@ -101,11 +99,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         try {
             return loadDirect(context);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw ExceptionsHelper.convertToElastic(e);
         }
     }
 
@@ -164,18 +158,6 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         @Override
         public void close() {
 
-        }
-    }
-
-    static class ScriptBinaryResult {
-        private final List<String> result = new ArrayList<>();
-
-        void accept(String value) {
-            this.result.add(value);
-        }
-
-        List<String> getResult() {
-            return result;
         }
     }
 }

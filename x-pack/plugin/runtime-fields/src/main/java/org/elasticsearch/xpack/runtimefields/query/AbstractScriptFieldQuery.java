@@ -15,6 +15,12 @@ import java.util.Objects;
  * Abstract base class for building queries based on script fields.
  */
 abstract class AbstractScriptFieldQuery extends Query {
+    /**
+     * We don't have the infrastructure to estimate the match cost of a script
+     * so we just use a big number.
+     */
+    protected static final float MATCH_COST = 9000f;
+
     private final Script script;
     private final String fieldName;
 
@@ -44,5 +50,4 @@ abstract class AbstractScriptFieldQuery extends Query {
         AbstractScriptFieldQuery other = (AbstractScriptFieldQuery) obj;
         return script.equals(other.script) && fieldName.equals(other.fieldName);
     }
-
 }

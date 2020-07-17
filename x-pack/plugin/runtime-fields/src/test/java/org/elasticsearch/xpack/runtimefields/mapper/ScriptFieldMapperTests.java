@@ -218,7 +218,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
                         ) {
                             @Override
                             public void execute() {
-                                results.add("test");
+                                new StringScriptFieldScript.Value(this).value("test");
                             }
                         };
                     }
@@ -226,7 +226,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
                         return (LongScriptFieldScript.Factory) (params, lookup) -> ctx -> new LongScriptFieldScript(params, lookup, ctx) {
                             @Override
                             public void execute() {
-                                add(1);
+                                new LongScriptFieldScript.Value(this).value(1);
                             }
                         };
                     }

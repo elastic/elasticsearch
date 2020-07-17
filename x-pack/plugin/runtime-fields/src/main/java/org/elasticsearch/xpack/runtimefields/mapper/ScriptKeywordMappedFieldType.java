@@ -48,7 +48,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
 
     @Override
     protected String runtimeType() {
-        return "keyword";
+        return KeywordFieldMapper.CONTENT_TYPE;
     }
 
     @Override
@@ -59,11 +59,6 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
         // keywords are internally stored as utf8 bytes
         BytesRef binaryValue = (BytesRef) value;
         return binaryValue.utf8ToString();
-    }
-
-    @Override
-    public String familyTypeName() {
-        return KeywordFieldMapper.CONTENT_TYPE;
     }
 
     @Override

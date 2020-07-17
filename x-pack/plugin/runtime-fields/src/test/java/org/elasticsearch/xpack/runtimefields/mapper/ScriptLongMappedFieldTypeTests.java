@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.RuntimeFieldsPainlessExtension;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
@@ -51,7 +53,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractScriptMappedFieldTyp
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptLongMappedFieldType ft = build("for (def v : source.foo) {value(v)}");
+                ScriptLongMappedFieldType ft = build("for (def v : source.foo) {value(v + params.param)}", Map.of("param", 1));
                 IndexMetadata imd = IndexMetadata.builder("test")
                     .settings(Settings.builder().put("index.version.created", Version.CURRENT))
                     .numberOfShards(1)
@@ -83,7 +85,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractScriptMappedFieldTyp
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of(1L, 1L, 2L)));
+                assertThat(results, equalTo(List.of(2L, 2L, 3L)));
             }
         }
     }
@@ -112,6 +114,10 @@ public class ScriptLongMappedFieldTypeTests extends AbstractScriptMappedFieldTyp
                 assertThat(searcher.count(build("value(source.foo)").termQuery("1", mockContext())), equalTo(1));
                 assertThat(searcher.count(build("value(source.foo)").termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(build("value(source.foo)").termQuery(1.1, mockContext())), equalTo(0));
+                assertThat(
+                    searcher.count(build("value(source.foo + params.param)", Map.of("param", 1)).termQuery(2, mockContext())),
+                    equalTo(1)
+                );
             }
         }
     }
@@ -121,7 +127,14 @@ public class ScriptLongMappedFieldTypeTests extends AbstractScriptMappedFieldTyp
     }
 
     private ScriptLongMappedFieldType build(String code) throws IOException {
-        Script script = new Script(code);
+        return build(new Script(code));
+    }
+
+    private ScriptLongMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+        return build(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, code, params));
+    }
+
+    private ScriptLongMappedFieldType build(Script script) throws IOException {
         PainlessPlugin painlessPlugin = new PainlessPlugin();
         painlessPlugin.loadExtensions(new ExtensionLoader() {
             @Override

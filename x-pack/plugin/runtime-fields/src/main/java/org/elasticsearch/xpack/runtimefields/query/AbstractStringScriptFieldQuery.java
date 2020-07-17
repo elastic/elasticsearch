@@ -58,8 +58,7 @@ abstract class AbstractStringScriptFieldQuery extends AbstractScriptFieldQuery {
 
                     @Override
                     public float matchCost() {
-                        // TODO we don't have a good way of estimating the complexity of the script so we just go with 9000
-                        return 9000f;
+                        return MATCH_COST;
                     }
                 };
                 return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);

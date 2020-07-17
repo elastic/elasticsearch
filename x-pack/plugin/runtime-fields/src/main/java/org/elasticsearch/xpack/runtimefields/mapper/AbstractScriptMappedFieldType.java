@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -30,9 +30,21 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         this.script = script;
     }
 
+    protected abstract String runtimeType();
+
+    void mapperXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field("runtime_type", runtimeType());
+        builder.field("script", script.getIdOrCode()); // TODO For some reason this doesn't allow us to do the full xcontent of the script.
+    }
+
     @Override
     public final String typeName() {
         return ScriptFieldMapper.CONTENT_TYPE;
+    }
+
+    @Override
+    public final String familyTypeName() {
+        return runtimeType();
     }
 
     @Override
@@ -55,12 +67,5 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
                     + "] is set to [false]."
             );
         }
-    }
-
-    protected abstract String runtimeType();
-
-    void mapperXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field("runtime_type", runtimeType());
-        builder.field("script", script.getIdOrCode()); // TODO For some reason this doesn't allow us to do the full xcontent of the script.
     }
 }

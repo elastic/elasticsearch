@@ -4,9 +4,12 @@
 <titleabbrev>Monitor snapshot and restore</titleabbrev>
 ++++
 
-Use the <<get-snapshot-api,Get snapshot API>> or the <<get-snapshot-status-api,Get snapshot status API>> to monitor the progress of the snapshot and restore processes while they are running. Both
-operations support `wait_for_completion` parameter that would block client until the operation is completed. This is
-the simplest method that can be used to get notified about operation completion.
+Use the <<get-snapshot-api,Get snapshot API>> or the
+<<get-snapshot-status-api,Get snapshot status API>> to monitor the
+progress of snapshot operations. Both APIs support the
+`wait_for_completion` parameter that blocks the client until the
+operation finishes, which is the simplest method of being notified
+about operation completion.
 
 ////
 [source,console]
@@ -84,9 +87,8 @@ the snapshot names or UUIDs in the repository and the data streams and indices i
 the optional boolean parameter `verbose` can be set to `false` to execute a more
 performant and cost-effective retrieval of the snapshots in the repository.
 
-NOTE: Setting `verbose` to `false` will omit all other information
-about the snapshot, such as status information and the number of
-snapshotted shards.  The default value of the `verbose` parameter is `true`.
+NOTE: Setting `verbose` to `false` omits additional information
+about the snapshot, such as metadata, start and end time, number of shards that include the snapshot, and error messages. The default value of the `verbose` parameter is `true`.
 
 [discrete]
 [[get-snapshot-detailed-status]]

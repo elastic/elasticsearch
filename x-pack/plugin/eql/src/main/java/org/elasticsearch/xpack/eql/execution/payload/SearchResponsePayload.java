@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.eql.execution.payload;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.xpack.eql.session.Results.Type;
 
 import java.util.Arrays;
@@ -20,6 +22,11 @@ public class SearchResponsePayload extends AbstractPayload {
     public SearchResponsePayload(SearchResponse response) {
         super(response.isTimedOut(), response.getTook());
         hits = Arrays.asList(response.getHits().getHits());
+        // clean hits
+        SearchSortValues sortValues = new SearchSortValues(new Object[0], new DocValueFormat[0]);
+        for (SearchHit hit : hits) {
+            hit.sortValues(sortValues);
+        }
     }
 
     @Override

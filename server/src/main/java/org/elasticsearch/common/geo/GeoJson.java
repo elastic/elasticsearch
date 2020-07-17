@@ -282,7 +282,7 @@ public final class GeoJson {
                 verifyNulls(type, geometries, orientation, radius);
                 return coordinates.asRectangle();
             default:
-                throw new ElasticsearchParseException("unsuppoted shape type " + type);
+                throw new ElasticsearchParseException("unsupported shape type " + type);
         }
     }
 

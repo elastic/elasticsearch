@@ -20,13 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationBlockNode;
-import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -53,25 +49,9 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        Output output = new Output();
-
-        List<Output> declarationOutputs = new ArrayList<>(declarationNodes.size());
-
+    void analyze(SemanticScope semanticScope) {
         for (SDeclaration declaration : declarationNodes) {
-            declarationOutputs.add(declaration.analyze(classNode, semanticScope));
+            declaration.analyze(semanticScope);
         }
-
-        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
-
-        for (Output declarationOutput : declarationOutputs) {
-            declarationBlockNode.addDeclarationNode((DeclarationNode)declarationOutput.statementNode);
-        }
-
-        declarationBlockNode.setLocation(getLocation());
-
-        output.statementNode = declarationBlockNode;
-
-        return output;
     }
 }

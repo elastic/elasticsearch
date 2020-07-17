@@ -52,9 +52,6 @@ triggers for such actions.
 TIP: While optional, we recommend using {ilm-init} to scale data streams in
 production.
 
-.*Example*
-[%collapsible]
-====
 The following <<ilm-put-lifecycle,create lifecycle policy API>> request
 configures the `logs_policy` lifecycle policy.
 
@@ -86,83 +83,36 @@ PUT /_ilm/policy/logs_policy
   }
 }
 ----
-====
 
 
 [discrete]
 [[create-a-data-stream-template]]
 === Create an index template for a data stream
 
-Each data stream requires an <<indices-templates,index template>>. The data
-stream uses this template to create its backing indices.
+Each data stream requires a matching <<indices-templates,index template>>. The
+data stream uses this template to apply settings and mappings to its backing
+indices. This index template contains:
 
-An index template for a data stream must contain:
+* The mappings and settings you'd like to apply to the stream's backing indices.
 
-* A name or wildcard (`*`) pattern for the data stream in the `index_patterns`
-property.
-+
-You can use the resolve index API to check if the name or pattern
-matches any existing indices, index aliases, or data streams. If so, you should
-consider using another name or pattern.
-+
-.*Example*
-[%collapsible]
-====
-The following resolve index API request checks for any existing indices, index
-aliases, or data streams that start with `logs`. If not, the `logs*`
-wildcard pattern can be used to create a new data stream.
+* A name or wildcard (`*`) pattern that matches the data stream's name in the
+`index_patterns` property.
 
-[source,console]
-----
-GET /_resolve/index/logs*
-----
-// TEST[continued]
+* A required `data_stream` object with an empty body (`{ }`).  This object
+indicates the template is used for data streams.
 
-The API returns the following response, indicating no existing targets match
-this pattern.
-
-[source,console-result]
-----
-{
-  "indices" : [ ],
-  "aliases" : [ ],
-  "data_streams" : [ ]
-}
-----
-====
-
-* A `data_stream` object with an empty body (`{ }`).
-
-The template can also contain:
-
-* An optional field mapping for the `@timestamp` field. Both the <<date,`date`>> and
-<<date_nanos,`date_nanos`>> field data types are supported. If no mapping is specified,
-a <<date,`date`>> field data type with default options is used.
-+
-This mapping can include other <<mapping-params,mapping parameters>>, such as
-<<mapping-date-format,`format`>>.
-+
-IMPORTANT: Carefully consider the `@timestamp` field's mapping, including
-its <<mapping-params,mapping parameters>>.
-Once the stream is created, you can only update the `@timestamp` field's mapping
-by reindexing the data stream. See
-<<data-streams-use-reindex-to-change-mappings-settings>>.
-
-* If you intend to use {ilm-init}, the
-  <<configure-a-data-stream-ilm-policy,lifecycle policy>> in the
-  `index.lifecycle.name` setting.
-
-You can also specify other mappings and settings you'd like to apply to the
-stream's backing indices.
+A `@timestamp` field must be included in every document indexed to the data
+stream. This field can be mapped as a <<date,`date`>> or
+<<date_nanos,`date_nanos`>> field data type in the stream's matching index
+template. If no mapping is specified in the template, the `date` field data type
+with default options is used. This mapping can include other
+<<mapping-params,mapping parameters>>, such as <<mapping-date-format,`format`>>.
 
 TIP: We recommend you carefully consider which mappings and settings to include
 in this template before creating a data stream. Later changes to the mappings or
 settings of a stream's backing indices may require reindexing. See
 <<data-streams-change-mappings-and-settings>>.
 
-.*Example*
-[%collapsible]
-====
 The following <<indices-templates,put index template API>> request
 configures the `logs_data_stream` template.
 
@@ -184,7 +134,7 @@ PUT /_index_template/logs_data_stream
 ----
 // TEST[continued]
 
-The following template maps `@timestamp` as a `date_nanos` field.
+Alternativeely, the following template maps `@timestamp` as a `date_nanos` field.
 
 [source,console]
 ----
@@ -208,7 +158,6 @@ PUT /_index_template/logs_data_stream
 
 <1> Maps `@timestamp` as a `date_nanos` field. You can include other supported
 mapping parameters in this field mapping.
-====
 
 NOTE: You cannot delete an index template that's in use by a data stream.
 This would prevent the data stream from creating new backing indices.
@@ -220,21 +169,24 @@ This would prevent the data stream from creating new backing indices.
 With an index template, you can create a data stream using one of two
 methods:
 
-* Submit an <<add-documents-to-a-data-stream,indexing request>> to a target
+* <<index-documents-to-create-a-data-stream>>
+* <<manually-create-a-data-stream>>
+
+[discrete]
+[[index-documents-to-create-a-data-stream]]
+====  Index documents to create a data stream
+
+You can automatically generate a data stream using an indexing request. Submit 
+an <<add-documents-to-a-data-stream,indexing request>> to a target
 matching the name or wildcard pattern defined in the template's `index_patterns`
 property.
-+
---
+
 If the indexing request's target doesn't exist, {es} creates the data stream and
 uses the target name as the name for the stream.
 
 NOTE: Data streams support only specific types of indexing requests. See
 <<add-documents-to-a-data-stream>>.
 
-[[index-documents-to-create-a-data-stream]]
-.*Example: Index documents to create a data stream*
-[%collapsible]
-====
 The following <<docs-index_,index API>> request targets `logs`, which matches
 the wildcard pattern for the `logs_data_stream` template. Because no existing
 index or data stream uses this name, this request creates the `logs` data stream
@@ -274,18 +226,16 @@ new `logs` data stream.
 }
 ----
 // TESTRESPONSE[s/"_id": "qecQmXIBT4jB8tq1nG0j"/"_id": $body._id/]
-====
---
 
-* Use the <<indices-create-data-stream,create data stream API>> to manually
-create a data stream. The name of the data stream must match the
-name or wildcard pattern defined in the template's `index_patterns` property.
-+
---
-.*Example: Manually create a data stream*
-[%collapsible]
-====
-The following <<indices-create-data-stream,create data stream API>> request
+[discrete]
+[[manually-create-a-data-stream]]
+====  Manually create a data stream
+
+You can use the <<indices-create-data-stream,create data stream API>> to
+manually create a data stream. The name of the data stream must match the name
+or wildcard pattern defined in the template's `index_patterns` property.
+
+The following create data stream request
 targets `logs_alt`, which matches the wildcard pattern for the
 `logs_data_stream` template. Because no existing index or data stream uses this
 name, this request creates the `logs_alt` data stream.
@@ -295,8 +245,6 @@ name, this request creates the `logs_alt` data stream.
 PUT /_data_stream/logs_alt
 ----
 // TEST[continued]
-====
---
 
 [discrete]
 [[get-info-about-a-data-stream]]
@@ -316,9 +264,6 @@ template
 
 This is also handy way to verify that a recently created data stream exists.
 
-.*Example*
-[%collapsible]
-====
 The following get data stream API request retrieves information about the
 `logs` data stream.
 
@@ -373,7 +318,6 @@ contains information about the stream's write index, `.ds-logs-000002`.
 
 <1> Last item in the `indices` array for the `logs` data stream. This item
 contains information about the stream's current write index, `.ds-logs-000002`.
-====
 
 [discrete]
 [[secure-a-data-stream]]
@@ -389,9 +333,6 @@ data. See <<data-stream-privileges>>.
 You can use the <<indices-delete-data-stream,delete data stream API>> to delete
 a data stream and its backing indices.
 
-.*Example*
-[%collapsible]
-====
 The following delete data stream API request deletes the `logs` data stream. This
 request also deletes the stream's backing indices and any data they contain.
 
@@ -400,7 +341,6 @@ request also deletes the stream's backing indices and any data they contain.
 DELETE /_data_stream/logs
 ----
 // TEST[continued]
-====
 
 ////
 [source,console]

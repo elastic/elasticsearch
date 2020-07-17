@@ -10,7 +10,8 @@ the following:
 * <<manually-roll-over-a-data-stream>>
 * <<open-closed-backing-indices>>
 * <<reindex-with-a-data-stream>>
-* <<update-delete-docs-in-a-data-stream>>
+* <<update-docs-in-a-data-stream-by-query>>
+* <<delete-docs-in-a-data-stream-by-query>>
 * <<update-delete-docs-in-a-backing-index>>
 
 ////
@@ -54,18 +55,22 @@ DELETE /_index_template/*
 [[add-documents-to-a-data-stream]]
 === Add documents to a data stream
 
-You can add documents to a data stream using the following requests:
+You can add documents to a data stream using two types of indexing requests:
 
-* An <<docs-index_,index API>> request with an
-<<docs-index-api-op_type,`op_type`>> set to `create`. Specify the data
-stream's name in place of an index name.
-+
---
+* <<data-streams-individual-indexing-requests>>
+* <<data-streams-bulk-indexing-requests>>
+
+
+[discrete]
+[[data-streams-individual-indexing-requests]]
+==== Individual indexing requests
+
+You can use an <<docs-index_,index API>> request with an
+<<docs-index-api-op_type,`op_type`>> of `create` to add individual documents
+to a data stream.
+
 NOTE: The `op_type` parameter defaults to `create` when adding new documents.
 
-.*Example: Index API request*
-[%collapsible]
-====
 The following index API request adds a new document to the `logs` data
 stream.
 
@@ -80,22 +85,22 @@ POST /logs/_doc/
   "message": "Login successful"
 }
 ----
-====
 
 IMPORTANT: You cannot add new documents to a data stream using the index API's
 `PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the
 `PUT /<target>/_create/<_id>` format instead.
---
 
-* A <<docs-bulk,bulk API>> request using the `create` action. Specify the data
-stream's name in place of an index name.
-+
---
+
+[discrete]
+[[data-streams-bulk-indexing-requests]]
+==== Bulk indexing requests
+
+You can use the <<docs-bulk,bulk API>> to add multiple documents to a data
+stream in a single request. Each action in the bulk request must use the
+`create` action.
+
 NOTE: Data streams do not support other bulk actions, such as `index`.
 
-.*Example: Bulk API request*
-[%collapsible]
-====
 The following bulk API request adds several new documents to
 the `logs` data stream. Note that only the `create` action is used.
 
@@ -109,15 +114,14 @@ PUT /logs/_bulk?refresh
 {"create":{ }}
 { "@timestamp": "2020-12-09T11:07:08.000Z", "user": { "id": "l7gk7f82" }, "message": "Logout successful" }
 ----
-====
---
 
-You can use an <<ingest,ingest pipeline>> with these requests to pre-process
-data before it's indexed.
+[discrete]
+[[data-streams-index-with-an-ingest-pipeline]]
+==== Index with an ingest pipeline
 
-.*Example: Ingest pipeline*
-[%collapsible]
-====
+You can use an <<ingest,ingest pipeline>> with indexing request to pre-process
+a stream's data before it's indexed.
+
 The following <<put-pipeline-api,put pipeline API>> request creates the
 `lowercase_message_field` ingest pipeline. The pipeline uses the
 <<lowercase-processor,`lowercase` ingest processor>> to change the `message`
@@ -168,7 +172,7 @@ DELETE /_ingest/pipeline/lowercase_message_field
 ----
 // TEST[continued]
 ////
-====
+
 
 [discrete]
 [[search-a-data-stream]]
@@ -184,9 +188,6 @@ The following search APIs support data streams:
 * <<eql-search-api, EQL search>>
 ////
 
-.*Example*
-[%collapsible]
-====
 The following <<search-search,search API>> request searches the `logs` data
 stream for documents with a timestamp between today and yesterday that also have
 `message` value of `login successful`.
@@ -214,14 +215,10 @@ GET /logs/_search
   }
 }
 ----
-====
 
 You can use a comma-separated list or wildcard (`*`) expression to search
 multiple data streams, indices, and index aliases in the same request.
 
-.*Example*
-[%collapsible]
-====
 The following request searches the `logs` and `logs_alt` data streams, which are
 specified as a comma-separated list in the request path.
 
@@ -265,7 +262,6 @@ GET /_search
   }
 }
 ----
-====
 
 [discrete]
 [[manually-roll-over-a-data-stream]]
@@ -285,9 +281,6 @@ manually perform a rollover. This can be useful if you want to
 <<data-streams-change-mappings-and-settings,apply mapping or setting changes>>
 to the stream's write index after updating a data stream's template.
 
-.*Example*
-[%collapsible]
-====
 The following <<indices-rollover-index,rollover API>> request submits a manual
 rollover request for the `logs` data stream.
 
@@ -295,7 +288,6 @@ rollover request for the `logs` data stream.
 ----
 POST /logs/_rollover/
 ----
-====
 
 [discrete]
 [[open-closed-backing-indices]]
@@ -304,8 +296,8 @@ POST /logs/_rollover/
 You may <<indices-close,close>> one or more of a data stream's backing indices
 as part of its {ilm-init} lifecycle or another workflow. A closed backing index
 cannot be searched, even for searches targeting its data stream. You also can't
-<<update-delete-docs-in-a-data-stream,update or delete documents>> in a closed
-index.
+<<update-docs-in-a-data-stream-by-query,update>> or
+<<delete-docs-in-a-data-stream-by-query,delete>> documents in a closed index.
 
 You can re-open individual backing indices by sending an
 <<indices-open-close,open request>> directly to the index.
@@ -313,9 +305,6 @@ You can re-open individual backing indices by sending an
 You also can conveniently re-open all closed backing indices for a data stream
 by sending an open request directly to the stream.
 
-.*Example*
-[%collapsible]
-====
 The following <<cat-indices,cat indices>> API request retrieves the status for
 the `logs` data stream's backing indices.
 
@@ -374,7 +363,6 @@ index           status
 .ds-logs-000003 open
 ----
 // TESTRESPONSE[non_json]
-====
 
 [discrete]
 [[reindex-with-a-data-stream]]
@@ -408,9 +396,6 @@ TIP: If you only want to update the mappings or settings of a data stream's
 write index, we recommend you update the <<create-a-data-stream-template,data
 stream's template>> and perform a <<manually-roll-over-a-data-stream,rollover>>.
 
-.*Example*
-[%collapsible]
-====
 The following reindex request copies documents from the `archive` index alias to
 the existing `logs` data stream. Because the destination is a data stream, the
 request's `op_type` is `create`.
@@ -452,14 +437,10 @@ POST /_reindex
 }
 ----
 // TEST[continued]
-====
 
 You can also reindex documents from a data stream to an index, index
 alias, or data stream.
 
-.*Example*
-[%collapsible]
-====
 The following reindex request copies documents from the `logs` data stream
 to the existing `archive` index alias. Because the destination is not a data
 stream, the `op_type` does not need to be specified.
@@ -477,21 +458,15 @@ POST /_reindex
 }
 ----
 // TEST[continued]
-====
 
 [discrete]
-[[update-delete-docs-in-a-data-stream]]
-=== Update or delete documents in a data stream
+[[update-docs-in-a-data-stream-by-query]]
+=== Update documents in a data stream by query
 
-You can update or delete documents in a data stream using the following
-requests:
+You can use the <<docs-update-by-query,update by query API>> to update documents
+in a data stream that matches a provided query.
 
-* An <<docs-update-by-query,update by query API>> request
-+
-.*Example*
-[%collapsible]
-====
-The following update by query API request updates documents in the `logs` data
+The following update by query request updates documents in the `logs` data
 stream with a `user.id` of `l7gk7f82`. The request uses a
 <<modules-scripting-using,script>> to assign matching documents a new `user.id`
 value of `XgdX0NoX`.
@@ -513,14 +488,15 @@ POST /logs/_update_by_query
   }
 }
 ----
-====
 
-* A <<docs-delete-by-query,delete by query API>> request
-+
-.*Example*
-[%collapsible]
-====
-The following delete by query API request deletes documents in the `logs` data
+[discrete]
+[[delete-docs-in-a-data-stream-by-query]]
+=== Delete documents in a data stream by query
+
+You can use the <<docs-delete-by-query,delete by query API>> to delete documents
+in a data stream that matches a provided query.
+
+The following delete by query request deletes documents in the `logs` data
 stream with a `user.id` of `vlb44hny`.
 
 [source,console]
@@ -534,7 +510,6 @@ POST /logs/_delete_by_query
   }
 }
 ----
-====
 
 [discrete]
 [[update-delete-docs-in-a-backing-index]]
@@ -553,9 +528,6 @@ If you want to update a document, you must also get its current
 You can use a <<search-a-data-stream,search request>> to retrieve this
 information.
 
-.*Example*
-[%collapsible]
-====
 The following search request retrieves documents in the `logs` data stream with
 a `user.id` of `yWIumJd7`. By default, this search returns the document ID and
 backing index for any matching documents.
@@ -624,15 +596,11 @@ information for any documents matching the search.
 <2> Document ID for the document
 <3> Current sequence number for the document
 <4> Primary term for the document
-====
 
 You can use an <<docs-index_,index API>> request to update an individual
 document. To prevent an accidental overwrite, this request must include valid
 `if_seq_no` and `if_primary_term` arguments.
 
-.*Example*
-[%collapsible]
-====
 The following index API request updates an existing document in the `logs` data
 stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
 `.ds-logs-000003` backing index.
@@ -652,14 +620,10 @@ PUT /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX?if_seq_no=0&if_primary_term=1
   "message": "Login successful"
 }
 ----
-====
 
 You use the <<docs-delete,delete API>> to delete individual documents. Deletion
 requests do not require a sequence number or primary term.
 
-.*Example*
-[%collapsible]
-====
 The following index API request deletes an existing document in the `logs` data
 stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
 `.ds-logs-000003` backing index.
@@ -668,7 +632,6 @@ stream. The request targets document ID `bfspvnIBr7VVZlfp2lqX` in the
 ----
 DELETE /.ds-logs-000003/_doc/bfspvnIBr7VVZlfp2lqX
 ----
-====
 
 You can use the <<docs-bulk,bulk API>> to delete or update multiple documents in
 one request using `delete`, `index`, or `update` actions.
@@ -677,9 +640,6 @@ If the action type is `index`, the action must include valid
 <<bulk-optimistic-concurrency-control,`if_seq_no` and `if_primary_term`>>
 arguments.
 
-.*Example*
-[%collapsible]
-====
 The following bulk API request uses an `index` action to update an existing
 document in the `logs` data stream.
 
@@ -694,5 +654,4 @@ PUT /_bulk?refresh
 { "index": { "_index": ".ds-logs-000003", "_id": "bfspvnIBr7VVZlfp2lqX", "if_seq_no": 0, "if_primary_term": 1 } }
 { "@timestamp": "2020-12-07T11:06:07.000Z", "user": { "id": "8a4f500d" }, "message": "Login successful" }
 ----
-====
 

@@ -83,7 +83,7 @@ The `fvh` highlighter does not support span queries. If you need support for
 span queries, try an alternative highlighter, such as the `unified` highlighter.
 
 [[offsets-strategy]]
-==== Offsets Strategy
+==== Offsets strategy
 To create meaningful search snippets from the terms being queried,
 the highlighter needs to know the start and end character offsets of each word
 in the original text. These offsets can be obtained from:
@@ -116,7 +116,7 @@ limited to 1000000. This default limit can be changed
 for a particular index with the index setting `index.highlight.max_analyzed_offset`.
 
 [[highlighting-settings]]
-==== Highlighting Settings
+==== Highlighting settings
 
 Highlighting settings can be set on a global level and overridden at
 the field level.
@@ -254,7 +254,7 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 `unified`.
 
 [[highlighting-examples]]
-==== Highlighting Examples
+==== Highlighting examples
 
 * <<override-global-settings, Override global settings>>
 * <<specify-highlight-query, Specify a highlight query>>

@@ -38,23 +38,24 @@ To sort results by the length of the `theatre` field, submit the following query
 ----
 GET /_search
 {
-    "query" : {
-        "term" : { "sold" : "true" }
-    },
-    "sort" : {
-        "_script" : {
-            "type" : "number",
-            "script" : {
-                "lang": "painless",
-                "source": "doc['theatre'].value.length() * params.factor",
-                "params" : {
-                    "factor" : 1.1
-                }
-            },
-            "order" : "asc"
-        }
+  "query": {
+    "term": {
+      "sold": "true"
     }
+  },
+  "sort": {
+    "_script": {
+      "type": "number",
+      "script": {
+        "lang": "painless",
+        "source": "doc['theatre'].value.length() * params.factor",
+        "params": {
+          "factor": 1.1
+        }
+      },
+      "order": "asc"
+    }
+  }
 }
-
 ----
 // TEST[setup:seats]

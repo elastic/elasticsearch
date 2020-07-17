@@ -6,9 +6,7 @@
 
 package org.elasticsearch.xpack.datastreams.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,26 +27,14 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";
-
-    public static class Defaults {
-
-        public static final FieldType TIMESTAMP_FIELD_TYPE = new FieldType();
-
-        static {
-            TIMESTAMP_FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            TIMESTAMP_FIELD_TYPE.freeze();
-        }
-    }
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
@@ -75,52 +61,49 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    private static DataStreamTimestampFieldMapper toType(FieldMapper in) {
+        return (DataStreamTimestampFieldMapper) in;
+    }
 
-        private String path;
+    public static class Builder extends MetadataFieldMapper.Builder {
+
+        private final Parameter<String> path = Parameter.stringParam("path", false, m -> toType(m).path, null);
 
         public Builder() {
-            super(NAME, Defaults.TIMESTAMP_FIELD_TYPE);
+            super(NAME);
         }
 
-        public void setPath(String path) {
-            this.path = path;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(path);
         }
 
         @Override
         public MetadataFieldMapper build(BuilderContext context) {
-            return new DataStreamTimestampFieldMapper(fieldType, new TimestampFieldType(), path);
+            return new DataStreamTimestampFieldMapper(new TimestampFieldType(), path.getValue());
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
 
         @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
             Builder builder = new Builder();
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
-                    builder.setPath((String) fieldNode);
-                    iterator.remove();
-                }
-            }
+            builder.parse(name, parserContext, node);
             return builder;
         }
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext parserContext) {
-            return new DataStreamTimestampFieldMapper(Defaults.TIMESTAMP_FIELD_TYPE, new TimestampFieldType(), null);
+            return new DataStreamTimestampFieldMapper(new TimestampFieldType(), null);
         }
     }
 
     private final String path;
 
-    private DataStreamTimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String path) {
-        super(fieldType, mappedFieldType);
+    private DataStreamTimestampFieldMapper(MappedFieldType mappedFieldType, String path) {
+        super(mappedFieldType);
         this.path = path;
     }
 
@@ -226,36 +209,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (path == null) {
-            return builder;
-        }
-
-        builder.startObject(simpleName());
-        builder.field("path", path);
-        return builder.endObject();
-    }
-
-    @Override
     protected String contentType() {
         return NAME;
-    }
-
-    @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return false;
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        DataStreamTimestampFieldMapper otherTimestampFieldMapper = (DataStreamTimestampFieldMapper) other;
-        if (Objects.equals(path, otherTimestampFieldMapper.path) == false) {
-            conflicts.add("cannot update path setting for [_data_stream_timestamp]");
-        }
     }
 }

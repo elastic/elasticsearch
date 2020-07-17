@@ -19,22 +19,22 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 
 /**
  * A mapper for a builtin field containing metadata about a document.
  */
-public abstract class MetadataFieldMapper extends FieldMapper {
+public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
 
     public interface TypeParser extends Mapper.TypeParser {
 
         @Override
-        MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
+        MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
                                                ParserContext parserContext) throws MapperParsingException;
 
         /**
@@ -45,25 +45,60 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         MetadataFieldMapper getDefault(ParserContext parserContext);
     }
 
-    @SuppressWarnings("rawtypes")
-    public abstract static class Builder<T extends Builder<T>> extends FieldMapper.Builder<T> {
-        public Builder(String name, FieldType fieldType) {
-            super(name, fieldType);
+    public static class FixedTypeParser implements TypeParser {
+
+        final Function<ParserContext, MetadataFieldMapper> mapperParser;
+
+        public FixedTypeParser(Function<ParserContext, MetadataFieldMapper> mapperParser) {
+            this.mapperParser = mapperParser;
         }
 
         @Override
-        public T index(boolean index) {
-            if (index == false) {
-                throw new IllegalArgumentException("Metadata fields must be indexed");
-            }
-            return builder;
+        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            throw new MapperParsingException(name + " is not configurable");
         }
 
+        @Override
+        public MetadataFieldMapper getDefault(ParserContext parserContext) {
+            return mapperParser.apply(parserContext);
+        }
+    }
+
+    public static abstract class Builder extends ParametrizedFieldMapper.Builder {
+
+        protected Builder(String name) {
+            super(name);
+        }
+
+        boolean isConfigured() {
+            for (Parameter<?> param : getParameters()) {
+                if (param.isConfigured()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
         public abstract MetadataFieldMapper build(BuilderContext context);
     }
 
-    protected MetadataFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), fieldType, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
+        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    }
+
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return null;    // by default, things can't be configured so we have no builder
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
+        if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
+            return builder;
+        }
+        return super.toXContent(builder, params);
     }
 
     /**
@@ -85,8 +120,5 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     public void postParse(ParseContext context) throws IOException {
         // do nothing
     }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) { }
 
 }

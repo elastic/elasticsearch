@@ -97,7 +97,7 @@ public class DocumentMapper implements ToXContentFragment {
             return this;
         }
 
-        public Builder put(MetadataFieldMapper.Builder<?> mapper) {
+        public Builder put(MetadataFieldMapper.Builder mapper) {
             MetadataFieldMapper metadataMapper = mapper.build(builderContext);
             metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             return this;

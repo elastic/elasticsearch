@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -56,7 +55,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A mapper for the _id field. It does nothing since _id is neither indexed nor
@@ -79,7 +77,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         public static final FieldType FIELD_TYPE = new FieldType();
         public static final FieldType NESTED_FIELD_TYPE;
-        public static final MappedFieldType MAPPED_FIELD_TYPE = new IdFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -98,18 +95,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                 ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new IdFieldMapper(Defaults.FIELD_TYPE);
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper());
 
     static final class IdFieldType extends TermBasedFieldType {
 
@@ -273,8 +259,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(FieldType fieldType) {
-        super(fieldType, new IdFieldType());
+    private IdFieldMapper() {
+        super(new IdFieldType());
     }
 
     @Override
@@ -284,10 +270,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            BytesRef id = Uid.encodeId(context.sourceToParse().id());
-            context.doc().add(new Field(NAME, id, fieldType));
-        }
+        BytesRef id = Uid.encodeId(context.sourceToParse().id());
+        context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
     }
 
     @Override
@@ -295,8 +279,4 @@ public class IdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
 }

@@ -20,20 +20,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 /** Mapper for the _version field. */
 public class VersionFieldMapper extends MetadataFieldMapper {
@@ -41,31 +36,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_version";
     public static final String CONTENT_TYPE = "_version";
 
-    public static class Defaults {
-
-        public static final String NAME = VersionFieldMapper.NAME;
-        public static final FieldType FIELD_TYPE = new FieldType();
-        public static final MappedFieldType MAPPED_FIELD_TYPE = new VersionFieldType();
-
-        static {
-            FIELD_TYPE.setDocValuesType(DocValuesType.NUMERIC);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                       ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new VersionFieldMapper();
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
 
     static final class VersionFieldType extends MappedFieldType {
 
@@ -92,7 +63,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     private VersionFieldMapper() {
-        super(Defaults.FIELD_TYPE, Defaults.MAPPED_FIELD_TYPE);
+        super(VersionFieldType.INSTANCE);
     }
 
     @Override
@@ -127,11 +98,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 
 }

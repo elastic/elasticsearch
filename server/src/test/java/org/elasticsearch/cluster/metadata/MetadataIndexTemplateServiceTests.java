@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -36,17 +35,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -76,6 +76,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.containsStringIgnoringCase;
@@ -1497,72 +1498,87 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             return Map.of("_data_stream_timestamp", new MetadataFieldMapper.TypeParser() {
 
                 @Override
-                public MetadataFieldMapper.Builder<?> parse(String name,
+                public MetadataFieldMapper.Builder parse(String name,
                                                             Map<String, Object> node,
                                                             ParserContext parserContext) throws MapperParsingException {
-                    String path = (String) node.remove("path");
-                    return new MetadataFieldMapper.Builder(name, new FieldType()) {
-                        @Override
-                        public MetadataFieldMapper build(Mapper.BuilderContext context) {
-                            return newInstance(path);
-                        }
-                    };
+                    MetadataTimestampFieldBuilder builder = new MetadataTimestampFieldBuilder();
+                    builder.parse(name, parserContext, node);
+                    return builder;
                 }
 
                 @Override
                 public MetadataFieldMapper getDefault(ParserContext parserContext) {
-                    return newInstance(null);
+                    return new MetadataTimestampFieldMapper(null);
                 }
 
-                MetadataFieldMapper newInstance(String path) {
-                    FieldType fieldType = new FieldType();
-                    fieldType.freeze();
-                    MappedFieldType mappedFieldType =
-                        new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Map.of()) {
-                        @Override
-                        public String typeName() {
-                            return "_data_stream_timestamp";
-                        }
+            });
+        }
+    }
 
-                        @Override
-                        public Query termQuery(Object value, QueryShardContext context) {
-                            return null;
-                        }
+    private static MetadataTimestampFieldMapper toType(FieldMapper in) {
+        return (MetadataTimestampFieldMapper) in;
+    }
 
-                        @Override
-                        public Query existsQuery(QueryShardContext context) {
-                            return null;
-                        }
-                    };
-                    return new MetadataFieldMapper(fieldType, mappedFieldType) {
-                        @Override
-                        public void preParse(ParseContext context) throws IOException {
+    public static class MetadataTimestampFieldBuilder extends MetadataFieldMapper.Builder {
 
-                        }
+        private final Parameter<String> path = Parameter.stringParam("path", false, m -> toType(m).path, null);
 
-                        @Override
-                        protected void parseCreateField(ParseContext context) throws IOException {
+        protected MetadataTimestampFieldBuilder() {
+            super("_data_stream_timestamp");
+        }
 
-                        }
+        @Override
+        protected List<ParametrizedFieldMapper.Parameter<?>> getParameters() {
+            return List.of(path);
+        }
 
-                        @Override
-                        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                            if (path == null) {
-                                return builder;
-                            }
+        @Override
+        public MetadataFieldMapper build(Mapper.BuilderContext context) {
+            return new MetadataTimestampFieldMapper(path.getValue());
+        }
+    }
 
-                            builder.startObject(simpleName());
-                            builder.field("path", path);
-                            return builder.endObject();
-                        }
+    public static class MetadataTimestampFieldMapper extends MetadataFieldMapper {
+        final String path;
 
-                        @Override
-                        protected String contentType() {
-                            return "_data_stream_timestamp";
-                        }
-                    };
+        public MetadataTimestampFieldMapper(String path) {
+            super(new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Map.of()) {
+                @Override
+                public String typeName() {
+                    return "_data_stream_timestamp";
+                }
+
+                @Override
+                public Query termQuery(Object value, QueryShardContext context) {
+                    return null;
+                }
+
+                @Override
+                public Query existsQuery(QueryShardContext context) {
+                    return null;
                 }
             });
+            this.path = path;
+        }
+
+        @Override
+        public ParametrizedFieldMapper.Builder getMergeBuilder() {
+            return new MetadataTimestampFieldBuilder().init(this);
+        }
+
+        @Override
+        public void preParse(ParseContext context) {
+
+        }
+
+        @Override
+        protected void parseCreateField(ParseContext context) {
+
+        }
+
+        @Override
+        protected String contentType() {
+            return "_data_stream_timestamp";
         }
     }
 }

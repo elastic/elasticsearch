@@ -19,19 +19,15 @@
 
 package org.elasticsearch.index.mapper.size;
 
-import org.apache.lucene.document.FieldType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.EnabledAttributeMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -39,68 +35,55 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
 
     public static class Defaults  {
-        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
-
-        public static final FieldType SIZE_FIELD_TYPE = new FieldType();
-
-        static {
-            SIZE_FIELD_TYPE.setStored(true);
-            SIZE_FIELD_TYPE.freeze();
-        }
+        public static final boolean ENABLED = false;
     }
 
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
+    private static SizeFieldMapper toType(FieldMapper in) {
+        return (SizeFieldMapper) in;
+    }
 
-        protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
+    public static class Builder extends MetadataFieldMapper.Builder {
+
+        // TODO should this really be updateable?
+        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled(), false);
 
         private Builder() {
-            super(NAME, Defaults.SIZE_FIELD_TYPE);
-            builder = this;
+            super(NAME);
         }
 
-        public Builder enabled(EnabledAttributeMapper enabled) {
-            this.enabledState = enabled;
-            return builder;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(enabled);
         }
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(fieldType, enabledState,
+            return new SizeFieldMapper(enabled.getValue(),
                 new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
                                                        ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("enabled")) {
-                    boolean enabled = XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled");
-                    builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
-                    iterator.remove();
-                }
-            }
+            builder.parse(name, parserContext, node);
             return builder;
         }
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            return new SizeFieldMapper(Defaults.SIZE_FIELD_TYPE, Defaults.ENABLED_STATE,
+            return new SizeFieldMapper(Defaults.ENABLED,
                 new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
         }
     }
 
-    private EnabledAttributeMapper enabledState;
+    private final boolean enabled;
 
-    private SizeFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled,
-                            MappedFieldType mappedFieldType) {
-        super(fieldType, mappedFieldType);
-        this.enabledState = enabled;
+    private SizeFieldMapper(boolean enabled, MappedFieldType mappedFieldType) {
+        super(mappedFieldType);
+        this.enabled = enabled;
     }
 
     @Override
@@ -109,7 +92,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     public boolean enabled() {
-        return this.enabledState.enabled;
+        return this.enabled;
     }
 
     @Override
@@ -129,37 +112,15 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) {
-        if (!enabledState.enabled) {
+        if (enabled == false) {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        boolean indexed = fieldType().isSearchable();
-        boolean docValued = fieldType().hasDocValues();
-        boolean stored = fieldType.stored();
-        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, indexed, docValued, stored));
+        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, true, true, false));
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE) {
-            return builder;
-        }
-        builder.startObject(contentType());
-        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
-            builder.field("enabled", enabledState.enabled);
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    protected void mergeOptions(FieldMapper other, List<String> conflicts) {
-        SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) other;
-        if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
-            this.enabledState = sizeFieldMapperMergeWith.enabledState;
-        }
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder().init(this);
     }
 }

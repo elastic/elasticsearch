@@ -19,11 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -31,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 
 public class IndexFieldMapper extends MetadataFieldMapper {
@@ -40,44 +36,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_index";
 
-    public static class Defaults {
-        public static final String NAME = IndexFieldMapper.NAME;
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-
-        static {
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
-    }
-
-    public static class Builder extends MetadataFieldMapper.Builder<Builder> {
-
-        public Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
-        }
-
-        @Override
-        public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(fieldType);
-        }
-    }
-
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
-                                                      ParserContext parserContext) throws MapperParsingException {
-            throw new MapperParsingException(NAME + " is not configurable");
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new IndexFieldMapper(Defaults.FIELD_TYPE);
-        }
-    }
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IndexFieldMapper());
 
     static final class IndexFieldType extends ConstantFieldType {
 
@@ -109,8 +68,8 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     }
 
-    private IndexFieldMapper(FieldType fieldType) {
-        super(fieldType, IndexFieldType.INSTANCE);
+    public IndexFieldMapper() {
+        super(IndexFieldType.INSTANCE);
     }
 
     @Override
@@ -124,8 +83,4 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
-    }
 }

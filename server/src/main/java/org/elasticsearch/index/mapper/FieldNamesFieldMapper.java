@@ -24,14 +24,13 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,6 +47,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_field_names";
 
+    @Override
+    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+        return new Builder().init(this);
+    }
+
     public static class Defaults {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
@@ -63,78 +67,73 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static class Builder extends MetadataFieldMapper.Builder<Builder> {
-        private boolean enabled = Defaults.ENABLED;
+    private static FieldNamesFieldMapper toType(FieldMapper in) {
+        return (FieldNamesFieldMapper) in;
+    }
+
+    public static final String ENABLED_DEPRECATION_MESSAGE = "Index [{}] uses the deprecated `enabled` setting for `_field_names`. "
+        + "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for this setting "
+        + "will be removed in a future major version. Please remove it from your mappings and templates.";
+
+
+    static class Builder extends MetadataFieldMapper.Builder {
+
+        private final Parameter<Boolean> enabled = new Parameter<>("enabled", true, () -> Defaults.ENABLED, (n, c, o) -> {
+            if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
+                    + "removed but is still used in index [{}]. Please remove it from your mappings and templates.");
+            } else {
+                String indexName = c.mapperService().index().getName();
+                deprecationLogger.deprecate("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE, indexName);
+                return XContentMapValues.nodeBooleanValue(o, name + ".enabled");
+            }
+            }, m -> toType(m).enabled);
 
         Builder() {
-            super(Defaults.NAME, Defaults.FIELD_TYPE);
+            super(Defaults.NAME);
         }
 
-        Builder enabled(boolean enabled) {
-            this.enabled = enabled;
-            return this;
+        @Override
+        protected List<Parameter<?>> getParameters() {
+            return List.of(enabled);
         }
 
         @Override
         public FieldNamesFieldMapper build(BuilderContext context) {
-            FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType();
-            fieldNamesFieldType.setEnabled(enabled);
-            return new FieldNamesFieldMapper(fieldType, fieldNamesFieldType);
+            FieldNamesFieldType fieldNamesFieldType = new FieldNamesFieldType(enabled.getValue());
+            return new FieldNamesFieldMapper(fieldNamesFieldType);
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
 
-        public static final String ENABLED_DEPRECATION_MESSAGE = "Index [{}] uses the deprecated `enabled` setting for `_field_names`. "
-                + "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for this setting "
-                + "will be removed in a future major version. Please remove it from your mappings and templates.";
 
         @Override
-        public MetadataFieldMapper.Builder<?> parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
                                                       ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
-
-            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
-                Map.Entry<String, Object> entry = iterator.next();
-                String fieldName = entry.getKey();
-                Object fieldNode = entry.getValue();
-                if (fieldName.equals("enabled")) {
-                    String indexName = parserContext.mapperService().index().getName();
-                    if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
-                        throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
-                                + "removed but is still used in index [{}]. Please remove it from your mappings and templates.");
-                    } else {
-                        deprecationLogger.deprecate("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE, indexName);
-                        builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
-                    }
-                    iterator.remove();
-                }
-            }
+            builder.parse(name, parserContext, node);
             return builder;
         }
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
-            return new FieldNamesFieldMapper(Defaults.FIELD_TYPE, new FieldNamesFieldType());
+            return new FieldNamesFieldMapper(new FieldNamesFieldType(Defaults.ENABLED));
         }
     }
 
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 
-        private boolean enabled = Defaults.ENABLED;
+        private final boolean enabled;
 
-        public FieldNamesFieldType() {
+        public FieldNamesFieldType(boolean enabled) {
             super(Defaults.NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this.enabled = enabled;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
         }
 
         public boolean isEnabled() {
@@ -157,8 +156,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private FieldNamesFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType) {
-        super(fieldType, mappedFieldType);
+    private final boolean enabled;
+
+    private FieldNamesFieldMapper(FieldNamesFieldType mappedFieldType) {
+        super(mappedFieldType);
+        this.enabled = mappedFieldType.isEnabled();
     }
 
     @Override
@@ -218,23 +220,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-
-        if (includeDefaults == false && fieldType().isEnabled() == Defaults.ENABLED) {
-            return builder;
-        }
-
-        builder.startObject(NAME);
-        if (includeDefaults || fieldType().isEnabled() != Defaults.ENABLED) {
-            builder.field("enabled", fieldType().isEnabled());
-        }
-
-        builder.endObject();
-        return builder;
     }
 
 }

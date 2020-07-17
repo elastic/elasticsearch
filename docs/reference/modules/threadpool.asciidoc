@@ -33,7 +33,7 @@ There are several thread pools, but the important ones include:
 `write`::
     For single-document index/delete/update and bulk requests. Thread pool type
     is `fixed` with a size of <<node.processors, `# of allocated processors`>>,
-    queue_size of `200`. The maximum size for this pool is
+    queue_size of `10000`. The maximum size for this pool is
     `pass:[1 + ]`<<node.processors, `# of allocated processors`>>.
 
 `snapshot`::

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -15,7 +14,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
@@ -29,7 +28,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     private final String runtimeType;
     private final Script script;
-    private final ScriptService scriptService;
+    private final ScriptCompiler scriptCompiler;
 
     protected ScriptFieldMapper(
         String simpleName,
@@ -38,17 +37,17 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         String runtimeType,
         Script script,
-        ScriptService scriptService
+        ScriptCompiler scriptCompiler
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.runtimeType = runtimeType;
         this.script = script;
-        this.scriptService = scriptService;
+        this.scriptCompiler = scriptCompiler;
     }
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new ScriptFieldMapper.Builder(simpleName(), scriptService).init(this);
+        return new ScriptFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
     }
 
     @Override
@@ -99,11 +98,11 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
             }
         });
 
-        private final ScriptService scriptService;
+        private final ScriptCompiler scriptCompiler;
 
-        protected Builder(String name, ScriptService scriptService) {
+        protected Builder(String name, ScriptCompiler scriptCompiler) {
             super(name);
-            this.scriptService = scriptService;
+            this.scriptCompiler = scriptCompiler;
         }
 
         @Override
@@ -115,7 +114,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         public ScriptFieldMapper build(BuilderContext context) {
             MappedFieldType mappedFieldType;
             if (runtimeType.getValue().equals("keyword")) {
-                StringScriptFieldScript.Factory factory = scriptService.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
+                StringScriptFieldScript.Factory factory = scriptCompiler.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
                 mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script.getValue(), factory, meta.getValue());
             } else {
                 throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
@@ -128,7 +127,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
                 copyTo.build(),
                 runtimeType.getValue(),
                 script.getValue(),
-                scriptService
+                scriptCompiler
             );
         }
 
@@ -143,19 +142,23 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        private final SetOnce<ScriptService> scriptService = new SetOnce<>();
-
-        public void setScriptService(ScriptService scriptService) {
-            this.scriptService.set(scriptService);
-        }
-
         @Override
         public ScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
 
-            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, scriptService.get());
+            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, new ScriptCompiler() {
+                @Override
+                public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+                    return parserContext.queryShardContextSupplier().get().compile(script, context);
+                }
+            });
             builder.parse(name, parserContext, node);
             return builder;
         }
+    }
+
+    @FunctionalInterface
+    private interface ScriptCompiler {
+        <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context);
     }
 }

@@ -19,6 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,6 +106,10 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
         }
     }
 
+    public void testExistsQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(RuntimeKeywordMappedFieldType::existsQuery);
+    }
+
     public void testFuzzyQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));   // No edits, matches
@@ -121,6 +127,19 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
         }
     }
 
+    public void testFuzzyQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(
+            (ft, ctx) -> ft.fuzzyQuery(
+                randomAlphaOfLengthBetween(1, 1000),
+                randomFrom(Fuzziness.AUTO, Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO),
+                randomInt(),
+                randomInt(),
+                randomBoolean(),
+                ctx
+            )
+        );
+    }
+
     public void testPrefixQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
@@ -131,6 +150,10 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
                 assertThat(searcher.count(build("value(source.foo)").prefixQuery("cat", null, mockContext())), equalTo(2));
             }
         }
+    }
+
+    public void testPrefixQueryIsExpensive() throws IOException {
+        checkExpensiveQuery((ft, ctx) -> ft.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
     }
 
     public void testRangeQuery() throws IOException {
@@ -146,6 +169,21 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    public void testRangeQueryIsExpensive() throws IOException {
+        checkExpensiveQuery(
+            (ft, ctx) -> ft.rangeQuery(
+                "a" + randomAlphaOfLengthBetween(0, 1000),
+                "b" + randomAlphaOfLengthBetween(0, 1000),
+                randomBoolean(),
+                randomBoolean(),
+                null,
+                null,
+                null,
+                ctx
+            )
+        );
     }
 
     public void testRegexpQuery() throws IOException {
@@ -165,6 +203,10 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
         }
     }
 
+    public void testRegexpQueryIsExpensive() throws IOException {
+        checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), randomInt(), null, ctx));
+    }
+
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -174,6 +216,10 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
                 assertThat(searcher.count(build("value(source.foo.toString())").termQuery("1", mockContext())), equalTo(1));
             }
         }
+    }
+
+    public void testTermQueryIsExpensive() throws IOException {
+        checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx));
     }
 
     public void testTermsQuery() throws IOException {
@@ -189,6 +235,10 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
         }
     }
 
+    public void testTermsQueryIsExpensive() throws IOException {
+        checkExpensiveQuery((ft, ctx) -> ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx));
+    }
+
     public void testWildcardQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"aab\"}"))));
@@ -198,6 +248,10 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
                 assertThat(searcher.count(build("value(source.foo)").wildcardQuery("a*b", null, mockContext())), equalTo(1));
             }
         }
+    }
+
+    public void testWildcardQueryIsExpensive() throws IOException {
+        checkExpensiveQuery((ft, ctx) -> ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
     }
 
     private RuntimeKeywordMappedFieldType build(String code) throws IOException {
@@ -218,9 +272,23 @@ public class RuntimeKeywordMappedFieldTypeTests extends ESTestCase {
     }
 
     private QueryShardContext mockContext() {
+        return mockContext(true);
+    }
+
+    private QueryShardContext mockContext(boolean allowExpensiveQueries) {
         MapperService mapperService = mock(MapperService.class);
         QueryShardContext context = mock(QueryShardContext.class);
+        when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         when(context.lookup()).thenReturn(new SearchLookup(mapperService, mft -> null));
         return context;
+    }
+
+    private void checkExpensiveQuery(BiConsumer<RuntimeKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+        RuntimeKeywordMappedFieldType ft = build("value('cat')");
+        Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
+        assertThat(
+            e.getMessage(),
+            equalTo("queries cannot be executed against [script] fields while [search.allow_expensive_queries] is set to [false].")
+        );
     }
 }

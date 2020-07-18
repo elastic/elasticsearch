@@ -62,6 +62,8 @@ public class SequenceMatcher {
 
     /** list of completed sequences - separate to avoid polluting the other stages */
     private final List<Sequence> completed;
+    private int completedInsertPosition = 0;
+
     private final long maxSpanInMillis;
 
     private final boolean descending;
@@ -191,7 +193,7 @@ public class SequenceMatcher {
 
         // bump the stages
         if (stage == completionStage) {
-            completed.add(sequence);
+            completed.add(completedInsertPosition++, sequence);
             // update the bool lazily
             // only consider positive limits / negative ones imply tail which means having to go
             // through the whole page of results before selecting the last ones
@@ -240,6 +242,8 @@ public class SequenceMatcher {
         if (descending) {
             keyToSequences.resetGroupInsertPosition();
             keyToSequences.resetUntilInsertPosition();
+
+            completedInsertPosition = 0;
         }
     }
 

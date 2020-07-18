@@ -312,8 +312,8 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         AbstractGeometryFieldMapper<?, ?> mapper = new PointFieldMapper.Builder("field").build(context);
         SourceLookup sourceLookup = new SourceLookup();
 
-        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.100000381469727));
-        String wktPoint = "POINT (42.0 27.100000381469727)";
+        Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
+        String wktPoint = "POINT (42.0 27.1)";
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
         String otherWktPoint = "POINT (30.0 50.0)";
 

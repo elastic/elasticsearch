@@ -71,10 +71,10 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
             ParsedCartesianPoint point = new ParsedCartesianPoint();
             CartesianPoint.parsePoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
-                if (Float.isFinite(point.getX()) == false) {
+                if (Double.isFinite(point.getX()) == false) {
                     throw new IllegalArgumentException("illegal x value [" + point.getX() + "]");
                 }
-                if (Float.isFinite(point.getY()) == false) {
+                if (Double.isFinite(point.getY()) == false) {
                     throw new IllegalArgumentException("illegal y value [" + point.getY() + "]");
                 }
             }
@@ -108,7 +108,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     protected void addDocValuesFields(String name, List<? extends CartesianPoint> points, List<IndexableField> fields,
                                       ParseContext context) {
         for (CartesianPoint point : points) {
-            context.doc().add(new XYDocValuesField(fieldType().name(), point.getX(), point.getY()));
+            context.doc().add(new XYDocValuesField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         }
     }
 
@@ -143,10 +143,10 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
     protected static class ParsedCartesianPoint extends CartesianPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {
         @Override
         public void validate(String fieldName) {
-            if (Float.isFinite(getX()) == false) {
+            if (Double.isFinite(getX()) == false) {
                 throw new IllegalArgumentException("illegal x value [" + getX() + "] for " + fieldName);
             }
-            if (Float.isFinite(getY()) == false) {
+            if (Double.isFinite(getY()) == false) {
                 throw new IllegalArgumentException("illegal y value [" + getY() + "] for " + fieldName);
             }
         }
@@ -163,7 +163,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
 
         @Override
         public void resetCoords(double x, double y) {
-            this.reset((float)x, (float)y);
+            this.reset(x, y);
         }
 
         @Override
@@ -223,7 +223,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
         public List<IndexableField> indexShape(ParseContext context, List<? extends CartesianPoint> points) {
             ArrayList<IndexableField> fields = new ArrayList<>(1);
             for (CartesianPoint point : points) {
-                fields.add(new XYPointField(fieldType.name(), point.getX(), point.getY()));
+                fields.add(new XYPointField(fieldType.name(), (float) point.getX(), (float) point.getY()));
             }
             return fields;
         }

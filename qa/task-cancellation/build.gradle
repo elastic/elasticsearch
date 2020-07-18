@@ -80,3 +80,5 @@ for (Version bwcVersion : BuildParams.bwcVersions.unreleasedWireCompatible) {
     dependsOn bundlePluginTask, bundleOldPluginsTask
   }
 }
+
+test.enabled = false

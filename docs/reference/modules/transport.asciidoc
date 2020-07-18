@@ -89,19 +89,21 @@ example above:
    starting to send TCP keepalive probes. A value of `-1` means not to set
    this option at the socket level but to use the system default instead.
    Only applicable on Linux and Mac, and requires Java 11 or newer.
-   Defaults to 60 on applicable configurations, and -1 otherwise.
+   Defaults to -1. On applicable configurations, this value is set to 5 minutes
+   if the system default or user-configured setting is higher than that.
 * `tcp.keep_interval`: Configures the `TCP_KEEPINTVL` option for this socket,
    which determines the time in seconds between sending TCP keepalive probes.
    A value of `-1` means not to set this option at the socket level but to
    use the system default instead.
    Only applicable on Linux and Mac, and requires Java 11 or newer.
-   Defaults to 10 on applicable configurations, and -1 otherwise.
+   Defaults to -1. On applicable configurations, this value is set to 5 minutes
+   if the system default or user-configured setting is higher than that.
 * `tcp.keep_count`: Configures the `TCP_KEEPCNT` option for this socket, which
    determines the number of unacknowledged TCP keepalive probes that may be
    sent on a connection before it is dropped. A value of `-1` means not to set
    this option at the socket level but to use the system default instead.
    Only applicable on Linux and Mac, and requires Java 11 or newer.
-   Defaults to 3 on applicable configurations, and -1 otherwise.
+   Defaults to -1.
 * `tcp.reuse_address`: Configures the `SO_REUSEADDR` option for this socket
 * `tcp.send_buffer_size`: Configures the send buffer size of the socket
 * `tcp.receive_buffer_size`: Configures the receive buffer size of the socket

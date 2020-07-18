@@ -49,12 +49,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.Netty4NioSocketChannel;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -143,6 +143,7 @@ public class Netty4Transport extends TcpTransport {
         bootstrap.group(sharedGroup.getLowLevelGroup());
 
         // NettyAllocator will return the channel type designed to work with the configured allocator
+        assert Netty4NioSocketChannel.class.isAssignableFrom(NettyAllocator.getChannelType());
         bootstrap.channel(NettyAllocator.getChannelType());
         bootstrap.option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
@@ -277,7 +278,6 @@ public class Netty4Transport extends TcpTransport {
             ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
             throw new IOException(connectFuture.cause());
         }
-        addClosedExceptionLogger(channel);
 
         Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, false, "default", connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
@@ -307,6 +307,11 @@ public class Netty4Transport extends TcpTransport {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            addClosedExceptionLogger(ch);
+            assert ch instanceof Netty4NioSocketChannel;
+            if (ch instanceof Netty4NioSocketChannel) {
+                NetUtils.setSaneDefaultKeepAliveOptions(((Netty4NioSocketChannel) ch).javaChannel());
+            }
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
@@ -330,6 +335,10 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
+            assert ch instanceof Netty4NioSocketChannel;
+            if (ch instanceof Netty4NioSocketChannel) {
+                NetUtils.setSaneDefaultKeepAliveOptions(((Netty4NioSocketChannel) ch).javaChannel());
+            }
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());

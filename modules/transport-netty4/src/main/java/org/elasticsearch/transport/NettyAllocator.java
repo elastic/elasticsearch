@@ -68,7 +68,7 @@ public class NettyAllocator {
         if (ALLOCATOR instanceof NoDirectBuffers) {
             return CopyBytesSocketChannel.class;
         } else {
-            return NioSocketChannel.class;
+            return Netty4NioSocketChannel.class;
         }
     }
 

@@ -45,11 +45,10 @@ public class RestTestAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         final String id = Objects.requireNonNull(request.param("id"));
-        final Set<TestRequest.Target> targets = Stream.of(request.paramAsStringArray("targets", new String[0]))
-            .map(s -> {
-                final String[] parts = s.split(":");
-                return new TestRequest.Target(parts[0], parts[1]);
-            }).collect(Collectors.toSet());
+        final Set<TestRequest.Target> targets = Stream.of(request.paramAsStringArray("targets", new String[0])).map(s -> {
+            final String[] parts = s.split(":");
+            return new TestRequest.Target(parts[0], parts[1]);
+        }).collect(Collectors.toSet());
         return chanel -> client.execute(TransportTestAction.ACTION, new TestRequest(id, targets), new RestToXContentListener<>(chanel));
     }
 }

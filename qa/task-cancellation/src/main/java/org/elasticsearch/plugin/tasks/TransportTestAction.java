@@ -66,8 +66,9 @@ public class TransportTestAction extends HandledTransportAction<TestRequest, Tes
             origListener.onFailure(new IllegalArgumentException("rem"));
         }
         ActionListener<TestResponse> groupedListener = new GroupedActionListener<>(
-            ActionListener.map(origListener,
-                resp -> new TestResponse(resp.stream().allMatch(AcknowledgedResponse::isAcknowledged))), request.targets.size());
+            ActionListener.map(origListener, resp -> new TestResponse(resp.stream().allMatch(AcknowledgedResponse::isAcknowledged))),
+            request.targets.size()
+        );
         boolean executeLocally = false;
         for (TestRequest.Target target : request.targets) {
             if (target.nodeId.equals(transportService.getLocalNode().getId())) {
@@ -118,8 +119,13 @@ public class TransportTestAction extends HandledTransportAction<TestRequest, Tes
         }
         logger.info("dispatching sub request {} with target {} to {}", request, target, connection.getNode().getName());
         final TestRequest subRequest = new TestRequest(request.id, Collections.singleton(target));
-        transportService.sendChildRequest(connection, actionName, subRequest, parentTask,
-            new ActionListenerResponseHandler<>(listener, TestResponse::new));
+        transportService.sendChildRequest(
+            connection,
+            actionName,
+            subRequest,
+            parentTask,
+            new ActionListenerResponseHandler<>(listener, TestResponse::new)
+        );
     }
 
     void executeRequest(BlockingCancellableTask task, String requestId, ActionListener<TestResponse> listener) {

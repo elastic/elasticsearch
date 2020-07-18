@@ -75,9 +75,13 @@ public class TaskCancellationIT extends ESRestTestCase {
         logger.info("Configure remote cluster [{}] with seed [{}]", remoteCluster, seeds);
         final Request request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("{\"persistent\": {\"cluster.remote." + remoteCluster + ".seeds\": \"" + seeds + "\"}}");
-        client.cluster().putSettings(new ClusterUpdateSettingsRequest()
-                .persistentSettings(Settings.builder().put("cluster.remote." + remoteCluster + ".seeds", seeds)),
-            RequestOptions.DEFAULT);
+        client.cluster()
+            .putSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(
+                    Settings.builder().put("cluster.remote." + remoteCluster + ".seeds", seeds)
+                ),
+                RequestOptions.DEFAULT
+            );
         assertBusy(() -> {
             final RemoteInfoResponse remoteInfo = client.cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT);
             assertThat(remoteInfo.getInfos(), not(empty()));
@@ -99,9 +103,11 @@ public class TaskCancellationIT extends ESRestTestCase {
     public void initClientsAndClusters() throws Exception {
         RestClientBuilder.RequestConfigCallback callback = config -> config.setSocketTimeout(120 * 1000);
         oldCluster = new RestHighLevelClient(
-            RestClient.builder(readHosts("tests.rest.old_cluster").toArray(new HttpHost[0])).setRequestConfigCallback(callback));
+            RestClient.builder(readHosts("tests.rest.old_cluster").toArray(new HttpHost[0])).setRequestConfigCallback(callback)
+        );
         newCluster = new RestHighLevelClient(
-            RestClient.builder(readHosts("tests.rest.cluster").toArray(new HttpHost[0])).setRequestConfigCallback(callback));
+            RestClient.builder(readHosts("tests.rest.cluster").toArray(new HttpHost[0])).setRequestConfigCallback(callback)
+        );
         // connect the new cluster to the old one
         configureRemoteCluster(newCluster, "old", randomSubsetOf(1, readHosts("tests.old_cluster")));
     }
@@ -118,9 +124,11 @@ public class TaskCancellationIT extends ESRestTestCase {
             final ResponseException exception = expectThrows(ResponseException.class, () -> {
                 final Request request = new Request("POST", "/_test_blocking");
                 request.addParameter("id", "1");
-                request.addParameter("targets",
+                request.addParameter(
+                    "targets",
                     Stream.concat(newNodes.stream().map(n -> ":" + n), oldNodes.stream().map(n -> "old:" + n))
-                        .collect(Collectors.joining(",")));
+                        .collect(Collectors.joining(","))
+                );
                 newCluster.getLowLevelClient().performRequest(request);
             });
             try {
@@ -135,11 +143,16 @@ public class TaskCancellationIT extends ESRestTestCase {
             assertBusy(() -> {
                 List<TaskInfo> oldTasks = oldCluster.tasks()
                     .list(new ListTasksRequest().setActions("internal::test_action"), RequestOptions.DEFAULT)
-                    .getTasks().stream().filter(t -> oldNodes.contains(t.getTaskId().getNodeId())).collect(Collectors.toList());
+                    .getTasks()
+                    .stream()
+                    .filter(t -> oldNodes.contains(t.getTaskId().getNodeId()))
+                    .collect(Collectors.toList());
                 assertThat(oldTasks.size(), greaterThanOrEqualTo(oldNodes.size()));
                 List<TaskInfo> rootTasks = newCluster.tasks()
                     .list(new ListTasksRequest().setActions("internal::test_action"), RequestOptions.DEFAULT)
-                    .getTasks().stream().filter(t -> t.getParentTaskId().isSet() == false)
+                    .getTasks()
+                    .stream()
+                    .filter(t -> t.getParentTaskId().isSet() == false)
                     .collect(Collectors.toList());
                 assertThat(rootTasks, hasSize(1));
 

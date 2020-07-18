@@ -28,8 +28,7 @@ import java.util.Map;
 abstract class BlockingCancellableTask extends CancellableTask {
     private final SetOnce<Runnable> onCancel = new SetOnce<>();
 
-    BlockingCancellableTask(long id, String type, String action, String description,
-                            TaskId parentTaskId, Map<String, String> headers) {
+    BlockingCancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         super(id, type, action, description, parentTaskId, headers);
     }
 

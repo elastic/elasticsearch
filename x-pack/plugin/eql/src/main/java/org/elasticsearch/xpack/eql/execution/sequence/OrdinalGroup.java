@@ -28,6 +28,13 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     // timestamp compression (whose range is known for the current frame).
     private final List<E> elements = new LinkedList<>();
 
+    /**
+    /* index in the list used for resetting the insertion point
+     * it gets reset when dealing with descending queries since the data inserted is ascending in a page
+     * but descending compared to the previous stages.
+     */
+    private int insertPosition = 0;
+
     private int hashCode = 0;
 
     private Ordinal start, stop;
@@ -39,12 +46,11 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         this.extractor = extractor;
     }
 
-    public SequenceKey key() {
+    SequenceKey key() {
         return key;
     }
 
-    public void add(E element) {
-        elements.add(element);
+    void add(E element) {
         hashCode = 31 * hashCode + Objects.hashCode(element);
 
         Ordinal ordinal = extractor.apply(element);
@@ -60,8 +66,14 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
                 stop = ordinal;
             }
         }
+        // add element at the current position
+        elements.add(insertPosition++, element);
     }
-    
+
+    void resetInsertPosition() {
+        insertPosition = 0;
+    }
+
     /**
      * Returns the latest element from the group that has its timestamp
      * less than the given argument alongside its position in the list.
@@ -72,7 +84,14 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
         // trim
         if (match != null) {
-            elements.subList(0, match.v2() + 1).clear();
+            int pos = match.v2() + 1;
+            elements.subList(0, pos).clear();
+
+            // update insert position
+            insertPosition = insertPosition - pos;
+            if (insertPosition < 0) {
+                insertPosition = 0;
+            }
 
             // update min time
             if (elements.isEmpty() == false) {
@@ -107,7 +126,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         return match != null ? new Tuple<>(match, matchPos) : null;
     }
 
-    public boolean isEmpty() {
+    boolean isEmpty() {
         return elements.isEmpty();
     }
 

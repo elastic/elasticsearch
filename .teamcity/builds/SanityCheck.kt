@@ -26,6 +26,14 @@ object SanityCheck : BuildType({
     name = "Sanity Check"
     description = "Compiles all modules and runs code quality checks checks"
 
+    features {
+        feature {
+            type = "xml-report-plugin"
+            param("xmlReportParsing.reportType", "checkstyle")
+            param("xmlReportParsing.reportDirs", "+:**/build/reports/checkstyle/*.xml")
+        }
+    }
+
     steps {
         gradle {
             useGradleWrapper = true

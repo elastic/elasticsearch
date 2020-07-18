@@ -119,8 +119,8 @@ PUT /logs/_bulk?refresh
 [[data-streams-index-with-an-ingest-pipeline]]
 ==== Index with an ingest pipeline
 
-You can use an <<ingest,ingest pipeline>> with indexing request to pre-process
-a stream's data before it's indexed.
+You can use an <<ingest,ingest pipeline>> with an indexing request to
+pre-process data before it's indexed to a data stream.
 
 The following <<put-pipeline-api,put pipeline API>> request creates the
 `lowercase_message_field` ingest pipeline. The pipeline uses the

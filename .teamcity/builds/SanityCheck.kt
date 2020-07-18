@@ -24,7 +24,7 @@ import jetbrains.buildServer.configs.kotlin.v2019_2.buildSteps.gradle
 
 object SanityCheck : BuildType({
     name = "Sanity Check"
-    description = "Compiles all modules and runs code quality checks checks"
+    description = "Compiles all modules and runs code quality checks"
 
     features {
         feature {

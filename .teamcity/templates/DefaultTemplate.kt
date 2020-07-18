@@ -92,6 +92,21 @@ object DefaultTemplate : Template({
                 echo "##teamcity[setParameter name='gradle.max.workers' value='${'$'}MAX_WORKERS']"
             """.trimIndent()
         }
-        placeholder {  }
+
+        placeholder { }
+
+        script {
+            name = "Notify H.O.M.E.R. Webhook"
+
+            conditions {
+                doesNotContain("teamcity.agent.jvm.os.name", "Windows")
+                doesNotEqual("system.build.is.personal", "true")
+            }
+
+            scriptContent = """
+                #!/usr/bin/env bash
+                curl -sS -X POST -H "Content-Type: text/plain" --data "%teamcity.serverUrl%/app/rest/builds/%teamcity.build.id%" https://homer.app.elstc.co/webhook/teamcity/build-finished || true
+            """.trimIndent()
+        }
     }
 })

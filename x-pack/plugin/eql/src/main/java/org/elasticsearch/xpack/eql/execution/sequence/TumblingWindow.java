@@ -87,7 +87,6 @@ public class TumblingWindow implements Executable {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
         // remove any potential upper limit (if a criteria has been promoted)
         base.queryRequest().to(null);
-
         matcher.resetInsertPosition();
 
         log.trace("{}", matcher);

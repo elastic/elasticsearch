@@ -29,7 +29,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     private final List<E> elements = new LinkedList<>();
 
     /**
-    /* index in the list used for resetting the insertion point
+     * index in the list used for resetting the insertion point
      * it gets reset when dealing with descending queries since the data inserted is ascending in a page
      * but descending compared to the previous stages.
      */

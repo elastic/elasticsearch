@@ -193,6 +193,16 @@ public class SequenceMatcher {
 
         // bump the stages
         if (stage == completionStage) {
+            // when dealing with descending queries
+            // avoid duplicate matching (since the ASC query can return previously seen results)
+            if (descending) {
+                for (Sequence seen : completed) {
+                    if (seen.key().equals(key) && seen.ordinal().equals(ordinal)) {
+                        return;
+                    }
+                }
+            }
+
             completed.add(completedInsertPosition++, sequence);
             // update the bool lazily
             // only consider positive limits / negative ones imply tail which means having to go
@@ -200,6 +210,19 @@ public class SequenceMatcher {
             // doing a limit early returns the 'head' not 'tail'
             headLimit = limit != null && limit.limit() > 0 && completed.size() == limit.totalLimit();
         } else {
+            if (descending) {
+                // when dealing with descending queries
+                // avoid duplicate matching (since the ASC query can return previously seen results)
+                group = keyToSequences.groupIfPresent(stage, key);
+                if (group != null) {
+                    for (Ordinal previous : group) {
+                        if (previous.equals(ordinal)) {
+                            return;
+                        }
+                    }
+                }
+            }
+
             stageToKeys.add(stage, key);
             keyToSequences.add(stage, sequence);
         }

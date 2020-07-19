@@ -24,7 +24,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply from: "$rootDir/gradle/bwc-test.gradle"
 
 esplugin {
   name 'task-cancellation'
@@ -64,26 +64,22 @@ for (Version bwcVersion : BuildParams.bwcVersions.unreleasedWireCompatible) {
     "new-${baseName}" {
       numberOfNodes = 2
       plugin pluginFile
-      // disable remote_cluster_client role so we can verify that cross clusters tasks are forwarded to the right nodes.
+      // disable remote_cluster_client role so we can verify that cross clusters tasks are forwarded to nodes with that role
       nodes.first().setting 'node.roles', '[data,master]'
-      // one connection per cluster so we can verify proxy connections
+      // one connection per cluster so we can verify the proxy connections
       setting 'cluster.remote.connections_per_cluster', "1"
     }
   }
 
-  tasks.register("multi-clusters#${baseName}", RestTestRunnerTask) {
+  tasks.register(bwcTaskName(bwcVersion), RestTestRunnerTask) {
     useCluster testClusters."old-${baseName}"
     useCluster testClusters."new-${baseName}"
     mustRunAfter(precommit)
-    doFirst {
-      nonInputProperties.systemProperty('tests.old_cluster', "${-> testClusters."old-${baseName}".allTransportPortURI.join(",")}")
-      nonInputProperties.systemProperty('tests.rest.old_cluster', "${-> testClusters."old-${baseName}".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."new-${baseName}".allHttpSocketURI.join(",")}")
-    }
+    nonInputProperties.systemProperty('tests.old_cluster', "${-> testClusters."old-${baseName}".allTransportPortURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.old_cluster', "${-> testClusters."old-${baseName}".allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."new-${baseName}".allHttpSocketURI.join(",")}")
     dependsOn bundlePluginTask, bundleOldPluginsTask
   }
 
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "multi-clusters#${baseName}"
-  }
+  integTest.enabled = false
 }

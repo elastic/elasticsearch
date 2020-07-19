@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamRequestTests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -115,7 +114,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteBackingIndexForDataStream() {
         int numBackingIndices = randomIntBetween(2, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        ClusterState before = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
         int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
@@ -132,7 +131,7 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteCurrentWriteIndexForDataStream() {
         int numBackingIndices = randomIntBetween(1, 5);
         String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
-        ClusterState before = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(new Tuple<>(dataStreamName, numBackingIndices)), List.of());
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();

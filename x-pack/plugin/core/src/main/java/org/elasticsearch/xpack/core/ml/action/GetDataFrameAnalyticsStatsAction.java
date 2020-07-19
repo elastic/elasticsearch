@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -141,7 +142,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && allowNoMatch == other.allowNoMatch && Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(id, other.id)
+                && allowNoMatch == other.allowNoMatch
+                && Objects.equals(pageParams, other.pageParams);
         }
     }
 
@@ -153,6 +156,9 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
+
+        /** Name of the response's REST param which is used to determine whether this response should be verbose. */
+        public static final String VERBOSE = "verbose";
 
         public static class Stats implements ToXContentObject, Writeable {
 
@@ -295,12 +301,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 // TODO: Have callers wrap the content with an object as they choose rather than forcing it upon them
                 builder.startObject();
                 {
-                    toUnwrappedXContent(builder);
+                    toUnwrappedXContent(builder, params);
                 }
                 return builder.endObject();
             }
 
-            public XContentBuilder toUnwrappedXContent(XContentBuilder builder) throws IOException {
+            private XContentBuilder toUnwrappedXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
                 builder.field("state", state.toString());
                 if (failureReason != null) {
@@ -313,7 +319,12 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 builder.field("memory_usage", memoryUsage);
                 if (analysisStats != null) {
                     builder.startObject("analysis_stats");
-                    builder.field(analysisStats.getWriteableName(), analysisStats);
+                    builder.field(
+                        analysisStats.getWriteableName(),
+                        analysisStats,
+                        new MapParams(
+                            Collections.singletonMap(
+                                ToXContentParams.FOR_INTERNAL_STORAGE, Boolean.toString(params.paramAsBoolean(VERBOSE, false)))));
                     builder.endObject();
                 }
                 if (node != null) {

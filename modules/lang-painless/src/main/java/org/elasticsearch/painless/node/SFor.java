@@ -20,10 +20,6 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ForLoopNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -79,18 +75,15 @@ public class SFor extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         semanticScope = semanticScope.newLocalScope();
-
-        Output initializerStatementOutput = null;
-        AExpression.Output initializerExpressionOutput = null;
 
         if (initializerNode != null) {
             if (initializerNode instanceof SDeclBlock) {
-                initializerStatementOutput = ((SDeclBlock)initializerNode).analyze(classNode, semanticScope);
+                ((SDeclBlock)initializerNode).analyze(semanticScope);
             } else if (initializerNode instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializerNode;
-                initializerExpressionOutput = AExpression.analyze(initializer, classNode, semanticScope);
+                AExpression.analyze(initializer, semanticScope);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -98,19 +91,16 @@ public class SFor extends AStatement {
 
         boolean continuous = false;
 
-        AExpression.Output conditionOutput = null;
-        PainlessCast conditionCast = null;
-
         if (conditionNode != null) {
             semanticScope.setCondition(conditionNode, Read.class);
             semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
-            conditionOutput = AExpression.analyze(conditionNode, classNode, semanticScope);
-            conditionCast = conditionNode.cast(semanticScope);
+            AExpression.analyze(conditionNode, semanticScope);
+            conditionNode.cast(semanticScope);
 
-            if (conditionNode instanceof EBoolean) {
-                continuous = ((EBoolean)conditionNode).getBool();
+            if (conditionNode instanceof EBooleanConstant) {
+                continuous = ((EBooleanConstant)conditionNode).getBool();
 
-                if (!continuous) {
+                if (continuous == false) {
                     throw createError(new IllegalArgumentException("Extraneous for loop."));
                 }
 
@@ -122,19 +112,14 @@ public class SFor extends AStatement {
             continuous = true;
         }
 
-        AExpression.Output afterthoughtOutput = null;
-
         if (afterthoughtNode != null) {
-            afterthoughtOutput = AExpression.analyze(afterthoughtNode, classNode, semanticScope);
+            AExpression.analyze(afterthoughtNode, semanticScope);
         }
-
-        Output output = new Output();
-        Output blockOutput = null;
 
         if (blockNode != null) {
             semanticScope.setCondition(blockNode, BeginLoop.class);
             semanticScope.setCondition(blockNode, InLoop.class);
-            blockOutput = blockNode.analyze(classNode, semanticScope);
+            blockNode.analyze(semanticScope);
 
             if (semanticScope.getCondition(blockNode, LoopEscape.class) &&
                     semanticScope.getCondition(blockNode, AnyContinue.class) == false) {
@@ -146,19 +131,5 @@ public class SFor extends AStatement {
                 semanticScope.setCondition(this, AllEscape.class);
             }
         }
-
-        ForLoopNode forLoopNode = new ForLoopNode();
-        forLoopNode.setInitialzerNode(initializerNode == null ? null : initializerNode instanceof AExpression ?
-                initializerExpressionOutput.expressionNode : initializerStatementOutput.statementNode);
-        forLoopNode.setConditionNode(conditionOutput == null ?
-                null : AExpression.cast(conditionOutput.expressionNode, conditionCast));
-        forLoopNode.setAfterthoughtNode(afterthoughtOutput == null ? null : afterthoughtOutput.expressionNode);
-        forLoopNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        forLoopNode.setLocation(getLocation());
-        forLoopNode.setContinuous(continuous);
-
-        output.statementNode = forLoopNode;
-
-        return output;
     }
 }

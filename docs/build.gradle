@@ -203,7 +203,7 @@ Closure setupMyIndex = { String name, int count ->
     }
     buildRestTests.setups[name] += """
             { "index":{"_id": "$i"} }
-            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 2571, "status_code": 200 }, "version": "1.1" }, "message": "GET /login HTTP/1.1 200 2571", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /login HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
   }
 }
 setupMyIndex('my_index', 5)

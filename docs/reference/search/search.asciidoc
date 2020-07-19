@@ -630,14 +630,14 @@ The API returns the following response:
             },
             "response": {
               "status_code": 200,
-              "bytes": 2571
+              "bytes": 1070000
             },
             "version": "1.1"
           },
           "source": {
             "ip": "127.0.0.1"
           },
-          "message": "GET /login HTTP/1.1 200 2571",
+          "message": "GET /login HTTP/1.1 200 1070000",
           "user": {
             "id": "kimchy"
           }
@@ -734,14 +734,14 @@ The API returns the following response:
             },
             "response": {
               "status_code": 200,
-              "bytes": 2571
+              "bytes": 1070000
             },
             "version": "1.1"
           },
           "source": {
             "ip": "127.0.0.1"
           },
-          "message": "GET /login HTTP/1.1 200 2571",
+          "message": "GET /login HTTP/1.1 200 1070000",
           "user": {
             "id": "kimchy"
           }

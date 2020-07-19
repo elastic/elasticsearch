@@ -8,9 +8,9 @@ Returns search hits that match the query defined in the request.
 
 [source,console]
 ----
-GET /my_logs-000001/_search
+GET /my-index-000001/_search
 ----
-// TEST[setup:my_logs]
+// TEST[setup:my_index]
 
 [[search-search-api-request]]
 ==== {api-request-title}
@@ -594,9 +594,9 @@ Key is the field name. Value is the value for the field.
 
 [source,console]
 ----
-GET /my_logs-000001/_search?q=user.name:kimchy
+GET /my-index-000001/_search?q=user.id:kimchy
 ----
-// TEST[setup:my_logs]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
@@ -619,14 +619,27 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "my_logs-000001",
+        "_index": "my-index-000001",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
           "@timestamp": "2099-11-15T14:12:12",
-          "message": "Login successful",
+          "http": {
+            "request": {
+              "method": "get"
+            },
+            "response": {
+              "status_code": 200,
+              "bytes": 2571
+            },
+            "version": "1.1"
+          },
+          "source": {
+            "ip": "10.42.42.42"
+          },
+          "message": "GET /login HTTP/1.1 200 2571",
           "user": {
-            "name": "kimchy"
+            "id": "kimchy"
           }
         }
       }
@@ -641,10 +654,10 @@ The API returns the following response:
 
 [source,console]
 ----
-GET /my_logs-000001,my_logs-000002/_search?q=user.name:kimchy
+GET /my-index-000001,my-index-000002/_search?q=user.id:kimchy
 ----
-// TEST[setup:my_logs]
-// TEST[s/^/PUT my_logs-000002\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\n/]
 
 [[search-api-all-ex]]
 ===== Search a cluster using the `q` query parameter
@@ -654,40 +667,40 @@ omit the `<target>` parameter.
 
 [source,console]
 ----
-GET /_search?q=user.name:kimchy
+GET /_search?q=user.id:kimchy
 ----
-// TEST[setup:my_logs]
+// TEST[setup:my_index]
 
 Alternatively,
 you can use the `_all` or `*` value in the `<target>` parameter.
 
 [source,console]
 ----
-GET /_all/_search?q=user.name:kimchy
+GET /_all/_search?q=user.id:kimchy
 ----
-// TEST[setup:my_logs]
+// TEST[setup:my_index]
 
 [source,console]
 ----
-GET /*/_search?q=user.name:kimchy
+GET /*/_search?q=user.id:kimchy
 ----
-// TEST[setup:my_logs]
+// TEST[setup:my_index]
 
 [[search-request-body-api-example]]
 ===== Search using the `query` request body parameter
 
 [source,console]
 ----
-GET /my_logs-000001/_search
+GET /my-index-000001/_search
 {
   "query": {
     "term": {
-      "user.name": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
 ----
-// TEST[setup:my_logs]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
@@ -710,14 +723,27 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "my_logs-000001",
+        "_index": "my-index-000001",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
           "@timestamp": "2099-11-15T14:12:12",
-          "message": "Login successful",
+          "http": {
+            "request": {
+              "method": "get"
+            },
+            "response": {
+              "status_code": 200,
+              "bytes": 2571
+            },
+            "version": "1.1"
+          },
+          "source": {
+            "ip": "10.42.42.42"
+          },
+          "message": "GET /login HTTP/1.1 200 2571",
           "user": {
-            "name": "kimchy"
+            "id": "kimchy"
           }
         }
       }

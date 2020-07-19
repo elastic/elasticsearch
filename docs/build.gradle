@@ -167,11 +167,11 @@ setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
 setupTwitter('huge_twitter', 1200)
 
-Closure setupMyLogs = { String name, int count ->
+Closure setupMyIndex = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
         indices.create:
-          index: my_logs-000001
+          index: my-index-000001
           body:
             settings:
               number_of_shards: 1
@@ -186,28 +186,36 @@ Closure setupMyLogs = { String name, int count ->
                   properties:
                     name:
                       type: keyword
+                      doc_values: true
   - do:
         bulk:
-          index: my_logs-000001
+          index: my-index-000001
           refresh: true
           body: |'''
   for (int i = 0; i < count; i++) {
-    String user_name, message
+    Long bytes, status_code
+    String message, ip, user_id
     if (i == 0) {
-      user_name = 'kimchy'
-      message = 'Login successful'
+      bytes = 2571
+      ip = '10.42.42.42'
+      message = 'GET /login HTTP/1.1 200 2571'
+      status_code = 200
+      user_id= 'kimchy'
     } else {
-      user_name = 'elkbee'
-      message = "Login attempt failed. Attempts: $i"
+      bytes = 0
+      ip = '127.0.0.1'
+      message = 'GET /login HTTP/1.1 500 0'
+      status_code = 500
+      user_id = 'elkbee'
     }
     buildRestTests.setups[name] += """
             { "index":{"_id": "$i"} }
-            { "message": "$message", "@timestamp": "2099-11-15T14:12:12", "user": { "name": "$user_name" } }"""
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": $bytes, "status_code": $status_code }, "version": "1.1" }, "message": "GET /login HTTP/1.1 200 2571", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
   }
 }
-setupMyLogs('my_logs', 5)
-setupMyLogs('my_logs_big', 120)
-setupMyLogs('my_logs_huge', 1200)
+setupMyIndex('my_index', 5)
+setupMyIndex('my_index_big', 120)
+setupMyIndex('my_index_huge', 1200)
 
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.

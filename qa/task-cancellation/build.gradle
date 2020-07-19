@@ -71,14 +71,19 @@ for (Version bwcVersion : BuildParams.bwcVersions.unreleasedWireCompatible) {
     }
   }
 
-  tasks.register(bwcTaskName(bwcVersion), RestTestRunnerTask) {
+  tasks.register("multi-clusters#${baseName}", RestTestRunnerTask) {
     useCluster testClusters."old-${baseName}"
     useCluster testClusters."new-${baseName}"
-    nonInputProperties.systemProperty('tests.old_cluster', "${-> testClusters."old-${baseName}".allTransportPortURI.join(",")}")
-    nonInputProperties.systemProperty('tests.rest.old_cluster', "${-> testClusters."old-${baseName}".allHttpSocketURI.join(",")}")
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."new-${baseName}".allHttpSocketURI.join(",")}")
+    mustRunAfter(precommit)
+    doFirst {
+      nonInputProperties.systemProperty('tests.old_cluster', "${-> testClusters."old-${baseName}".allTransportPortURI.join(",")}")
+      nonInputProperties.systemProperty('tests.rest.old_cluster', "${-> testClusters."old-${baseName}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."new-${baseName}".allHttpSocketURI.join(",")}")
+    }
     dependsOn bundlePluginTask, bundleOldPluginsTask
   }
-}
 
-test.enabled = false
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "multi-clusters#${baseName}"
+  }
+}

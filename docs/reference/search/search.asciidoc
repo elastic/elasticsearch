@@ -594,7 +594,7 @@ Key is the field name. Value is the value for the field.
 
 [source,console]
 ----
-GET /my-index-000001/_search?q=user.id:kimchy
+GET /my-index-000001/_search?q=source.ip:127.0.0.1
 ----
 // TEST[setup:my_index]
 
@@ -635,7 +635,7 @@ The API returns the following response:
             "version": "1.1"
           },
           "source": {
-            "ip": "10.42.42.42"
+            "ip": "127.0.0.1"
           },
           "message": "GET /login HTTP/1.1 200 2571",
           "user": {
@@ -654,7 +654,7 @@ The API returns the following response:
 
 [source,console]
 ----
-GET /my-index-000001,my-index-000002/_search?q=user.id:kimchy
+GET /my-index-000001,my-index-000002/_search?q=source.ip:127.0.0.1
 ----
 // TEST[setup:my_index]
 // TEST[s/^/PUT my-index-000002\n/]
@@ -667,7 +667,7 @@ omit the `<target>` parameter.
 
 [source,console]
 ----
-GET /_search?q=user.id:kimchy
+GET /_search?q=source.ip:127.0.0.1
 ----
 // TEST[setup:my_index]
 
@@ -676,13 +676,13 @@ you can use the `_all` or `*` value in the `<target>` parameter.
 
 [source,console]
 ----
-GET /_all/_search?q=user.id:kimchy
+GET /_all/_search?q=source.ip:127.0.0.1
 ----
 // TEST[setup:my_index]
 
 [source,console]
 ----
-GET /*/_search?q=user.id:kimchy
+GET /*/_search?q=source.ip:127.0.0.1
 ----
 // TEST[setup:my_index]
 
@@ -695,7 +695,7 @@ GET /my-index-000001/_search
 {
   "query": {
     "term": {
-      "user.id": "kimchy"
+      "source.ip": "127.0.0.1"
     }
   }
 }
@@ -739,7 +739,7 @@ The API returns the following response:
             "version": "1.1"
           },
           "source": {
-            "ip": "10.42.42.42"
+            "ip": "127.0.0.1"
           },
           "message": "GET /login HTTP/1.1 200 2571",
           "user": {

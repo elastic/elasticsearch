@@ -98,7 +98,10 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
             return builder;
         }
-        return super.toXContent(builder, params);
+        builder.startObject(simpleName());
+        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+        getMergeBuilder().toXContent(builder, includeDefaults);
+        return builder.endObject();
     }
 
     /**

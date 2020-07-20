@@ -1508,7 +1508,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
                 @Override
                 public MetadataFieldMapper getDefault(ParserContext parserContext) {
-                    return new MetadataTimestampFieldMapper(null);
+                    return new MetadataTimestampFieldMapper(false);
                 }
 
             });
@@ -1521,7 +1521,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public static class MetadataTimestampFieldBuilder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<String> path = Parameter.stringParam("path", false, m -> toType(m).path, null);
+        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled, false);
 
         protected MetadataTimestampFieldBuilder() {
             super("_data_stream_timestamp");
@@ -1529,19 +1529,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         @Override
         protected List<ParametrizedFieldMapper.Parameter<?>> getParameters() {
-            return List.of(path);
+            return List.of(enabled);
         }
 
         @Override
         public MetadataFieldMapper build(Mapper.BuilderContext context) {
-            return new MetadataTimestampFieldMapper(path.getValue());
+            return new MetadataTimestampFieldMapper(enabled.getValue());
         }
     }
 
     public static class MetadataTimestampFieldMapper extends MetadataFieldMapper {
-        final String path;
+        final boolean enabled;
 
-        public MetadataTimestampFieldMapper(String path) {
+        public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, TextSearchInfo.NONE, Map.of()) {
                 @Override
                 public String typeName() {
@@ -1558,7 +1558,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     return null;
                 }
             });
-            this.path = path;
+            this.enabled = enabled;
         }
 
         @Override

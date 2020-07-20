@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-inference-stats]]
-=== Get {infer} trained model statistics API
+= Get {infer} trained model statistics API
 [subs="attributes"]
 ++++
 <titleabbrev>Get {infer} trained model stats</titleabbrev>
@@ -13,7 +13,7 @@ experimental[]
 
 
 [[ml-get-inference-stats-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/inference/_stats` +
 
@@ -27,7 +27,7 @@ experimental[]
 
 
 [[ml-get-inference-stats-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 Required privileges which should be added to a custom role:
 
@@ -37,14 +37,14 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-get-inference-stats-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can get usage information for multiple trained models in a single API 
 request by using a comma-separated list of model IDs or a wildcard expression.
 
 
 [[ml-get-inference-stats-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<model_id>`::
 (Optional, string) 
@@ -52,7 +52,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 
 [[ml-get-inference-stats-query-params]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, boolean) 
@@ -66,9 +66,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
-
 [[ml-get-inference-stats-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
@@ -76,7 +75,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
   
 
 [[ml-get-inference-stats-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following example gets usage information for all the trained models:
 

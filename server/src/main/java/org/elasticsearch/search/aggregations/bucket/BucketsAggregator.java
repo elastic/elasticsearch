@@ -53,7 +53,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private final BigArrays bigArrays;
     private final IntConsumer multiBucketConsumer;
     private IntArray docCounts;
-    private DocCountProvider fieldDocCountProvider;
+    private DocCountProvider docCountProvider;
 
     public BucketsAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             CardinalityUpperBound bucketCardinality, Map<String, Object> metadata) throws IOException {
@@ -65,7 +65,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             multiBucketConsumer = (count) -> {};
         }
         docCounts = bigArrays.newIntArray(1, true);
-        fieldDocCountProvider = new FieldBasedDocCountProvider();
+        docCountProvider = new FieldBasedDocCountProvider();
     }
 
     /**
@@ -94,7 +94,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        int docCount = fieldDocCountProvider.getDocCount(doc);
+        int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
             // trigger bucket consumer from time to time in order to give it a chance to check available memory and break
@@ -400,6 +400,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
     protected void preGetSubLeafCollectors(LeafReaderContext ctx) throws IOException {
         super.preGetSubLeafCollectors(ctx);
         // Set LeafReaderContext to the field based doc_count provider
-        fieldDocCountProvider.setLeafReaderContext(ctx);
+        docCountProvider.setLeafReaderContext(ctx);
     }
 }

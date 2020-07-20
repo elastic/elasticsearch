@@ -45,7 +45,7 @@ public final class ShardPath {
     private final ShardId shardId;
     private final Path shardStatePath;
     private final boolean isCustomDataPath;
-    private NodeEnvironment.NodePath nodePath;
+    private final NodeEnvironment.NodePath nodePath;
 
     public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, NodeEnvironment.NodePath nodePath, ShardId shardId) {
         assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) :

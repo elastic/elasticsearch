@@ -708,11 +708,11 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         testDirectories(true, false, recoveryStateIndex, (directory, snapshotDirectory) -> {
 
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFile : snapshotDirectory.snapshot().indexFiles()) {
-                RecoveryState.File fileDetails = recoveryStateIndex.getFileDetails(snapshotFile.physicalName());
-                assertThat(fileDetails, is(notNullValue()));
-                assertThat(fileDetails.length(), is(snapshotFile.length()));
-                assertThat(fileDetails.reused(), is(false));
-                assertThat(fileDetails.recovered(), is(0L));
+                RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(snapshotFile.physicalName());
+                assertThat(fileDetail, is(notNullValue()));
+                assertThat(fileDetail.length(), is(snapshotFile.length()));
+                assertThat(fileDetail.reused(), is(false));
+                assertThat(fileDetail.recovered(), is(0L));
             }
         });
     }
@@ -729,16 +729,13 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     byte[] buffer = new byte[fileLength];
                     input.readBytes(buffer, 0, fileLength);
 
-                    RecoveryState.File fileDetails = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
-                    assertThat(fileDetails, is(notNullValue()));
-                    assertThat(fileDetails.length(), is(fileDetails.length()));
-                    assertThat(fileDetails.reused(), is(false));
+                    RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
+                    assertThat(fileDetail, is(notNullValue()));
+                    assertThat(fileDetail.length(), is(fileDetail.length()));
+                    assertThat(fileDetail.reused(), is(false));
                     assertBusy(
                         () -> {
-                            assertThat(
-                                fileDetails.recovered(),
-                                fileInfo.metadata().hashEqualsContents() ? is(0L) : is(fileDetails.length())
-                            );
+                            assertThat(fileDetail.recovered(), fileInfo.metadata().hashEqualsContents() ? is(0L) : is(fileDetail.length()));
                         }
                     );
                 }
@@ -746,7 +743,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         });
     }
 
-    public void testRecoveryFileDetailsAreNotFilledAsDataWithDirectReads() throws Exception {
+    public void testRecoveryFileDetailsAreNotFilledWithDirectReads() throws Exception {
         OnDemandRecoveryState.Index recoveryStateIndex = new OnDemandRecoveryState.Index();
         testDirectories(false, false, recoveryStateIndex, (directory, snapshotDirectory) -> {
             List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = snapshotDirectory.snapshot().indexFiles();
@@ -758,11 +755,11 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     byte[] buffer = new byte[fileLength];
                     input.readBytes(buffer, 0, fileLength);
 
-                    RecoveryState.File fileDetails = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
-                    assertThat(fileDetails, is(notNullValue()));
-                    assertThat(fileDetails.length(), is(fileDetails.length()));
-                    assertThat(fileDetails.reused(), is(false));
-                    assertThat(fileDetails.recovered(), is(0L));
+                    RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
+                    assertThat(fileDetail, is(notNullValue()));
+                    assertThat(fileDetail.length(), is(fileDetail.length()));
+                    assertThat(fileDetail.reused(), is(false));
+                    assertThat(fileDetail.recovered(), is(0L));
                 }
             }
         });
@@ -786,11 +783,11 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
             assertBusy(() -> {
                 for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles) {
-                    RecoveryState.File fileDetails = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
-                    assertThat(fileDetails, is(notNullValue()));
-                    assertThat(fileDetails.length(), is(fileInfo.length()));
-                    assertThat(fileDetails.reused(), is(false));
-                    assertThat(fileDetails.recovered(), is(0L));
+                    RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileInfo.physicalName());
+                    assertThat(fileDetail, is(notNullValue()));
+                    assertThat(fileDetail.length(), is(fileInfo.length()));
+                    assertThat(fileDetail.reused(), is(false));
+                    assertThat(fileDetail.recovered(), is(0L));
                 }
             });
         });

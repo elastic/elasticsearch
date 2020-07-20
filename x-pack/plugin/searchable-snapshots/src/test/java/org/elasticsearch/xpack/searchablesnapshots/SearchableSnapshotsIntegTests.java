@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -57,7 +56,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -599,49 +597,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             );
 
             assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
-        }
-    }
-
-    private void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
-        final Thread[] threads = new Thread[between(1, 5)];
-        final AtomicArray<TotalHits> allHits = new AtomicArray<>(threads.length);
-        final AtomicArray<TotalHits> barHits = new AtomicArray<>(threads.length);
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        for (int i = 0; i < threads.length; i++) {
-            int t = i;
-            threads[i] = new Thread(() -> {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                allHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits());
-                barHits.set(
-                    t,
-                    client().prepareSearch(indexName)
-                        .setTrackTotalHits(true)
-                        .setQuery(matchQuery("foo", "bar"))
-                        .get()
-                        .getHits()
-                        .getTotalHits()
-                );
-            });
-            threads[i].start();
-        }
-
-        ensureGreen(indexName);
-        latch.countDown();
-
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
-
-            final TotalHits allTotalHits = allHits.get(i);
-            final TotalHits barTotalHits = barHits.get(i);
-
-            logger.info("--> thread #{} has [{}] hits in total, of which [{}] match the query", i, allTotalHits, barTotalHits);
-            assertThat(allTotalHits, equalTo(originalAllHits));
-            assertThat(barTotalHits, equalTo(originalBarHits));
         }
     }
 

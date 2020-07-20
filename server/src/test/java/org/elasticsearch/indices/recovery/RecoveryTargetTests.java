@@ -28,8 +28,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.RecoveryState.File;
+import org.elasticsearch.indices.recovery.RecoveryState.FileDetail;
 import org.elasticsearch.indices.recovery.RecoveryState.Index;
+import org.elasticsearch.indices.recovery.RecoveryState.RecoveryFileDetail;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Timer;
 import org.elasticsearch.indices.recovery.RecoveryState.Translog;
@@ -180,8 +181,8 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testIndex() throws Throwable {
-        File[] files = new File[randomIntBetween(1, 20)];
-        ArrayList<File> filesToRecover = new ArrayList<>();
+        FileDetail[] files = new FileDetail[randomIntBetween(1, 20)];
+        ArrayList<FileDetail> filesToRecover = new ArrayList<>();
         long totalFileBytes = 0;
         long totalReusedBytes = 0;
         int totalReused = 0;
@@ -189,7 +190,7 @@ public class RecoveryTargetTests extends ESTestCase {
             final int fileLength = randomIntBetween(1, 1000);
             final boolean reused = randomBoolean();
             totalFileBytes += fileLength;
-            files[i] = new RecoveryState.File("f_" + i, fileLength, reused);
+            files[i] = new RecoveryFileDetail("f_" + i, fileLength, reused);
             if (reused) {
                 totalReused++;
                 totalReusedBytes += fileLength;
@@ -230,7 +231,7 @@ public class RecoveryTargetTests extends ESTestCase {
         assertThat(index.targetThrottling().nanos(), equalTo(Index.UNKNOWN));
 
         index.start();
-        for (File file : files) {
+        for (FileDetail file : files) {
             index.addFileDetail(file.name(), file.length(), file.reused());
         }
 
@@ -271,7 +272,7 @@ public class RecoveryTargetTests extends ESTestCase {
         long sourceThrottling = Index.UNKNOWN;
         long targetThrottling = Index.UNKNOWN;
         while (bytesToRecover > 0) {
-            File file = randomFrom(filesToRecover);
+            FileDetail file = randomFrom(filesToRecover);
             final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
             final long throttledOnSource = rarely() ? randomIntBetween(10, 200) : 0;
             index.addSourceThrottling(throttledOnSource);
@@ -546,14 +547,14 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testFileHashCodeAndEquals() {
-        File f = new File("foo", randomIntBetween(0, 100), randomBoolean());
-        File anotherFile = new File(f.name(), f.length(), f.reused());
+        FileDetail f = new RecoveryFileDetail("foo", randomIntBetween(0, 100), randomBoolean());
+        FileDetail anotherFile = new RecoveryFileDetail(f.name(), f.length(), f.reused());
         assertEquals(f, anotherFile);
         assertEquals(f.hashCode(), anotherFile.hashCode());
         int iters = randomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
-            f = new File("foo", randomIntBetween(0, 100), randomBoolean());
-            anotherFile = new File(f.name(), randomIntBetween(0, 100), randomBoolean());
+            f = new RecoveryFileDetail("foo", randomIntBetween(0, 100), randomBoolean());
+            anotherFile = new RecoveryFileDetail(f.name(), randomIntBetween(0, 100), randomBoolean());
             if (f.equals(anotherFile)) {
                 assertEquals(f.hashCode(), anotherFile.hashCode());
             } else if (f.hashCode() != anotherFile.hashCode()) {

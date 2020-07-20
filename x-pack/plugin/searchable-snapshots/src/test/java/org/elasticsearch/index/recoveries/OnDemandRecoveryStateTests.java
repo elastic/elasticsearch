@@ -11,24 +11,30 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class OnDemandRecoveryStateTests extends ESTestCase {
-    public void testSameRangeCanBeReportedMultipleTimes() {
+    public void testRecoveredBytesIsBackedByCacheFiles() {
         OnDemandRecoveryState recoveryState = createRecoveryState();
-        RecoveryState.Index index = recoveryState.getIndex();
-
+        OnDemandRecoveryState.Index index = (OnDemandRecoveryState.Index) recoveryState.getIndex();
         long fileLength = randomLongBetween(0, 500);
         index.addFileDetail("file", fileLength, false);
         index.setFileDetailsComplete();
 
-        index.addRecoveredBytesToFile("file", fileLength * 2);
+        CacheFile cacheFile = mock(CacheFile.class);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+        index.trackCacheFile("file", cacheFile);
+
+        // This call is a no-op
+        index.addRecoveredBytesToFile("file", randomInt(1024));
+
         assertThat(index.getFileDetails("file").recovered(), is(fileLength));
     }
 
@@ -38,10 +44,15 @@ public class OnDemandRecoveryStateTests extends ESTestCase {
 
         long fileLength = randomLongBetween(0, 500);
         index.addFileDetail("file", fileLength, false);
-        index.addRecoveredBytesToFile("file", fileLength);
+        index.setFileDetailsComplete();
+
+        CacheFile cacheFile = mock(CacheFile.class);
+        when(cacheFile.getLength()).thenReturn(fileLength);
+        index.trackCacheFile("file", cacheFile);
+
         assertThat(index.getFileDetails("file").recovered(), is(fileLength));
 
-        index.resetRecoveredBytesOfFile("file");
+        index.trackCacheFileEviction("file", cacheFile);
 
         assertThat(index.getFileDetails("file").recovered(), is(0L));
     }
@@ -75,25 +86,22 @@ public class OnDemandRecoveryStateTests extends ESTestCase {
 
     public void testAddSnapshotFilesMultipleTimes() {
         OnDemandRecoveryState recoveryState = createRecoveryState();
-        OnDemandRecoveryState.Index index = (OnDemandRecoveryState.Index) recoveryState.getIndex();
+        RecoveryState.Index index = recoveryState.getIndex();
 
         long fileLength = randomLongBetween(0, 500);
-        index.addSnapshotFile("file", fileLength);
-
-        index.addFileDetail("file", fileLength, true);
-        index.addFileDetail("file", fileLength, true);
+        index.addFileDetail("file", fileLength, false);
+        index.addFileDetail("file", fileLength, false);
 
         assertThat(index.getFileDetails("file").reused(), is(false));
         assertThat(index.getFileDetails("file").length(), is(fileLength));
     }
 
-    public void testClearKeepsSnapshotFileDetails() {
+    public void testClearKeepsFileDetails() {
         OnDemandRecoveryState recoveryState = createRecoveryState();
-        OnDemandRecoveryState.Index index = (OnDemandRecoveryState.Index) recoveryState.getIndex();
+        RecoveryState.Index index = recoveryState.getIndex();
 
         long fileLength = randomLongBetween(0, 500);
-        index.addSnapshotFile("file", fileLength);
-
+        index.addFileDetail("file", fileLength, false);
         index.addFileDetail("another_file", randomLongBetween(0, 500), true);
 
         assertThat(index.getFileDetails("file"), is(notNullValue()));
@@ -102,7 +110,7 @@ public class OnDemandRecoveryStateTests extends ESTestCase {
         recoveryState.getIndex().reset();
 
         assertThat(index.getFileDetails("file"), is(notNullValue()));
-        assertThat(index.getFileDetails("another_file"), is(nullValue()));
+        assertThat(index.getFileDetails("another_file"), is(notNullValue()));
     }
 
     private OnDemandRecoveryState createRecoveryState() {

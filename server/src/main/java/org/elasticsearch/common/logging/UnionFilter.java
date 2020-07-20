@@ -1,4 +1,4 @@
-/*
+/* @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -37,7 +37,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * This is a fork of {@link org.apache.logging.log4j.core.filter.CompositeFilter}. This class
  * also composes and invokes one or more filters, but unlike <code>CompositeFilter</code>, all
- * composed filters will be called to check for one that answers {@link Result#DENY}.
+ * composed filters will be called to check for one that answers {@link Result#DENY}. The
+ * implementation of <code>CompositeFilter</code> makes it impractical to extend.
  */
 @Plugin(name = "filters", category = Node.CATEGORY, printObject = true)
 @PerformanceSensitive("allocation")

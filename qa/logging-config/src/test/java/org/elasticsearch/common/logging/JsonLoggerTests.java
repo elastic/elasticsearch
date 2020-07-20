@@ -48,6 +48,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
@@ -87,10 +88,13 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("deprecation.test");
-        testLogger.info(DeprecatedMessage.of("someId","deprecated message1"));
+        testLogger.log(DEPRECATION, DeprecatedMessage.of("someId","deprecated message1"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
+
+        assertTrue(path.toFile().exists());
+
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
             List<Map<String, String>> jsonLogs = stream
                 .collect(Collectors.toList());
@@ -98,7 +102,7 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
@@ -107,6 +111,8 @@ public class JsonLoggerTests extends ESTestCase {
                 )
             );
         }
+
+        assertWarnings("deprecated message1");
     }
 
     public void testBuildingMessage() throws IOException {
@@ -169,10 +175,11 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final Logger testLogger = LogManager.getLogger("deprecation.test");
-        testLogger.info( DeprecatedMessage.of("someId","deprecated message1"));
-        testLogger.info( DeprecatedMessage.of("","deprecated message2"));
-        testLogger.info( DeprecatedMessage.of(null,"deprecated message3"));
-        testLogger.info("deprecated message4");
+        testLogger.log(DEPRECATION, DeprecatedMessage.of("someOtherId","deprecated message1").field("key", "a key"));
+        testLogger.log(DEPRECATION, DeprecatedMessage.of("","deprecated message2").field("key", "a key"));
+        // This next message will be filtered out, because a null opaque ID has the same effect as an empty ID.
+        testLogger.log(DEPRECATION, DeprecatedMessage.of(null,"deprecated message3").field("key", "a key"));
+        testLogger.log(DEPRECATION,"deprecated message4");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -183,15 +190,15 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
-                    hasEntry("x-opaque-id", "someId")),
+                    hasEntry("x-opaque-id", "someOtherId")),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
@@ -200,16 +207,7 @@ public class JsonLoggerTests extends ESTestCase {
                 ),
                 allOf(
                     hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
-                    hasEntry("log.logger", "deprecation.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "deprecated message3"),
-                    not(hasKey("x-opaque-id"))
-                ),
-                allOf(
-                    hasEntry("type", "deprecation"),
-                    hasEntry("log.level", "INFO"),
+                    hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "deprecation.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
@@ -218,7 +216,11 @@ public class JsonLoggerTests extends ESTestCase {
                 )
                 )
             );
+
+            assertThat(jsonLogs, not(contains(hasEntry("message", "deprecated message3"))));
         }
+
+        assertWarnings("deprecated message1", "deprecated message2", "deprecated message3", "deprecated message4");
     }
 
     public void testJsonLayout() throws IOException {
@@ -342,7 +344,7 @@ public class JsonLoggerTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-            DeprecationLogger.setThreadContext(threadContext);
+            HeaderWarning.setThreadContext(threadContext);
             deprecationLogger.deprecate("key", "message1");
             deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
@@ -356,7 +358,7 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(jsonLogs, contains(
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("log.level", "WARN"),
+                        hasEntry("log.level", "DEPRECATION"),
                         hasEntry("log.logger", "deprecation.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
@@ -366,7 +368,7 @@ public class JsonLoggerTests extends ESTestCase {
                 );
             }
         } finally {
-            DeprecationLogger.removeThreadContext(threadContext);
+            HeaderWarning.removeThreadContext(threadContext);
         }
 
 
@@ -374,7 +376,7 @@ public class JsonLoggerTests extends ESTestCase {
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-            DeprecationLogger.setThreadContext(threadContext);
+            HeaderWarning.setThreadContext(threadContext);
             deprecationLogger.deprecate("key", "message1");
             deprecationLogger.deprecate("key", "message2");
             assertWarnings("message1", "message2");
@@ -388,7 +390,7 @@ public class JsonLoggerTests extends ESTestCase {
                 assertThat(jsonLogs, contains(
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("log.level", "WARN"),
+                        hasEntry("log.level", "DEPRECATION"),
                         hasEntry("log.logger", "deprecation.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
@@ -397,7 +399,7 @@ public class JsonLoggerTests extends ESTestCase {
                     ),
                     allOf(
                         hasEntry("type", "deprecation"),
-                        hasEntry("log.level", "WARN"),
+                        hasEntry("log.level", "DEPRECATION"),
                         hasEntry("log.logger", "deprecation.test"),
                         hasEntry("cluster.name", "elasticsearch"),
                         hasEntry("node.name", "sample-name"),
@@ -408,7 +410,7 @@ public class JsonLoggerTests extends ESTestCase {
                 );
             }
         } finally {
-            DeprecationLogger.removeThreadContext(threadContext);
+            HeaderWarning.removeThreadContext(threadContext);
         }
     }
 

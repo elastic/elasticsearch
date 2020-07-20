@@ -17,17 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.deprecation;
+package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.Core;
 import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
+import org.apache.logging.log4j.core.config.plugins.PluginElement;
+import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.message.Message;
-import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.HeaderWarning;
 
-@Plugin(name = "HeaderWarning", category = "Elastic")
+@Plugin(name = "HeaderWarningAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public class HeaderWarningAppender extends AbstractAppender {
     public HeaderWarningAppender(String name, Filter filter) {
         super(name, filter, null);
@@ -44,6 +47,17 @@ public class HeaderWarningAppender extends AbstractAppender {
             Object[] arguments = esLogMessage.getArguments();
 
             HeaderWarning.addWarning(messagePattern, arguments);
+        } else {
+            final String formattedMessage = event.getMessage().getFormattedMessage();
+            HeaderWarning.addWarning(formattedMessage);
         }
+    }
+
+    @PluginFactory
+    public static HeaderWarningAppender createAppender(
+        @PluginAttribute("name") String name,
+        @PluginElement("filter") Filter filter
+    ) {
+        return new HeaderWarningAppender(name, filter);
     }
 }

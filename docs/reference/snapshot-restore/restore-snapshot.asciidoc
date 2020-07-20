@@ -18,7 +18,8 @@ PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
 
 ////
 
-A snapshot can be restored using the following command:
+Use the <<restore-snapshot-api,restore snapshot API>> to restore
+a snapshot of a cluster or specified data streams and indices:
 
 [source,console]
 -----------------------------------
@@ -56,6 +57,8 @@ using regular expression that supports referencing the original text as
 explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
 
+[[rename-restored-data-stream]]
+// tag::rename-restored-data-stream-tag[]
 If you rename a restored data stream, its backing indices are also
 renamed. For example, if you rename the `logs` data stream to `restored-logs`,
 the backing index `.ds-logs-000005` is renamed to `.ds-restored-logs-000005`.
@@ -66,6 +69,7 @@ If you rename a restored stream, ensure an index template matches the new stream
 name. If no index template matches the stream, it cannot
 <<manually-roll-over-a-data-stream,roll over>> or create new backing indices.
 ====
+// end::rename-restored-data-stream-tag[]
 
 Set `include_aliases` to `false` to prevent aliases from being restored together
 with associated indices.
@@ -93,7 +97,7 @@ overwrites any existing cluster settings, templates, pipelines and {ilm-init}
 policies whose names match those in the snapshot.
 
 The restore operation can be performed on a functioning cluster. However, an
-existing index can be only restored if it's <<indices-open-close,closed>> and
+existing index can be only restored if it's <<indices-close,closed>> and
 has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
 new indices if they didn't exist in the cluster.
@@ -146,6 +150,7 @@ Please note, that some settings such as `index.number_of_shards` cannot be chang
 For data streams, these index settings are applied to the restored backing
 indices.
 
+// tag::index-settings-data-stream-warning[]
 [IMPORTANT]
 ====
 The `index_settings` and `ignore_index_settings` parameters affect
@@ -157,6 +162,7 @@ If you change index settings during a restore, we recommend you make similar
 changes in the stream's matching index template. This ensures new backing
 indices created for the stream use the same index settings.
 ====
+// end::index-settings-data-stream-warning[]
 
 [float]
 === Restoring to a different cluster

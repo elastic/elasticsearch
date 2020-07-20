@@ -21,7 +21,7 @@ This enables you to take frequent snapshots with minimal overhead.
 // end::snapshot-intro[]
 
 // tag::restore-intro[]
-You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>.
+You can restore snapshots to a running cluster with the <<restore-snapshot-api,restore snapshot API>>.
 By default, all data streams and indices in the snapshot are restored.
 However, you can choose to restore only the cluster state or specific data
 streams or indices from a snapshot.

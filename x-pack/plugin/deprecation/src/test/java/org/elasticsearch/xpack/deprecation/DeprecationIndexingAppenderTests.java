@@ -36,7 +36,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void initialize() {
         consumer = mock(Consumer.class);
-        appender = new DeprecationIndexingAppender(consumer, "a name", null);
+        appender = new DeprecationIndexingAppender("a name", null, consumer);
 
         appender.setClusterUUID("cluster-uuid");
         appender.setNodeId("local-node-id");

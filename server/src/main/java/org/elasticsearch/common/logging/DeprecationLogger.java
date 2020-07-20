@@ -27,19 +27,28 @@ import org.apache.logging.log4j.core.filter.LevelRangeFilter;
 
 /**
  * A logger that logs deprecation notices. Logger should be initialized with a parent logger which name will be used
- * for deprecation logger. For instance <code>new DeprecationLogger("org.elasticsearch.test.SomeClass")</code> will
- * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use
+ * for deprecation logger. For instance <code>DeprecationLogger.getLogger("org.elasticsearch.test.SomeClass")</code> will
+ * result in a deprecation logger with name <code>org.elasticsearch.deprecation.test.SomeClass</code>. This allows to use a
  * <code>deprecation</code> logger defined in log4j2.properties.
  * <p>
- * Deprecation logs are written to deprecation log file - defined in log4j2.properties, as well as warnings added to a response header.
- * All deprecation usages are throttled basing on a key. Key is a string provided in an argument and can be prefixed with
- * <code>X-Opaque-Id</code>. This allows to throttle deprecations per client usage.
- * <code>deprecationLogger.deprecate("key","message {}", "param");</code>
+ * Logs are emitted at the custom {@link #DEPRECATION} level, and routed wherever they need to go using log4j. For example,
+ * to disk using a rolling file appender, or added as a response header using {@link HeaderWarningAppender}.
+ * <p>
+ * Deprecation messages include a <code>key</code>, which is used for rate-limiting purposes. The log4j configuration
+ * uses {@link RateLimitingFilter} to prevent the same message being logged repeatedly in a short span of time. This
+ * key is combined with the <code>X-Opaque-Id</code> request header value, if supplied, which allows for per-client
+ * message limiting.
  */
 public class DeprecationLogger {
+
+    /**
+     * Deprecation messages are logged at this level.
+     */
     public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
 
-    // Only handle log events with the custom DEPRECATION level
+    /**
+     * A level filter that only accepts messages written at the {@link #DEPRECATION} level.
+     */
     public static final LevelRangeFilter DEPRECATION_ONLY_FILTER = LevelRangeFilter.createFilter(
         DEPRECATION,
         DEPRECATION,
@@ -49,20 +58,24 @@ public class DeprecationLogger {
 
     private final Logger logger;
 
+    private DeprecationLogger(Logger parentLogger) {
+        this.logger = parentLogger;
+    }
+
+    /**
+     * Creates a new deprecation logger for the supplied class. Internally, it delegates to
+     * {@link #getLogger(String)}, passing the full class name.
+     */
+    public static DeprecationLogger getLogger(Class<?> aClass) {
+        return getLogger(toLoggerName(aClass));
+    }
+
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
      * prefixes the logger name with "deprecation", if it starts with "org.elasticsearch.",
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
-    private DeprecationLogger(Logger parentLogger) {
-        this.logger = parentLogger;
-    }
-
-    public static DeprecationLogger getLogger(Class<?> aClass) {
-        return getLogger(toLoggerName(aClass));
-    }
-
     public static DeprecationLogger getLogger(String name) {
         return new DeprecationLogger(getDeprecatedLoggerForName(name));
     }
@@ -82,9 +95,7 @@ public class DeprecationLogger {
     }
 
     /**
-     * Logs a deprecation message, adding a formatted warning message as a response header on the thread context.
-     * The deprecation message will be throttled to deprecation log.
-     * method returns a builder as more methods are expected to be chained.
+     * Logs a message at the {@link #DEPRECATION} level.
      */
     public DeprecationLoggerBuilder deprecate(final String key, final String msg, final Object... params) {
         return new DeprecationLoggerBuilder().withDeprecation(key, msg, params);

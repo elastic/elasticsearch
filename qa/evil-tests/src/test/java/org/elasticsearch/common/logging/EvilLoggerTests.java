@@ -118,7 +118,6 @@ public class EvilLoggerTests extends ESTestCase {
         final List<Thread> threads = new ArrayList<>();
         final int iterations = randomIntBetween(1, 4);
         for (int i = 0; i < numberOfThreads; i++) {
-            logger.warn("Kicking off thread " + i);
             final Thread thread = new Thread(() -> {
                 final List<Integer> ids = IntStream.range(0, 128).boxed().collect(Collectors.toList());
                 Randomness.shuffle(ids);
@@ -141,7 +140,6 @@ public class EvilLoggerTests extends ESTestCase {
                  * on the other threads.
                  */
                 final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-                assertNotNull(warnings);
                 final Set<String> actualWarningValues =
                         warnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
                             .collect(Collectors.toSet());
@@ -152,9 +150,8 @@ public class EvilLoggerTests extends ESTestCase {
                 }
 
                 try {
-                    logger.warn("About to await barrier");
-                    barrier.await(1, TimeUnit.SECONDS);
-                } catch (final BrokenBarrierException | InterruptedException | TimeoutException e) {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
                     throw new RuntimeException(e);
                 }
             });
@@ -163,11 +160,9 @@ public class EvilLoggerTests extends ESTestCase {
         }
 
         // synchronize the start of all threads
-        logger.warn("synchronize the start of all threads");
         barrier.await();
 
         // wait for all threads to complete their iterations
-        logger.warn("wait for all threads to complete their iterations");
         barrier.await();
 
         final String deprecationPath =

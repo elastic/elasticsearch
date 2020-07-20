@@ -4,25 +4,6 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.xpack.deprecation.logging;
 
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +31,10 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION_ONLY_FILTER;
 
+/**
+ * This component manages the construction and lifecycle of the {@link DeprecationIndexingAppender}.
+ * It also starts and stops the appender
+ */
 public class DeprecationIndexingComponent extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(DeprecationIndexingComponent.class);
 
@@ -65,9 +50,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     public DeprecationIndexingComponent(ThreadPool threadPool, Client client) {
         final Consumer<IndexRequest> consumer = buildIndexRequestConsumer(threadPool, client);
         final Filter filter = UnionFilter.createFilters(DEPRECATION_ONLY_FILTER, new RateLimitingFilter());
-        filter.start();
 
-        this.appender = new DeprecationIndexingAppender(consumer, "DeprecationIndexer", filter);
+        this.appender = new DeprecationIndexingAppender("DeprecationIndexer", filter, consumer);
     }
 
     @Override
@@ -79,7 +63,6 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     @Override
     protected void doStop() {
         Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
-        this.appender.stop();
     }
 
     @Override
@@ -91,6 +74,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
      * Listens for changes to the cluster state, in order to know whether to toggle indexing
      * and to set the cluster UUID and node ID. These can't be set in the constructor because
      * the initial cluster state won't be set yet.
+     *
+     * @param event the cluster state event to process
      */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {

@@ -93,8 +93,6 @@ public class JsonLoggerTests extends ESTestCase {
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
 
-        assertTrue(path.toFile().exists());
-
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
             List<Map<String, String>> jsonLogs = stream
                 .collect(Collectors.toList());

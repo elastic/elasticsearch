@@ -40,7 +40,8 @@ POST /_search <1>
 // TEST[catch:missing]
 
 <1> A search request with `search_context` must not specify `index`, `routing`,
-and `preferences` as these parameters are copied from the `search_context`.
+and {ref}/search-request-body.html#request-body-search-preference[`preference`]
+as these parameters are copied from the `search_context`.
 <2> The `id` parameter tells Elasticsearch to execute the request using
 the point-in-time readers from this search context id.
 <3> The `keep_alive` parameter tells Elasticsearch how long it should extend
@@ -59,7 +60,7 @@ process all data -- it just needs to be long enough for the next request.
 
 Normally, the background merge process optimizes the index by merging together
 smaller segments to create new, bigger segments. Once the smaller segments are
-no longer needed they are deleted. However, open search contexts prevents the
+no longer needed they are deleted. However, open search contexts prevent the
 old segments from being deleted since they are still in use.
 
 TIP: Keeping older segments alive means that more disk space and file handles

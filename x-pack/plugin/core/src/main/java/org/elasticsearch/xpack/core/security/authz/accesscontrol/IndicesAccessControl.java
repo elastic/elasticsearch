@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverFiel
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,14 +26,20 @@ public class IndicesAccessControl {
     public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, null) {
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
-            assert false == Regex.isSimpleMatchPattern(index) : "index access control can and should only be retrieved by a concrete name";
+            assert false == Regex.isSimpleMatchPattern(index) :
+                    "index access control can and should only be retrieved for a given concrete name, but requested [" + index + "]";
             return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
         }
     };
     public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true, null) {
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
-            assert false == Regex.isSimpleMatchPattern(index) : "index access control can and should only be retrieved by a concrete name";
+            for (String placeHolderIndexName : IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY) {
+                if (placeHolderIndexName.equals(index)) {
+                    return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
+                }
+            }
+            assert false : "the \"no index access control\" is empty and no access control can be retrieved, but requested [" + index + "]";
             return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
         }
     };
@@ -53,7 +60,9 @@ public class IndicesAccessControl {
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
         assert false == Regex.isSimpleMatchPattern(index) : "index access control can and should only be retrieved by a concrete name";
-        return indexPermissions.get(index);
+        IndexAccessControl accessControl = indexPermissions.get(index);
+        assert accessControl != null : "";
+        return accessControl;
     }
 
     /**

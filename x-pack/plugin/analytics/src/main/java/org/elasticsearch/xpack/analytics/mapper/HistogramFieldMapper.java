@@ -184,7 +184,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                                CircuitBreakerService breakerService, MapperService mapperService) {
 
-                    return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name(), AnalyticsValuesSourceType.HISTOGRAM) {
+                    return new IndexHistogramFieldData(fieldType.name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                         @Override
                         public LeafHistogramFieldData load(LeafReaderContext context) {

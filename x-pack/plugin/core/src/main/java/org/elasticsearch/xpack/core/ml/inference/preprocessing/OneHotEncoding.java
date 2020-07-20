@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -72,11 +71,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public OneHotEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
         this.hotMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.custom = in.readBoolean();
-        } else {
-            this.custom = false;
-        }
+        this.custom = in.readBoolean();
     }
 
     /**
@@ -139,9 +134,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeMap(hotMap, StreamOutput::writeString, StreamOutput::writeString);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(custom);
-        }
+        out.writeBoolean(custom);
     }
 
     @Override

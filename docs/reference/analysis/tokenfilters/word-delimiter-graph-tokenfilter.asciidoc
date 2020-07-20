@@ -272,8 +272,8 @@ Defaults to `true`.
 
 `ignore_keywords`::
 (Optional, boolean)
-If `true`, the filter suppresses processing tokens with
-{lucene-core-javadoc}/org/apache/lucene/analysis/tokenattributes/KeywordAttribute.html#isKeyword()[KeywordAttribute.isKeyword()=true]
+If `true`, the filter skips tokens with
+a `keyword` attribute of `true`.
 Defaults to `false`.
 
 [[word-delimiter-graph-tokenfilter-preserve-original]]

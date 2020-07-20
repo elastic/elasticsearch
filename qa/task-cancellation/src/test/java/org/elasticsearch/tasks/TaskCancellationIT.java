@@ -20,6 +20,7 @@
 package org.elasticsearch.tasks;
 
 import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -28,7 +29,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.cluster.RemoteConnectionInfo;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
@@ -101,13 +101,8 @@ public class TaskCancellationIT extends ESRestTestCase {
 
     @Before
     public void initClientsAndClusters() throws Exception {
-        RestClientBuilder.RequestConfigCallback callback = config -> config.setSocketTimeout(120 * 1000);
-        oldCluster = new RestHighLevelClient(
-            RestClient.builder(readHosts("tests.rest.old_cluster").toArray(new HttpHost[0])).setRequestConfigCallback(callback)
-        );
-        newCluster = new RestHighLevelClient(
-            RestClient.builder(readHosts("tests.rest.cluster").toArray(new HttpHost[0])).setRequestConfigCallback(callback)
-        );
+        oldCluster = new RestHighLevelClient(RestClient.builder(readHosts("tests.rest.old_cluster").toArray(new HttpHost[0])));
+        newCluster = new RestHighLevelClient(RestClient.builder(readHosts("tests.rest.cluster").toArray(new HttpHost[0])));
         // connect the new cluster to the old one
         configureRemoteCluster(newCluster, "old", randomSubsetOf(1, readHosts("tests.old_cluster")));
     }
@@ -128,6 +123,9 @@ public class TaskCancellationIT extends ESRestTestCase {
                     "targets",
                     Stream.concat(newNodes.stream().map(n -> ":" + n), oldNodes.stream().map(n -> "old:" + n))
                         .collect(Collectors.joining(","))
+                );
+                request.setOptions(
+                    RequestOptions.DEFAULT.toBuilder().setRequestConfig(RequestConfig.custom().setSocketTimeout(120 * 1000).build())
                 );
                 newCluster.getLowLevelClient().performRequest(request);
             });

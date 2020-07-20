@@ -95,12 +95,12 @@ public class ChunkedTrainedModelPersister {
         }
     }
 
-    public void createAndIndexInferenceModelMetadata(ModelSizeInfo inferenceModelSize) {
+    public String createAndIndexInferenceModelMetadata(ModelSizeInfo inferenceModelSize) {
         if (readyToStoreNewModel.compareAndSet(true, false) == false) {
             failureHandler.accept(ExceptionsHelper.serverError(
                 "new inference model is attempting to be stored before completion previous model storage"
             ));
-            return;
+            return null;
         }
         TrainedModelConfig trainedModelConfig = createTrainedModelConfig(inferenceModelSize);
         CountDownLatch latch = storeTrainedModelMetadata(trainedModelConfig);
@@ -113,6 +113,7 @@ public class ChunkedTrainedModelPersister {
             this.readyToStoreNewModel.set(true);
             failureHandler.accept(ExceptionsHelper.serverError("interrupted waiting for inference model metadata to be stored"));
         }
+        return trainedModelConfig.getModelId();
     }
 
     private CountDownLatch storeTrainedModelDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -17,7 +18,11 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence;
 import org.elasticsearch.xpack.eql.execution.assembler.SeriesUtils.SeriesSpec;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
+import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
+import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.eql.session.Results.Type;
@@ -169,6 +174,23 @@ public class SequenceSpecTests extends ESTestCase {
         }
     }
 
+    class TestQueryClient implements QueryClient {
+
+        @Override
+        public void query(QueryRequest r, ActionListener<Payload> l) {
+            int ordinal = r.searchSource().size();
+            if (ordinal != Integer.MAX_VALUE) {
+                r.searchSource().size(Integer.MAX_VALUE);
+            }
+            Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
+            l.onResponse(new TestPayload(evs));
+        }
+
+        @Override
+        public void get(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+            //no-op
+        }
+    }
 
     public SequenceSpecTests(String testName, int lineNumber, SeriesSpec spec) {
         this.lineNumber = lineNumber;
@@ -196,17 +218,9 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         // convert the results through a test specific payload
-        Matcher matcher = new Matcher(stages, TimeValue.MINUS_ONE, null);
+        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null);
         
-        QueryClient testClient = (r, l) -> {
-            int ordinal = r.searchSource().size();
-            if (ordinal != Integer.MAX_VALUE) {
-                r.searchSource().size(Integer.MAX_VALUE);
-            }
-            Map<Integer, Tuple<String, String>> evs = ordinal != Integer.MAX_VALUE ? events.get(ordinal) : emptyMap();
-            l.onResponse(new TestPayload(evs));
-        };
-        
+        QueryClient testClient = new TestQueryClient();
         TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher);
 
         // finally make the assertion at the end of the listener

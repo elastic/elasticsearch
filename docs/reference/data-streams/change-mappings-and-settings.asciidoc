@@ -1,3 +1,4 @@
+[role="xpack"]
 [[data-streams-change-mappings-and-settings]]
 == Change mappings and settings for a data stream
 
@@ -51,35 +52,13 @@ PUT /_ilm/policy/logs_policy
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_data_stream/logs
@@ -123,15 +102,10 @@ for a new field, `message`, to the template.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
         "message": {                              <1>
           "type": "text"
         }
@@ -156,6 +130,29 @@ the `logs` data stream.
 [source,console]
 ----
 PUT /logs/_mapping
+{
+  "properties": {
+    "message": {
+      "type": "text"
+    }
+  }
+}
+----
+====
++
+To add the mapping only to the stream's write index, set the put mapping API's
+`write_index_only` query parameter to `true`.
++
+.*Example*
+[%collapsible]
+====
+The following put mapping request adds the new `message` field mapping only to
+the `logs` stream's write index. The new field mapping is not added to the
+stream's other backing indices.
+
+[source,console]
+----
+PUT /logs/_mapping?write_index_only=true
 {
   "properties": {
     "message": {
@@ -192,15 +189,10 @@ mapping parameter to `true`.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
         "host": {
           "properties": {
             "ip": {
@@ -231,6 +223,34 @@ data stream. The request changes the argument for the `host.ip` field's
 [source,console]
 ----
 PUT /logs/_mapping
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "ip": {
+          "type": "ip",
+          "ignore_malformed": true
+        }
+      }
+    }
+  }
+}
+----
+====
++
+To apply the mapping changes only to the stream's write index, set the put mapping API's
+`write_index_only` query parameter to `true`.
++
+.*Example*
+[%collapsible]
+====
+The following put mapping request changes the `host.ip` field's mapping only for
+the `logs` stream's write index. The change is not applied to the stream's other
+backing indices.
+
+[source,console]
+----
+PUT /logs/_mapping?write_index_only=true
 {
   "properties": {
     "host": {
@@ -278,17 +298,8 @@ template's `index.refresh_interval` index setting to `30s` (30 seconds).
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "index.refresh_interval": "30s"             <1>
     }
@@ -344,17 +355,8 @@ The following <<indices-templates,put index template API>> requests adds new
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "sort.field": [ "@timestamp"],             <1>
       "sort.order": [ "desc"]                    <2>
@@ -459,9 +461,7 @@ uses the `logs_data_stream` template as its basis, with the following changes:
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {

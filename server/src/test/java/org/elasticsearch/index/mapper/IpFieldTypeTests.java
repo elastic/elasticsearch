@@ -29,13 +29,8 @@ import org.elasticsearch.common.network.InetAddresses;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
-public class IpFieldTypeTests extends FieldTypeTestCase<MappedFieldType> {
-    @Override
-    protected MappedFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new IpFieldMapper.IpFieldType(name, true, true, meta);
-    }
+public class IpFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() throws Exception {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");

@@ -217,16 +217,6 @@ public class WildcardFieldMapper extends FieldMapper {
             setIndexAnalyzer(WILDCARD_ANALYZER);
         }
 
-        protected WildcardFieldType(WildcardFieldType ref) {
-            super(ref);
-        }
-
-        public WildcardFieldType clone() {
-            WildcardFieldType result = new WildcardFieldType(this);
-            return result;
-        }
-
-
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, QueryShardContext context) {
 
@@ -849,12 +839,12 @@ public class WildcardFieldMapper extends FieldMapper {
         public String typeName() {
             return CONTENT_TYPE;
         }
-        
+
         @Override
         public String familyTypeName() {
             return KeywordFieldMapper.CONTENT_TYPE;
         }
-        
+
 
         @Override
         public Query existsQuery(QueryShardContext context) {
@@ -888,7 +878,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 @Override
                 public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                         CircuitBreakerService breakerService, MapperService mapperService) {
-                    return new StringBinaryIndexFieldData(indexSettings.getIndex(), fieldType.name(), CoreValuesSourceType.BYTES);
+                    return new StringBinaryIndexFieldData(fieldType.name(), CoreValuesSourceType.BYTES);
                 }};
         }
 

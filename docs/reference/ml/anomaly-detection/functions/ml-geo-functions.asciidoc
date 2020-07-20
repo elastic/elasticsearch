@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-geo-functions]]
-=== Geographic functions
+= Geographic functions
 
 The geographic functions detect anomalies in the geographic location of the
 input data.
@@ -13,7 +13,7 @@ geographic functions.
 
 [float]
 [[ml-lat-long]]
-==== Lat_long
+== Lat_long
 
 The `lat_long` function detects anomalies in the geographic location of the
 input data.

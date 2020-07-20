@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-count-functions]]
-=== Count functions
+= Count functions
 
 Count functions detect anomalies when the number of events in a bucket is
 anomalous.
@@ -22,7 +22,7 @@ The {ml-features} include the following count functions:
 
 [float]
 [[ml-count]]
-===== Count, high_count, low_count
+== Count, high_count, low_count
 
 The `count` function detects anomalies when the number of events in a bucket is
 anomalous.
@@ -145,7 +145,7 @@ and the `summary_count_field_name` property. For more information, see
 
 [float]
 [[ml-nonzero-count]]
-===== Non_zero_count, high_non_zero_count, low_non_zero_count
+== Non_zero_count, high_non_zero_count, low_non_zero_count
 
 The `non_zero_count` function detects anomalies when the number of events in a
 bucket is anomalous, but it ignores cases where the bucket count is zero. Use
@@ -215,7 +215,7 @@ data is sparse, use the `count` functions, which are optimized for that scenario
 
 [float]
 [[ml-distinct-count]]
-===== Distinct_count, high_distinct_count, low_distinct_count
+== Distinct_count, high_distinct_count, low_distinct_count
 
 The `distinct_count` function detects anomalies where the number of distinct
 values in one field is unusual.

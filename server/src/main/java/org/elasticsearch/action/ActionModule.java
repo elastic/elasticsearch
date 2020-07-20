@@ -261,6 +261,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.RestRequestPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -447,7 +448,7 @@ public class ActionModule extends AbstractModule {
     public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService) {
+                        CircuitBreakerService circuitBreakerService, UsageService usageService, ClusterService clusterService, List<RestRequestPlugin> restRequestPlugins) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -478,18 +479,19 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
                 actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
-        RestRequestFactory restRequestFactory = getRestRequestFactory(actionPlugins);
+        RestRequestFactory restRequestFactory = getRestRequestFactory(restRequestPlugins);
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, restRequestFactory);
     }
 
-    private RestRequestFactory getRestRequestFactory(List<ActionPlugin> actionPlugins) {
+    private RestRequestFactory getRestRequestFactory(List<RestRequestPlugin> restRequestPlugins) {
         RestRequestFactory restRequestFactory = null;
-        for (ActionPlugin plugin : actionPlugins) {
+        for (RestRequestPlugin plugin : restRequestPlugins) {
             RestRequestFactory newRestRequestFactory = plugin.getRestRequestFactory();
             if (newRestRequestFactory != null) {
-                logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
+                logger.debug("Using REST request factory from plugin " + plugin.getClass().getName());
                 if (restRequestFactory != null) {
-                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
+                    //TODO maybe we could combine/chain them?
+                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a RestRequestPlugin");
                 }
                 restRequestFactory = newRestRequestFactory;
             }

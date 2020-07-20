@@ -129,7 +129,7 @@ public interface ActionPlugin {
         return null;
     }
 
-    RestRequestFactory getRestRequestFactory();
+//    RestRequestFactory getRestRequestFactory();
 
     final class ActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
         private final ActionType<Response> action;

@@ -63,9 +63,7 @@ public class RestCompatPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        boolean compatibilityEnabled = Boolean.parseBoolean(settings.get("compat.setting"));
-        log.warn(" compat setting "+compatibilityEnabled);
-        if (compatibilityEnabled && Version.CURRENT.major == 8) {
+        if (Version.CURRENT.major == 8) {
             return validateCompatibleHandlers(
                 7,
                 new RestDeleteByQueryActionV7(),

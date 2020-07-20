@@ -8,29 +8,16 @@ package org.elasticsearch.compat;
 
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestHeaderDefinition;
-import org.elasticsearch.xpack.core.security.SecuritySettings;
+import org.elasticsearch.plugins.RestRequestPlugin;
 import org.elasticsearch.rest.CompatibleConstants;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFactory;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.function.UnaryOperator;
 import java.util.Locale;
 
-public class RestCompatRequestPlugin extends Plugin implements ActionPlugin {
+public class RestCompatRequestPlugin extends Plugin implements RestRequestPlugin {
 
     @Override
     public RestRequestFactory getRestRequestFactory() {
@@ -41,8 +28,11 @@ public class RestCompatRequestPlugin extends Plugin implements ActionPlugin {
             }
         };
     }
+
+
     public static class CompatibleRestRequest extends RestRequest{
 
+        //TODO this requires copying the content of original rest request. Isn't this against why multiple rest wrappers were disallowed?
         protected CompatibleRestRequest(RestRequest restRequest) {
             super(restRequest);
         }

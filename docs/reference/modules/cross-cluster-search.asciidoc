@@ -373,15 +373,16 @@ final results in the {ccs} response.
 +
 image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 
-[float]
+[discrete]
 [[ccs-supported-configurations]]
-==== Supported configurations
+=== Supported configurations
 
-<<gateway-nodes-selection, Generally>> a gateway node can search remote
+Generally, <<gateway-nodes-selection,gateway node>> can search remote
 clusters that are one major version ahead or behind the gateway node's version.
 Gateways nodes can also search remote clusters that are being
 <<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
 "upgrade to" version are compatible with the gateway node.
+For example, a gateway node running {es} 6.0 can search a remote cluster running {es} 7.0, but cannot search a remote cluster running {es} 7.1.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.

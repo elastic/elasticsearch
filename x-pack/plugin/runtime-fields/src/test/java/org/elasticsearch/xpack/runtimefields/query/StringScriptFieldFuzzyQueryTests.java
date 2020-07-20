@@ -95,7 +95,10 @@ public class StringScriptFieldFuzzyQueryTests extends AbstractStringScriptFieldQ
 
     @Override
     protected void assertToString(StringScriptFieldFuzzyQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo(query.delegate().getTerm().bytes().utf8ToString()));
+        assertThat(
+            query.toString(query.fieldName()),
+            equalTo(query.delegate().getTerm().bytes().utf8ToString() + "~" + query.delegate().getMaxEdits())
+        );
     }
 
     @Override

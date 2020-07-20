@@ -60,7 +60,7 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
 
     @Override
     protected void assertToString(StringScriptFieldWildcardQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo("/" + query.pattern() + "/"));
+        assertThat(query.toString(query.fieldName()), equalTo(query.pattern()));
     }
 
     @Override

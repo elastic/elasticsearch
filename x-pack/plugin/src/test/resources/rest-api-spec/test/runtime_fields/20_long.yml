@@ -129,3 +129,77 @@ setup:
   - match: {hits.hits.2._source.voltage: 5.6}
   - match: {hits.hits.3._source.voltage: 5.8}
   - match: {hits.hits.4._source.voltage: 5.2}
+
+---
+"range query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_times_ten:
+                gt: 57
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_times_ten:
+                gt: 58
+  - match: {hits.total.value: 0}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_times_ten:
+                gte: 58
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_times_ten:
+                gte: 51
+                lte: 52
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.1}
+  - match: {hits.hits.1._source.voltage: 5.2}
+
+---
+"term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              voltage_times_ten: 58
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"terms query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            terms:
+              voltage_times_ten: [58, 59, 40]
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 4.0}
+  - match: {hits.hits.1._source.voltage: 5.8}

@@ -43,7 +43,7 @@ public class StringScriptFieldExistsQueryTests extends AbstractStringScriptField
 
     @Override
     protected void assertToString(StringScriptFieldExistsQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo("ScriptFieldExists"));
+        assertThat(query.toString(query.fieldName()), equalTo("StringScriptFieldExistsQuery"));
     }
 
     @Override

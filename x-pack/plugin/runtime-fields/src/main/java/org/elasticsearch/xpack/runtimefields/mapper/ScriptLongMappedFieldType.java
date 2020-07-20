@@ -6,16 +6,25 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
+import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermQuery;
+import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
 
+import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
@@ -53,11 +62,51 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
     }
 
     @Override
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        QueryShardContext context
+    ) {
+        checkAllowExpensiveQueries(context);
+        return NumberType.longRangeQuery(
+            lowerTerm,
+            upperTerm,
+            includeLower,
+            includeUpper,
+            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context), name(), l, u)
+        );
+    }
+
+    @Override
     public Query termQuery(Object value, QueryShardContext context) {
         if (NumberType.hasDecimalPart(value)) {
             return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
         }
         checkAllowExpensiveQueries(context);
         return new LongScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToLong(value, true));
+    }
+
+    @Override
+    public Query termsQuery(List<?> values, QueryShardContext context) {
+        if (values.isEmpty()) {
+            return Queries.newMatchAllQuery();
+        }
+        LongSet terms = new LongHashSet(values.size());
+        for (Object value : values) {
+            if (NumberType.hasDecimalPart(value)) {
+                continue;
+            }
+            terms.add(NumberType.objectToLong(value, true));
+        }
+        if (terms.isEmpty()) {
+            return Queries.newMatchNoDocsQuery("All values have a decimal part");
+        }
+        checkAllowExpensiveQueries(context);
+        return new LongScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 }

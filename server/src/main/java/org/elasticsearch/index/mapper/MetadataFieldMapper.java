@@ -64,7 +64,7 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static abstract class Builder extends ParametrizedFieldMapper.Builder {
+    public abstract static class Builder extends ParametrizedFieldMapper.Builder {
 
         protected Builder(String name) {
             super(name);

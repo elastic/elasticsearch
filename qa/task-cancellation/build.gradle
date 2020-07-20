@@ -66,8 +66,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.unreleasedWireCompatible) {
       plugin pluginFile
       // disable remote_cluster_client role so we can verify that cross clusters tasks are forwarded to nodes with that role
       nodes.first().setting 'node.roles', '[data,master]'
-      // one connection per cluster so we can verify the proxy connections
-      setting 'cluster.remote.connections_per_cluster', "1"
     }
   }
 

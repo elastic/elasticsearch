@@ -22,6 +22,7 @@ package org.elasticsearch.tasks;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.Request;
@@ -44,10 +45,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -69,41 +70,55 @@ public class TaskCancellationIT extends ESRestTestCase {
         return hosts;
     }
 
-    void configureRemoteCluster(RestHighLevelClient client, String remoteCluster, List<HttpHost> seedNodes) throws Exception {
-        final String seeds = seedNodes.stream().map(HttpHost::toHostString).collect(Collectors.joining(","));
-        logger.info("Configure remote cluster [{}] with seed [{}]", remoteCluster, seeds);
-        final Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("{\"persistent\": {\"cluster.remote." + remoteCluster + ".seeds\": \"" + seeds + "\"}}");
-        client.cluster()
-            .putSettings(
-                new ClusterUpdateSettingsRequest().persistentSettings(
-                    Settings.builder().put("cluster.remote." + remoteCluster + ".seeds", seeds)
-                ),
-                RequestOptions.DEFAULT
-            );
-        assertBusy(() -> {
-            final RemoteInfoResponse remoteInfo = client.cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT);
-            assertThat(remoteInfo.getInfos(), not(empty()));
-            for (RemoteConnectionInfo info : remoteInfo.getInfos()) {
-                assertThat(info.getClusterAlias(), equalTo(remoteCluster));
-                assertTrue(info.isConnected());
-            }
-        });
+    static class Node {
+        final String id;
+        final String name;
+        final Version version;
+
+        Node(String id, String name, Version version) {
+            this.id = id;
+            this.name = name;
+            this.version = version;
+        }
     }
 
-    Set<String> getNodeIds(RestHighLevelClient client) throws IOException {
+    List<Node> getNodes(RestHighLevelClient client) throws IOException {
         Response response = client.getLowLevelClient().performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
-        return nodeMap.keySet();
+        final List<Node> nodes = new ArrayList<>();
+        for (String id : nodeMap.keySet()) {
+            final String name = objectPath.evaluate("nodes." + id + ".name");
+            final Version version = Version.fromString(objectPath.evaluate("nodes." + id + ".version"));
+            nodes.add(new Node(id, name, version));
+        }
+        return nodes;
     }
 
     @Before
     public void initClientsAndClusters() throws Exception {
         oldCluster = new RestHighLevelClient(RestClient.builder(readHosts("tests.rest.old_cluster").toArray(new HttpHost[0])));
         newCluster = new RestHighLevelClient(RestClient.builder(readHosts("tests.rest.cluster").toArray(new HttpHost[0])));
-        // connect the new cluster to the old one
-        configureRemoteCluster(newCluster, "old", randomSubsetOf(1, readHosts("tests.old_cluster")));
+        // configure the remote cluster
+        final HttpHost proxyNode = randomFrom(readHosts("tests.old_cluster"));
+        // connect to single node, so we can test the proxy connections
+        final Settings remoteConnectionSettings = Settings.builder()
+            .put("cluster.remote.old_cluster.mode", "PROXY")
+            .put("cluster.remote.old_cluster.proxy_address", proxyNode.toHostString())
+            .build();
+        assertTrue(
+            newCluster.cluster()
+                .putSettings(new ClusterUpdateSettingsRequest().persistentSettings(remoteConnectionSettings), RequestOptions.DEFAULT)
+                .isAcknowledged()
+        );
+        assertBusy(() -> {
+            final RemoteInfoResponse remoteInfo = newCluster.cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT);
+            assertThat(remoteInfo.getInfos(), not(empty()));
+            for (RemoteConnectionInfo info : remoteInfo.getInfos()) {
+                assertThat(info.getClusterAlias(), equalTo("old_cluster"));
+                assertTrue(info.isConnected());
+            }
+        });
     }
 
     @After
@@ -112,15 +127,15 @@ public class TaskCancellationIT extends ESRestTestCase {
     }
 
     public void testCancelTasks() throws Exception {
-        Collection<String> newNodes = randomSubsetOf(getNodeIds(newCluster));
-        Collection<String> oldNodes = randomSubsetOf(between(1, 2), getNodeIds(oldCluster));
+        Collection<Node> newNodes = randomSubsetOf(getNodes(newCluster));
+        Collection<Node> oldNodes = randomSubsetOf(between(1, 2), getNodes(oldCluster));
         Thread thread = new Thread(() -> {
             final ResponseException exception = expectThrows(ResponseException.class, () -> {
                 final Request request = new Request("POST", "/_test_blocking");
                 request.addParameter("id", "1");
                 request.addParameter(
                     "targets",
-                    Stream.concat(newNodes.stream().map(n -> ":" + n), oldNodes.stream().map(n -> "old:" + n))
+                    Stream.concat(newNodes.stream().map(n -> ":" + n.id), oldNodes.stream().map(n -> "old_cluster:" + n.id))
                         .collect(Collectors.joining(","))
                 );
                 request.setOptions(
@@ -142,7 +157,7 @@ public class TaskCancellationIT extends ESRestTestCase {
                     .list(new ListTasksRequest().setActions("internal::test_action"), RequestOptions.DEFAULT)
                     .getTasks()
                     .stream()
-                    .filter(t -> oldNodes.contains(t.getTaskId().getNodeId()))
+                    .filter(t -> oldNodes.stream().map(n -> n.id).collect(Collectors.toSet()).contains(t.getTaskId().getNodeId()))
                     .collect(Collectors.toList());
                 assertThat(oldTasks.size(), equalTo(oldNodes.size()));
                 List<TaskInfo> rootTasks = newCluster.tasks()
@@ -156,12 +171,12 @@ public class TaskCancellationIT extends ESRestTestCase {
                 // Now cancel tasks
                 for (TaskInfo task : oldTasks) {
                     TaskId taskId = new TaskId(task.getTaskId().getNodeId(), task.getTaskId().getId());
-                    CancelTasksRequest request = new CancelTasksRequest.Builder().withTaskId(taskId).withWaitForCompletion(false).build();
+                    CancelTasksRequest request = new CancelTasksRequest.Builder().withTaskId(taskId).withWaitForCompletion(true).build();
                     oldCluster.tasks().cancel(request, RequestOptions.DEFAULT);
                 }
                 for (TaskInfo task : rootTasks) {
                     TaskId taskId = new TaskId(task.getTaskId().getNodeId(), task.getTaskId().getId());
-                    CancelTasksRequest request = new CancelTasksRequest.Builder().withTaskId(taskId).withWaitForCompletion(false).build();
+                    CancelTasksRequest request = new CancelTasksRequest.Builder().withTaskId(taskId).withWaitForCompletion(true).build();
                     newCluster.tasks().cancel(request, RequestOptions.DEFAULT);
                 }
             });

@@ -76,12 +76,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource valuesSource = config.hasValues() ? config.getValuesSource() : null;
-        if (valuesSource == null) {
-            // The field is unmapped so we use a value source that can parse any type of values.
-            // This is needed because the after values are parsed even when there are no values to process.
-            valuesSource = ValuesSource.Bytes.WithOrdinals.EMPTY;
-        }
+        ValuesSource valuesSource = config.getValuesSource();
         final MappedFieldType fieldType = config.fieldType();
         final DocValueFormat format;
         if (format() == null && fieldType instanceof DateFieldMapper.DateFieldType) {

@@ -59,7 +59,7 @@ public class ValuesSourceRegistryTests extends ESTestCase {
             null,
             CoreValuesSourceType.BYTES
         );
-        ValuesSourceRegistry registry = new ValuesSourceRegistry(Map.of("bogus", List.of()), null);
+        ValuesSourceRegistry registry = new ValuesSourceRegistry(Map.of("bogus", List.of()), Map.of("bogus", List.of()), null);
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(fieldOnly, "bogus"));
         expectThrows(IllegalArgumentException.class, () -> registry.getAggregator(scriptOnly, "bogus"));
     }

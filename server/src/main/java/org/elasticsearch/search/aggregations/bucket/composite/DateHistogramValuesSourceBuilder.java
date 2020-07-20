@@ -252,10 +252,7 @@ public class DateHistogramValuesSourceBuilder
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        ValuesSource orig = config.hasValues() ? config.getValuesSource() : null;
-        if (orig == null) {
-            orig = ValuesSource.Numeric.EMPTY;
-        }
+        ValuesSource orig = config.getValuesSource();
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
             // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it here

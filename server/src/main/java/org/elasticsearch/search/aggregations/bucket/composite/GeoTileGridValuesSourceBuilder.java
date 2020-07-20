@@ -133,10 +133,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource orig = config.hasValues() ? config.getValuesSource() : null;
-        if (orig == null) {
-            orig = ValuesSource.GeoPoint.EMPTY;
-        }
+        ValuesSource orig = config.getValuesSource();
         if (orig instanceof ValuesSource.GeoPoint) {
             ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;
             // is specified in the builder.

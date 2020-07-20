@@ -114,10 +114,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource orig = config.hasValues() ? config.getValuesSource() : null;
-        if (orig == null) {
-            orig = ValuesSource.Numeric.EMPTY;
-        }
+        ValuesSource orig =  config.getValuesSource();
         if (orig instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
             final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);

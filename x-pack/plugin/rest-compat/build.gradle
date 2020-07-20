@@ -1,7 +1,6 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   name 'rest-compat'
@@ -16,3 +15,4 @@ dependencies {
 }
 
 
+integTest.enabled = false

@@ -79,7 +79,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private RestRequestFactory restRequestFactory;
 
     public RestController(Set<RestHeaderDefinition> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService, RestRequestFactory restRequestFactory) {
+                          NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService,
+                          RestRequestFactory restRequestFactory) {
         this.headersToCopy = headersToCopy;
         this.usageService = usageService;
         this.restRequestFactory = restRequestFactory;

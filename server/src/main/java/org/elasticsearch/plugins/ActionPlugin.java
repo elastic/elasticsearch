@@ -37,7 +37,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
-import org.elasticsearch.rest.RestRequestFactory;
 
 import java.util.Collection;
 import java.util.Collections;

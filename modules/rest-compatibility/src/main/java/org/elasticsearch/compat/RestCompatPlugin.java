@@ -53,6 +53,7 @@ import java.util.function.Supplier;
 
 public class RestCompatPlugin extends Plugin implements ActionPlugin {
     Logger log = LogManager.getLogger(RestCompatPlugin.class);
+
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,

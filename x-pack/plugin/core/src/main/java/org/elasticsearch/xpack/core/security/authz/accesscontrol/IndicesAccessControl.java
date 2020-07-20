@@ -40,10 +40,16 @@ public class IndicesAccessControl {
                 }
             }
             assert false : "the \"no index access control\" is empty and no access control can be retrieved, but requested [" + index + "]";
-            return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
+            return null;
         }
     };
-    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
+    public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, null) {
+        @Override
+        public IndexAccessControl getIndexPermissions(String index) {
+            assert false : "cannot retrieve index access control if authorization failed, but requested [" + index + "]";
+            return null;
+        }
+    };
 
     private final boolean granted;
     private final Map<String, IndexAccessControl> indexPermissions;
@@ -59,9 +65,10 @@ public class IndicesAccessControl {
      */
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
-        assert false == Regex.isSimpleMatchPattern(index) : "index access control can and should only be retrieved by a concrete name";
+        assert false == Regex.isSimpleMatchPattern(index) :
+                "index access control can and should only be retrieved by a concrete name, but requested [" + index + "]";
         IndexAccessControl accessControl = indexPermissions.get(index);
-        assert accessControl != null : "";
+        assert accessControl != null : "missing index access control for [" + index + "]";
         return accessControl;
     }
 

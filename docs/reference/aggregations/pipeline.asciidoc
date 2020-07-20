@@ -54,6 +54,7 @@ metric `"the_sum"`:
 --------------------------------------------------
 POST /_search
 {
+<<<<<<< HEAD
     "aggs": {
         "my_date_histo":{
             "date_histogram":{
@@ -68,8 +69,24 @@ POST /_search
                     "moving_avg":{ "buckets_path": "the_sum" } <2>
                 }
             }
+=======
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "lemmings" }              <1>
+        },
+        "the_deriv": {
+          "derivative": { "buckets_path": "the_sum" } <2>
+>>>>>>> 2c5d6e9c951... [DOCS] Reformat agg snippets to use two-space indents (#59912)
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
@@ -85,26 +102,26 @@ a metric embedded inside a sibling aggregation:
 --------------------------------------------------
 POST /_search
 {
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "max_monthly_sales": {
-            "max_bucket": {
-                "buckets_path": "sales_per_month>sales" <1>
-            }
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "max_monthly_sales": {
+      "max_bucket": {
+        "buckets_path": "sales_per_month>sales" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -120,37 +137,37 @@ their bucket keys) to perform the calculation:
 --------------------------------------------------
 POST /_search
 {
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sale_type": {
-                    "terms": {
-                        "field": "type"
-                    },
-                    "aggs": {
-                        "sales": {
-                            "sum": {
-                                "field": "price"
-                            }
-                        }
-                    }
-                },
-                "hat_vs_bag_ratio": {
-                    "bucket_script": {
-                        "buckets_path": {
-                            "hats": "sale_type['hat']>sales", <1>
-                            "bags": "sale_type['bag']>sales"  <1>
-                        },
-                        "script": "params.hats / params.bags"
-                    }
-                }
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sale_type": {
+          "terms": {
+            "field": "type"
+          },
+          "aggs": {
+            "sales": {
+              "sum": {
+                "field": "price"
+              }
             }
+          }
+        },
+        "hat_vs_bag_ratio": {
+          "bucket_script": {
+            "buckets_path": {
+              "hats": "sale_type['hat']>sales",   <1>
+              "bags": "sale_type['bag']>sales"    <1>
+            },
+            "script": "params.hats / params.bags"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -168,19 +185,19 @@ the pipeline aggregation to use the document count as its input.  For example, a
 --------------------------------------------------
 POST /_search
 {
-    "aggs": {
-        "my_date_histo": {
-            "date_histogram": {
-                "field":"timestamp",
-                "calendar_interval":"day"
-            },
-            "aggs": {
-                "the_movavg": {
-                    "moving_avg": { "buckets_path": "_count" } <1>
-                }
-            }
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "day"
+      },
+      "aggs": {
+        "the_movavg": {
+          "moving_avg": { "buckets_path": "_count" } <1>
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]

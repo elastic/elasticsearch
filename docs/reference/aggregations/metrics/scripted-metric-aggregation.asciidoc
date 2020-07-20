@@ -3,6 +3,9 @@
 
 A metric aggregation that executes using scripts to provide a metric output.
 
+WARNING: Using scripts can result in slower search speeds. See
+<<scripts-and-search-speed>>.
+
 Example:
 
 [source,console]

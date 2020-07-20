@@ -30,7 +30,6 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
 import java.util.ArrayList;

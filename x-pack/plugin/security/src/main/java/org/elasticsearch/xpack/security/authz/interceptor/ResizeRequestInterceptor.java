@@ -50,19 +50,16 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             final AuditTrail auditTrail = auditTrailService.get();
             if (frozenLicenseState.isSecurityEnabled()) {
                 var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
-                IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl indicesAccessControl =
+                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 IndicesAccessControl.IndexAccessControl indexAccessControl =
                     indicesAccessControl.getIndexPermissions(request.getSourceIndex());
-                if (null == indexAccessControl) {
-                    listener.onFailure(new ElasticsearchSecurityException("Missing index access control for [" +
-                            request.getSourceIndex() + "]"));
-                    return;
-                } else {
+                if (indexAccessControl != null) {
                     final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                     final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                     if ((fls || dls) && licenseChecker.get()) {
                         listener.onFailure(new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
-                                "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));
+                            "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST));
                         return;
                     }
                 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -109,7 +108,6 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
                 return weight;
             }
         } else {
-            assert indexAccessControl != null : "missing index access control for [" + indexName + "]";
             logger.trace("not opting out of the query cache. request for index [{}] has field level security disabled", indexName);
             return indicesQueryCache.doCache(weight, policy);
         }

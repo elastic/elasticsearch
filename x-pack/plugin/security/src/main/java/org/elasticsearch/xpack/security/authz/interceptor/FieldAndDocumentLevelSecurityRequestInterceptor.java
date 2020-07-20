@@ -57,8 +57,6 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                             disableFeatures(indicesRequest, fieldLevelSecurityEnabled, documentLevelSecurityEnabled, listener);
                             return;
                         }
-                    } else {
-                        assert false : "missing index access control for index [" + index + "]";
                     }
                     logger.trace("intercepted request for index [{}] without field or document level access controls", index);
                 }

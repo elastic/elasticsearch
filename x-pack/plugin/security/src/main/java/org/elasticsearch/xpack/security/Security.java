@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -1046,7 +1045,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
-                    assert false : "missing index access control for [" + index + "]";
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 if (indexPermissions.isGranted() == false) {

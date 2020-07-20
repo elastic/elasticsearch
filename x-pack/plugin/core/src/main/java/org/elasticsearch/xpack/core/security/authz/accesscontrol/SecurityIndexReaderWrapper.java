@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -79,7 +78,6 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {
-                assert false : "missing index access control for [" + shardId.getIndexName() + "]";
                 return reader;
             }
 

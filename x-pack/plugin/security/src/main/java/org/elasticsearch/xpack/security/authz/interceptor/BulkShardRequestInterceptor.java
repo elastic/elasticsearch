@@ -64,8 +64,6 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                                 RestStatus.BAD_REQUEST));
                         }
                     }
-                } else {
-                    assert false : "missing index access control for bulk item index [" + bulkItemRequest.index() + "]";
                 }
 
                 if (found == false) {

@@ -59,17 +59,15 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                 for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
                     if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
                         for (String index : aliasAction.indices()) {
-                            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-                            if (indexAccessControl == null) {
-                                listener.onFailure(new ElasticsearchSecurityException("Missing index access control for [" + index + "]"));
-                                return;
-                            } else {
+                            IndicesAccessControl.IndexAccessControl indexAccessControl =
+                                indicesAccessControl.getIndexPermissions(index);
+                            if (indexAccessControl != null) {
                                 final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                                 if ((fls || dls) && licenseChecker.get()) {
                                     listener.onFailure(new ElasticsearchSecurityException("Alias requests are not allowed for " +
-                                            "users who have field or document level security enabled on one of the indices",
-                                            RestStatus.BAD_REQUEST));
+                                        "users who have field or document level security enabled on one of the indices",
+                                        RestStatus.BAD_REQUEST));
                                     return;
                                 }
                             }

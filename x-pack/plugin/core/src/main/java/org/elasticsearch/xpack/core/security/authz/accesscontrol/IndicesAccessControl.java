@@ -84,6 +84,7 @@ public class IndicesAccessControl {
      */
     public static class IndexAccessControl {
 
+        // no DLS or FLS filtering, i.e. expose all documents and fields
         public static final IndexAccessControl PROMISCUOUS_ACCESS_CONTROL = new IndexAccessControl(true, null, null);
 
         private final boolean granted;

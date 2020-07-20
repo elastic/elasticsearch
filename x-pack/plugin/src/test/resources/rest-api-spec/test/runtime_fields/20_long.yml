@@ -174,4 +174,4 @@ setup:
           sort: timestamp
   - match: {hits.total.value: 2}
   - match: {hits.hits.0._source.voltage: 4.0}
-  - match: {hits.hits.0._source.voltage: 5.8}
+  - match: {hits.hits.1._source.voltage: 5.8}

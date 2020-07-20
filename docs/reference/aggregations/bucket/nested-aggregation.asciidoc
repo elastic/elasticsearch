@@ -13,7 +13,7 @@ PUT /products
   "mappings": {
     "properties": {
       "resellers": { <1>
-              "type": "nested",
+        "type": "nested",
         "properties": {
           "reseller": { "type": "text" },
           "price": { "type": "double" }

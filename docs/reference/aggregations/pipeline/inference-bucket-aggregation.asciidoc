@@ -19,8 +19,8 @@ A `inference` aggregation looks like this in isolation:
 {
   "inference": {
     "model_id": "a_model_for_inference", <1>
-      "inference_config": { <2>
-          "regression_config": {
+    "inference_config": { <2>
+      "regression_config": {
         "num_top_feature_importance_values": 2
       }
     },

@@ -48,7 +48,7 @@ The response for the above aggregation:
   "aggregations": {
     "all_products": {
       "doc_count": 7, <1>
-          "avg_price": {
+      "avg_price": {
         "value": 140.71428571428572 <2>
       }
     },

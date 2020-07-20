@@ -126,7 +126,7 @@ GET /_search
     "matrixstats": {
       "matrix_stats": {
         "fields": [ "poverty", "income" ],
-        "missing": { "income": 50000 } <1>
+        "missing": { "income": 50000 }      <1>
       }
     }
   }

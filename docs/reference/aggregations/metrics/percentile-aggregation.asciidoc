@@ -176,7 +176,7 @@ GET latency/_search
         "script": {
           "lang": "painless",
           "source": "doc['load_time'].value / params.timeUnit", <1>
-                  "params": {
+          "params": {
             "timeUnit": 1000                                    <2>
           }
         }

@@ -51,8 +51,8 @@ Response:
   ...
   "aggregations": {
     "sample": {
-      "doc_count": 200,<1>
-          "keywords": {
+      "doc_count": 200, <1>
+      "keywords": {
         "doc_count": 200,
         "bg_count": 650,
         "buckets": [

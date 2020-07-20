@@ -90,7 +90,7 @@ GET node_upgrade/_search
       "t_test": {
         "a": {
           "field": "startup_time_before",         <1>
-                  "filter": {
+          "filter": {
             "term": {
               "group": "A"                        <2>
             }
@@ -98,7 +98,7 @@ GET node_upgrade/_search
         },
         "b": {
           "field": "startup_time_before",         <3>
-                  "filter": {
+          "filter": {
             "term": {
               "group": "B"                        <4>
             }
@@ -154,7 +154,7 @@ GET node_upgrade/_search
           "script": {
             "lang": "painless",
             "source": "doc['startup_time_before'].value - params.adjustment", <1>
-                      "params": {
+            "params": {
               "adjustment": 10                                                <2>
             }
           }

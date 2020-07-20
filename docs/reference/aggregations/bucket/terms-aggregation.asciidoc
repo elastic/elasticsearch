@@ -78,8 +78,8 @@ Response:
   "aggregations": {
     "genres": {
       "doc_count_error_upper_bound": 0,   <1>
-      "sum_other_doc_count": 0,       <2>
-      "buckets": [                    <3>
+      "sum_other_doc_count": 0,           <2>
+      "buckets": [                        <3>
         {
           "key": "electronic",
           "doc_count": 6

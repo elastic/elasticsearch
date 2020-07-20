@@ -223,7 +223,7 @@ GET /_search
           "id": "convert_currency",       <1>
           "params": {                     <2>
             "field": "price",
-          "conversion_rate": 0.835526591
+            "conversion_rate": 0.835526591
           }
         },
         "ranges": [

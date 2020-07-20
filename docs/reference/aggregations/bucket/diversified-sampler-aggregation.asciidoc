@@ -64,8 +64,8 @@ Response:
   "aggregations": {
     "my_unbiased_sample": {
       "doc_count": 151,           <1>
-          "keywords": {           <2>
-              "doc_count": 151,
+      "keywords": {               <2>
+        "doc_count": 151,
         "bg_count": 650,
         "buckets": [
           {

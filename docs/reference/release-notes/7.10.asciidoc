@@ -1,0 +1,15 @@
+[[release-notes-7.10.0]]
+== {es} version 7.10.0
+
+Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
+
+[[stats-7.10.0]]
+[float]
+=== Stats changes
+
+Estimates removed from filesystem stats::
+* {es} would sometimes report the data path which it estimated to have the
+  most and least available space in the filesystem stats. These stats were
+  often very out of date and were frequently omitted from responses to the
+  stats APIs. They are now always omitted. {es-pull}59755[#59755]
+

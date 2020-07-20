@@ -174,7 +174,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             assertThat(result.isGranted(), is(false));
             assertThat(result.isAuditable(), is(true));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
-            assertNull(indicesAccessControl.getIndexPermissions("index"));
+            expectThrows(UnsupportedOperationException.class, () -> indicesAccessControl.getIndexPermissions("index"));
         }
     }
 

@@ -152,7 +152,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         // we're green to delete the shard's directory)
         ShardLock sLock = new DummyShardLock(new ShardId(index, 0));
         try {
-            env.deleteShardDirectoryUnderLock(sLock, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
+            env.deleteShardDirectoryUnderLock(sLock, null, IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
             fail("should not have been able to delete the directory");
         } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));

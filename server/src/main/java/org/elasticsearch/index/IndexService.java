@@ -88,7 +88,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -423,22 +422,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
 
             if (path == null) {
-                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
-                // that's being relocated/replicated we know how large it will become once it's done copying:
-                // Count up how many shards are currently on each data path:
-                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
-                    Path dataPath = shard.shardPath().getRootStatePath();
-                    Integer curCount = dataPathToShardCount.get(dataPath);
-                    if (curCount == null) {
-                        curCount = 0;
-                    }
-                    dataPathToShardCount.put(dataPath, curCount + 1);
-                }
                 path = ShardPath.selectNewPathForShard(nodeEnv, shardId, this.indexSettings,
                     routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
-                        ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
-                    dataPathToShardCount);
+                        ? getAvgShardSizeInBytes() : routing.getExpectedShardSize());
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);
@@ -458,7 +444,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             };
             Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
             store = new Store(shardId, this.indexSettings, directory, lock,
-                    new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
+                    new StoreCloseListener(shardId, path, () -> eventListener.onStoreClosed(shardId)));
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                     routing,
@@ -483,6 +469,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
+            NodeEnvironment.NodePath nodePath = path.getNodePath();
+            if (nodePath != null) {
+                nodePath.addShard(shardId);
+            }
             success = true;
             return indexShard;
         } catch (ShardLockObtainFailedException e) {
@@ -509,6 +499,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         indexShard = newShards.remove(shardId);
         shards = unmodifiableMap(newShards);
         closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
+        NodeEnvironment.NodePath nodePath = indexShard.shardPath().getNodePath();
+        if (nodePath != null) {
+            nodePath.removeShard(sId);
+        }
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
@@ -550,17 +544,17 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
 
-    private void onShardClose(ShardLock lock) {
+    private void onShardClose(ShardLock lock, ShardPath shardPath) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
                 try {
                     eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                 } finally {
-                    shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
+                    shardStoreDeleter.deleteShardStore("delete index", lock, shardPath, indexSettings);
                     eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                 }
             } catch (IOException e) {
-                shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
+                shardStoreDeleter.addPendingDelete(lock.getShardId(), shardPath, indexSettings);
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()), e);
@@ -632,17 +626,19 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
         private final Closeable[] toClose;
+        private final ShardPath shardPath;
 
-        StoreCloseListener(ShardId shardId, Closeable... toClose) {
+        StoreCloseListener(ShardId shardId, ShardPath shardPath, Closeable... toClose) {
             this.shardId = shardId;
             this.toClose = toClose;
+            this.shardPath = shardPath;
         }
 
         @Override
         public void accept(ShardLock lock) {
             try {
                 assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
-                onShardClose(lock);
+                onShardClose(lock, shardPath);
             } finally {
                 try {
                     IOUtils.close(toClose);
@@ -804,9 +800,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     public interface ShardStoreDeleter {
-        void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
+        void deleteShardStore(String reason, ShardLock lock, ShardPath shardPath, IndexSettings indexSettings) throws IOException;
 
-        void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
+        void addPendingDelete(ShardId shardId, ShardPath shardPath, IndexSettings indexSettings);
     }
 
     public final EngineFactory getEngineFactory() {

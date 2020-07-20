@@ -45,8 +45,9 @@ public final class ShardPath {
     private final ShardId shardId;
     private final Path shardStatePath;
     private final boolean isCustomDataPath;
+    private NodeEnvironment.NodePath nodePath;
 
-    public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, ShardId shardId) {
+    public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, NodeEnvironment.NodePath nodePath, ShardId shardId) {
         assert dataPath.getFileName().toString().equals(Integer.toString(shardId.id())) :
             "dataPath must end with the shard ID but didn't: " + dataPath.toString();
         assert shardStatePath.getFileName().toString().equals(Integer.toString(shardId.id())) :
@@ -62,6 +63,11 @@ public final class ShardPath {
         this.path = dataPath;
         this.shardId = shardId;
         this.shardStatePath = shardStatePath;
+        this.nodePath = nodePath;
+    }
+
+    public ShardPath(boolean isCustomDataPath, Path dataPath, Path shardStatePath, ShardId shardId) {
+        this(isCustomDataPath, dataPath, shardStatePath, null, shardId);
     }
 
     public Path resolveTranslog() {
@@ -86,6 +92,13 @@ public final class ShardPath {
 
     public Path getShardStatePath() {
         return shardStatePath;
+    }
+
+    /**
+     * Returns the node path of this shard, it could be null if the shard has custom data path.
+     */
+    public NodeEnvironment.NodePath getNodePath() {
+        return nodePath;
     }
 
     /**
@@ -119,9 +132,8 @@ public final class ShardPath {
      */
     public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
                                           ShardId shardId, String customDataPath) throws IOException {
-        final Path[] paths = env.availableShardPaths(shardId);
         final Path sharedDataPath = env.sharedDataPath();
-        return loadShardPath(logger, shardId, customDataPath, paths, sharedDataPath);
+        return loadShardPath(logger, shardId, customDataPath, env.nodePaths(), sharedDataPath);
     }
 
     /**
@@ -129,12 +141,15 @@ public final class ShardPath {
      * directories with a valid shard state exist the one with the highest version will be used.
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
-    public static ShardPath loadShardPath(Logger logger, ShardId shardId, String customDataPath, Path[] availableShardPaths,
+    public static ShardPath loadShardPath(Logger logger, ShardId shardId, String customDataPath,
+                                          final NodeEnvironment.NodePath[] nodePaths,
                                           Path sharedDataPath) throws IOException {
         final String indexUUID = shardId.getIndex().getUUID();
         Path loadedPath = null;
-        for (Path path : availableShardPaths) {
+        NodeEnvironment.NodePath loadedNodePath = null;
+        for (NodeEnvironment.NodePath nodePath : nodePaths) {
             // EMPTY is safe here because we never call namedObject
+            Path path = nodePath.resolve(shardId);
             ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
                 if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
@@ -146,6 +161,7 @@ public final class ShardPath {
                 }
                 if (loadedPath == null) {
                     loadedPath = path;
+                    loadedNodePath = nodePath;
                 } else{
                     throw new IllegalStateException(shardId + " more than one shard state found");
                 }
@@ -160,11 +176,13 @@ public final class ShardPath {
             final boolean hasCustomDataPath = Strings.isNotEmpty(customDataPath);
             if (hasCustomDataPath) {
                 dataPath = NodeEnvironment.resolveCustomLocation(customDataPath, shardId, sharedDataPath);
+                // ignore custom data path
+                loadedNodePath = null;
             } else {
                 dataPath = statePath;
             }
             logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, statePath);
-            return new ShardPath(hasCustomDataPath, dataPath, statePath, shardId);
+            return new ShardPath(hasCustomDataPath, dataPath, statePath, loadedNodePath, shardId);
         }
     }
 
@@ -191,14 +209,18 @@ public final class ShardPath {
     }
 
     public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings,
-                                                  long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
+                                                  long avgShardSizeInBytes) throws IOException {
 
         final Path dataPath;
         final Path statePath;
+        final NodeEnvironment.NodePath selectedNodePath;
+        final String indexName = shardId.getIndexName();
 
         if (indexSettings.hasCustomDataPath()) {
             dataPath = env.resolveCustomLocation(indexSettings.customDataPath(), shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
+            // ignore custom data path
+            selectedNodePath = null;
         } else {
             BigInteger totFreeSpace = BigInteger.ZERO;
             for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
@@ -219,8 +241,6 @@ public final class ShardPath {
             NodeEnvironment.NodePath bestPath = getPathWithMostFreeSpace(env);
 
             if (paths.length != 1) {
-                Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
-
                 // Compute how much space there is on each path
                 final Map<NodeEnvironment.NodePath, BigInteger> pathsToSpace = new HashMap<>(paths.length);
                 for (NodeEnvironment.NodePath nodePath : paths) {
@@ -234,12 +254,10 @@ public final class ShardPath {
                         .filter((path) -> pathsToSpace.get(path).subtract(estShardSizeInBytes).compareTo(BigInteger.ZERO) > 0)
                         // Sort by the number of shards for this index
                         .sorted((p1, p2) -> {
-                                int cmp = Long.compare(pathToShardCount.getOrDefault(p1, 0L),
-                                    pathToShardCount.getOrDefault(p2, 0L));
+                                int cmp = Long.compare(p1.getNumShards(indexName), p2.getNumShards(indexName));
                                 if (cmp == 0) {
                                     // if the number of shards is equal, tie-break with the number of total shards
-                                    cmp = Integer.compare(dataPathToShardCount.getOrDefault(p1.path, 0),
-                                            dataPathToShardCount.getOrDefault(p2.path, 0));
+                                    cmp = Integer.compare(p1.getNumShards(), p2.getNumShards());
                                     if (cmp == 0) {
                                         // if the number of shards is equal, tie-break with the usable bytes
                                         cmp = pathsToSpace.get(p2).compareTo(pathsToSpace.get(p1));
@@ -253,10 +271,11 @@ public final class ShardPath {
                         .orElse(bestPath);
             }
 
+            selectedNodePath = bestPath;
             statePath = bestPath.resolve(shardId);
             dataPath = statePath;
         }
-        return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);
+        return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, selectedNodePath, shardId);
     }
 
     static NodeEnvironment.NodePath getPathWithMostFreeSpace(NodeEnvironment env) throws IOException {

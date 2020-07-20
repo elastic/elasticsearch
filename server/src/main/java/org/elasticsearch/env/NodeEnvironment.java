@@ -105,6 +105,10 @@ public final class NodeEnvironment  implements Closeable {
 
         public final int majorDeviceNumber;
         public final int minorDeviceNumber;
+        // total shard number under this NodePath
+        private int numShards = 0;
+        // shardId list per index under this NodePath
+        private final Map<String, ArrayList<ShardId>> indices = new HashMap<>();
 
         public NodePath(Path path) throws IOException {
             this.path = path;
@@ -117,6 +121,31 @@ public final class NodeEnvironment  implements Closeable {
                 this.majorDeviceNumber = -1;
                 this.minorDeviceNumber = -1;
             }
+        }
+
+        public void addShard(ShardId shardId) {
+            this.indices.computeIfAbsent(shardId.getIndexName(), k -> new ArrayList()).add(shardId);
+            this.numShards++;
+        }
+
+        public void removeShard(ShardId shardId) {
+            ArrayList<ShardId> shardIds = this.indices.get(shardId.getIndexName());
+            if (shardIds != null && shardIds.contains(shardId)) {
+                shardIds.remove(shardId);
+                this.numShards--;
+                if (shardIds.size() == 0) {
+                    this.indices.remove(shardId.getIndexName());
+                }
+            }
+        }
+
+        public int getNumShards(String index) {
+            ArrayList<ShardId> shardIds = this.indices.get(index);
+            return shardIds == null ? 0 : shardIds.size();
+        }
+
+        public int getNumShards() {
+            return numShards;
         }
 
         /**
@@ -552,11 +581,12 @@ public final class NodeEnvironment  implements Closeable {
      * @param shardId the id of the shard to delete to delete
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException, ShardLockObtainFailedException {
+    public void deleteShardDirectorySafe(ShardId shardId, ShardPath shardPath, IndexSettings indexSettings)
+        throws IOException, ShardLockObtainFailedException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
-            deleteShardDirectoryUnderLock(lock, indexSettings);
+            deleteShardDirectoryUnderLock(lock, shardPath, indexSettings);
         }
     }
 
@@ -598,13 +628,19 @@ public final class NodeEnvironment  implements Closeable {
      * allow the folder to be deleted
      *
      * @param lock the shards lock
+     * @param shardPath the shard path of the shard to delete
      * @throws IOException if an IOException occurs
      * @throws ElasticsearchException if the write.lock is not acquirable
      */
-    public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public void deleteShardDirectoryUnderLock(ShardLock lock, ShardPath shardPath, IndexSettings indexSettings) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
-        final Path[] paths = availableShardPaths(shardId);
+        final Path[] paths;
+        if (shardPath == null || shardPath.getNodePath() == null) {
+            paths = availableShardPaths(shardId);
+        } else {
+            paths = new Path[]{shardPath.getNodePath().resolve(shardId)};
+        }
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
         IOUtils.rm(paths);
@@ -1047,29 +1083,6 @@ public final class NodeEnvironment  implements Closeable {
             shardIds.addAll(findAllShardsForIndex(nodePath.indicesPath.resolve(indexUniquePathId), index));
         }
         return shardIds;
-    }
-
-    /**
-     * Find all the shards for this index, returning a map of the {@code NodePath} to the number of shards on that path
-     * @param index the index by which to filter shards
-     * @return a map of NodePath to count of the shards for the index on that path
-     * @throws IOException if an IOException occurs
-     */
-    public Map<NodePath, Long> shardCountPerPath(final Index index) throws IOException {
-        assert index != null;
-        if (nodePaths == null || locks == null) {
-            throw new IllegalStateException("node is not configured to store local location");
-        }
-        assertEnvIsLocked();
-        final Map<NodePath, Long> shardCountPerPath = new HashMap<>();
-        final String indexUniquePathId = index.getUUID();
-        for (final NodePath nodePath : nodePaths) {
-            Path indexLocation = nodePath.indicesPath.resolve(indexUniquePathId);
-            if (Files.isDirectory(indexLocation)) {
-                shardCountPerPath.put(nodePath, (long) findAllShardsForIndex(indexLocation, index).size());
-            }
-        }
-        return shardCountPerPath;
     }
 
     private static Set<ShardId> findAllShardsForIndex(Path indexPath, Index index) throws IOException {

@@ -274,11 +274,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+            indicesService.addPendingDelete(indexShard.shardId(), shardPath, indexSettings);
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+                indicesService.addPendingDelete(indexShard.shardId(), shardPath, indexSettings);
             }
             indicesService.addPendingDelete(index, indexSettings);
         }
@@ -298,9 +298,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final boolean hasBogus = randomBoolean();
         if (hasBogus) {
-            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
-            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 0), null, indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 1), null, indexSettings);
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), null, indexSettings);
             assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
         }

@@ -117,6 +117,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -936,10 +937,10 @@ public class IndicesService extends AbstractLifecycleComponent
      * @throws IOException if an IOException occurs
      */
     @Override
-    public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public void deleteShardStore(String reason, ShardLock lock, ShardPath shardPath, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
-        nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
+        nodeEnv.deleteShardDirectoryUnderLock(lock, shardPath, indexSettings);
     }
 
     /**
@@ -964,7 +965,9 @@ public class IndicesService extends AbstractLifecycleComponent
         if (shardDeletionCheckResult != ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE) {
             throw new IllegalStateException("Can't delete shard " + shardId + " (cause: " + shardDeletionCheckResult + ")");
         }
-        nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
+        assert indexService(shardId.getIndex()) == null || !indexService(shardId.getIndex()).hasShard(shardId.id())
+            : "shard " + shardId + " should not exist in state";
+        nodeEnv.deleteShardDirectorySafe(shardId, null, indexSettings);
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {
@@ -1087,14 +1090,14 @@ public class IndicesService extends AbstractLifecycleComponent
      * Adds a pending delete for the given index shard.
      */
     @Override
-    public void addPendingDelete(ShardId shardId, IndexSettings settings) {
+    public void addPendingDelete(ShardId shardId, ShardPath shardPath, IndexSettings settings) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");
         }
         if (settings == null) {
             throw new IllegalArgumentException("settings must not be null");
         }
-        PendingDelete pendingDelete = new PendingDelete(shardId, settings);
+        PendingDelete pendingDelete = new PendingDelete(shardId, shardPath, settings);
         addPendingDelete(shardId.getIndex(), pendingDelete);
     }
 
@@ -1121,15 +1124,17 @@ public class IndicesService extends AbstractLifecycleComponent
     private static final class PendingDelete implements Comparable<PendingDelete> {
         final Index index;
         final int shardId;
+        final ShardPath shardPath;
         final IndexSettings settings;
         final boolean deleteIndex;
 
         /**
          * Creates a new pending delete of an index
          */
-        PendingDelete(ShardId shardId, IndexSettings settings) {
+        PendingDelete(ShardId shardId, ShardPath shardPath, IndexSettings settings) {
             this.index = shardId.getIndex();
             this.shardId = shardId.getId();
+            this.shardPath = shardPath;
             this.settings = settings;
             this.deleteIndex = false;
         }
@@ -1140,6 +1145,7 @@ public class IndicesService extends AbstractLifecycleComponent
         PendingDelete(Index index, IndexSettings settings) {
             this.index = index;
             this.shardId = -1;
+            this.shardPath = null;
             this.settings = settings;
             this.deleteIndex = true;
         }
@@ -1212,7 +1218,7 @@ public class IndicesService extends AbstractLifecycleComponent
                             ShardLock shardLock = locks.get(new ShardId(delete.index, delete.shardId));
                             if (shardLock != null) {
                                 try {
-                                    deleteShardStore("pending delete", shardLock, delete.settings);
+                                    deleteShardStore("pending delete", shardLock, delete.shardPath, delete.settings);
                                     iterator.remove();
                                 } catch (IOException ex) {
                                     logger.debug(() -> new ParameterizedMessage("{} retry pending delete", shardLock.getShardId()), ex);

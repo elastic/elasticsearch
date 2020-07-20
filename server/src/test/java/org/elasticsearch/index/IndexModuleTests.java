@@ -123,10 +123,10 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexService.ShardStoreDeleter deleter = new IndexService.ShardStoreDeleter() {
         @Override
-        public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
+        public void deleteShardStore(String reason, ShardLock lock, ShardPath shardPath, IndexSettings indexSettings) throws IOException {
         }
         @Override
-        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings) {
+        public void addPendingDelete(ShardId shardId, ShardPath shardPath, IndexSettings indexSettings) {
         }
     };
 

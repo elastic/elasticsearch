@@ -220,7 +220,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
 
         try {
-            env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings);
+            env.deleteShardDirectorySafe(new ShardId(index, 0), null, idxSettings);
             fail("shard is locked");
         } catch (ShardLockObtainFailedException ex) {
             // expected
@@ -231,7 +231,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertTrue(Files.exists(path.resolve("1")));
         }
 
-        env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings);
+        env.deleteShardDirectorySafe(new ShardId(index, 1), null, idxSettings);
 
         for (Path path : env.indexPaths(index)) {
             assertTrue(Files.exists(path.resolve("0")));

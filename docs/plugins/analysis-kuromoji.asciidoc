@@ -348,32 +348,32 @@ katakana reading form:
 --------------------------------------------------
 PUT kuromoji_sample
 {
-    "settings": {
-        "index":{
-            "analysis":{
-                "analyzer" : {
-                    "romaji_analyzer" : {
-                        "tokenizer" : "kuromoji_tokenizer",
-                        "filter" : ["romaji_readingform"]
-                    },
-                    "katakana_analyzer" : {
-                        "tokenizer" : "kuromoji_tokenizer",
-                        "filter" : ["katakana_readingform"]
-                    }
-                },
-                "filter" : {
-                    "romaji_readingform" : {
-                        "type" : "kuromoji_readingform",
-                        "use_romaji" : true
-                    },
-                    "katakana_readingform" : {
-                        "type" : "kuromoji_readingform",
-                        "use_romaji" : false
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "romaji_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [ "romaji_readingform" ]
+          },
+          "katakana_analyzer": {
+            "tokenizer": "kuromoji_tokenizer",
+            "filter": [ "katakana_readingform" ]
+          }
+        },
+        "filter": {
+          "romaji_readingform": {
+            "type": "kuromoji_readingform",
+            "use_romaji": true
+          },
+          "katakana_readingform": {
+            "type": "kuromoji_readingform",
+            "use_romaji": false
+          }
         }
+      }
     }
+  }
 }
 
 GET kuromoji_sample/_analyze

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-datafeed]]
-=== Create {dfeeds} API
+= Create {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -11,12 +11,12 @@
 Instantiates a {dfeed}.
 
 [[ml-put-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `PUT _ml/datafeeds/<feed_id>`
 
 [[ml-put-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * You must create an {anomaly-job} before you create a {dfeed}.  
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
@@ -24,7 +24,7 @@ cluster privileges to use this API. See
 <<security-privileges>>.
 
 [[ml-put-datafeed-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 {ml-docs}/ml-dfeeds.html[{dfeeds-cap}] retrieve data from {es} for analysis by
 an {anomaly-job}. You can associate only one {dfeed} to each {anomaly-job}.
@@ -47,7 +47,7 @@ credentials are used instead.
 ====
 
 [[ml-put-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
@@ -55,7 +55,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [role="child_attributes"]
 [[ml-put-datafeed-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `aggregations`::
 (Optional, object)
@@ -107,7 +107,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
 
 [[ml-put-datafeed-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

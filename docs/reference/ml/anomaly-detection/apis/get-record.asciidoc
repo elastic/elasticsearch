@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-record]]
-=== Get records API
+= Get records API
 ++++
 <titleabbrev>Get records</titleabbrev>
 ++++
@@ -9,12 +9,12 @@
 Retrieves anomaly records for an {anomaly-job}.
 
 [[ml-get-record-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/records`
 
 [[ml-get-record-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
@@ -23,7 +23,7 @@ need `read` index privilege on the index that stores the results. The
 privileges. See <<security-privileges>> and <<built-in-roles>>.
 
 [[ml-get-record-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 Records contain the detailed analytical results. They describe the anomalous
 activity that has been identified in the input data based on the detector
@@ -39,14 +39,14 @@ bucket, which relates to the number of time series being modeled and the number
 of detectors.
 
 [[ml-get-record-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-get-record-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `desc`::
 (Optional, boolean)
@@ -77,7 +77,7 @@ default, the records are sorted by the `anomaly_score` value.
 (Optional, string) Returns records with timestamps after this time.
 
 [[ml-get-record-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of record objects, which have the following properties:
 
@@ -198,7 +198,7 @@ analyzed. For example, if it's analyzing `hostname` as a _by field_, then a fiel
 filter the anomaly results more easily.
 
 [[ml-get-record-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

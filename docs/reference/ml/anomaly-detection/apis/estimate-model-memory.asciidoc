@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-estimate-model-memory]]
-=== Estimate {anomaly-jobs} model memory API
+= Estimate {anomaly-jobs} model memory API
 ++++
 <titleabbrev>Estimate model memory</titleabbrev>
 ++++
@@ -12,12 +12,12 @@ fields it references.
 
 
 [[ml-estimate-model-memory-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/_estimate_model_memory`
 
 [[ml-estimate-model-memory-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 equivalent privileges:
@@ -28,7 +28,7 @@ For more information, see <<security-privileges>>.
 
 
 [[ml-estimate-model-memory-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `analysis_config`::
 (Required, object) 
@@ -54,7 +54,7 @@ no effect on the estimation. +
 `over_field_name` or `partition_field_name`.
 
 [[ml-estimate-model-memory-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

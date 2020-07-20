@@ -360,15 +360,11 @@ PUT kuromoji_sample
         "analyzer": {
           "romaji_analyzer": {
             "tokenizer": "kuromoji_tokenizer",
-            "filter": [
-              "romaji_readingform"
-            ]
+            "filter": [ "romaji_readingform" ]
           },
           "katakana_analyzer": {
             "tokenizer": "kuromoji_tokenizer",
-            "filter": [
-              "katakana_readingform"
-            ]
+            "filter": [ "katakana_readingform" ]
           }
         },
         "filter": {

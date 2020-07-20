@@ -4,8 +4,6 @@
   ],
   "priority": 100,
   "version": ${xpack.searchable_snapshots.template.version},
-  "data_stream": {
-  },
   "template": {
     "aliases": {
       ".snapshots": {}

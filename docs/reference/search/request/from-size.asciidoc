@@ -9,9 +9,6 @@ and `from` parameters. The `size` parameter is the number of matching documents
 to return. The `from` parameter is a zero-indexed offset from the beginning of
 the complete result set that indicates the document you want to start with.
 
-.*Example*
-[%collapsible]
-====
 The following search API request sets the `from` offset to `5`, meaning the
 request offsets, or skips, the first five matching documents.
 
@@ -31,7 +28,6 @@ GET /_search
   }
 }
 ----
-====
 
 By default, you cannot page through more than 10,000 documents using the `from`
 and `size` parameters. This limit is set using the

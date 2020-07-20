@@ -5,25 +5,29 @@
 --
 
 // tag::snapshot-intro[]
-A _snapshot_ is a backup taken from a running {es} cluster. 
-You can take snapshots of individual indices or of the entire cluster. 
-Snapshots can be stored in either local or remote repositories. 
-Remote repositories can reside on S3, HDFS, Azure, Google Cloud Storage, 
+A _snapshot_ is a backup taken from a running {es} cluster.
+You can take snapshots of an entire cluster, including all its
+indices. You can also take snapshots of only specific indices in
+the cluster.
+
+Snapshots can be stored in either local or remote repositories.
+Remote repositories can reside on Amazon S3, HDFS, Microsoft Azure,
+Google Cloud Storage,
 and other platforms supported by a repository plugin.
 
-Snapshots are incremental: each snapshot of an index only stores data that 
+Snapshots are incremental: each snapshot of an index only stores data that
 is not part of an earlier snapshot.  
 This enables you to take frequent snapshots with minimal overhead.
-// end::snapshot-intro[] 
+// end::snapshot-intro[]
 
 // tag::restore-intro[]
-You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>. 
-By default, all indices in the snapshot are restored. 
-Alternatively, you can restore specific indices or restore the cluster state from a snapshot. 
-When restoring indices, you can modify the index name and selected index settings. 
+You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>.
+By default, all indices in the snapshot are restored.
+Alternatively, you can restore specific indices or restore the cluster state from a snapshot.
+When restoring indices, you can modify the index name and selected index settings.
 // end::restore-intro[]
 
-You must <<snapshots-register-repository, register a snapshot repository>> 
+You must <<snapshots-register-repository, register a snapshot repository>>
 before you can <<snapshots-take-snapshot, take snapshots>>.
 
 You can use <<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>
@@ -92,5 +96,5 @@ include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]
 include::restore-snapshot.asciidoc[]
 include::monitor-snapshot-restore.asciidoc[]
+include::delete-snapshot.asciidoc[]
 include::../slm/index.asciidoc[]
-

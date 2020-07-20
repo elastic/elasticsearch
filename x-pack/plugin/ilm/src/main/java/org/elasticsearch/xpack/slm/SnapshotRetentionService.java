@@ -46,13 +46,18 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
 
     public SnapshotRetentionService(Settings settings,
                                     Supplier<SnapshotRetentionTask> taskSupplier,
-                                    ClusterService clusterService,
                                     Clock clock) {
         this.clock = clock;
         this.scheduler = new SchedulerEngine(settings, clock);
         this.retentionTask = taskSupplier.get();
         this.scheduler.register(this.retentionTask);
         this.slmRetentionSchedule = LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING.get(settings);
+    }
+
+    /**
+     * Initializer method to avoid the publication of a self reference in the constructor.
+     */
+    public void init(ClusterService clusterService) {
         clusterService.addLocalNodeMasterListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             this::setUpdateSchedule);
@@ -110,7 +115,7 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
 
     @Override
     public String executorName() {
-        return ThreadPool.Names.SNAPSHOT;
+        return ThreadPool.Names.SAME;
     }
 
     @Override

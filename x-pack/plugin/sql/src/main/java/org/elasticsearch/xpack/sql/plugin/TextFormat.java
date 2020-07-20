@@ -89,7 +89,7 @@ enum TextFormat {
         }
 
         @Override
-        protected String delimiter() {
+        protected Character delimiter() {
             throw new UnsupportedOperationException();
         }
 
@@ -109,15 +109,33 @@ enum TextFormat {
      *
      */
     CSV() {
+        private Character delimiter = ',';
 
         @Override
-        protected String delimiter() {
-            return ",";
+        protected Character delimiter() {
+            return delimiter;
+        }
+
+        @Override
+        protected void setDelimiter(Character delimiter) {
+            if (delimiter == null) {
+                throw new UnsupportedOperationException();
+            }
+            switch (delimiter) {
+                case '"':
+                case '\n':
+                case '\r':
+                    throw new IllegalArgumentException("illegal reserved character specified as delimiter [" + delimiter + "]");
+                case '\t':
+                    throw new IllegalArgumentException("illegal delimiter [TAB] specified as delimiter for the [CSV] format; " +
+                        "choose the [TSV] format instead");
+            }
+            this.delimiter = delimiter;
         }
 
         @Override
         protected String eol() {
-            //LFCR
+            //CRLF
             return "\r\n";
         }
 
@@ -133,7 +151,7 @@ enum TextFormat {
 
         @Override
         String contentType(RestRequest request) {
-            return contentType() + "; charset=utf-8; header=" + (hasHeader(request) ? "present" : "absent");
+            return contentType() + "; charset=utf-8; header=" + (needsHeader(request) ? "present" : "absent");
         }
 
         @Override
@@ -142,7 +160,7 @@ enum TextFormat {
 
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
-                if (c == '"' || c == ',' || c == '\n' || c == '\r') {
+                if (c == '"' || c == '\n' || c == '\r' || c == delimiter()) {
                     needsEscaping = true;
                     break;
                 }
@@ -162,16 +180,17 @@ enum TextFormat {
                 sb.append('"');
                 value = sb.toString();
             }
+
             return value;
         }
 
         @Override
-        boolean hasHeader(RestRequest request) {
+        boolean needsHeader(RestRequest request) {
             String header = request.param("header");
             if (header == null) {
                 List<String> values = request.getAllHeaderValues("Accept");
                 if (values != null) {
-                    // header is a parameter specified by ; so try breaking it down
+                    // header values are separated by `;` so try breaking it down
                     for (String value : values) {
                         String[] params = Strings.tokenizeToStringArray(value, ";");
                         for (String param : params) {
@@ -190,13 +209,13 @@ enum TextFormat {
 
     TSV() {
         @Override
-        protected String delimiter() {
-            return "\t";
+        protected Character delimiter() {
+            return '\t';
         }
 
         @Override
         protected String eol() {
-            // only CR
+            // only LF
             return "\n";
         }
 
@@ -228,6 +247,9 @@ enum TextFormat {
                     case '\t' :
                         sb.append("\\t");
                         break;
+                    case '\\' :
+                        sb.append("\\\\");
+                        break;
                     default:
                         sb.append(c);
                 }
@@ -239,10 +261,21 @@ enum TextFormat {
 
 
     String format(RestRequest request, SqlQueryResponse response) {
+        if (this == CSV) {
+            String delimiter = request.param("delimiter");
+            if (delimiter != null) {
+                if (delimiter.length() != 1) {
+                    throw new IllegalArgumentException("invalid " +
+                        (delimiter.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiter + "]");
+                }
+                this.setDelimiter(delimiter.charAt(0));
+            }
+        }
+
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info
-        if (hasHeader(request) && response.columns() != null) {
+        if (needsHeader(request) && response.columns() != null) {
             row(sb, response.columns(), ColumnInfo::name);
         }
 
@@ -253,7 +286,7 @@ enum TextFormat {
         return sb.toString();
     }
 
-    boolean hasHeader(RestRequest request) {
+    boolean needsHeader(RestRequest request) {
         return true;
     }
 
@@ -305,7 +338,11 @@ enum TextFormat {
     /**
      * Delimiter between fields
      */
-    protected abstract String delimiter();
+    protected abstract Character delimiter();
+
+    protected void setDelimiter(Character delimiter) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * String indicating end-of-line or row.

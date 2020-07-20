@@ -24,12 +24,16 @@ import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
+
+    TextFormat textFormat;
 
     @Override
     public List<Route> routes() {
@@ -87,7 +91,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
          * which we turn into a 400 error.
          */
         XContentType xContentType = accept == null ? XContentType.JSON : XContentType.fromMediaTypeOrFormat(accept);
-        TextFormat textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
+        textFormat = xContentType == null ? TextFormat.fromMediaTypeOrFormat(accept) : null;
 
         if (xContentType == null && sqlRequest.columnar()) {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
@@ -122,6 +126,11 @@ public class RestSqlQueryAction extends BaseRestHandler {
                 return restResponse;
             }
         });
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return textFormat == TextFormat.CSV ? Collections.singleton("delimiter") : Collections.emptySet();
     }
 
     @Override

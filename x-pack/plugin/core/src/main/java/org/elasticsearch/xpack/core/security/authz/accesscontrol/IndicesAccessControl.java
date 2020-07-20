@@ -44,10 +44,30 @@ public class IndicesAccessControl {
         }
     };
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, null) {
+
+        IndexAccessControl DENIED_ACCESS_CONTROL = new IndexAccessControl(false, null, null) {
+
+            @Override
+            public FieldPermissions getFieldPermissions() {
+                throw new UnsupportedOperationException("No field permissions for index access control for unauthorized operations");
+            }
+
+            @Override
+            public DocumentPermissions getDocumentPermissions() {
+                throw new UnsupportedOperationException("No document permissions for index access control for unauthorized operations");
+            }
+
+            @Override
+            public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
+                throw new UnsupportedOperationException("Index access control for unauthorized operations cannot be limited");
+            }
+        };
+
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
-            assert false : "cannot retrieve index access control if authorization failed, but requested [" + index + "]";
-            return null;
+            assert false == Regex.isSimpleMatchPattern(index) :
+                    "index access control can and should only be retrieved for a given concrete name, but requested [" + index + "]";
+            return DENIED_ACCESS_CONTROL;
         }
     };
 

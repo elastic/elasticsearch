@@ -560,7 +560,12 @@ public class AuthorizationServiceTests extends ESTestCase {
                 final IndicesAccessControl indicesAccessControl =
                     threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 assertNotNull(indicesAccessControl);
-                assertThat(indicesAccessControl, is(IndicesAccessControl.ALLOW_NO_INDICES));
+                for (String indexNamePlaceholder : NO_INDICES_OR_ALIASES_ARRAY) {
+                    IndicesAccessControl.IndexAccessControl indexAccessControl =
+                            indicesAccessControl.getIndexPermissions(indexNamePlaceholder);
+                    assertFalse(indexAccessControl.getFieldPermissions().hasFieldLevelSecurity());
+                    assertFalse(indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
+                }
             }, e -> {
                 fail(e.getMessage());
             });

@@ -81,6 +81,8 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 return reader;
             }
 
+            assert permissions.isGranted() : "Cannot use document permissions for unauthorized operation";
+
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {

@@ -389,7 +389,7 @@ GET /_snapshot/my_repository/snapshot_2/_status
 // TESTRESPONSE[s/"total" : 10/"total" : $body.snapshots.0.shards_stats.total/]
 // TESTRESPONSE[s/"start_time_in_millis" : 1594829326691/"start_time_in_millis" : $body.snapshots.0.stats.start_time_in_millis/]
 // TESTRESPONSE[s/"time_in_millis" : 205/"time_in_millis" : $body.snapshots.0.stats.time_in_millis/]
-// TESTRESPONSE[s/"time_in_millis" : 0/"time_in_millis" : \\d+/]
+// TESTRESPONSE[s/"time_in_millis" : 0/$body.$_path/]
 // TESTRESPONSE[s/"file_count" : 3/"file_count" : $body.snapshots.0.stats.incremental.file_count/]
 // TESTRESPONSE[s/"file_count" : 4/"file_count" : $body.snapshots.0.stats.total.file_count/]
 // TESTRESPONSE[s/"size_in_bytes" : 5969/"size_in_bytes" : $body.snapshots.0.stats.incremental.size_in_bytes/]

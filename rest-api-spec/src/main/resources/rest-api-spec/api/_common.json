@@ -23,6 +23,10 @@
       "type": "string",
       "description": "The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests."
     },
+    "source_content_type": {
+      "type": "string",
+      "description": "The URL-encoded media type that indicates the format of the URL-encoded request definition passed with the source parameter. For example, application/json, encoded as application%2fjson. Useful for libraries that do not accept a request body for non-POST requests."
+    },
     "filter_path": {
       "type": "list",
       "description": "A comma-separated list of filters used to reduce the response."

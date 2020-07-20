@@ -6,8 +6,6 @@
   "version": ${xpack.searchable_snapshots.template.version},
   "data_stream": {
   },
-  "composed_of": [
-  ],
   "template": {
     "aliases": {
       ".snapshots": {}
@@ -15,7 +13,8 @@
     "settings": {
       "number_of_shards": 1,
       "number_of_replicas": 0,
-      "auto_expand_replicas": "0-1"
+      "auto_expand_replicas": "0-1",
+      "hidden": true
     },
     "mappings": {
       "_doc": {
@@ -27,5 +26,9 @@
         }
       }
     }
+  },
+  "_meta": {
+    "description": "default index template for searchable snapshots cache installed by x-pack",
+    "managed": true
   }
 }

@@ -67,6 +67,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
@@ -881,10 +882,6 @@ public class NumberFieldMapper extends FieldMapper {
             return Numbers.toLong(stringValue, coerce);
         }
 
-        @FunctionalInterface
-        public interface RangeQueryBuilder {
-            Query build(long lower, long upper);
-        }
         /**
          * Processes query bounds into {@code long}s and delegates the
          * provided {@code builder} to build a range query.
@@ -894,7 +891,7 @@ public class NumberFieldMapper extends FieldMapper {
             Object upperTerm,
             boolean includeLower,
             boolean includeUpper,
-            RangeQueryBuilder builder
+            BiFunction<Long, Long, Query> builder
         ) {
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
@@ -923,7 +920,7 @@ public class NumberFieldMapper extends FieldMapper {
                     --u;
                 }
             }
-            return builder.build(l, u);
+            return builder.apply(l, u);
         }
     }
 

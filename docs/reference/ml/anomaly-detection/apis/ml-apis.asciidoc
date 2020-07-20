@@ -1,15 +1,15 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-apis]]
-== {ml-cap} {anomaly-detect} APIs
+= {ml-cap} {anomaly-detect} APIs
 
 You can use the following APIs to perform {ml} {anomaly-detect} activities.
 
-See also <<ml-df-analytics-apis>>. 
+See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-anomaly-job-endpoint]]
-=== {anomaly-jobs-cap}
+== {anomaly-jobs-cap}
 //* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
 * <<ml-put-job,Create>> or <<ml-delete-job,delete {anomaly-jobs}>>
 * <<ml-put-calendar-job,Add>> or <<ml-delete-calendar-job,delete a {anomaly-job} from a calendar>>
@@ -23,7 +23,7 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-calendar-endpoint]]
-=== Calendars
+== Calendars
 
 * <<ml-put-calendar,Create calendar>>, <<ml-delete-calendar,Delete calendar>>
 * <<ml-put-calendar-job,Add job to calendar>>, <<ml-delete-calendar-job,Delete job from calendar>>
@@ -32,7 +32,7 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-filter-endpoint]]
-=== Filters
+== Filters
 
 * <<ml-put-filter,Create filter>>, <<ml-delete-filter,Delete filter>>
 * <<ml-update-filter,Update filters>>
@@ -40,7 +40,7 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-datafeed-endpoint]]
-=== {dfeeds-cap}
+== {dfeeds-cap}
 
 * <<ml-put-datafeed,Create {dfeed}>>, <<ml-delete-datafeed,Delete {dfeed}>>
 * <<ml-start-datafeed,Start {dfeed}>>, <<ml-stop-datafeed,Stop {dfeed}>>
@@ -51,7 +51,7 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-snapshot-endpoint]]
-=== Model Snapshots
+== Model Snapshots
 
 * <<ml-delete-snapshot,Delete model snapshot>>
 * <<ml-get-snapshot,Get model snapshot info>>
@@ -61,7 +61,7 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-result-endpoint]]
-=== Results
+== Results
 
 * <<ml-get-bucket,Get buckets>>
 * <<ml-get-overall-buckets,Get overall buckets>>
@@ -71,89 +71,24 @@ See also <<ml-df-analytics-apis>>.
 
 [discrete]
 [[ml-api-file-structure-endpoint]]
-=== File structure
+== File structure
 
 * <<ml-find-file-structure,Find file structure>>
 
 [discrete]
 [[ml-api-ml-info-endpoint]]
-=== Info
+== Info
 
 * <<get-ml-info,Machine learning info>>
 
 [discrete]
 [[ml-api-delete-expired-data-endpoint]]
-=== Delete expired data
+== Delete expired data
 
 * <<ml-delete-expired-data,Delete expired data>>
 
 [discrete]
 [[ml-set-upgrade-mode-endpoint]]
-=== Set upgrade mode
+== Set upgrade mode
 
 * <<ml-set-upgrade-mode, Set upgrade mode>>
-
-//ADD
-include::post-calendar-event.asciidoc[]
-include::put-calendar-job.asciidoc[]
-//CLOSE
-include::close-job.asciidoc[]
-//CREATE
-include::put-job.asciidoc[]
-include::put-calendar.asciidoc[]
-include::put-datafeed.asciidoc[]
-include::put-filter.asciidoc[]
-//DELETE
-include::delete-calendar.asciidoc[]
-include::delete-datafeed.asciidoc[]
-include::delete-calendar-event.asciidoc[]
-include::delete-filter.asciidoc[]
-include::delete-forecast.asciidoc[]
-include::delete-job.asciidoc[]
-include::delete-calendar-job.asciidoc[]
-include::delete-snapshot.asciidoc[]
-include::delete-expired-data.asciidoc[]
-//ESTIMATE
-include::estimate-model-memory.asciidoc[]
-//FIND
-include::find-file-structure.asciidoc[]
-//FLUSH
-include::flush-job.asciidoc[]
-//FORECAST
-include::forecast.asciidoc[]
-//GET
-include::get-bucket.asciidoc[]
-include::get-calendar.asciidoc[]
-include::get-category.asciidoc[]
-include::get-datafeed.asciidoc[]
-include::get-datafeed-stats.asciidoc[]
-include::get-influencer.asciidoc[]
-include::get-job.asciidoc[]
-include::get-job-stats.asciidoc[]
-include::get-ml-info.asciidoc[]
-include::get-snapshot.asciidoc[]
-include::get-overall-buckets.asciidoc[]
-include::get-calendar-event.asciidoc[]
-include::get-filter.asciidoc[]
-include::get-record.asciidoc[]
-//OPEN
-include::open-job.asciidoc[]
-//POST
-include::post-data.asciidoc[]
-//PREVIEW
-include::preview-datafeed.asciidoc[]
-//REVERT
-include::revert-snapshot.asciidoc[]
-//SET/START/STOP
-include::set-upgrade-mode.asciidoc[]
-include::start-datafeed.asciidoc[]
-include::stop-datafeed.asciidoc[]
-//UPDATE
-include::update-datafeed.asciidoc[]
-include::update-filter.asciidoc[]
-include::update-job.asciidoc[]
-include::update-snapshot.asciidoc[]
-//VALIDATE
-//include::validate-detector.asciidoc[]
-//include::validate-job.asciidoc[]
-

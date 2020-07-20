@@ -217,17 +217,9 @@ GET /user_logs_000001,user_logs_000002/_search
 
 You can also search multiple indices using an index pattern.
 
-<<<<<<< HEAD
-.*Example*
-[%collapsible]
-====
 The following request uses the index pattern `user_logs*` in place of the index
 name. The request searches any indices in the cluster that start with
 `user_logs`.
-=======
-The following request targets the wildcard pattern `user_logs*`. The request
-searches any data streams or indices in the cluster that start with `user_logs`.
->>>>>>> 8170cb9cf0d... [DOCS] Remove collapsible examples (#59820)
 
 [source,console]
 ----

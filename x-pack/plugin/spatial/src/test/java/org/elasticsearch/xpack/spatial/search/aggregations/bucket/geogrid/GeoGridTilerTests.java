@@ -466,7 +466,7 @@ public class GeoGridTilerTests extends ESTestCase {
 
     private void testCircuitBreaker(GeoGridTiler tiler) throws IOException {
         Polygon polygon = GeometryTestUtils.randomPolygon(false);
-        int precision = randomIntBetween(0, 7);
+        int precision = randomIntBetween(0, 5);
         TriangleTreeReader reader = triangleTreeReader(polygon, GeoShapeCoordinateEncoder.INSTANCE);
         MultiGeoShapeValues.GeoShapeValue value =  new MultiGeoShapeValues.GeoShapeValue(reader);
 

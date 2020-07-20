@@ -570,6 +570,12 @@ such as `1264`.
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
 
+tag::require-alias[]
+`require_alias`::
+(Optional, boolean) When true, this requires the destination to be an alias.
+Defaults to false.
+end::require-alias[]
+
 tag::node-filter[]
 `<node_filter>`::
 (Optional, string)
@@ -733,7 +739,7 @@ end::request_cache[]
 tag::requests_per_second[]
 `requests_per_second`::
 (Optional, integer) The throttle for this request in sub-requests per second.
--1 means no throttle. Defaults to 0.
+Defaults to `-1` (no throttle).
 end::requests_per_second[]
 
 tag::routing[]

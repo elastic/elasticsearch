@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -27,12 +26,10 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShapeFieldData {
-    protected final Index index;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
-    AbstractLatLonShapeIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
-        this.index = index;
+    AbstractLatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
     }
@@ -53,19 +50,14 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
     }
 
     @Override
-    public final Index index() {
-        return index;
-    }
-
-    @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
             boolean reverse) {
         throw new IllegalArgumentException("can't sort on geo_shape field without using specific sorting feature, like geo_distance");
     }
 
     public static class LatLonShapeIndexFieldData extends AbstractLatLonShapeIndexFieldData {
-        public LatLonShapeIndexFieldData(Index index, String fieldName, ValuesSourceType valuesSourceType) {
-            super(index, fieldName, valuesSourceType);
+        public LatLonShapeIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+            super(fieldName, valuesSourceType);
         }
 
         @Override
@@ -112,7 +104,7 @@ public abstract class AbstractLatLonShapeIndexFieldData implements IndexGeoShape
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // ignore breaker
-            return new LatLonShapeIndexFieldData(indexSettings.getIndex(), fieldType.name(), valuesSourceType);
+            return new LatLonShapeIndexFieldData(fieldType.name(), valuesSourceType);
         }
     }
 }

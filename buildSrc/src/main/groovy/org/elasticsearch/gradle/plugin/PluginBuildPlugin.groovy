@@ -147,7 +147,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.pluginManager.apply('nebula.maven-base-publish')
             // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
             project.tasks.withType(Jar) {
-                baseName = baseName + "-client"
+                archiveBaseName = archiveBaseName.get() + "-client"
             }
             // always configure publishing for client jars
             project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")

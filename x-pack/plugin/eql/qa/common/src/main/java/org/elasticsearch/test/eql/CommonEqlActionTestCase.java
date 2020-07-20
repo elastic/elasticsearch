@@ -105,8 +105,9 @@ public abstract class CommonEqlActionTestCase extends ESRestTestCase {
 
             boolean[] values = spec.caseSensitive() == null ? new boolean[] { true, false } : new boolean[] { spec.caseSensitive() };
             
-            for (boolean bool : values) {
-                results.add(new Object[] { spec.query(), name, spec.expectedEventIds(), bool });
+            for (boolean sensitive : values) {
+                String prefixed = name + (sensitive ? "-sensitive" : "-insensitive");
+                results.add(new Object[] { spec.query(), prefixed, spec.expectedEventIds(), sensitive });
             }
         }
 

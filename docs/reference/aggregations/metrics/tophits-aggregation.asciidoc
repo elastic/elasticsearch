@@ -17,7 +17,7 @@ One or more bucket aggregators determines by which properties a result set get s
 
 The top_hits aggregation returns regular search hits, because of this many per hit features can be supported:
 
-* <<request-body-search-highlighting,Highlighting>>
+* <<highlighting,Highlighting>>
 * <<request-body-search-explain,Explain>>
 * <<request-body-search-queries-and-filters,Named filters and queries>>
 * <<source-filtering,Source filtering>>

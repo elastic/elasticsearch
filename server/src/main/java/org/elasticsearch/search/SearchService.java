@@ -1121,11 +1121,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // and we can afford false positives.
         final boolean hasRefreshPending = indexShard.hasRefreshPending();
         try (Engine.Searcher searcher = indexShard.acquireCanMatchSearcher()) {
-            final boolean aliasFilterCanMatch = request.getAliasFilter()
-                .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
             QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), searcher,
                 request::nowInMillis, request.getClusterAlias());
             Rewriteable.rewrite(request.getRewriteable(), context, false);
+            final boolean aliasFilterCanMatch = request.getAliasFilter()
+                .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
             FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
             MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
             final boolean canMatch;

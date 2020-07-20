@@ -24,6 +24,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.Sorter;
 
+import java.util.function.LongConsumer;
+
 /**
  * Base class for building {@link SortedNumericDocValues} instances based on unsorted content.
  */
@@ -33,8 +35,13 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
     protected long[] values;
     protected int valuesCursor;
     private final Sorter sorter;
+    private LongConsumer circuitBreakerConsumer;
 
     protected SortingNumericDocValues() {
+        this(l -> {});
+    }
+
+    protected SortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
         values = new long[1];
         valuesCursor = 0;
         sorter = new InPlaceMergeSorter() {
@@ -51,6 +58,9 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
                 return Long.compare(values[i], values[j]);
             }
         };
+        this.circuitBreakerConsumer = circuitBreakerConsumer;
+        // account for initial values size of 1
+        this.circuitBreakerConsumer.accept(Long.BYTES);
     }
 
     /**
@@ -59,8 +69,25 @@ public abstract class SortingNumericDocValues extends SortedNumericDocValues {
      */
     protected final void resize(int newSize) {
         count = newSize;
-        values = ArrayUtil.grow(values, count);
         valuesCursor = 0;
+
+        if (newSize <= values.length) {
+            return;
+        }
+
+        // Array is expected to grow so increment the circuit breaker
+        // to include both the additional bytes used by the grown array
+        // as well as the overhead of keeping both arrays in memory while
+        // copying.
+        long oldValuesSizeInBytes = values.length * Long.BYTES;
+        int newValuesLength = ArrayUtil.oversize(newSize, Long.BYTES);
+        circuitBreakerConsumer.accept(newValuesLength * Long.BYTES);
+
+        // resize
+        values = ArrayUtil.growExact(values, newValuesLength);
+
+        // account for freeing the old values array
+        circuitBreakerConsumer.accept(-oldValuesSizeInBytes);
     }
 
     /**

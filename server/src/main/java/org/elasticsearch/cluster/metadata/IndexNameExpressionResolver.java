@@ -258,8 +258,8 @@ public class IndexNameExpressionResolver {
                         indexNames[i++] = indexMetadata.getIndex().getName();
                     }
                     throw new IllegalArgumentException(indexAbstraction.getType().getDisplayName() + " [" + expression +
-                        "] has more than one indices associated with it [" + Arrays.toString(indexNames) +
-                        "], can't execute a single index op");
+                        "] has more than one index associated with it " + Arrays.toString(indexNames) +
+                        ", can't execute a single index op");
                 }
 
                 for (IndexMetadata index : indexAbstraction.getIndices()) {

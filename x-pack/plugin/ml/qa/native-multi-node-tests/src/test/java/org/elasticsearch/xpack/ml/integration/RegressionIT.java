@@ -397,6 +397,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59664")
     public void testWithDatastream() throws Exception {
         initialize("regression_with_datastream");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";

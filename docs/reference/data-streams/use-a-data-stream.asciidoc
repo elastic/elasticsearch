@@ -7,6 +7,7 @@ the following:
 
 * <<add-documents-to-a-data-stream>>
 * <<search-a-data-stream>>
+* <<get-stats-for-a-data-stream>>
 * <<manually-roll-over-a-data-stream>>
 * <<open-closed-backing-indices>>
 * <<reindex-with-a-data-stream>>
@@ -265,6 +266,59 @@ GET /_search
   }
 }
 ----
+====
+
+[discrete]
+[[get-stats-for-a-data-stream]]
+=== Get statistics for a data stream
+
+You can use the <<data-stream-stats-api,data stream stats API>> to retrieve
+statistics for one or more data streams. These statistics include:
+
+* A count of the stream's backing indices
+* The total store size of all shards for the stream's backing indices
+* The highest `@timestamp` value for the stream
+
+.*Example*
+[%collapsible]
+====
+The following data stream stats API request retrieves statistics for the
+`logs` data stream.
+
+[source,console]
+----
+GET /_data_stream/logs/_stats?human=true
+----
+
+The API returns the following response.
+
+[source,console-result]
+----
+{
+  "_shards": {
+    "total": 6,
+    "successful": 3,
+    "failed": 0
+  },
+  "data_stream_count": 1,
+  "backing_indices": 3,
+  "total_store_size": "624b",
+  "total_store_size_bytes": 624,
+  "data_streams": [
+    {
+      "data_stream": "logs",
+      "backing_indices": 3,
+      "store_size": "624b",
+      "store_size_bytes": 624,
+      "maximum_timestamp": 1607339167000
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"total_store_size": "624b"/"total_store_size": $body.total_store_size/]
+// TESTRESPONSE[s/"total_store_size_bytes": 624/"total_store_size_bytes": $body.total_store_size_bytes/]
+// TESTRESPONSE[s/"store_size": "624b"/"store_size": $body.data_streams.0.store_size/]
+// TESTRESPONSE[s/"store_size_bytes": 624/"store_size_bytes": $body.data_streams.0.store_size_bytes/]
 ====
 
 [discrete]

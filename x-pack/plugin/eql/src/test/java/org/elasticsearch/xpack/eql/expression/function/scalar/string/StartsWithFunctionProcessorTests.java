@@ -29,7 +29,7 @@ public class StartsWithFunctionProcessorTests extends org.elasticsearch.xpack.ql
 
     @Override
     protected Supplier<StartsWith> startsWithInstantiator(Source source, Expression field, Expression pattern) {
-        return () -> new org.elasticsearch.xpack.eql.expression.function.scalar.string.StartsWith(source, field, pattern, config);
+        return () -> new org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith(source, field, pattern, config);
     }
 
 }

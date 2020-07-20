@@ -24,4 +24,8 @@ public abstract class ConfigurationFunction extends ScalarFunction {
     public Configuration configuration() {
         return configuration;
     }
+
+    public boolean isCaseSensitive() {
+        return configuration.isCaseSensitive();
+    }
 }

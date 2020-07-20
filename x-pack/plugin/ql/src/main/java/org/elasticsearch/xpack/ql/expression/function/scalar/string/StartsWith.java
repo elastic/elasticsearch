@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * Function that checks if first parameter starts with the second parameter. Both parameters should be strings
  * and the function returns a boolean value. The function is case insensitive.
  */
-public class StartsWith extends CaseSensitiveScalarFunction {
+public class StartsWith extends ConfigurationFunction {
 
     private final Expression input;
     private final Expression pattern;
@@ -65,11 +66,6 @@ public class StartsWith extends CaseSensitiveScalarFunction {
     }
 
     @Override
-    public boolean isCaseSensitive() {
-        return true;
-    }
-
-    @Override
     public Pipe makePipe() {
         return new StartsWithFunctionPipe(source(), this, Expressions.pipe(input), Expressions.pipe(pattern), isCaseSensitive());
     }
@@ -96,7 +92,7 @@ public class StartsWith extends CaseSensitiveScalarFunction {
 
         return asScriptFrom(fieldScript, patternScript);
     }
-    
+
     protected ScriptTemplate asScriptFrom(ScriptTemplate fieldScript, ScriptTemplate patternScript) {
         ParamsBuilder params = paramsBuilder();
 
@@ -104,7 +100,7 @@ public class StartsWith extends CaseSensitiveScalarFunction {
         params.script(fieldScript.params())
               .script(patternScript.params())
               .variable(isCaseSensitive());
-        
+
         return new ScriptTemplate(template, params.build(), dataType());
     }
 

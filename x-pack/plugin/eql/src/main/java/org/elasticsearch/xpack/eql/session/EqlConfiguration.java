@@ -66,6 +66,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return includeFrozenIndices;
     }
 
+    @Override
     public boolean isCaseSensitive() {
         return isCaseSensitive;
     }

@@ -6,14 +6,13 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
@@ -37,7 +36,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * Find the first position (zero-indexed) of a string where a substring is found.
  * If the optional parameter start is provided, then this will find the first occurrence at or after the start position.
  */
-public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgument {
+public class IndexOf extends ConfigurationFunction implements OptionalArgument {
 
     private final Expression input, substring, start;
 
@@ -46,11 +45,6 @@ public class IndexOf extends CaseSensitiveScalarFunction implements OptionalArgu
         this.input = input;
         this.substring = substring;
         this.start = arguments().get(2);
-    }
-
-    @Override
-    public boolean isCaseSensitive() {
-        return ((EqlConfiguration) configuration()).isCaseSensitive();
     }
 
     @Override

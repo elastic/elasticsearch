@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.ql.session;
 
+import org.elasticsearch.xpack.ql.CaseAware;
+
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
-public class Configuration {
+public class Configuration implements CaseAware {
 
     private final String clusterName;
     private final String username;
@@ -37,5 +39,9 @@ public class Configuration {
 
     public String username() {
         return username;
+    }
+
+    public boolean isCaseSensitive() {
+        return true;
     }
 }

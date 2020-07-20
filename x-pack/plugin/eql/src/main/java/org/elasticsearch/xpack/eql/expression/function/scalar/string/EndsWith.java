@@ -6,12 +6,11 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseSensitiveScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
@@ -34,7 +33,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * Function that checks if first parameter ends with the second parameter. Both parameters should be strings
  * and the function returns a boolean value. The function is case insensitive.
  */
-public class EndsWith extends CaseSensitiveScalarFunction {
+public class EndsWith extends ConfigurationFunction {
 
     private final Expression input;
     private final Expression pattern;
@@ -43,11 +42,6 @@ public class EndsWith extends CaseSensitiveScalarFunction {
         super(source, Arrays.asList(input, pattern), configuration);
         this.input = input;
         this.pattern = pattern;
-    }
-
-    @Override
-    public boolean isCaseSensitive() {
-        return ((EqlConfiguration) configuration()).isCaseSensitive();
     }
 
     @Override
@@ -91,7 +85,7 @@ public class EndsWith extends CaseSensitiveScalarFunction {
 
         return asScriptFrom(inputScript, patternScript);
     }
-    
+
     protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate patternScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
                 "endsWith",

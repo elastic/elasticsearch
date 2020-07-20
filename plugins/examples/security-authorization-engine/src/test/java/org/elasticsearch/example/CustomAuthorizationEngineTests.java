@@ -173,7 +173,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
             assertThat(result.isAuditable(), is(true));
-            IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
+            assertThat(result.getIndicesAccessControl().getIndexPermissions("index").isGranted(), is(false));
         }
     }
 

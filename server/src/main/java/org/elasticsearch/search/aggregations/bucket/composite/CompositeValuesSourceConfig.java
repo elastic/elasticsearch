@@ -29,7 +29,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.function.LongConsumer;
 
-class CompositeValuesSourceConfig {
+public class CompositeValuesSourceConfig {
 
     @FunctionalInterface
     public interface SingleDimensionValuesSourceProvider {

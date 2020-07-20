@@ -11,7 +11,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -35,10 +34,7 @@ import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 
-public final class ScriptBinaryFieldData extends AbstractIndexComponent
-    implements
-        IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>,
-        SearchLookupAware {
+public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>, SearchLookupAware {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -58,7 +54,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            return new ScriptBinaryFieldData(indexSettings, fieldType.name(), script, scriptFactory);
+            return new ScriptBinaryFieldData(fieldType.name(), script, scriptFactory);
         }
     }
 
@@ -67,13 +63,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
     private final StringScriptFieldScript.Factory scriptFactory;
     private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
 
-    private ScriptBinaryFieldData(
-        IndexSettings indexSettings,
-        String fieldName,
-        Script script,
-        StringScriptFieldScript.Factory scriptFactory
-    ) {
-        super(indexSettings);
+    private ScriptBinaryFieldData(String fieldName, Script script, StringScriptFieldScript.Factory scriptFactory) {
         this.fieldName = fieldName;
         this.script = script;
         this.scriptFactory = scriptFactory;

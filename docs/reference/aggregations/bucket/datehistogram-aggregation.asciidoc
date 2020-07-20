@@ -3,7 +3,7 @@
 
 This multi-bucket aggregation is similar to the normal
 <<search-aggregations-bucket-histogram-aggregation,histogram>>, but it can
-only be used with date or date range values. Because dates are represented internally in 
+only be used with date or date range values. Because dates are represented internally in
 Elasticsearch as long values, it is possible, but not as accurate, to use the
 normal `histogram` on dates as well. The main difference in the two APIs is
 that here the interval can be specified using date/time expressions. Time-based
@@ -269,10 +269,10 @@ In all cases, when the specified end time does not exist, the actual end time is
 the closest available time after the specified end.
 
 Widely distributed applications must also consider vagaries such as countries that
-start and stop daylight savings time at 12:01 A.M., so end up with one minute of 
+start and stop daylight savings time at 12:01 A.M., so end up with one minute of
 Sunday followed by an additional 59 minutes of Saturday once a year, and countries
 that decide to move across the international date line. Situations like
-that can make irregular time zone offsets seem easy. 
+that can make irregular time zone offsets seem easy.
 
 As always, rigorous testing, especially around time-change events, will ensure
 that your time interval specification is
@@ -623,8 +623,10 @@ settings and filter the returned buckets based on a `min_doc_count` setting
 bucket that matches documents and the last one are returned). This histogram
 also supports the `extended_bounds`
 setting, which enables extending the bounds of the histogram beyond the data
-itself. For more information, see
-<<search-aggregations-bucket-histogram-aggregation-extended-bounds,`Extended Bounds`>>.
+itself, and `hard_bounds` that limits the histogram to specified bounds.
+For more information, see
+<<search-aggregations-bucket-histogram-aggregation-extended-bounds,`Extended Bounds`>> and
+<<search-aggregations-bucket-histogram-aggregation-hard-bounds,`Hard Bounds`>>.
 
 ===== Missing value
 
@@ -661,7 +663,7 @@ the `order` setting. This setting supports the same `order` functionality as
 
 ===== Using a script to aggregate by day of the week
 
-When you need to aggregate the results by day of the week, use a script that 
+When you need to aggregate the results by day of the week, use a script that
 returns the day of the week:
 
 

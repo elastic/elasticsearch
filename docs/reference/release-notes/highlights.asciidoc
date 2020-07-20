@@ -12,7 +12,8 @@ endif::[]
 
 // Add previous release to the list
 Other versions:
-{ref-bare}/7.8/release-highlights.html[7.8]
+{ref-bare}/7.9/release-highlights.html[7.9]
+| {ref-bare}/7.8/release-highlights.html[7.8]
 | {ref-bare}/7.7/release-highlights.html[7.7]
 | {ref-bare}/7.6/release-highlights-7.6.0.html[7.6]
 | {ref-bare}/7.5/release-highlights-7.5.0.html[7.5]

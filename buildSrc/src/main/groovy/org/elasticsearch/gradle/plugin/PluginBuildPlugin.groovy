@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.RunTask
@@ -44,6 +45,7 @@ import org.gradle.jvm.tasks.Jar
 
 import java.util.regex.Matcher
 import java.util.regex.Pattern
+
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
@@ -55,6 +57,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
         project.pluginManager.apply(TestClustersPlugin)
+        project.pluginManager.apply(CompileOnlyResolvePlugin.class);
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
@@ -145,7 +148,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             project.pluginManager.apply('nebula.maven-base-publish')
             // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
             project.tasks.withType(Jar) {
-                baseName = baseName + "-client"
+                archiveBaseName = archiveBaseName.get() +  "-client"
             }
             // always configure publishing for client jars
             project.publishing.publications.nebula(MavenPublication).artifactId(extension.name + "-client")
@@ -223,7 +226,9 @@ class PluginBuildPlugin implements Plugin<Project> {
              * that shadow jar.
              */
             from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
-            from project.configurations.runtimeClasspath - project.configurations.compileOnly
+            from project.configurations.runtimeClasspath - project.configurations.getByName(
+                CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME
+            )
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {
@@ -232,7 +237,7 @@ class PluginBuildPlugin implements Plugin<Project> {
             }
         }
         project.tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure {
-          dependsOn(bundle)
+            dependsOn(bundle)
         }
 
         // also make the zip available as a configuration (used when depending on this project)

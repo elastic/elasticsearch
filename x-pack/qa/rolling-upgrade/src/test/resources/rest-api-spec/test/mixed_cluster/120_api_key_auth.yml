@@ -8,7 +8,8 @@
       security.create_api_key:
         body:  >
           {
-            "name": "api-key-in-mixed-cluster"
+            "name": "api-key-in-mixed-cluster",
+            "role_descriptors": {}
           }
   - match: { name: "api-key-in-mixed-cluster" }
   - is_true: id

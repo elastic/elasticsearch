@@ -52,17 +52,16 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -118,14 +117,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
         FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
         FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
-
-        DateFieldMapper.Builder builder = new DateFieldMapper.Builder("date");
-        builder.docValues(true);
-        builder.format("yyyy-MM-dd||epoch_millis");
-        DateFieldMapper fieldMapper =
-            builder.build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(0)));
-        FIELD_TYPES[3] = fieldMapper.fieldType();
-
+        FIELD_TYPES[3] = new DateFieldMapper.DateFieldType("date", DateFormatter.forPattern("yyyy-MM-dd||epoch_millis"));
         FIELD_TYPES[4] = new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.INTEGER);
         FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
         FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");

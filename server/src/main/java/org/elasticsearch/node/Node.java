@@ -406,7 +406,7 @@ public class Node implements Closeable {
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);
+            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             final FsHealthService fsHealthService = new FsHealthService(settings, clusterService.getClusterSettings(), threadPool,
                 nodeEnvironment);
             ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService);

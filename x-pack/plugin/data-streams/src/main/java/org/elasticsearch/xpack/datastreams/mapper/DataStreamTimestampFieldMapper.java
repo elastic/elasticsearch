@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -40,6 +41,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";
+    private static final String DEFAULT_PATH = "@timestamp";
 
     public static class Defaults {
 
@@ -78,19 +80,19 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder<Builder> {
 
-        private String path;
+        private boolean enabled;
 
         public Builder() {
             super(NAME, Defaults.TIMESTAMP_FIELD_TYPE);
         }
 
-        public void setPath(String path) {
-            this.path = path;
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
         }
 
         @Override
         public MetadataFieldMapper build(BuilderContext context) {
-            return new DataStreamTimestampFieldMapper(fieldType, new TimestampFieldType(), path);
+            return new DataStreamTimestampFieldMapper(fieldType, new TimestampFieldType(), enabled);
         }
     }
 
@@ -104,8 +106,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
-                    builder.setPath((String) fieldNode);
+                if (fieldName.equals("enabled")) {
+                    builder.setEnabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));
                     iterator.remove();
                 }
             }
@@ -114,32 +116,34 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext) {
-            return new DataStreamTimestampFieldMapper(Defaults.TIMESTAMP_FIELD_TYPE, new TimestampFieldType(), null);
+            return new DataStreamTimestampFieldMapper(Defaults.TIMESTAMP_FIELD_TYPE, new TimestampFieldType(), false);
         }
     }
 
     private final String path;
+    private final boolean enabled;
 
-    private DataStreamTimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, String path) {
+    private DataStreamTimestampFieldMapper(FieldType fieldType, MappedFieldType mappedFieldType, boolean enabled) {
         super(fieldType, mappedFieldType);
-        this.path = path;
+        this.path = DEFAULT_PATH;
+        this.enabled = enabled;
     }
 
     public void validate(DocumentFieldMappers lookup) {
-        if (path == null) {
+        if (enabled == false) {
             // not configured, so skip the validation
             return;
         }
 
         Mapper mapper = lookup.getMapper(path);
         if (mapper == null) {
-            throw new IllegalArgumentException("the configured timestamp field [" + path + "] does not exist");
+            throw new IllegalArgumentException("data stream timestamp field [" + path + "] does not exist");
         }
 
         if (DateFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false
             && DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(mapper.typeName()) == false) {
             throw new IllegalArgumentException(
-                "the configured timestamp field ["
+                "data stream timestamp field ["
                     + path
                     + "] is of type ["
                     + mapper.typeName()
@@ -153,19 +157,19 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
         if (dateFieldMapper.fieldType().isSearchable() == false) {
-            throw new IllegalArgumentException("the configured timestamp field [" + path + "] is not indexed");
+            throw new IllegalArgumentException("data stream timestamp field [" + path + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
-            throw new IllegalArgumentException("the configured timestamp field [" + path + "] doesn't have doc values");
+            throw new IllegalArgumentException("data stream timestamp field [" + path + "] doesn't have doc values");
         }
         if (dateFieldMapper.getNullValue() != null) {
             throw new IllegalArgumentException(
-                "the configured timestamp field [" + path + "] has disallowed [null_value] attribute specified"
+                "data stream timestamp field [" + path + "] has disallowed [null_value] attribute specified"
             );
         }
-        if (dateFieldMapper.getIgnoreMalformed().explicit()) {
+        if (dateFieldMapper.getIgnoreMalformed()) {
             throw new IllegalArgumentException(
-                "the configured timestamp field [" + path + "] has disallowed [ignore_malformed] attribute specified"
+                "data stream timestamp field [" + path + "] has disallowed [ignore_malformed] attribute specified"
             );
         }
 
@@ -185,16 +189,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             // All other configured attributes are not allowed:
             if (configuredSettings.isEmpty() == false) {
                 throw new IllegalArgumentException(
-                    "the configured timestamp field [@timestamp] has disallowed attributes: " + configuredSettings.keySet()
+                    "data stream timestamp field [@timestamp] has disallowed attributes: " + configuredSettings.keySet()
                 );
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    public String getPath() {
-        return path;
     }
 
     @Override
@@ -208,7 +208,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-        if (path == null) {
+        if (enabled == false) {
             // not configured, so skip the validation
             return;
         }
@@ -228,12 +228,12 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (path == null) {
+        if (enabled == false) {
             return builder;
         }
 
         builder.startObject(simpleName());
-        builder.field("path", path);
+        builder.field("enabled", enabled);
         return builder.endObject();
     }
 
@@ -255,8 +255,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     @Override
     protected void mergeOptions(FieldMapper other, List<String> conflicts) {
         DataStreamTimestampFieldMapper otherTimestampFieldMapper = (DataStreamTimestampFieldMapper) other;
-        if (Objects.equals(path, otherTimestampFieldMapper.path) == false) {
-            conflicts.add("cannot update path setting for [_data_stream_timestamp]");
+        if (Objects.equals(enabled, otherTimestampFieldMapper.enabled) == false) {
+            conflicts.add("cannot update enabled setting for [_data_stream_timestamp]");
         }
     }
 }

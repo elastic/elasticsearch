@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -96,10 +97,11 @@ public class RestBulkAction extends BaseRestHandler {
         if (waitForActiveShards != null) {
             bulkRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
+        Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting,
-            defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, request.getXContentType());
+            defaultFetchSourceContext, defaultPipeline, defaultRequireAlias, allowExplicitIndex, request.getXContentType());
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
     }

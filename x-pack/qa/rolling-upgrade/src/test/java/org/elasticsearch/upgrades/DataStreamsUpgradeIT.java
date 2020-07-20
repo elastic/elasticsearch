@@ -19,6 +19,7 @@ import static org.elasticsearch.upgrades.IndexingIT.assertCount;
 public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
 
     public void testDataStreams() throws IOException {
+        assumeTrue("no data streams in versions before " + Version.V_7_9_0, UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
         assumeTrue("data streams supported from 7.9.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_9_0));
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = "{\n" +
@@ -37,6 +38,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 "    }";
             Request request = new Request("PUT", "/_index_template/1");
             request.setJsonEntity(requestBody);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(request);
             client().performRequest(request);
 
             StringBuilder b = new StringBuilder();

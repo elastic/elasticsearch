@@ -64,10 +64,10 @@ public abstract class MappedFieldType {
     private final boolean docValues;
     private final boolean isIndexed;
     private final TextSearchInfo textSearchInfo;
+    private final Map<String, String> meta;
     private float boost;
     private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
-    private Map<String, String> meta;
 
     public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         setBoost(1.0f);
@@ -346,13 +346,6 @@ public abstract class MappedFieldType {
      */
     public Map<String, String> meta() {
         return meta;
-    }
-
-    /**
-     * Associate metadata with this field.
-     */
-    public void updateMeta(Map<String, String> meta) {
-        this.meta = meta;
     }
 
     /**

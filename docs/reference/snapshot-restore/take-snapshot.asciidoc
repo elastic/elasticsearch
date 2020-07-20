@@ -114,7 +114,7 @@ such as who took the snapshot,
 why it was taken, or any other data that might be useful.
 
 Snapshot names can be automatically derived using <<date-math-index-names,date math expressions>>, similarly as when creating
-new data streams or indices. Special characters must be URI encoded.
+new indices. Special characters must be URI encoded.
 
 For example, use the <<create-snapshot-api,create snapshot API>> to create
 a snapshot with the current day in the name, such as `snapshot-2020.07.11`:

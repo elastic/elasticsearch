@@ -35,45 +35,35 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.bundling.Zip;
 
 /**
- * Apply this plugin to run the YAML based REST tests.
+ * Apply this plugin to run the Java based REST tests.
  */
-public class YamlRestTestPlugin extends AbstractRestTestPlugin {
+public class JavaRestTestPlugin extends AbstractRestTestPlugin {
 
-    public static final String SOURCE_SET_NAME = "yamlRestTest";
+    public static final String SOURCE_SET_NAME = "javaRestTest";
 
     @Override
     public void apply(Project project) {
 
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
-        project.getPluginManager().apply(RestResourcesPlugin.class);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
+        SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        // setup the yamlRestTest task
-        RestIntegTestTask yamlRestTestTask = setupTask(project, SOURCE_SET_NAME);
+        // setup the javaRestTest task
+        RestIntegTestTask javaRestTestTask = setupTask(project, SOURCE_SET_NAME);
 
         // setup the runner task
-        setupRunnerTask(project, yamlRestTestTask, yamlTestSourceSet);
+        setupRunnerTask(project, javaRestTestTask, javaTestSourceSet);
 
-        // setup the dependencies
-        setupDependencies(project, yamlTestSourceSet);
-
-        // setup the copy for the rest resources
-        project.getTasks().withType(CopyRestApiTask.class, copyRestApiTask -> {
-            copyRestApiTask.sourceSetName = SOURCE_SET_NAME;
-            project.getTasks().named(yamlTestSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestApiTask));
-        });
-        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> {
-            copyRestTestTask.sourceSetName = SOURCE_SET_NAME;
-        });
+        // setup dependencies
+        setupDependencies(project, javaTestSourceSet);
 
         // setup IDE
-        GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);
+        GradleUtils.setupIdeForTestSourceSet(project, javaTestSourceSet);
 
         // wire this task into check
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestTestTask));
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(javaRestTestTask));
     }
 }

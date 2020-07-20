@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -34,6 +34,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+//TODO: convert to use ESRestTestCase instead of ESIntegTestCase
 public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     @ParametersFactory
     public static Iterable<Object[]> buildParameters() {

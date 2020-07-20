@@ -29,7 +29,13 @@ public class IndicesAccessControl {
             return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
         }
     };
-    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true, Collections.emptyMap());
+    public static final IndicesAccessControl ALLOW_NO_INDICES = new IndicesAccessControl(true, null) {
+        @Override
+        public IndexAccessControl getIndexPermissions(String index) {
+            assert false == Regex.isSimpleMatchPattern(index) : "index access control can and should only be retrieved by a concrete name";
+            return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
+        }
+    };
     public static final IndicesAccessControl DENIED = new IndicesAccessControl(false, Collections.emptyMap());
 
     private final boolean granted;

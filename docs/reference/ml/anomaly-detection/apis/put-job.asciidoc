@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-put-job]]
-=== Create {anomaly-jobs} API
+= Create {anomaly-jobs} API
 ++++
 <titleabbrev>Create jobs</titleabbrev>
 ++++
@@ -9,19 +9,19 @@
 Instantiates an {anomaly-job}.
 
 [[ml-put-job-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `PUT _ml/anomaly_detectors/<job_id>`
 
 [[ml-put-job-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
 <<security-privileges>>.
 
 [[ml-put-job-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 IMPORTANT: You must use {kib} or this API to create an {anomaly-job}. Do not put
 a job directly to the `.ml-config` index using the {es} index API. If {es}
@@ -29,7 +29,7 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 `.ml-config` index.
 
 [[ml-put-job-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
@@ -37,7 +37,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define
 
 [role="child_attributes"]
 [[ml-put-job-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `allow_lazy_open`::
 (Optional, boolean)
@@ -270,7 +270,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-index-name]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=results-retention-days]
 
 [[ml-put-job-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

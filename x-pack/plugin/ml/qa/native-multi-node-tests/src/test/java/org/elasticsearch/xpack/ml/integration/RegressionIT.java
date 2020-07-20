@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -59,7 +60,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59413")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -83,7 +83,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        SearchResponse sourceData = client().prepareSearch(sourceIndex)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery(DEPENDENT_VARIABLE_FIELD))
+            .setSize(1000)
+            .get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
@@ -395,7 +399,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59664")
     public void testWithDatastream() throws Exception {
         initialize("regression_with_datastream");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";
@@ -419,7 +422,11 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         startAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        SearchResponse sourceData = client().prepareSearch(sourceIndex)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery(DEPENDENT_VARIABLE_FIELD))
+            .setSize(1000)
+            .get();
         for (SearchHit hit : sourceData.getHits()) {
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);

@@ -34,7 +34,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -149,8 +148,8 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     public BytesReference serialize(final T obj, final String blobName, final boolean compress) throws IOException {
         try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
-            final String resourceDesc = "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")";
-            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, blobName, outputStream, BUFFER_SIZE)) {
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")", blobName, outputStream, BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
@@ -158,26 +157,15 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                         // this is important since some of the XContentBuilders write bytes on close.
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
-                }) {
-                    if (compress) {
-                        try (StreamOutput compressedStreamOutput = CompressorFactory.COMPRESSOR.streamOutput(indexOutputOutputStream)) {
-                            write(obj, compressedStreamOutput);
-                        }
-                    } else {
-                        write(obj, indexOutputOutputStream);
-                    }
+                }; XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE,
+                        compress ? CompressorFactory.COMPRESSOR.streamOutput(indexOutputOutputStream) : indexOutputOutputStream)) {
+                    builder.startObject();
+                    obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
+                    builder.endObject();
                 }
                 CodecUtil.writeFooter(indexOutput);
             }
             return outputStream.bytes();
-        }
-    }
-
-    private static <T extends ToXContent> void write(T obj, OutputStream streamOutput) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE, streamOutput)) {
-            builder.startObject();
-            obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
-            builder.endObject();
         }
     }
 }

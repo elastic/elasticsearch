@@ -30,9 +30,6 @@ You can use the search API's <<search-api-query-params-q,`q` query string
 parameter>> to run a search in the request's URI. The `q` parameter only accepts
 queries written in Lucene's <<query-string-syntax,query string syntax>>.
 
-.*Example*
-[%collapsible]
-====
 To get started, ingest or add some data to an {es} index.
 
 The following <<docs-bulk,bulk API>> request adds some example user log data to
@@ -99,7 +96,6 @@ the document that matched the query.
 }
 ----
 // TESTRESPONSE[s/"took": 2/"took": "$body.took"/]
-====
 
 [discrete]
 [[run-request-body-search]]
@@ -109,9 +105,6 @@ You can use the search API's <<request-body-search-query,`query` request
 body parameter>> to provide a query as a JSON object, written in
 <<query-dsl,Query DSL>>.
 
-.*Example*
-[%collapsible]
-====
 The following request body search uses the <<query-dsl-match-query,`match`>>
 query to match documents with a `message` value of `login successful`. Note the
 `match` query is specified as a JSON object in the `query` parameter.
@@ -197,7 +190,6 @@ score>> that measures how well each document matches the query.
 }
 ----
 // TESTRESPONSE[s/"took": 1/"took": "$body.took"/]
-====
 
 [discrete]
 [[search-multiple-indices]]
@@ -206,9 +198,6 @@ score>> that measures how well each document matches the query.
 To search multiple indices, add them as comma-separated values in the search API
 request path.
 
-.*Example*
-[%collapsible]
-====
 The following request searches the `user_logs_000001` and `user_logs_000002`
 indices.
 
@@ -225,13 +214,9 @@ GET /user_logs_000001,user_logs_000002/_search
 ----
 // TEST[continued]
 // TEST[s/^/PUT user_logs_000002\n/]
-====
 
 You can also search multiple indices using an index pattern.
 
-.*Example*
-[%collapsible]
-====
 The following request uses the index pattern `user_logs*` in place of the index
 name. The request searches any indices in the cluster that start with
 `user_logs`.
@@ -248,14 +233,10 @@ GET /user_logs*/_search
 }
 ----
 // TEST[continued]
-====
 
 To search all indices in a cluster, omit the index name from the request path.
 Alternatively, you can use `_all` or `*` in place of the index name.
 
-.*Example*
-[%collapsible]
-====
 The following requests are equivalent and search all indices in the cluster.
 
 [source,console]
@@ -286,7 +267,6 @@ GET /*/_search
 }
 ----
 // TEST[continued]
-====
 
 include::request/from-size.asciidoc[]
 

@@ -67,7 +67,7 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                 CircuitBreakerService breakerService, MapperService mapperService) {
-            return new ConstantIndexFieldData(indexSettings, fieldType.name(), valueFunction.apply(mapperService), valuesSourceType);
+            return new ConstantIndexFieldData(fieldType.name(), valueFunction.apply(mapperService), valuesSourceType);
         }
 
     }
@@ -139,8 +139,8 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final ConstantLeafFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(IndexSettings indexSettings, String name, String value, ValuesSourceType valuesSourceType) {
-        super(indexSettings, name, valuesSourceType, null, null,
+    private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType) {
+        super(name, valuesSourceType, null, null,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);

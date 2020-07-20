@@ -12,15 +12,11 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SearchLookupAware;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -116,41 +112,17 @@ public final class ScriptLongFieldData extends IndexNumericFieldData implements 
         return index;
     }
 
-    public static class ScriptLongLeafFieldData implements LeafNumericFieldData {
-        private final ScriptLongDocValues scriptBinaryDocValues;
+    public static class ScriptLongLeafFieldData extends LeafLongFieldData {
+        private final ScriptLongDocValues scriptLongDocValues;
 
-        ScriptLongLeafFieldData(ScriptLongDocValues scriptBinaryDocValues) {
-            this.scriptBinaryDocValues = scriptBinaryDocValues;
-        }
-
-        @Override
-        public ScriptDocValues<?> getScriptValues() {
-            return new ScriptDocValues.Longs(getLongValues());
-        }
-
-        @Override
-        public SortedBinaryDocValues getBytesValues() {
-            return FieldData.toString(scriptBinaryDocValues);
-        }
-
-        @Override
-        public SortedNumericDoubleValues getDoubleValues() {
-            return FieldData.castToDouble(getLongValues());
+        ScriptLongLeafFieldData(ScriptLongDocValues scriptLongDocValues) {
+            super(0, NumericType.LONG);
+            this.scriptLongDocValues = scriptLongDocValues;
         }
 
         @Override
         public SortedNumericDocValues getLongValues() {
-            return scriptBinaryDocValues;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return 0;
-        }
-
-        @Override
-        public void close() {
-
+            return scriptLongDocValues;
         }
     }
 }

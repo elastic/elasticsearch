@@ -17,9 +17,9 @@ A `boxplot` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "boxplot": {
-        "field": "load_time"
-    }
+  "boxplot": {
+    "field": "load_time"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -30,14 +30,14 @@ Let's look at a boxplot representing load time:
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_boxplot" : {
-            "boxplot" : {
-                "field" : "load_time" <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "field": "load_time" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]
@@ -48,17 +48,17 @@ The response will look like this:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
+  ...
 
-   "aggregations": {
-      "load_time_boxplot": {
-         "min": 0.0,
-         "max": 990.0,
-         "q1": 165.0,
-         "q2": 445.0,
-         "q3": 725.0
-      }
-   }
+ "aggregations": {
+    "load_time_boxplot": {
+      "min": 0.0,
+      "max": 990.0,
+      "q1": 165.0,
+      "q2": 445.0,
+      "q3": 725.0
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -73,20 +73,20 @@ a script to convert them on-the-fly:
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_boxplot" : {
-            "boxplot" : {
-                "script" : {
-                    "lang": "painless",
-                    "source": "doc['load_time'].value / params.timeUnit", <1>
-                    "params" : {
-                        "timeUnit" : 1000   <2>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "script": {
+          "lang": "painless",
+          "source": "doc['load_time'].value / params.timeUnit", <1>
+                  "params": {
+            "timeUnit": 1000                                    <2>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]
@@ -102,19 +102,19 @@ stored script use the following syntax:
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_boxplot" : {
-            "boxplot" : {
-                "script" : {
-                    "id": "my_script",
-                    "params": {
-                        "field": "load_time"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "load_time"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency,stored_example_script]
@@ -143,15 +143,15 @@ This balance can be controlled using a `compression` parameter:
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_boxplot" : {
-            "boxplot" : {
-                "field" : "load_time",
-                "compression" : 200 <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "field": "load_time",
+        "compression": 200    <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]
@@ -170,15 +170,15 @@ had a value.
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "grade_boxplot" : {
-            "boxplot" : {
-                "field" : "grade",
-                "missing": 10 <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "grade_boxplot": {
+      "boxplot": {
+        "field": "grade",
+        "missing": 10     <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]

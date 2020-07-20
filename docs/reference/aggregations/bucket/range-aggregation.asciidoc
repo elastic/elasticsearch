@@ -10,18 +10,18 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "price_ranges" : {
-            "range" : {
-                "field" : "price",
-                "ranges" : [
-                    { "to" : 100.0 },
-                    { "from" : 100.0, "to" : 200.0 },
-                    { "from" : 200.0 }
-                ]
-            }
-        }
+  "aggs": {
+    "price_ranges": {
+      "range": {
+        "field": "price",
+        "ranges": [
+          { "to": 100.0 },
+          { "from": 100.0, "to": 200.0 },
+          { "from": 200.0 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -32,29 +32,29 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "price_ranges" : {
-            "buckets": [
-                {
-                    "key": "*-100.0",
-                    "to": 100.0,
-                    "doc_count": 2
-                },
-                {
-                    "key": "100.0-200.0",
-                    "from": 100.0,
-                    "to": 200.0,
-                    "doc_count": 2
-                },
-                {
-                    "key": "200.0-*",
-                    "from": 200.0,
-                    "doc_count": 3
-                }
-            ]
+  ...
+  "aggregations": {
+    "price_ranges": {
+      "buckets": [
+        {
+          "key": "*-100.0",
+          "to": 100.0,
+          "doc_count": 2
+        },
+        {
+          "key": "100.0-200.0",
+          "from": 100.0,
+          "to": 200.0,
+          "doc_count": 2
+        },
+        {
+          "key": "200.0-*",
+          "from": 200.0,
+          "doc_count": 3
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -67,19 +67,19 @@ Setting the `keyed` flag to `true` will associate a unique string key with each 
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "price_ranges" : {
-            "range" : {
-                "field" : "price",
-                "keyed" : true,
-                "ranges" : [
-                    { "to" : 100 },
-                    { "from" : 100, "to" : 200 },
-                    { "from" : 200 }
-                ]
-            }
-        }
+  "aggs": {
+    "price_ranges": {
+      "range": {
+        "field": "price",
+        "keyed": true,
+        "ranges": [
+          { "to": 100 },
+          { "from": 100, "to": 200 },
+          { "from": 200 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -90,26 +90,26 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "price_ranges" : {
-            "buckets": {
-                "*-100.0": {
-                    "to": 100.0,
-                    "doc_count": 2
-                },
-                "100.0-200.0": {
-                    "from": 100.0,
-                    "to": 200.0,
-                    "doc_count": 2
-                },
-                "200.0-*": {
-                    "from": 200.0,
-                    "doc_count": 3
-                }
-            }
+  ...
+  "aggregations": {
+    "price_ranges": {
+      "buckets": {
+        "*-100.0": {
+          "to": 100.0,
+          "doc_count": 2
+        },
+        "100.0-200.0": {
+          "from": 100.0,
+          "to": 200.0,
+          "doc_count": 2
+        },
+        "200.0-*": {
+          "from": 200.0,
+          "doc_count": 3
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -120,19 +120,19 @@ It is also possible to customize the key for each range:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "price_ranges" : {
-            "range" : {
-                "field" : "price",
-                "keyed" : true,
-                "ranges" : [
-                    { "key" : "cheap", "to" : 100 },
-                    { "key" : "average", "from" : 100, "to" : 200 },
-                    { "key" : "expensive", "from" : 200 }
-                ]
-            }
-        }
+  "aggs": {
+    "price_ranges": {
+      "range": {
+        "field": "price",
+        "keyed": true,
+        "ranges": [
+          { "key": "cheap", "to": 100 },
+          { "key": "average", "from": 100, "to": 200 },
+          { "key": "expensive", "from": 200 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -143,26 +143,26 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "price_ranges" : {
-            "buckets": {
-                "cheap": {
-                    "to": 100.0,
-                    "doc_count": 2
-                },
-                "average": {
-                    "from": 100.0,
-                    "to": 200.0,
-                    "doc_count": 2
-                },
-                "expensive": {
-                    "from": 200.0,
-                    "doc_count": 3
-                }
-            }
+  ...
+  "aggregations": {
+    "price_ranges": {
+      "buckets": {
+        "cheap": {
+          "to": 100.0,
+          "doc_count": 2
+        },
+        "average": {
+          "from": 100.0,
+          "to": 200.0,
+          "doc_count": 2
+        },
+        "expensive": {
+          "from": 200.0,
+          "doc_count": 3
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -178,21 +178,21 @@ The following example shows how to use an `inline` script with the `painless` sc
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "price_ranges" : {
-            "range" : {
-                "script" : {
-                    "lang": "painless",
-                    "source": "doc['price'].value"
-                },
-                "ranges" : [
-                    { "to" : 100 },
-                    { "from" : 100, "to" : 200 },
-                    { "from" : 200 }
-                ]
-            }
-        }
+  "aggs": {
+    "price_ranges": {
+      "range": {
+        "script": {
+          "lang": "painless",
+          "source": "doc['price'].value"
+        },
+        "ranges": [
+          { "to": 100 },
+          { "from": 100, "to": 200 },
+          { "from": 200 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -216,23 +216,23 @@ And this new stored script can be used in the range aggregation like this:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "price_ranges" : {
-            "range" : {
-                "script" : {
-                    "id": "convert_currency", <1>
-                    "params": { <2>
-                        "field": "price",
-                        "conversion_rate": 0.835526591
-                    }
-                },
-                "ranges" : [
-                    { "from" : 0, "to" : 100 },
-                    { "from" : 100 }
-                ]
-            }
-        }
+  "aggs": {
+    "price_ranges": {
+      "range": {
+        "script": {
+          "id": "convert_currency",       <1>
+          "params": {                     <2>
+            "field": "price",
+          "conversion_rate": 0.835526591
+          }
+        },
+        "ranges": [
+          { "from": 0, "to": 100 },
+          { "from": 100 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
@@ -245,23 +245,23 @@ GET /_search
 [source,console-result]
 --------------------------------------------------
 {
-    "aggregations": {
-        "price_ranges" : {
-            "buckets": [
-                {
-                  "key" : "0.0-100.0",
-                  "from" : 0.0,
-                  "to" : 100.0,
-                  "doc_count" : 2
-                },
-                {
-                  "key" : "100.0-*",
-                  "from" : 100.0,
-                  "doc_count" : 5
-                }
-            ]
+  "aggregations": {
+    "price_ranges": {
+      "buckets": [
+        {
+          "key": "0.0-100.0",
+          "from": 0.0,
+          "to": 100.0,
+          "doc_count": 2
+        },
+        {
+          "key": "100.0-*",
+          "from": 100.0,
+          "doc_count": 5
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 
@@ -275,24 +275,24 @@ Lets say the product prices are in USD but we would like to get the price ranges
 --------------------------------------------------
 GET /sales/_search
 {
-    "aggs" : {
-        "price_ranges" : {
-            "range" : {
-                "field" : "price",
-                "script" : {
-                    "source": "_value * params.conversion_rate",
-                    "params" : {
-                        "conversion_rate" : 0.8
-                    }
-                },
-                "ranges" : [
-                    { "to" : 35 },
-                    { "from" : 35, "to" : 70 },
-                    { "from" : 70 }
-                ]
-            }
-        }
+  "aggs": {
+    "price_ranges": {
+      "range": {
+        "field": "price",
+        "script": {
+          "source": "_value * params.conversion_rate",
+          "params": {
+            "conversion_rate": 0.8
+          }
+        },
+        "ranges": [
+          { "to": 35 },
+          { "from": 35, "to": 70 },
+          { "from": 70 }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -305,23 +305,23 @@ The following example, not only "bucket" the documents to the different buckets 
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "price_ranges" : {
-            "range" : {
-                "field" : "price",
-                "ranges" : [
-                    { "to" : 100 },
-                    { "from" : 100, "to" : 200 },
-                    { "from" : 200 }
-                ]
-            },
-            "aggs" : {
-                "price_stats" : {
-                    "stats" : { "field" : "price" }
-                }
-            }
+  "aggs": {
+    "price_ranges": {
+      "range": {
+        "field": "price",
+        "ranges": [
+          { "to": 100 },
+          { "from": 100, "to": 200 },
+          { "from": 200 }
+        ]
+      },
+      "aggs": {
+        "price_stats": {
+          "stats": { "field": "price" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

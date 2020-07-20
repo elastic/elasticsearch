@@ -9,16 +9,16 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 --------------------------------------------------
 PUT /products
 {
-    "mappings": {
-        "properties": {
-            "genre": {
-                "type": "keyword"
-            },
-            "product": {
-                "type": "keyword"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "genre": {
+        "type": "keyword"
+      },
+      "product": {
+        "type": "keyword"
+      }
     }
+  }
 }
 
 POST /products/_bulk?refresh
@@ -57,11 +57,11 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : { "field" : "genre" } <1>
-        }
+  "aggs": {
+    "genres": {
+      "terms": { "field": "genre" } <1>
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -74,27 +74,27 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "genres" : {
-            "doc_count_error_upper_bound": 0, <1>
-            "sum_other_doc_count": 0, <2>
-            "buckets" : [ <3>
-                {
-                    "key" : "electronic",
-                    "doc_count" : 6
-                },
-                {
-                    "key" : "rock",
-                    "doc_count" : 3
-                },
-                {
-                    "key" : "jazz",
-                    "doc_count" : 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "genres": {
+      "doc_count_error_upper_bound": 0,   <1>
+      "sum_other_doc_count": 0,       <2>
+      "buckets": [                    <3>
+        {
+          "key": "electronic",
+          "doc_count": 6
+        },
+        {
+          "key": "rock",
+          "doc_count": 3
+        },
+        {
+          "key": "jazz",
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -162,15 +162,15 @@ The second error value can be enabled by setting the `show_term_doc_count_error`
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "products" : {
-            "terms" : {
-                "field" : "product",
-                "size" : 5,
-                "show_term_doc_count_error": true
-            }
-        }
+  "aggs": {
+    "products": {
+      "terms": {
+        "field": "product",
+        "size": 5,
+        "show_term_doc_count_error": true
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -207,14 +207,14 @@ Ordering the buckets by their doc `_count` in an ascending manner:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "_count" : "asc" }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "_count": "asc" }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -224,14 +224,14 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "_key" : "asc" }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "_key": "asc" }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -243,17 +243,17 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "max_play_count" : "desc" }
-            },
-            "aggs" : {
-                "max_play_count" : { "max" : { "field" : "play_count" } }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "max_play_count": "desc" }
+      },
+      "aggs": {
+        "max_play_count": { "max": { "field": "play_count" } }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -263,17 +263,17 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "order" : { "playback_stats.max" : "desc" }
-            },
-            "aggs" : {
-                "playback_stats" : { "stats" : { "field" : "play_count" } }
-            }
-        }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "order": { "playback_stats.max": "desc" }
+      },
+      "aggs": {
+        "playback_stats": { "stats": { "field": "play_count" } }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -309,22 +309,22 @@ PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEP
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "countries" : {
-            "terms" : {
-                "field" : "artist.country",
-                "order" : { "rock>playback_stats.avg" : "desc" }
-            },
-            "aggs" : {
-                "rock" : {
-                    "filter" : { "term" : { "genre" :  "rock" }},
-                    "aggs" : {
-                        "playback_stats" : { "stats" : { "field" : "play_count" }}
-                    }
-                }
-            }
+  "aggs": {
+    "countries": {
+      "terms": {
+        "field": "artist.country",
+        "order": { "rock>playback_stats.avg": "desc" }
+      },
+      "aggs": {
+        "rock": {
+          "filter": { "term": { "genre": "rock" } },
+          "aggs": {
+            "playback_stats": { "stats": { "field": "play_count" } }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -336,22 +336,22 @@ Multiple criteria can be used to order the buckets by providing an array of orde
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "countries" : {
-            "terms" : {
-                "field" : "artist.country",
-                "order" : [ { "rock>playback_stats.avg" : "desc" }, { "_count" : "desc" } ]
-            },
-            "aggs" : {
-                "rock" : {
-                    "filter" : { "term" : { "genre" : "rock" }},
-                    "aggs" : {
-                        "playback_stats" : { "stats" : { "field" : "play_count" }}
-                    }
-                }
-            }
+  "aggs": {
+    "countries": {
+      "terms": {
+        "field": "artist.country",
+        "order": [ { "rock>playback_stats.avg": "desc" }, { "_count": "desc" } ]
+      },
+      "aggs": {
+        "rock": { 
+          "filter": { "term": { "genre": "rock" } },
+          "aggs": {
+            "playback_stats": { "stats": { "field": "play_count" } } 
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -369,14 +369,14 @@ It is possible to only return terms that match more than a configured number of 
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-            "terms" : {
-                "field" : "tags",
-                "min_doc_count": 10
-            }
-        }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "min_doc_count": 10
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -410,16 +410,16 @@ Generating the terms using a script:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "script" : {
-                    "source": "doc['genre'].value",
-                    "lang": "painless"
-                }
-            }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "script": {
+          "source": "doc['genre'].value",
+          "lang": "painless"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -444,18 +444,18 @@ POST /_scripts/my_script
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "script" : {
-                    "id": "my_script",
-                    "params": {
-                        "field": "genre"
-                    }
-                }
-            }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "genre"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -466,17 +466,17 @@ GET /_search
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "terms" : {
-                "field" : "genre",
-                "script" : {
-                    "source" : "'Genre: ' +_value",
-                    "lang" : "painless"
-                }
-            }
+  "aggs": {
+    "genres": {
+      "terms": {
+        "field": "genre",
+        "script": {
+          "source": "'Genre: ' +_value",
+          "lang": "painless"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -492,15 +492,15 @@ It is possible to filter the values for which buckets will be created. This can 
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-            "terms" : {
-                "field" : "tags",
-                "include" : ".*sport.*",
-                "exclude" : "water_.*"
-            }
-        }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "include": ".*sport.*",
+        "exclude": "water_.*"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -520,20 +520,20 @@ strings that represent the terms as they are found in the index:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "JapaneseCars" : {
-             "terms" : {
-                 "field" : "make",
-                 "include" : ["mazda", "honda"]
-             }
-         },
-        "ActiveCarManufacturers" : {
-             "terms" : {
-                 "field" : "make",
-                 "exclude" : ["rover", "jensen"]
-             }
-         }
+  "aggs": {
+    "JapaneseCars": {
+      "terms": {
+        "field": "make",
+        "include": [ "mazda", "honda" ]
+      }
+    },
+    "ActiveCarManufacturers": {
+      "terms": {
+        "field": "make",
+        "exclude": [ "rover", "jensen" ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -641,22 +641,22 @@ An example problem scenario is querying a movie database for the 10 most popular
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "actors" : {
-             "terms" : {
-                 "field" : "actors",
-                 "size" : 10
-             },
-            "aggs" : {
-                "costars" : {
-                     "terms" : {
-                         "field" : "actors",
-                         "size" : 5
-                     }
-                 }
-            }
-         }
+  "aggs": {
+    "actors": {
+      "terms": {
+        "field": "actors",
+        "size": 10
+      },
+      "aggs": {
+        "costars": {
+          "terms": {
+            "field": "actors",
+            "size": 5
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -672,23 +672,23 @@ It is possible to override the default heuristic and to provide a collect mode d
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "actors" : {
-             "terms" : {
-                 "field" : "actors",
-                 "size" : 10,
-                 "collect_mode" : "breadth_first" <1>
-             },
-            "aggs" : {
-                "costars" : {
-                     "terms" : {
-                         "field" : "actors",
-                         "size" : 5
-                     }
-                 }
-            }
-         }
+  "aggs": {
+    "actors": {
+      "terms": {
+        "field": "actors",
+        "size": 10,
+        "collect_mode": "breadth_first" <1>
+      },
+      "aggs": {
+        "costars": {
+          "terms": {
+            "field": "actors",
+            "size": 5
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -723,14 +723,14 @@ ordinals.
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-             "terms" : {
-                 "field" : "tags",
-                 "execution_hint": "map" <1>
-             }
-         }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "execution_hint": "map" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -748,14 +748,14 @@ had a value.
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "tags" : {
-             "terms" : {
-                 "field" : "tags",
-                 "missing": "N/A" <1>
-             }
-         }
+  "aggs": {
+    "tags": {
+      "terms": {
+        "field": "tags",
+        "missing": "N/A" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 

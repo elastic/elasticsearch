@@ -53,7 +53,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final IndexAbstractionResolver indexAbstractionResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public DataStreamsStatsTransportAction(
@@ -74,7 +74,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -101,12 +101,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         if (requestIndices == null || requestIndices.length == 0) {
             requestIndices = new String[] { "*" };
         }
-        return indexAbstractionResolver.resolveIndexAbstractions(
-            requestIndices,
-            request.indicesOptions(),
-            clusterState.getMetadata(),
-            true // Always include data streams for data streams stats api
-        );
+        return indexNameExpressionResolver.dataStreamNames(clusterState, request.indicesOptions(), requestIndices);
     }
 
     @Override

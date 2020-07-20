@@ -82,7 +82,7 @@ public class DocCountFieldMapper extends FieldMapper {
     public static final class DocCountFieldType extends MappedFieldType {
 
         public DocCountFieldType(String name, boolean hasDocValues, Map<String, String> meta) {
-            super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            super(name, false, hasDocValues, TextSearchInfo.NONE, meta);
         }
 
         public DocCountFieldType(String name) {

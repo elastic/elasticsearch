@@ -72,3 +72,37 @@ setup:
   - match: { aggregations.str_terms.buckets.1.doc_count: 8 }
   - match: { aggregations.str_terms.buckets.2.key: "xyz" }
   - match: { aggregations.str_terms.buckets.2.doc_count: 5 }
+
+
+---
+"Multiple doc_count fields from template":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Doc count fields are only implemented in 8.0"
+
+  - do:
+      indices.put_template:
+        name: test
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              str:
+                type: keyword
+              doc_count:
+                type: doc_count
+
+  - do:
+      catch: /.*Only one field of type \[doc_count\] is allowed.*/
+      indices.create:
+        index: test-1
+        body:
+          mappings:
+            properties:
+              number:
+                type: integer
+              another_doc_count:
+                type: doc_count

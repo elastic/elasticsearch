@@ -10,7 +10,7 @@ in each bucket.
 
 While this simple approach has been effective when computing aggregations over individual documents, it fails to accurately represent
 documents that store pre-aggregated data (such as `histogram` or `aggregate_metric_double` fields), because one summary field represents
-more than one documents.
+multiple documents.
 
 To allow for correct computation of the number of documents when working with pre-aggregated data, we have introduced a
 field type named `doc_count`. A `doc_count` must always be a positive integer representing the number of documents aggregated in a single

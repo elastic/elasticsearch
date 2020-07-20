@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -129,11 +128,6 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         stopPhaser.arriveAndAwaitAdvance();
         assert stopPhaser.getPhase() > 0;
         logger.debug("ML memory tracker stopped");
-    }
-
-    @Override
-    public String executorName() {
-        return MachineLearning.UTILITY_THREAD_POOL_NAME;
     }
 
     /**

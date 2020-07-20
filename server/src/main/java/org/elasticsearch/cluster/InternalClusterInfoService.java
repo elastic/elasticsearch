@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.HashMap;
@@ -68,7 +69,7 @@ import java.util.function.Consumer;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public class InternalClusterInfoService implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(InternalClusterInfoService.class);
 
@@ -107,11 +108,6 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
         clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
                                                   this::setEnabled);
-
-        // Add InternalClusterInfoService to listen for Master changes
-        this.clusterService.addLocalNodeMasterListener(this);
-        // Add to listen for state changes (when nodes are added)
-        this.clusterService.addListener(this);
     }
 
     private void setEnabled(boolean enabled) {
@@ -126,34 +122,13 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
         this.updateFrequency = updateFrequency;
     }
 
-    @Override
     public void onMaster() {
-        this.isMaster = true;
         if (logger.isTraceEnabled()) {
             logger.trace("I have been elected master, scheduling a ClusterInfoUpdateJob");
         }
 
         // Submit a job that will reschedule itself after running
-        threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
-
-        try {
-            if (clusterService.state().getNodes().getDataNodes().size() > 1) {
-                // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(this::maybeRefresh);
-            }
-        } catch (EsRejectedExecutionException ex) {
-            logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
-        }
-    }
-
-    @Override
-    public void offMaster() {
-        this.isMaster = false;
-    }
-
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.MANAGEMENT;
+        threadPool.scheduleUnlessShuttingDown(updateFrequency, Names.MANAGEMENT, new SubmitReschedulingClusterInfoUpdatedJob());
     }
 
     @Override
@@ -162,23 +137,50 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
             return;
         }
 
-        // Check whether it was a data node that was added
-        boolean dataNodeAdded = false;
-        for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
-            if (addedNode.isDataNode()) {
-                dataNodeAdded = true;
-                break;
+        // Instead of using a LocalNodeMasterListener to track master changes, this service will
+        // track them here to avoid conditions where master listener events run after other
+        // listeners that depend on what happened in the master listener
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                onMaster();
             }
         }
 
-        if (this.isMaster && dataNodeAdded && event.state().getNodes().getDataNodes().size() > 1) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("data node was added, retrieving new cluster info");
-            }
-            threadPool.executor(executorName()).execute(this::maybeRefresh);
+        if (this.isMaster == false) {
+            return;
         }
 
-        if (this.isMaster && event.nodesRemoved()) {
+        if (event.state().getNodes().getDataNodes().size() > 1) {
+            if (this.isMaster != prevIsMaster) {
+                try {
+                    if (clusterService.state().getNodes().getDataNodes().size() > 1) {
+                        // Submit an info update job to be run immediately
+                        threadPool.executor(Names.MANAGEMENT).execute(this::maybeRefresh);
+                    }
+                } catch (EsRejectedExecutionException ex) {
+                    logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
+                }
+            } else {
+                // Check whether a data node was added
+                boolean dataNodeAdded = false;
+                for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
+                    if (addedNode.isDataNode()) {
+                        dataNodeAdded = true;
+                        break;
+                    }
+                }
+                if (dataNodeAdded) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("data node was added, retrieving new cluster info");
+                    }
+                    threadPool.executor(Names.MANAGEMENT).execute(this::maybeRefresh);
+                }
+            }
+        }
+
+        if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                 if (removedNode.isDataNode()) {
                     if (logger.isTraceEnabled()) {
@@ -219,7 +221,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                 logger.trace("Submitting new rescheduling cluster info update job");
             }
             try {
-                threadPool.executor(executorName()).execute(() -> {
+                threadPool.executor(Names.MANAGEMENT).execute(() -> {
                     try {
                         maybeRefresh();
                     } finally { //schedule again after we refreshed
@@ -227,7 +229,7 @@ public class InternalClusterInfoService implements ClusterInfoService, LocalNode
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Scheduling next run for updating cluster info in: {}", updateFrequency.toString());
                             }
-                            threadPool.scheduleUnlessShuttingDown(updateFrequency, executorName(), this);
+                            threadPool.scheduleUnlessShuttingDown(updateFrequency, Names.MANAGEMENT, this);
                         }
                     }
                 });

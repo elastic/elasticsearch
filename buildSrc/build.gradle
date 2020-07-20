@@ -133,9 +133,9 @@ dependencies {
   integTestImplementation('org.spockframework:spock-core:1.3-groovy-2.5') {
     exclude module:"groovy"
   }
-  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
-  minimumRuntimeCompile localGroovy()
-  minimumRuntimeCompile gradleApi()
+  minimumRuntimeImplementation "junit:junit:${props.getProperty('junit')}"
+  minimumRuntimeImplementation localGroovy()
+  minimumRuntimeImplementation gradleApi()
 }
 
 /*****************************************************************************

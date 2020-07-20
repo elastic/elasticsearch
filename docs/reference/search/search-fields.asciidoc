@@ -89,7 +89,7 @@ POST twitter/_search
 <2> Using object notation, you can pass a `format` parameter to apply a custom
     format for the field's values. The date fields
     <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
-    <<mapping-date-format,date format>>. <<_spatial_datatypes, Spatial fields>>
+    <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
     accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
     or `wkt` for
     https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text].

@@ -137,7 +137,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
             return CONTENT_TYPE;
         }
     }
-    
+
     // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint
     // See https://bugs.eclipse.org/bugs/show_bug.cgi?id=565255
     protected static class ParsedCartesianPoint extends CartesianPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {

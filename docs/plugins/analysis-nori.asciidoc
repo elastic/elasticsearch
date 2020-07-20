@@ -406,9 +406,7 @@ PUT nori_sample
         "analyzer": {
           "my_analyzer": {
             "tokenizer": "nori_tokenizer",
-            "filter": [
-              "nori_readingform"
-            ]
+            "filter": [ "nori_readingform" ]
           }
         }
       }

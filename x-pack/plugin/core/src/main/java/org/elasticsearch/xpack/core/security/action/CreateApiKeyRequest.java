@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -96,15 +97,17 @@ public final class CreateApiKeyRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (name != null) {
+        if (Strings.isNullOrEmpty(name)) {
+            validationException = addValidationError("api key name is required", validationException);
+        } else {
             if (name.length() > 256) {
-                validationException = addValidationError("name may not be more than 256 characters long", validationException);
+                validationException = addValidationError("api key name may not be more than 256 characters long", validationException);
             }
             if (name.equals(name.trim()) == false) {
-                validationException = addValidationError("name may not begin or end with whitespace", validationException);
+                validationException = addValidationError("api key name may not begin or end with whitespace", validationException);
             }
             if (name.startsWith("_")) {
-                validationException = addValidationError("name may not begin with an underscore", validationException);
+                validationException = addValidationError("api key name may not begin with an underscore", validationException);
             }
         }
         return validationException;

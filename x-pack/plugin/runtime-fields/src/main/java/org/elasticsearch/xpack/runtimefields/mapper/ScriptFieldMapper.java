@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
@@ -74,6 +75,19 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
         static final Map<String, BiFunction<Builder, BuilderContext, MappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+            NumberType.DOUBLE.typeName(),
+            (builder, context) -> {
+                DoubleScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    DoubleScriptFieldScript.CONTEXT
+                );
+                return new ScriptDoubleMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            },
             KeywordFieldMapper.CONTENT_TYPE,
             (builder, context) -> {
                 StringScriptFieldScript.Factory factory = builder.scriptCompiler.compile(

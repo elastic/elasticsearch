@@ -17,18 +17,18 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Abstract base class for building queries based on {@link LongScriptFieldScript}.
+ * Abstract base class for building queries based on {@link DoubleScriptFieldScript}.
  */
-abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery {
-    private final LongScriptFieldScript.LeafFactory leafFactory;
+abstract class AbstractDoubleScriptFieldQuery extends AbstractScriptFieldQuery {
+    private final DoubleScriptFieldScript.LeafFactory leafFactory;
 
-    AbstractLongScriptFieldQuery(Script script, LongScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    AbstractDoubleScriptFieldQuery(Script script, DoubleScriptFieldScript.LeafFactory leafFactory, String fieldName) {
         super(script, fieldName);
         this.leafFactory = Objects.requireNonNull(leafFactory);
     }
@@ -36,7 +36,7 @@ abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery {
     /**
      * Does the value match this query?
      */
-    protected abstract boolean matches(long[] values, int count);
+    protected abstract boolean matches(double[] values, int count);
 
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -48,13 +48,13 @@ abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery {
 
             @Override
             public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                LongScriptFieldScript script = leafFactory.newInstance(ctx);
+                DoubleScriptFieldScript script = leafFactory.newInstance(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() throws IOException {
                         script.runForDoc(approximation().docID());
-                        return AbstractLongScriptFieldQuery.this.matches(script.values(), script.count());
+                        return AbstractDoubleScriptFieldQuery.this.matches(script.values(), script.count());
                     }
 
                     @Override

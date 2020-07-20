@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.bulk.WriteMemoryLimits;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -61,36 +61,43 @@ public abstract class TransportWriteAction<
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
     private final boolean forceExecution;
-    private final WriteMemoryLimits writeMemoryLimits;
+    private final IndexingPressure indexingPressure;
     private final String executor;
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
                                    Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary,
-                                   WriteMemoryLimits writeMemoryLimits) {
+                                   IndexingPressure indexingPressure) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE thread pool in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executor = executor;
         this.forceExecution = forceExecutionOnPrimary;
-        this.writeMemoryLimits = writeMemoryLimits;
+        this.indexingPressure = indexingPressure;
     }
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecution);
+        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
     }
 
     @Override
-    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal) {
-        // If this primary request was submitted by a reroute performed on this local node, we have already
-        // accounted the bytes.
+    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
         if (rerouteWasLocal) {
-            return () -> {};
+            // If this primary request was received from a local reroute initiated by the node client, we
+            // must mark a new primary operation local to the coordinating node.
+            if (localRerouteInitiatedByNodeClient) {
+                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+            } else {
+                return () -> {};
+            }
         } else {
-            return writeMemoryLimits.markWriteOperationStarted(primaryOperationSize(request), forceExecution);
+            // If this primary request was received directly from the network, we must mark a new primary
+            // operation. This happens if the write action skips the reroute step (ex: rsync) or during
+            // primary delegation, after the primary relocation hand-off.
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
         }
     }
 
@@ -100,7 +107,7 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
-        return writeMemoryLimits.markReplicaWriteStarted(replicaOperationSize(request), forceExecution);
+        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), forceExecution);
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {

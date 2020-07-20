@@ -57,6 +57,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
+`write_index_only`::
+(Optional, boolean)
+If `true`,
+the mappings are applied only to the current write index for the target.
+Defaults to `false`.
+
 
 [[put-mapping-api-request-body]]
 ==== {api-request-body-title}
@@ -398,7 +404,7 @@ you can't change the mapping or field type of an existing field.
 Changing an existing field could invalidate data that's already indexed.
 
 If you need to change the mapping of a field in a data stream's backing indices,
-see <<data-streams-change-mappings-and-settings>>. 
+see <<data-streams-change-mappings-and-settings>>.
 
 If you need to change the mapping of a field in other indices,
 create a new index with the correct mapping

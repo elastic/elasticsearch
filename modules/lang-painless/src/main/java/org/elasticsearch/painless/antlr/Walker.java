@@ -113,8 +113,8 @@ import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
-import org.elasticsearch.painless.node.EBool;
-import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.EBooleanComp;
+import org.elasticsearch.painless.node.EBooleanConstant;
 import org.elasticsearch.painless.node.EBrace;
 import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
@@ -634,7 +634,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("illegal tree structure"));
         }
 
-        return new EBool(nextIdentifier(), location(ctx), left, right, operation);
+        return new EBooleanComp(nextIdentifier(), location(ctx), left, right, operation);
     }
 
     @Override
@@ -842,12 +842,12 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitTrue(TrueContext ctx) {
-        return new EBoolean(nextIdentifier(), location(ctx), true);
+        return new EBooleanConstant(nextIdentifier(), location(ctx), true);
     }
 
     @Override
     public ANode visitFalse(FalseContext ctx) {
-        return new EBoolean(nextIdentifier(), location(ctx), false);
+        return new EBooleanConstant(nextIdentifier(), location(ctx), false);
     }
 
     @Override

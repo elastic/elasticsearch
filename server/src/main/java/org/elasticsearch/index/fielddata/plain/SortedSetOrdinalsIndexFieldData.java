@@ -31,7 +31,6 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -78,13 +77,11 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
             MapperService mapperService
         ) {
             final String fieldName = fieldType.name();
-            return new SortedSetOrdinalsIndexFieldData(indexSettings, cache, fieldName, valuesSourceType, breakerService, scriptFunction);
+            return new SortedSetOrdinalsIndexFieldData(cache, fieldName, valuesSourceType, breakerService, scriptFunction);
         }
     }
 
-    protected final Index index;
     protected final String fieldName;
-    private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
@@ -92,17 +89,14 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(SortedSetOrdinalsIndexFieldData.class);
 
     public SortedSetOrdinalsIndexFieldData(
-        IndexSettings indexSettings,
         IndexFieldDataCache cache,
         String fieldName,
         ValuesSourceType valuesSourceType,
         CircuitBreakerService breakerService,
         Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
     ) {
-        this.index = indexSettings.getIndex();
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
-        this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
         this.scriptFunction = scriptFunction;
@@ -121,11 +115,6 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
     @Override
     public final void clear() {
         // can't do
-    }
-
-    @Override
-    public final Index index() {
-        return index;
     }
 
     @Override
@@ -193,7 +182,7 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
             // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
             // The next time the field is found, we do cache.
             try {
-                return GlobalOrdinalsBuilder.buildEmpty(indexSettings, indexReader, this);
+                return GlobalOrdinalsBuilder.buildEmpty(indexReader, this);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -211,7 +200,7 @@ public class SortedSetOrdinalsIndexFieldData implements IndexOrdinalsFieldData {
 
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger, scriptFunction);
+        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
     }
 
     @Override

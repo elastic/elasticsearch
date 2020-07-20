@@ -19,9 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -31,7 +29,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -64,6 +61,7 @@ public class GeoTileGroupSource extends SingleGroupSource {
         );
         return parser;
     }
+
     private final Integer precision;
     private final GeoBoundingBox geoBoundingBox;
 
@@ -104,23 +102,6 @@ public class GeoTileGroupSource extends SingleGroupSource {
 
     public static GeoTileGroupSource fromXContent(final XContentParser parser, boolean lenient) {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
-    }
-
-    @Override
-    public QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    ) {
-        if (changedBuckets != null && changedBuckets.isEmpty() == false) {
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-            changedBuckets.stream()
-                .map(GeoTileUtils::toBoundingBox)
-                .map(this::toGeoQuery)
-                .forEach(boolQueryBuilder::should);
-            return boolQueryBuilder;
-        }
-        return null;
     }
 
     @Override

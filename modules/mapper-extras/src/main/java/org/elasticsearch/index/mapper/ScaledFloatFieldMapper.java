@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -518,11 +517,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public void clear() {
             scaledFieldData.clear();
-        }
-
-        @Override
-        public Index index() {
-            return scaledFieldData.index();
         }
 
         @Override

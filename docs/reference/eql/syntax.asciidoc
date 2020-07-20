@@ -6,7 +6,7 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-dev::[]
+experimental::[]
 
 [IMPORTANT]
 ====
@@ -74,7 +74,7 @@ You can specify and combine these criteria using the following operators:
 
 You cannot use comparison operators to compare a variable, such as a field
 value, to another variable, even if those variables are modified using a
-<eql-functions,function>>.
+<<eql-functions,function>>.
 
 .*Example*
 [%collapsible]
@@ -102,12 +102,12 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [IMPORTANT]
 ====
-Avoid using the equal operator (`==`) to perform exact matching on `text` field
-values.
+Avoid using the equal operator (`==`) to perform exact matching on
+<<text,`text`>> field values.
 
-By default, {es} changes the values of <<text,`text`>> fields as part of
-<<analysis, analysis>>. This can make finding exact matches for `text` field
-values difficult.
+By default, {es} changes the values of `text` fields as part of <<analysis,
+analysis>>. This can make finding exact matches for `text` field values
+difficult.
 
 To search `text` fields, consider using a <<eql-search-filter-query-dsl,query
 DSL filter>> that contains a <<query-dsl-match-query,`match`>> query.
@@ -350,8 +350,8 @@ the backslash remains in the resulting string.
 
 [NOTE]
 ====
-Raw strings cannot contain only a single backslash. Additionally, raw strings
-cannot end in an odd number of backslashes.
+Raw strings cannot contain only a single backslash or end in an odd number of
+backslashes.
 ====
 
 [discrete]
@@ -375,8 +375,8 @@ dots (`.`), hyphens (`-`), or spaces, must be escaped using backticks (+++`+++).
 
 You can use EQL sequences to describe and match an ordered series of events.
 Each item in a sequence is an event category and event condition,
-surrounded by square brackets. Events are listed in ascending chronological
-order, with the most recent event listed last.
+surrounded by square brackets (`[ ]`). Events are listed in ascending
+chronological order, with the most recent event listed last.
 
 [source,eql]
 ----
@@ -485,7 +485,7 @@ sequence by user.name
 ----
 ====
 
-You can combine the `sequence by` and `with maxspan` keywords to constrain a 
+You can combine the `sequence by` and `with maxspan` keywords to constrain a
 sequence by both field values and a timespan.
 
 [source,eql]
@@ -511,6 +511,89 @@ sequence by user.name with maxspan=15m
   [ file where file.extension == "exe" ] by file.path
   [ process where true ] by process.path
 ----
+====
+
+[discrete]
+[[eql-until-keyword]]
+==== `until` keyword
+
+You can use the `until` keyword to specify an expiration event for sequences.
+Matching sequences must end before this event, which is not included the
+results. If this event occurs within a sequence, the sequence is not considered
+a match.
+
+[source,eql]
+----
+sequence
+  [ event_category_1 where condition_1 ]
+  [ event_category_2 where condition_2 ]
+  ...
+until [ event_category_2 where condition_2 ]
+----
+
+.*Example*
+[%collapsible]
+====
+The following EQL sequence query uses the `until` keyword to end sequences
+before a process termination event. Process termination events have an event
+category of `process` and `event.type` value of `termination`.
+
+[source,eql]
+----
+sequence
+  [ file where file.extension == "exe" ]
+  [ process where true ]
+until [ process where event.type == "termination" ]
+----
+====
+
+[TIP]
+====
+The `until` keyword can be helpful when searching for process sequences in
+Windows event logs, such as those ingested using
+{winlogbeat-ref}/index.html[Winlogbeat].
+
+In Windows, a process ID (PID) is unique only while a process is running. After
+a process terminates, its PID can be reused.
+
+You can search for a sequence of events with the same PID value using the `by`
+and `sequence by` keywords.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `sequence by` keyword to match a sequence of
+events that share the same `process.pid` value.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+----
+=====
+
+However, due to PID reuse, this can result in a matching sequence that
+contains events across unrelated processes. To prevent false positives, you can
+use the `until` keyword to end matching sequences before a process termination
+event.
+
+.*Example*
+[%collapsible]
+=====
+The following EQL query uses the `until` keyword to end sequences before
+`process` events with an `event.type` of `termination`. These events indicate a
+process has been terminated.
+
+[source,eql]
+----
+sequence by process.pid
+  [ process where process.name == "cmd.exe" ]
+  [ process where process.name == "whoami.exe" ]
+until [ process where event.type == "termination" ]
+----
+=====
+
 ====
 
 [discrete]

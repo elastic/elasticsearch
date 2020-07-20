@@ -219,28 +219,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         if (needToCheck()) {
             // Attempt to create all the indices that we're going to need during the bulk before we start.
             // Step 1: collect all the indices in the request
-            final Set<String> indices = bulkRequest.requests.stream()
-                    // delete requests should not attempt to create the index (if the index does not
-                    // exists), unless an external versioning is used
+            final Map<String, Boolean> indices = bulkRequest.requests.stream()
+                // delete requests should not attempt to create the index (if the index does not
+                // exists), unless an external versioning is used
                 .filter(request -> request.opType() != DocWriteRequest.OpType.DELETE
-                        || request.versionType() == VersionType.EXTERNAL
-                        || request.versionType() == VersionType.EXTERNAL_GTE)
-                .map(DocWriteRequest::index)
-                .collect(Collectors.toSet());
+                    || request.versionType() == VersionType.EXTERNAL
+                    || request.versionType() == VersionType.EXTERNAL_GTE)
+                .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
             /* Step 2: filter that to indices that don't exist and we can create. At the same time build a map of indices we can't create
              * that we'll use when we try to run the requests. */
             final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
             Set<String> autoCreateIndices = new HashSet<>();
             ClusterState state = clusterService.state();
-            for (String index : indices) {
+            for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
                 boolean shouldAutoCreate;
+                final String index = indexAndFlag.getKey();
                 try {
                     shouldAutoCreate = shouldAutoCreate(index, state);
                 } catch (IndexNotFoundException e) {
                     shouldAutoCreate = false;
                     indicesThatCannotBeCreated.put(index, e);
                 }
-                if (shouldAutoCreate) {
+                // We should only auto create if we are not requiring it to be an alias
+                if (shouldAutoCreate && (indexAndFlag.getValue() == false)) {
                     autoCreateIndices.add(index);
                 }
             }
@@ -410,6 +411,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (docWriteRequest == null) {
                     continue;
                 }
+                if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
+                    continue;
+                }
                 if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
                     continue;
                 }
@@ -559,6 +563,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     run();
                 }
             });
+        }
+
+        private boolean addFailureIfRequiresAliasAndAliasIsMissing(DocWriteRequest<?> request, int idx, final Metadata metadata) {
+            if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
+                Exception exception = new IndexNotFoundException("["
+                    + DocWriteRequest.REQUIRE_ALIAS
+                    + "] request flag is [true] and ["
+                    + request.index()
+                    + "] is not an alias",
+                    request.index());
+                addFailure(request, idx, exception);
+                return true;
+            }
+            return false;
         }
 
         private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices,

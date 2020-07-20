@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;
@@ -14,10 +15,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -164,14 +163,15 @@ public final class Expressions {
         return true;
     }
 
-    public static AttributeMap<Expression> aliases(List<? extends NamedExpression> named) {
-        Map<Attribute, Expression> aliasMap = new LinkedHashMap<>();
+    public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {
+        // an alias of same name and data type can be reused (by mistake): need to use a list to collect all refs (and later report them)
+        List<Tuple<Attribute, Expression>> aliases = new ArrayList<>();
         for (NamedExpression ne : named) {
             if (ne instanceof Alias) {
-                aliasMap.put(ne.toAttribute(), ((Alias) ne).child());
+                aliases.add(new Tuple<>(ne.toAttribute(), ((Alias) ne).child()));
             }
         }
-        return new AttributeMap<>(aliasMap);
+        return aliases;
     }
 
     public static boolean hasReferenceAttribute(Collection<Attribute> output) {

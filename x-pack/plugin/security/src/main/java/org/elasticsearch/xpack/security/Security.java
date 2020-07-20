@@ -1046,7 +1046,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
-                    throw new ElasticsearchSecurityException("Missing index access control for [" + index + "]");
+                    assert false : "missing index access control for [" + index + "]";
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 if (indexPermissions.isGranted() == false) {
                     throw new IllegalStateException("unexpected call to getFieldFilter for index [" + index + "] which is not granted");

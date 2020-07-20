@@ -100,9 +100,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
         }
 
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
-        if (null == indexAccessControl) {
-            throw new ElasticsearchSecurityException("Missing index access control for [" + indexName + "]");
-        } else if (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()) {
+        if (indexAccessControl != null && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()) {
             if (cachingIsSafe(weight, indexAccessControl)) {
                 logger.trace("not opting out of the query cache. request for index [{}] is safe to cache", indexName);
                 return indicesQueryCache.doCache(weight, policy);
@@ -111,6 +109,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
                 return weight;
             }
         } else {
+            assert indexAccessControl != null : "missing index access control for [" + indexName + "]";
             logger.trace("not opting out of the query cache. request for index [{}] has field level security disabled", indexName);
             return indicesQueryCache.doCache(weight, policy);
         }

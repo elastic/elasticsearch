@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -24,6 +25,7 @@ public class IndicesAccessControl {
     public static final IndicesAccessControl ALLOW_ALL = new IndicesAccessControl(true, null) {
         @Override
         public IndexAccessControl getIndexPermissions(String index) {
+            assert false == Regex.isSimpleMatchPattern(index) : "index access control can and should only be retrieved by a concrete name";
             return IndexAccessControl.PROMISCUOUS_ACCESS_CONTROL;
         }
     };
@@ -44,6 +46,7 @@ public class IndicesAccessControl {
      */
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
+        assert false == Regex.isSimpleMatchPattern(index) : "index access control can and should only be retrieved by a concrete name";
         return indexPermissions.get(index);
     }
 

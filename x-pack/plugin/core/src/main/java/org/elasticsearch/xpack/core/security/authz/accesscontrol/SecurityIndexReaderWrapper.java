@@ -79,7 +79,8 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {
-                throw new ElasticsearchSecurityException("Missing index access control for [" + shardId.getIndexName() + "]");
+                assert false : "missing index access control for [" + shardId.getIndexName() + "]";
+                return reader;
             }
 
             DirectoryReader wrappedReader = reader;

@@ -29,7 +29,6 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
@@ -56,23 +54,21 @@ import java.util.Objects;
  */
 public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
-
+        private final String name;
         private final NumericType numericType;
 
-        public Builder(NumericType numericType) {
+        public Builder(String name, NumericType numericType) {
+            this.name = name;
             this.numericType = numericType;
         }
 
         @Override
         public SortedNumericIndexFieldData build(
-            IndexSettings indexSettings,
-            MappedFieldType fieldType,
             IndexFieldDataCache cache,
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            final String fieldName = fieldType.name();
-            return new SortedNumericIndexFieldData(fieldName, numericType);
+            return new SortedNumericIndexFieldData(name, numericType);
         }
     }
 

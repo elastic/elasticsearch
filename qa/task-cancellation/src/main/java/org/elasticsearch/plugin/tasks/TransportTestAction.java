@@ -39,10 +39,12 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 public class TransportTestAction extends HandledTransportAction<TestRequest, TestResponse> {
@@ -80,53 +82,78 @@ public class TransportTestAction extends HandledTransportAction<TestRequest, Tes
     }
 
     void dispatchSubRequest(Task parentTask, TestRequest request, TestRequest.Target target, ActionListener<TestResponse> listener) {
-        Transport.Connection connection = null;
-        try {
-            if (Strings.isEmpty(target.clusterAlias)) {
-                for (DiscoveryNode node : clusterService.state().nodes()) {
-                    if (node.getId().equals(target.nodeId)) {
-                        connection = transportService.getConnection(node);
-                        break;
-                    }
-                }
-                if (connection == null) {
-                    throw new IllegalAccessException("node" + target.nodeId + " not found");
-                }
-            } else {
-                if (transportService.getLocalNode().isRemoteClusterClient()) {
-                    connection = transportService.getRemoteClusterService().getConnection(target.clusterAlias);
-                    target = new TestRequest.Target("", target.nodeId); // strip out clusterAlias
-                } else {
-                    logger.info("reroute {} to node with the remote cluster client role", request);
-                    for (DiscoveryNode node : clusterService.state().nodes()) {
-                        if (node.isRemoteClusterClient()) {
-                            connection = transportService.getConnection(node);
-                            break;
-                        }
-                    }
-                    if (connection == null) {
-                        throw new IllegalAccessException("can't find node with the remote cluster client role");
-                    }
-                }
+        if (Strings.isEmpty(target.clusterAlias)) {
+            final DiscoveryNode targetNode = clusterService.state().nodes().get(target.nodeId);
+            if (targetNode == null) {
+                listener.onFailure(new IllegalAccessException("node" + target.nodeId + " not found"));
+                return;
             }
-        } catch (Exception e) {
-            logger.info("failed to get connection for " + target, e);
-            listener.onFailure(e);
-            return;
+            final TestRequest subRequest = new TestRequest(request.id, Collections.singleton(target));
+            logger.info("dispatch sub request {} to target node {}", subRequest, target);
+            transportService.sendChildRequest(
+                targetNode,
+                actionName,
+                subRequest,
+                parentTask,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, TestResponse::new)
+            );
+        } else {
+            if (transportService.getLocalNode().isRemoteClusterClient()) {
+                // strip out the cluster alias
+                final TestRequest subRequest = new TestRequest(request.id, Collections.singleton(target));
+                logger.info("dispatch sub request {} to remote cluster", subRequest);
+                dispatchSubRequestToRemoteCluster(parentTask, request, target, listener);
+            } else {
+                final TestRequest subRequest = new TestRequest(request.id, Collections.singleton(target));
+                logger.info("reroute sub request {} to node with the remote cluster client role", subRequest);
+                for (DiscoveryNode node : clusterService.state().nodes()) {
+                    if (node.isRemoteClusterClient()) {
+                        transportService.sendChildRequest(
+                            node,
+                            actionName,
+                            subRequest,
+                            parentTask,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(listener, TestResponse::new)
+                        );
+                        return;
+                    }
+                }
+                listener.onFailure(new IllegalAccessException("can't find node with the remote cluster client role"));
+            }
         }
-        logger.info("dispatching sub request {} with target {} to {}", request, target, connection.getNode().getName());
-        final TestRequest subRequest = new TestRequest(request.id, Collections.singleton(target));
-        transportService.sendChildRequest(
-            connection,
-            actionName,
-            subRequest,
-            parentTask,
-            new ActionListenerResponseHandler<>(listener, TestResponse::new)
-        );
+    }
+
+    void dispatchSubRequestToRemoteCluster(
+        Task parentTask,
+        TestRequest subRequest,
+        TestRequest.Target target,
+        ActionListener<TestResponse> origListener
+    ) {
+        transportService.getRemoteClusterService()
+            .collectNodes(Set.of(target.clusterAlias), ActionListener.delegateFailure(origListener, (listener, nodes) -> {
+                final Transport.Connection connection;
+                try {
+                    final DiscoveryNode node = nodes.apply(target.clusterAlias, target.nodeId);
+                    connection = transportService.getRemoteClusterService().getConnection(node, target.clusterAlias);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                transportService.sendChildRequest(
+                    connection,
+                    actionName,
+                    subRequest,
+                    parentTask,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(listener, TestResponse::new)
+                );
+            }));
     }
 
     void executeRequest(BlockingCancellableTask task, String requestId, ActionListener<TestResponse> listener) {
-        logger.info("executing request {} on node {}", requestId, transportService.getLocalNode().getName());
+        logger.info("execute sub request {} on node {}", requestId, transportService.getLocalNode().getName());
         final CountDownLatch latch = latches.computeIfAbsent(requestId, k -> new CountDownLatch(1));
         task.setOnCancel(latch::countDown);
         transportService.getThreadPool().executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {

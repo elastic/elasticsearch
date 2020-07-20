@@ -54,7 +54,6 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -145,7 +144,7 @@ public class TaskCancellationIT extends ESRestTestCase {
                     .stream()
                     .filter(t -> oldNodes.contains(t.getTaskId().getNodeId()))
                     .collect(Collectors.toList());
-                assertThat(oldTasks.size(), greaterThanOrEqualTo(oldNodes.size()));
+                assertThat(oldTasks.size(), equalTo(oldNodes.size()));
                 List<TaskInfo> rootTasks = newCluster.tasks()
                     .list(new ListTasksRequest().setActions("internal::test_action"), RequestOptions.DEFAULT)
                     .getTasks()

@@ -44,7 +44,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
      * @param roleDescriptors list of {@link RoleDescriptor}s
      * @param expiration to specify expiration for the API key
      */
-    public CreateApiKeyRequest(@Nullable String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
+    public CreateApiKeyRequest(String name, @Nullable List<RoleDescriptor> roleDescriptors, @Nullable TimeValue expiration) {
         this.name = name;
         this.roleDescriptors = (roleDescriptors == null) ? List.of() : List.copyOf(roleDescriptors);
         this.expiration = expiration;
@@ -66,7 +66,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         return name;
     }
 
-    public void setName(@Nullable String name) {
+    public void setName(String name) {
         this.name = name;
     }
 

@@ -266,7 +266,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // information such as the index and the incoming address of the request
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
-            } else if (isAsyncRelatedAction(action)) {
+            } else if (isAsyncSearchRelatedAction(action)) {
                 if (SubmitAsyncSearchAction.NAME.equals(action)) {
                     // authorize submit async search but don't fill in the DLS/FLS permissions
                     // the `null` IndicesAccessControl parameter indicates that this action has *not* determined

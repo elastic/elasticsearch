@@ -360,7 +360,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        SearchPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
-    public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";

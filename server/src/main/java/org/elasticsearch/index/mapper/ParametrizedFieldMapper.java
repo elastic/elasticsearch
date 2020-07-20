@@ -224,8 +224,8 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         }
 
         private void validate() {
-            if (validator != null && isSet) {
-                validator.accept(value);
+            if (validator != null) {
+                validator.accept(getValue());
             }
         }
 
@@ -239,8 +239,9 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
             T value = initializer.apply(toMerge);
-            if (updateable == false && isSet && Objects.equals(this.value, value) == false) {
-                conflicts.addConflict(name, conflictSerializer.apply(this.value), conflictSerializer.apply(value));
+            T current = getValue();
+            if (updateable == false && Objects.equals(current, value) == false) {
+                conflicts.addConflict(name, conflictSerializer.apply(current), conflictSerializer.apply(value));
             } else {
                 setValue(value);
             }

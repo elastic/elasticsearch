@@ -183,7 +183,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read", "view_index_metadata").build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations")
                             .privileges("read", "view_index_metadata").build()
-                    }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                    }, new RoleDescriptor.ApplicationResourcePrivileges[] {
+                            RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("kibana-*").resources("*").privileges("reserved_ml_apm_user").build()
+                        }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*")

@@ -178,10 +178,10 @@ Closure setupMyIndex = { String name, int count ->
               number_of_replicas: 1
             mappings:
               properties:
-                message:
-                  type: text
                 "@timestamp":
                   type: date
+                message:
+                  type: text
                 user:
                   properties:
                     id:

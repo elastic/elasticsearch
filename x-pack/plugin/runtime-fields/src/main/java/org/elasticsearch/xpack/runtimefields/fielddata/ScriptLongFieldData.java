@@ -10,7 +10,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -52,18 +51,16 @@ public final class ScriptLongFieldData extends IndexNumericFieldData implements 
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            return new ScriptLongFieldData(indexSettings.getIndex(), fieldType.name(), script, scriptFactory);
+            return new ScriptLongFieldData(fieldType.name(), script, scriptFactory);
         }
     }
 
-    private final Index index;
     private final String fieldName;
     private final Script script;
     private final LongScriptFieldScript.Factory scriptFactory;
     private final SetOnce<LongScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
 
-    private ScriptLongFieldData(Index index, String fieldName, Script script, LongScriptFieldScript.Factory scriptFactory) {
-        this.index = index;
+    private ScriptLongFieldData(String fieldName, Script script, LongScriptFieldScript.Factory scriptFactory) {
         this.fieldName = fieldName;
         this.script = script;
         this.scriptFactory = scriptFactory;

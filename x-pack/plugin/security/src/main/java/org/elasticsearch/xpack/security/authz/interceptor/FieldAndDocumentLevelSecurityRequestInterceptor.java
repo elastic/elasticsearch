@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.MemoizedSupplier;
@@ -48,21 +47,20 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                     threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 for (String index : indicesRequest.indices()) {
                     IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-                    if (null == indexAccessControl) {
-                        listener.onFailure(new ElasticsearchSecurityException("Missing index access control for [" + index + "]"));
-                        return;
-                    } else {
+                    if (indexAccessControl != null) {
                         boolean fieldLevelSecurityEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                         boolean documentLevelSecurityEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                         if ((fieldLevelSecurityEnabled || documentLevelSecurityEnabled) && licenseChecker.get()) {
                             logger.trace("intercepted request for index [{}] with field level access controls [{}] " +
-                                            "document level access controls [{}]. disabling conflicting features",
-                                    index, fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
+                                "document level access controls [{}]. disabling conflicting features",
+                                index, fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
                             disableFeatures(indicesRequest, fieldLevelSecurityEnabled, documentLevelSecurityEnabled, listener);
                             return;
                         }
-                        logger.trace("intercepted request for index [{}] without field or document level access controls", index);
+                    } else {
+                        assert false : "missing index access control for index [" + index + "]";
                     }
+                    logger.trace("intercepted request for index [{}] without field or document level access controls", index);
                 }
             }
         }

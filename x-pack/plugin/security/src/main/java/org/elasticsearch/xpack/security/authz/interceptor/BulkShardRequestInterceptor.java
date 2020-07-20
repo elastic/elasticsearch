@@ -51,12 +51,8 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
             for (BulkItemRequest bulkItemRequest : bulkShardRequest.items()) {
                 IndicesAccessControl.IndexAccessControl indexAccessControl =
                     indicesAccessControl.getIndexPermissions(bulkItemRequest.index());
-                if (null == indexAccessControl) {
-                    listener.onFailure(new ElasticsearchSecurityException("Missing index access control for [" +
-                            bulkItemRequest.index() + "]"));
-                    return;
-                } else {
-                    boolean found = false;
+                boolean found = false;
+                if (indexAccessControl != null) {
                     boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
                     boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                     if (fls || dls) {
@@ -64,14 +60,17 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                             found = true;
                             logger.trace("aborting bulk item update request for index [{}]", bulkItemRequest.index());
                             bulkItemRequest.abort(bulkItemRequest.index(), new ElasticsearchSecurityException("Can't execute a bulk " +
-                                    "item request with update requests embedded if field or document level security is enabled",
-                                    RestStatus.BAD_REQUEST));
+                                "item request with update requests embedded if field or document level security is enabled",
+                                RestStatus.BAD_REQUEST));
                         }
                     }
-                    if (found == false) {
-                        logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
-                                bulkItemRequest.index());
-                    }
+                } else {
+                    assert false : "missing index access control for bulk item index [" + bulkItemRequest.index() + "]";
+                }
+
+                if (found == false) {
+                    logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
+                        bulkItemRequest.index());
                 }
             }
         }

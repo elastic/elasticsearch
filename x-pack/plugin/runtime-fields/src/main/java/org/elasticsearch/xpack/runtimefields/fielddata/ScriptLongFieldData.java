@@ -111,11 +111,6 @@ public final class ScriptLongFieldData extends IndexNumericFieldData implements 
     @Override
     public void clear() {}
 
-    @Override
-    public Index index() {
-        return index;
-    }
-
     public static class ScriptLongLeafFieldData implements LeafNumericFieldData {
         private final ScriptLongDocValues scriptBinaryDocValues;
 

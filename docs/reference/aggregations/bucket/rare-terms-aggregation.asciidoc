@@ -13,16 +13,16 @@ aggregation
 --------------------------------------------------
 PUT /products
 {
-    "mappings": {
-        "properties": {
-            "genre": {
-                "type": "keyword"
-            },
-            "product": {
-                "type": "keyword"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "genre": {
+        "type": "keyword"
+      },
+      "product": {
+        "type": "keyword"
+      }
     }
+  }
 }
 
 POST /products/_doc/_bulk?refresh
@@ -62,10 +62,10 @@ A `rare_terms` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "rare_terms": {
-        "field": "the_field",
-        "max_doc_count": 1
-    }
+  "rare_terms": {
+    "field": "the_field",
+    "max_doc_count": 1
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -89,13 +89,13 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "rare_terms" : {
-                "field" : "genre"
-            }
-        }
+  "aggs": {
+    "genres": {
+      "rare_terms": {
+        "field": "genre"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -105,17 +105,17 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "genres" : {
-            "buckets" : [
-                {
-                    "key" : "swing",
-                    "doc_count" : 1
-                }
-            ]
+  ...
+  "aggregations": {
+    "genres": {
+      "buckets": [
+        {
+          "key": "swing",
+          "doc_count": 1
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -127,14 +127,14 @@ one document.  If we increase the `max_doc_count` to `2`, we'll see some more bu
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "rare_terms" : {
-                "field" : "genre",
-                "max_doc_count": 2
-            }
-        }
+  "aggs": {
+    "genres": {
+      "rare_terms": {
+        "field": "genre",
+        "max_doc_count": 2
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -144,21 +144,21 @@ This now shows the "jazz" term which has a `doc_count` of 2":
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "genres" : {
-            "buckets" : [
-                {
-                    "key" : "swing",
-                    "doc_count" : 1
-                },
-                {
-                    "key" : "jazz",
-                    "doc_count" : 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "genres": {
+      "buckets": [
+        {
+          "key": "swing",
+          "doc_count": 1
+        },
+        {
+          "key": "jazz",
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -277,15 +277,15 @@ It is possible to filter the values for which buckets will be created. This can 
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-            "rare_terms" : {
-                "field" : "genre",
-                "include" : "swi*",
-                "exclude" : "electro*"
-            }
-        }
+  "aggs": {
+    "genres": {
+      "rare_terms": {
+        "field": "genre",
+        "include": "swi*",
+        "exclude": "electro*"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -305,15 +305,15 @@ strings that represent the terms as they are found in the index:
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-             "rare_terms" : {
-                 "field" : "genre",
-                 "include" : ["swing", "rock"],
-                 "exclude" : ["jazz"]
-             }
-         }
+  "aggs": {
+    "genres": {
+      "rare_terms": {
+        "field": "genre",
+        "include": [ "swing", "rock" ],
+        "exclude": [ "jazz" ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -328,14 +328,14 @@ had a value.
 --------------------------------------------------
 GET /_search
 {
-    "aggs" : {
-        "genres" : {
-             "rare_terms" : {
-                 "field" : "genre",
-                 "missing": "N/A" <1>
-             }
-         }
+  "aggs": {
+    "genres": {
+      "rare_terms": {
+        "field": "genre",
+        "missing": "N/A" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 

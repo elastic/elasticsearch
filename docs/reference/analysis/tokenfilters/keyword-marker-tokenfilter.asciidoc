@@ -317,7 +317,7 @@ You cannot specify this parameter and `keywords_pattern`.
 `keywords_path`::
 +
 --
-(Required*, array of strings)
+(Required*, string)
 Path to a file that contains a list of keywords. Tokens that match these
 keywords are not stemmed.
 
@@ -380,7 +380,7 @@ PUT /my_index
       "filter": {
         "my_custom_keyword_marker_filter": {
           "type": "keyword_marker",
-          "keywords": "analysis/example_word_list.txt"
+          "keywords_path": "analysis/example_word_list.txt"
         }
       }
     }

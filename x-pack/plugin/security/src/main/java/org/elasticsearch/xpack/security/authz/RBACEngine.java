@@ -266,9 +266,17 @@ public class RBACEngine implements AuthorizationEngine {
                     // information such as the index and the incoming address of the request
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
-            } else if (isAsyncSearchRelatedAction(action)) {
-                //index-level permissions are handled by the search action that is triggered internally by the submit API.
-                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+            } else if (isAsyncRelatedAction(action)) {
+                if (SubmitAsyncSearchAction.NAME.equals(action)) {
+                    // authorize submit async search but don't fill in the DLS/FLS permissions
+                    // the `null` IndicesAccessControl parameter indicates that this action has *not* determined
+                    // which DLS/FLS controls should be applied to this action
+                    listener.onResponse(new IndexAuthorizationResult(true, null));
+                } else {
+                    // async-search actions other than submit have a custom security layer that checks if the current user is
+                    // the same as the user that submitted the original request so no additional checks are needed here.
+                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                }
             } else {
                 assert false : "only scroll and async-search related requests are known indices api that don't " +
                     "support retrieving the indices they relate to";

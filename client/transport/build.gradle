@@ -34,12 +34,6 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
-dependencyLicenses {
-  dependencies = project.configurations.runtime.fileCollection {
-    it.group.startsWith('org.elasticsearch') == false
-  }
-}
-
 forbiddenApisTest {
   // we don't use the core test-framework, no lucene classes present so we don't want the es-test-signatures to
   // be pulled in

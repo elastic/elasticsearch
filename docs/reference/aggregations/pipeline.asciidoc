@@ -54,22 +54,6 @@ metric `"the_sum"`:
 --------------------------------------------------
 POST /_search
 {
-<<<<<<< HEAD
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"timestamp",
-                "calendar_interval":"day"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "lemmings" } <1>
-                },
-                "the_movavg":{
-                    "moving_avg":{ "buckets_path": "the_sum" } <2>
-                }
-            }
-=======
   "aggs": {
     "my_date_histo": {
       "date_histogram": {
@@ -78,11 +62,10 @@ POST /_search
       },
       "aggs": {
         "the_sum": {
-          "sum": { "field": "lemmings" }              <1>
+          "sum": { "field": "lemmings" } <1>
         },
-        "the_deriv": {
-          "derivative": { "buckets_path": "the_sum" } <2>
->>>>>>> 2c5d6e9c951... [DOCS] Reformat agg snippets to use two-space indents (#59912)
+        "the_movavg": {
+          "moving_avg": { "buckets_path": "the_sum" } <2>
         }
       }
     }

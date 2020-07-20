@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -193,18 +192,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             this(name, true, true, Collections.emptyMap(), scalingFactor);
         }
 
-        ScaledFloatFieldType(ScaledFloatFieldType other) {
-            super(other);
-            this.scalingFactor = other.scalingFactor;
-        }
-
         public double getScalingFactor() {
             return scalingFactor;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new ScaledFloatFieldType(this);
         }
 
         @Override
@@ -308,19 +297,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             } else {
                 return new DocValueFormat.Decimal(format);
             }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            return scalingFactor == ((ScaledFloatFieldType) o).scalingFactor;
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Double.hashCode(scalingFactor);
         }
 
         /**
@@ -541,11 +517,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public void clear() {
             scaledFieldData.clear();
-        }
-
-        @Override
-        public Index index() {
-            return scaledFieldData.index();
         }
 
         @Override

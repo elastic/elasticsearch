@@ -130,7 +130,7 @@ public class IpFieldMapper extends FieldMapper {
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -146,15 +146,6 @@ public class IpFieldMapper extends FieldMapper {
 
         public IpFieldType(String name) {
             this(name, true, true, Collections.emptyMap());
-        }
-
-        IpFieldType(IpFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IpFieldType(this);
         }
 
         @Override

@@ -16,9 +16,15 @@ import static java.util.Collections.emptyList;
 public class EmptyPayload implements Payload {
 
     private final Type type;
+    private final TimeValue timeTook;
 
     public EmptyPayload(Type type) {
+        this(type, TimeValue.ZERO);
+    }
+
+    public EmptyPayload(Type type, TimeValue timeTook) {
         this.type = type;
+        this.timeTook = timeTook;
     }
 
     @Override
@@ -33,7 +39,7 @@ public class EmptyPayload implements Payload {
 
     @Override
     public TimeValue timeTook() {
-        return TimeValue.ZERO;
+        return timeTook;
     }
 
     @Override

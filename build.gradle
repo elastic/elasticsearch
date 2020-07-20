@@ -251,7 +251,8 @@ allprojects {
         } else {
           // Link to non-shadowed dependant projects
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
-          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + dep.name.replaceAll('\\.', '/') + '/' + dep.version
+          String externalLinkName = upstreamProject.archivesBaseName
+          String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
           project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
         }
       }
@@ -434,8 +435,7 @@ allprojects {
     }
     doLast {
       configurations.findAll { it.isCanBeResolved() &&
-        it.name.equals("testCompile") == false &&
-        it.name.equals("compile") == false
+        ((it instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) && it.canSafelyBeResolved())
       }.each { it.resolve() }
     }
   }
@@ -470,17 +470,6 @@ allprojects {
       checkPart2.configure { dependsOn 'check' }
     } else {
       checkPart1.configure { dependsOn 'check' }
-    }
-  }
-}
-
-// TODO: remove this once 7.7 is released and the 7.x branch is 7.8
-subprojects {
-  pluginManager.withPlugin('elasticsearch.testclusters') {
-    testClusters.all {
-      if (org.elasticsearch.gradle.info.BuildParams.isSnapshotBuild() == false) {
-        systemProperty 'es.datastreams_feature_enabled', 'true'
-      }
     }
   }
 }

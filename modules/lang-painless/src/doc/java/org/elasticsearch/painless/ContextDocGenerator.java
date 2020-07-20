@@ -801,7 +801,11 @@ public final class ContextDocGenerator {
                 javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape") ||
                 javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils") ||
                 javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth");
+                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth") ||
+                javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils") ||
+                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils") ||
+                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils") ||
+                javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
     }
 
     private ContextDocGenerator() {

@@ -19,11 +19,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -33,6 +35,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base implementation for concrete aggregators.
@@ -103,6 +106,26 @@ public abstract class AggregatorBase extends Aggregator {
             }
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
+    }
+
+    /**
+     * Returns a converter for point values if it's safe to use the indexed data instead of
+     * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
+     * top level, and the underlying field is indexed, and the index is sorted in the right order.
+     *
+     * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
+     * be used in this case.
+     *
+     * @param config The config for the values source metric.
+     */
+    public final Function<byte[], Number> pointReaderIfAvailable(ValuesSourceConfig config) {
+        if (context.query() != null && context.query().getClass() != MatchAllDocsQuery.class) {
+            return null;
+        }
+        if (parent != null) {
+            return null;
+        }
+        return config.getPointReaderOrNull();
     }
 
     /**

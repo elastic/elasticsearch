@@ -36,9 +36,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.ResolutionStrategy;
-import org.gradle.api.artifacts.dsl.RepositoryHandler;
-import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
-import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.BasePlugin;
@@ -59,16 +56,10 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 import static org.elasticsearch.gradle.util.Util.toStringable;
@@ -83,11 +74,11 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // apply global test task failure listener
         project.getRootProject().getPluginManager().apply(TestFailureReportingPlugin.class);
-
+        // common repositories setup
+        project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
 
         configureConfigurations(project);
-        configureRepositories(project);
         configureCompile(project);
         configureInputNormalization(project);
         configureTestTasks(project);
@@ -149,77 +140,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         disableTransitiveDeps.accept(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
     }
 
-    private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
-
-    /**
-     * Adds repositories used by ES dependencies
-     */
-    public static void configureRepositories(Project project) {
-        // ensure all repositories use secure urls
-        // TODO: remove this with gradle 7.0, which no longer allows insecure urls
-        project.getRepositories().all(repository -> {
-            if (repository instanceof MavenArtifactRepository) {
-                final MavenArtifactRepository maven = (MavenArtifactRepository) repository;
-                assertRepositoryURIIsSecure(maven.getName(), project.getPath(), maven.getUrl());
-                for (URI uri : maven.getArtifactUrls()) {
-                    assertRepositoryURIIsSecure(maven.getName(), project.getPath(), uri);
-                }
-            } else if (repository instanceof IvyArtifactRepository) {
-                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository;
-                assertRepositoryURIIsSecure(ivy.getName(), project.getPath(), ivy.getUrl());
-            }
-        });
-        RepositoryHandler repos = project.getRepositories();
-        if (System.getProperty("repos.mavenLocal") != null) {
-            // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
-            // useful for development ie. bwc tests where we install stuff in the local repository
-            // such that we don't have to pass hardcoded files to gradle
-            repos.mavenLocal();
-        }
-        repos.jcenter();
-
-        String luceneVersion = VersionProperties.getLucene();
-        if (luceneVersion.contains("-snapshot")) {
-            // extract the revision number from the version with a regex matcher
-            Matcher matcher = LUCENE_SNAPSHOT_REGEX.matcher(luceneVersion);
-            if (matcher.find() == false) {
-                throw new GradleException("Malformed lucene snapshot version: " + luceneVersion);
-            }
-            String revision = matcher.group(1);
-            MavenArtifactRepository luceneRepo = repos.maven(repo -> {
-                repo.setName("lucene-snapshots");
-                repo.setUrl("https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + revision);
-            });
-            repos.exclusiveContent(exclusiveRepo -> {
-                exclusiveRepo.filter(
-                    descriptor -> descriptor.includeVersionByRegex("org\\.apache\\.lucene", ".*", ".*-snapshot-" + revision)
-                );
-                exclusiveRepo.forRepositories(luceneRepo);
-            });
-        }
-    }
-
-    private static final List<String> SECURE_URL_SCHEMES = Arrays.asList("file", "https", "s3");
-
-    private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false) {
-            String url;
-            try {
-                url = uri.toURL().toString();
-            } catch (MalformedURLException e) {
-                throw new IllegalStateException(e);
-            }
-            final String message = String.format(
-                Locale.ROOT,
-                "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
-                repositoryName,
-                projectPath,
-                url
-            );
-            throw new GradleException(message);
-        }
-    }
-
     /**
      * Adds compiler settings to the project
      */
@@ -279,14 +199,6 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 compilerArgs.add("--release");
                 compilerArgs.add(targetCompatibilityVersion.getMajorVersion());
             });
-        });
-
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
-            // Ensure that when we are compiling against the "original" JAR that we also include any "shadow" dependencies on the compile
-            // classpath
-            Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
-            Configuration apiConfig = project.getConfigurations().getByName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME);
-            shadowConfig.getDependencies().all(dependency -> apiConfig.getDependencies().add(dependency));
         });
     }
 

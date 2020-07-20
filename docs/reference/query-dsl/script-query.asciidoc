@@ -7,6 +7,9 @@
 Filters documents based on a provided <<modules-scripting-using,script>>. The
 `script` query is typically used in a <<query-filter-context,filter context>>.
 
+WARNING: Using scripts can result in slower search speeds. See
+<<scripts-and-search-speed>>.
+
 
 [[script-query-ex-request]]
 ==== Example request

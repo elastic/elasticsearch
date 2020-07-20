@@ -31,3 +31,7 @@ Pattern class] using these characters:
 |`u` | UNICODE_CASE              | `'Ɛ' ==~ /ɛ/iu`
 |`x` | COMMENTS (aka extended)   | `'a' ==~ /a #comment/x`
 |=======================================================================
+
+WARNING: A poorly written regular expression can significantly slow search speed
+and other operations. If possible, avoid using regular expressions, particularly
+in frequently run scripts.

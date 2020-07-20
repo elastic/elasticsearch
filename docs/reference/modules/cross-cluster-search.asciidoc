@@ -377,12 +377,16 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported configurations
 
-Generally, <<gateway-nodes-selection,gateway node>> can search remote
-clusters that are one major version ahead or behind the gateway node's version.
-Gateway nodes can also search remote clusters that are being
+Generally, <<gateway-nodes-selection, cross cluster search>> can search remote
+clusters that are one major version ahead or behind the coordinating node's
+version. Cross cluster search can also search remote clusters that are being
 <<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
 "upgrade to" version are compatible with the gateway node.
-For example, a gateway node running {es} 6.0 can search a remote cluster running {es} 7.0, but cannot search a remote cluster running {es} 7.1.
+
+EXAMPLE: A coordinating node running {es} 5.6 can search a remote cluster
+running {es} 6.8, but that cluster can not be upgraded to 7.1. In this case
+you should first upgrade the coordinating node to 7.1 and then upgrade remote
+cluster.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.

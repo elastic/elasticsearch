@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-configuring-url]]
-=== Adding custom URLs to machine learning results
+= Adding custom URLs to machine learning results
 
 When you create an advanced {anomaly-job} or edit any {anomaly-jobs} in {kib},
 you can optionally attach one or more custom URLs. 
@@ -49,7 +49,7 @@ You can also specify these custom URL settings when you create or update
 
 [float]
 [[ml-configuring-url-strings]]
-==== String substitution in custom URLs
+== String substitution in custom URLs
 
 You can use dollar sign ($) delimited tokens in a custom URL. These tokens are
 substituted for the values of the corresponding fields in the anomaly records.

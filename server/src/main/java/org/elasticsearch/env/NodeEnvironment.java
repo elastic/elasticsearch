@@ -139,6 +139,14 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
+        public void removeIndex(String index) {
+            ArrayList<ShardId> shardIds = this.indices.get(index);
+            if (shardIds != null) {
+                this.numShards -= shardIds.size();
+                this.indices.remove(index);
+            }
+        }
+
         public int getNumShards(String index) {
             ArrayList<ShardId> shardIds = this.indices.get(index);
             return shardIds == null ? 0 : shardIds.size();
@@ -636,14 +644,19 @@ public final class NodeEnvironment  implements Closeable {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths;
+        NodePath nodePath = null;
         if (shardPath == null || shardPath.getNodePath() == null) {
             paths = availableShardPaths(shardId);
         } else {
-            paths = new Path[]{shardPath.getNodePath().resolve(shardId)};
+            nodePath = shardPath.getNodePath();
+            paths = new Path[]{nodePath.resolve(shardId)};
         }
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
         IOUtils.rm(paths);
+        if (nodePath != null) {
+            nodePath.removeShard(shardId);
+        }
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
@@ -721,6 +734,7 @@ public final class NodeEnvironment  implements Closeable {
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
         IOUtils.rm(indexPaths);
+        Arrays.stream(this.nodePaths).forEach(p -> p.removeIndex(index.getName()));
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);

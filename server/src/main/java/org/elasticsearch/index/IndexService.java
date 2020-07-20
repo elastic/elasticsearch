@@ -499,10 +499,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         indexShard = newShards.remove(shardId);
         shards = unmodifiableMap(newShards);
         closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
-        NodeEnvironment.NodePath nodePath = indexShard.shardPath().getNodePath();
-        if (nodePath != null) {
-            nodePath.removeShard(sId);
-        }
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 

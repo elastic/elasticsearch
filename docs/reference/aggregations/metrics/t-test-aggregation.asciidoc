@@ -14,11 +14,11 @@ A `t_test` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "t_test": {
-        "a": "value_before",
-        "b": "value_after",
-        "type": "paired"
-    }
+  "t_test": {
+    "a": "value_before",
+    "b": "value_after",
+    "type": "paired"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -30,16 +30,16 @@ the node start up time in a meaningful way.
 --------------------------------------------------
 GET node_upgrade/_search
 {
-    "size": 0,
-    "aggs" : {
-        "startup_time_ttest" : {
-            "t_test" : {
-                "a" : {"field": "startup_time_before"}, <1>
-                "b" : {"field": "startup_time_after"}, <2>
-                "type": "paired" <3>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "startup_time_ttest": {
+      "t_test": {
+        "a": { "field": "startup_time_before" },  <1>
+        "b": { "field": "startup_time_after" },   <2>
+        "type": "paired"                          <3>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:node_upgrade]
@@ -54,13 +54,13 @@ population means). Smaller p-value means the null hypothesis is more likely to b
 [source,console-result]
 --------------------------------------------------
 {
-    ...
+  ...
 
-   "aggregations": {
-      "startup_time_ttest": {
-         "value":  0.1914368843365979 <1>
-      }
-   }
+ "aggregations": {
+    "startup_time_ttest": {
+      "value": 0.1914368843365979 <1>
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -84,30 +84,30 @@ nodes using terms filters on the group name field:
 --------------------------------------------------
 GET node_upgrade/_search
 {
-    "size" : 0,
-    "aggs" : {
-        "startup_time_ttest" : {
-            "t_test" : {
-                "a" : {
-                    "field" : "startup_time_before", <1>
-                    "filter" : {
-                        "term" : {
-                            "group" : "A"  <2>
-                        }
-                    }
-                },
-                "b" : {
-                    "field" : "startup_time_before", <3>
-                    "filter" : {
-                        "term" : {
-                            "group" : "B" <4>
-                        }
-                    }
-                },
-                "type" : "heteroscedastic" <5>
+  "size": 0,
+  "aggs": {
+    "startup_time_ttest": {
+      "t_test": {
+        "a": {
+          "field": "startup_time_before",         <1>
+          "filter": {
+            "term": {
+              "group": "A"                        <2>
             }
-        }
+          }
+        },
+        "b": {
+          "field": "startup_time_before",         <3>
+          "filter": {
+            "term": {
+              "group": "B"                        <4>
+            }
+          }
+        },
+        "type": "heteroscedastic"                 <5>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:node_upgrade]
@@ -121,13 +121,13 @@ GET node_upgrade/_search
 [source,console-result]
 --------------------------------------------------
 {
-    ...
+  ...
 
-   "aggregations": {
-      "startup_time_ttest": {
-         "value":  0.2981858007281437 <1>
-      }
-   }
+ "aggregations": {
+    "startup_time_ttest": {
+      "value": 0.2981858007281437 <1>
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -146,26 +146,26 @@ a script to recalculate them on-the-fly:
 --------------------------------------------------
 GET node_upgrade/_search
 {
-    "size": 0,
-    "aggs" : {
-        "startup_time_ttest" : {
-            "t_test" : {
-                "a": {
-                    "script" : {
-                        "lang": "painless",
-                        "source": "doc['startup_time_before'].value - params.adjustment", <1>
-                        "params" : {
-                            "adjustment" : 10   <2>
-                        }
-                    }
-                },
-                "b": {
-                    "field": "startup_time_after" <3>
-                },
-                "type": "paired"
+  "size": 0,
+  "aggs": {
+    "startup_time_ttest": {
+      "t_test": {
+        "a": {
+          "script": {
+            "lang": "painless",
+            "source": "doc['startup_time_before'].value - params.adjustment", <1>
+            "params": {
+              "adjustment": 10                                                <2>
             }
-        }
+          }
+        },
+        "b": {
+          "field": "startup_time_after"                                       <3>
+        },
+        "type": "paired"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:node_upgrade]

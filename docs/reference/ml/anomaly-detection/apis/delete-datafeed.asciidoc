@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-datafeed]]
-=== Delete {dfeeds} API
+= Delete {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -11,12 +11,12 @@
 Deletes an existing {dfeed}.
 
 [[ml-delete-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `DELETE _ml/datafeeds/<feed_id>`
 
 [[ml-delete-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * Unless you use the `force` parameter, you must stop the {dfeed} before you
 can delete it.
@@ -25,21 +25,21 @@ can delete it.
 <<security-privileges>>.
 
 [[ml-delete-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-delete-datafeed-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `force`::
 (Optional, boolean) Use to forcefully delete a started {dfeed}; this method is
 quicker than stopping and deleting the {dfeed}.
 
 [[ml-delete-datafeed-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

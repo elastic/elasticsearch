@@ -62,9 +62,6 @@ public class TransportTestAction extends HandledTransportAction<TestRequest, Tes
 
     @Override
     protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> origListener) {
-        if (request.targets.isEmpty()) {
-            origListener.onFailure(new IllegalArgumentException("rem"));
-        }
         ActionListener<TestResponse> groupedListener = new GroupedActionListener<>(
             ActionListener.map(origListener, resp -> new TestResponse(resp.stream().allMatch(AcknowledgedResponse::isAcknowledged))),
             request.targets.size()

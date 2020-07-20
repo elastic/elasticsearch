@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 final class TestRequest extends ActionRequest {
     final String id;
     final Set<Target> targets;
@@ -55,15 +57,17 @@ final class TestRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (targets.isEmpty()) {
+            validationException = addValidationError("targets are empty", validationException);
+        }
+        return validationException;
     }
 
     @Override
     public Task createTask(long taskId, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         final String description = "id=" + id;
-        return new BlockingCancellableTask(taskId, type, action, description, parentTaskId, headers) {
-
-        };
+        return new BlockingCancellableTask(taskId, type, action, description, parentTaskId, headers);
     }
 
     @Override

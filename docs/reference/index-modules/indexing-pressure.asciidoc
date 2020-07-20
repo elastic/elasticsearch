@@ -20,7 +20,7 @@ certain limits, new indexing work will be rejected.
 === Indexing stages
 
 External indexing operations go through three stages: coordinating, primary, and
-replica. See <<basic-write-model,here>>.
+replica. See <<basic-write-model>>.
 
 [discrete]
 [[memory-limits]]
@@ -48,12 +48,12 @@ This design means that as indexing pressure builds on nodes, they will naturally
 stop accepting coordinating and primary work in favor of outstanding replica
 work.
 
-The default limit `indexing_pressure.memory.limit` (10%) is generously sized and
-should only be modified after careful consideration. Only indexing requests
-contribute to this limit meaning that there is additional indexing overhead
-(buffers, listeners, etc) which also require heap space. Finally, other
-components of Elasticsearch also require memory. Configuring this limit to be
-too high can starve other system components of operating memory.
+The `indexing_pressure.memory.limit` setting's 10% default limit is generously
+sized. You should only change it after careful consideration. Only indexing
+requests contribute to this limit. This means there is additional indexing
+overhead (buffers, listeners, etc) which also require heap space. Other
+components of {es} also require memory. Setting this limit too high can deny
+operating memory to other operations and components.
 
 [discrete]
 [[indexing-pressure-monitoring]]
@@ -68,8 +68,7 @@ retrieve indexing pressure metrics.
 === Indexing pressure settings
 
 `indexing_pressure`::
-
-  A configurable limit for the number of outstanding bytes consumed by indexing
-  requests. New coordinating and primary operations will start being rejected
-  once this limit is hit. New replica operations will start being rejected when
-  replica operations consumed 1.5X this limit. Defaults to `10%` of the heap.
+  Number of outstanding bytes that may be consumed by indexing requests. When
+  this limit is reached or exceeded, the node will reject new coordinating and
+  primary operations. When replica operations consume 1.5x this limit, the node
+  will reject new replica operations. Defaults to 10% of the heap.

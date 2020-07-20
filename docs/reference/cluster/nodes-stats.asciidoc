@@ -2158,7 +2158,7 @@ Contains statistics for current indexing load.
 (integer)
 Bytes consumed by indexing requests in the coordinating or primary stage. This
 value is not the sum of coordinating_bytes and primary_bytes as a node can reuse
-the coordinating bytes if the primary is executed locally.
+the coordinating bytes if the primary stage is executed locally.
 
 `coordinating_bytes`::
 (integer)

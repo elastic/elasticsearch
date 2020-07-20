@@ -40,6 +40,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 public class DocCountFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "doc_count";
+    public static final String CANONICAL_NAME = "_doc_count";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -96,7 +97,7 @@ public class DocCountFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(name());
+            return new DocValuesFieldExistsQuery(CANONICAL_NAME);
         }
 
         @Override
@@ -127,7 +128,9 @@ public class DocCountFieldMapper extends FieldMapper {
                     "Field [" + fieldType().name() + "] must be a positive integer.");
             }
 
-            final Field docCount = new NumericDocValuesField(name(), value.longValue());
+            // Since we allow a single doc_count field per mapping, we can use a
+            // a canonical name for the Lucene field.
+            final Field docCount = new NumericDocValuesField(CANONICAL_NAME, value.longValue());
             context.doc().add(docCount);
         }
     }

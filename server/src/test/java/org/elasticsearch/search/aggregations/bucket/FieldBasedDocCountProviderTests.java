@@ -42,7 +42,7 @@ import static java.util.Collections.singleton;
 
 public class FieldBasedDocCountProviderTests extends AggregatorTestCase {
 
-    private static final String DOC_COUNT_FIELD = "doc_count";
+    private static final String DOC_COUNT_FIELD = DocCountFieldMapper.CANONICAL_NAME;
     private static final String NUMBER_FIELD = "number";
 
     public void testDocsWithDocCount() throws IOException {

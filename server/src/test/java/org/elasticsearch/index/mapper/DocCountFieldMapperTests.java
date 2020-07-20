@@ -91,7 +91,7 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        assertEquals(10L, doc.rootDoc().getField(DOC_COUNT_FIELD).numericValue());
+        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.CANONICAL_NAME).numericValue());
     }
 
     public void testReadDocCounts() throws Exception {
@@ -128,7 +128,7 @@ public class DocCountFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON
             )
         );
-        assertEquals(10L, doc.rootDoc().getField(DOC_COUNT_FIELD).numericValue());
+        assertEquals(10L, doc.rootDoc().getField(DocCountFieldMapper.CANONICAL_NAME).numericValue());
     }
 
     /**

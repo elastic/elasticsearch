@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 
 import java.io.IOException;
 
@@ -35,8 +36,10 @@ public class FieldBasedDocCountProvider implements DocCountProvider {
     private final String docCountFieldName;
     private NumericDocValues docCountValues;
 
-    public FieldBasedDocCountProvider(String docCountFieldName) {
-        this.docCountFieldName = docCountFieldName;
+    public FieldBasedDocCountProvider() {
+        // Since we allow a single doc_count field per mapping, we use a constant
+        // canonical name for the Lucene field.
+        this.docCountFieldName = DocCountFieldMapper.CANONICAL_NAME;
     }
 
     @Override
@@ -56,5 +59,4 @@ public class FieldBasedDocCountProvider implements DocCountProvider {
             docCountValues = null;
         }
     }
-
 }

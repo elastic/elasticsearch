@@ -23,19 +23,35 @@ import org.elasticsearch.common.Rounding;
 
 /**
  * This class acts as a bit of syntactic sugar to let us pass in the rounding info for dates or the interval for numeric histograms as one
- * class, to save needing three different interfaces.
+ * class, to save needing three different interfaces.  Sometimes I miss C-style Union structures.
  */
 public class CompositeBucketStrategy {
     public enum Strategy {
-        ROUNDING, INTERVAL, NONE
+        ROUNDING,
+        INTERVAL,
+        NONE
     }
 
-    private Strategy strategy;
-    private Rounding rounding;
-    private double interval;
+    private final Strategy strategy;
+    private final Rounding rounding;
+    private final double interval;
 
-    CompositeBucketStrategy(Strategy strategy) {
-        this.strategy = strategy;
+    public CompositeBucketStrategy() {
+        this.strategy = Strategy.NONE;
+        this.rounding = null;
+        this.interval = Double.NaN;
+    }
+
+    public CompositeBucketStrategy(Rounding rounding) {
+        this.strategy = Strategy.ROUNDING;
+        this.rounding = rounding;
+        this.interval = Double.NaN;
+    }
+
+    public CompositeBucketStrategy(double interval) {
+        this.strategy = Strategy.INTERVAL;
+        this.interval = interval;
+        this.rounding = null;
     }
 
     public Rounding getRounding() {
@@ -43,18 +59,8 @@ public class CompositeBucketStrategy {
         return rounding;
     }
 
-    public void setRounding(Rounding rounding) {
-        assert strategy == Strategy.ROUNDING;
-        this.rounding = rounding;
-    }
-
     public double getInterval() {
         assert strategy == Strategy.INTERVAL;
         return interval;
-    }
-
-    public void setInterval(double interval) {
-        assert strategy == Strategy.INTERVAL;
-        this.interval = interval;
     }
 }

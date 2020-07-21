@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 

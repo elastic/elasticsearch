@@ -21,7 +21,6 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RollupInfoTransportActionTests extends ESTestCase {
     private XPackLicenseState licenseState;

@@ -18,7 +18,6 @@ import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class VectorsInfoTransportActionTests extends ESTestCase {
 

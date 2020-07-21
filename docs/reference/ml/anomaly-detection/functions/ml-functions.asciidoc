@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-functions]]
-== Function reference
+= Function reference
 
 The {ml-features} include analysis functions that provide a wide variety of
 flexible ways to analyze data for anomalies.
@@ -41,17 +41,3 @@ These functions effectively ignore empty buckets.
 * <<ml-rare-functions>>
 * <<ml-sum-functions>>
 * <<ml-time-functions>>
-
-include::functions/count.asciidoc[]
-
-include::functions/geo.asciidoc[]
-
-include::functions/info.asciidoc[]
-
-include::functions/metric.asciidoc[]
-
-include::functions/rare.asciidoc[]
-
-include::functions/sum.asciidoc[]
-
-include::functions/time.asciidoc[]

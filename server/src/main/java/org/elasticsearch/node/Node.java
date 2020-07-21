@@ -1115,7 +1115,7 @@ public class Node implements Closeable {
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client) {
         final InternalClusterInfoService service = new InternalClusterInfoService(settings, clusterService, threadPool, client);
-        // Add to listen for state changes (when nodes are added)
+        // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
         clusterService.addListener(service);
         return service;
     }

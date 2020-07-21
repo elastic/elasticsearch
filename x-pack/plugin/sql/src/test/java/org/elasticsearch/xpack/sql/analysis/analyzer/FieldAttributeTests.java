@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
+import java.util.stream.Collectors;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -31,6 +35,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -178,13 +183,13 @@ public class FieldAttributeTests extends ESTestCase {
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(
                 "Found 1 problem\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [\"test\".\"bar\", \"test\".\"test.bar\"]",
+                        + "matches any of [line 1:22 [\"test\".\"bar\"], line 1:22 [\"test\".\"test.bar\"]]",
                 ex.getMessage());
 
         ex = expectThrows(VerificationException.class, () -> plan("SELECT test.test FROM test"));
         assertEquals(
                 "Found 1 problem\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [\"test\".\"test\", \"test\".\"test.test\"]",
+                        + "matches any of [line 1:23 [\"test\".\"test\"], line 1:23 [\"test\".\"test.test\"]]",
                 ex.getMessage());
 
         LogicalPlan plan = plan("SELECT test.test FROM test AS x");
@@ -200,5 +205,76 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attribute, instanceOf(FieldAttribute.class));
         assertThat(attribute.qualifier(), is("test"));
         assertThat(attribute.name(), is("test.test"));
+    }
+
+    public void testAggregations() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        LogicalPlan plan = plan("SELECT sum(salary) AS s FROM test");
+        assertThat(plan, instanceOf(Aggregate.class));
+
+        Aggregate aggregate = (Aggregate) plan;
+        assertThat(aggregate.aggregates(), hasSize(1));
+        NamedExpression attribute = aggregate.aggregates().get(0);
+        assertThat(attribute, instanceOf(Alias.class));
+        assertThat(attribute.name(), is("s"));
+        assertThat(aggregate.groupings(), hasSize(0));
+
+        plan = plan("SELECT gender AS g, sum(salary) AS s FROM test GROUP BY g");
+        assertThat(plan, instanceOf(Aggregate.class));
+
+        aggregate = (Aggregate) plan;
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertThat(aggregates, hasSize(2));
+        assertThat(aggregates.get(0), instanceOf(Alias.class));
+        assertThat(aggregates.get(1), instanceOf(Alias.class));
+        List<String> names = aggregate.aggregates().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertThat(names, contains("g", "s"));
+
+        List<Expression> groupings = aggregate.groupings();
+        assertThat(groupings, hasSize(1));
+        FieldAttribute grouping = (FieldAttribute) groupings.get(0);
+        assertThat(grouping.name(), is("gender"));
+    }
+
+    public void testGroupByAmbiguity() {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
+        EsIndex index = new EsIndex("test", mapping);
+        getIndexResult = IndexResolution.valid(index);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+
+        VerificationException ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, sum(salary) AS g FROM test GROUP BY g"));
+        assertEquals(
+            "Found 1 problem\nline 1:57: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+                "matches any of [line 1:8 [g], line 1:21 [g]]",
+            ex.getMessage());
+
+        ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, max(salary) AS g, min(salary) AS g FROM test GROUP BY g"));
+        assertEquals(
+            "Found 1 problem\nline 1:75: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+                "matches any of [line 1:8 [g], line 1:21 [g], line 1:39 [g]]",
+            ex.getMessage());
+
+        ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, last_name AS g, sum(salary) AS s FROM test GROUP BY g"));
+        assertEquals(
+            "Found 1 problem\nline 1:73: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
+                "matches any of [line 1:8 [g], line 1:21 [g]]",
+            ex.getMessage());
+
+        ex = expectThrows(VerificationException.class,
+            () -> plan("SELECT gender AS g, last_name AS g, min(salary) AS m, max(salary) as m FROM test GROUP BY g, m"));
+        assertEquals(
+            "Found 2 problems\n" +
+                "line 1:91: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:8 [g], line 1:21 [g]]\n" +
+                "line 1:94: Reference [m] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:37 [m], line 1:55 [m]]",
+            ex.getMessage());
     }
 }

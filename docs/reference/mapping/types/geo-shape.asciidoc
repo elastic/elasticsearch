@@ -190,7 +190,7 @@ are provided:
 |Strategy |Supported Shapes |Supported Queries |Multiple Shapes
 
 |`recursive`  |<<input-structure, All>> |`INTERSECTS`, `DISJOINT`, `WITHIN`, `CONTAINS` |Yes
-|`term` |<<point, Points>> |`INTERSECTS` |Yes
+|`term` |<<geo-point-type, Points>> |`INTERSECTS` |Yes
 
 |=======================================================================
 

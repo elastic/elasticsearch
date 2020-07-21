@@ -115,7 +115,7 @@ Let's create two users in the native realm.
 
 . Log in to {kib} with the `elastic` built-in user.
 
-. Go to the *Management / Security / Users* page:
+. Open the menu. Go to *Stack Management > Security > Users*.
 +
 --
 [role="screenshot"]
@@ -124,7 +124,7 @@ image::security/images/management-builtin-users.jpg["User management screenshot 
 In this example, you can see a list of built-in users.
 --
 
-. Click *Create new user*. For example, create a user for yourself:
+. Click *Create user*. For example, create a user for yourself:
 +
 --
 [role="screenshot"]

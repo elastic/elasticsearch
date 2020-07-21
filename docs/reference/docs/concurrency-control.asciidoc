@@ -48,7 +48,7 @@ You can see the assigned sequence number and primary term in the
   "result": "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 2/"_primary_term" : $body._primary_term/]
+// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no": $body._seq_no/ s/"_primary_term": 2/"_primary_term": $body._primary_term/]
 
 
 Elasticsearch keeps tracks of the sequence number and primary term of the last

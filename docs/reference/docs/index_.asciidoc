@@ -263,7 +263,7 @@ The API returns the following result:
   "result": "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful": 2/"successful": 1/]
 
 [float]
 [[optimistic-concurrency-control-index]]
@@ -524,7 +524,7 @@ The API returns the following result:
   "result": "created"
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
+// TESTRESPONSE[s/"successful": 2/"successful": 1/]
 
 Use the `_create` resource to index a document into the `twitter` index if
 no document with that ID exists:

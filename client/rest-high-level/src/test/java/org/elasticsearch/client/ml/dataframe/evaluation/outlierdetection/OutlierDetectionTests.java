@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
@@ -30,14 +30,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class BinarySoftClassificationTests extends AbstractXContentTestCase<BinarySoftClassification> {
+public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetection> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    public static BinarySoftClassification createRandom() {
+    public static OutlierDetection createRandom() {
         List<EvaluationMetric> metrics = new ArrayList<>();
         if (randomBoolean()) {
             metrics.add(new AucRocMetric(randomBoolean()));
@@ -46,33 +46,33 @@ public class BinarySoftClassificationTests extends AbstractXContentTestCase<Bina
             metrics.add(new PrecisionMetric(Arrays.asList(randomArray(1,
                 4,
                 Double[]::new,
-                BinarySoftClassificationTests::randomDouble))));
+                OutlierDetectionTests::randomDouble))));
         }
         if (randomBoolean()) {
             metrics.add(new RecallMetric(Arrays.asList(randomArray(1,
                 4,
                 Double[]::new,
-                BinarySoftClassificationTests::randomDouble))));
+                OutlierDetectionTests::randomDouble))));
         }
         if (randomBoolean()) {
             metrics.add(new ConfusionMatrixMetric(Arrays.asList(randomArray(1,
                 4,
                 Double[]::new,
-                BinarySoftClassificationTests::randomDouble))));
+                OutlierDetectionTests::randomDouble))));
         }
         return randomBoolean() ?
-            new BinarySoftClassification(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            new BinarySoftClassification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+            new OutlierDetection(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
+            new OutlierDetection(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
     @Override
-    protected BinarySoftClassification createTestInstance() {
+    protected OutlierDetection createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected BinarySoftClassification doParseInstance(XContentParser parser) throws IOException {
-        return BinarySoftClassification.fromXContent(parser);
+    protected OutlierDetection doParseInstance(XContentParser parser) throws IOException {
+        return OutlierDetection.fromXContent(parser);
     }
 
     @Override

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -26,20 +26,18 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
- * Evaluation of binary soft classification methods, e.g. outlier detection.
- * This is useful to evaluate problems where a model outputs a probability of whether
- * a data frame row belongs to one of two groups.
+ * Evaluation of outlier detection results.
  */
-public class BinarySoftClassification implements Evaluation {
+public class OutlierDetection implements Evaluation {
 
-    public static final ParseField NAME = new ParseField("binary_soft_classification");
+    public static final ParseField NAME = new ParseField("outlier_detection", "binary_soft_classification");
 
     private static final ParseField ACTUAL_FIELD = new ParseField("actual_field");
     private static final ParseField PREDICTED_PROBABILITY_FIELD = new ParseField("predicted_probability_field");
     private static final ParseField METRICS = new ParseField("metrics");
 
-    public static final ConstructingObjectParser<BinarySoftClassification, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(), a -> new BinarySoftClassification((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
+    public static final ConstructingObjectParser<OutlierDetection, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(), a -> new OutlierDetection((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
@@ -48,7 +46,7 @@ public class BinarySoftClassification implements Evaluation {
             (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c), METRICS);
     }
 
-    public static BinarySoftClassification fromXContent(XContentParser parser) {
+    public static OutlierDetection fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -72,11 +70,11 @@ public class BinarySoftClassification implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
-    public BinarySoftClassification(String actualField, String predictedProbabilityField,
-                                    @Nullable List<EvaluationMetric> metrics) {
+    public OutlierDetection(String actualField, String predictedProbabilityField,
+                            @Nullable List<EvaluationMetric> metrics) {
         this.actualField = ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD);
         this.predictedProbabilityField = ExceptionsHelper.requireNonNull(predictedProbabilityField, PREDICTED_PROBABILITY_FIELD);
-        this.metrics = initMetrics(metrics, BinarySoftClassification::defaultMetrics);
+        this.metrics = initMetrics(metrics, OutlierDetection::defaultMetrics);
     }
 
     private static List<EvaluationMetric> defaultMetrics() {
@@ -87,7 +85,7 @@ public class BinarySoftClassification implements Evaluation {
             new ConfusionMatrix(Arrays.asList(0.25, 0.5, 0.75)));
     }
 
-    public BinarySoftClassification(StreamInput in) throws IOException {
+    public OutlierDetection(StreamInput in) throws IOException {
         this.actualField = in.readString();
         this.predictedProbabilityField = in.readString();
         this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
@@ -145,7 +143,7 @@ public class BinarySoftClassification implements Evaluation {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BinarySoftClassification that = (BinarySoftClassification) o;
+        OutlierDetection that = (OutlierDetection) o;
         return Objects.equals(actualField, that.actualField)
             && Objects.equals(predictedProbabilityField, that.predictedProbabilityField)
             && Objects.equals(metrics, that.metrics);

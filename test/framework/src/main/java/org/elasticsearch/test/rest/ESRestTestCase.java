@@ -1435,9 +1435,14 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
-            boolean matches = warnings.stream().anyMatch(message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
-                PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
-            return matches == false;
+            if (warnings.size() > 0) {
+                boolean matches = warnings.stream().anyMatch(
+                    message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
+                    PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+                return matches == false;
+            } else {
+                return false;
+            }
         });
         request.setOptions(options);
     }

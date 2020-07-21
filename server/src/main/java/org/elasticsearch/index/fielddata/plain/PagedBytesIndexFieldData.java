@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.LeafReader;
@@ -56,7 +58,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 
 public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
-
+    private static final Logger logger = LogManager.getLogger(PagedBytesIndexFieldData.class);
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -74,13 +76,12 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
                 IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), valuesSourceType, cache, breakerService,
+            return new PagedBytesIndexFieldData(fieldType.name(), valuesSourceType, cache, breakerService,
                     minFrequency, maxFrequency, minSegmentSize);
         }
     }
 
     public PagedBytesIndexFieldData(
-        IndexSettings indexSettings,
         String fieldName,
         ValuesSourceType valuesSourceType,
         IndexFieldDataCache cache,
@@ -89,7 +90,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         double maxFrequency,
         int minSegmentSize
     ) {
-        super(indexSettings, fieldName, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
+        super(fieldName, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
     }
 
     @Override

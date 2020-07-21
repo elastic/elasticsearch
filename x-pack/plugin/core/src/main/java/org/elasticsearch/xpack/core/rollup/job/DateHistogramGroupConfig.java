@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -314,24 +315,31 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
 
     public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
                                                              ActionRequestValidationException validationException) {
-
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
-            if (fieldCaps.containsKey("date") && fieldCaps.size() == 1) {
-                if (fieldCaps.get("date").isAggregatable()) {
-                    return;
-                } else {
-                    validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                                    "but is not.");
+            boolean matchesDateType = false;
+            for (String dateType : RollupField.DATE_FIELD_MAPPER_TYPES) {
+                if (fieldCaps.containsKey(dateType) && fieldCaps.size() == 1) {
+                    matchesDateType |= true;
+                    if (fieldCaps.get(dateType).isAggregatable()) {
+                        return;
+                    } else {
+                        validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                            "but is not.");
+                    }
                 }
-
-            } else {
-                validationException.addValidationError("The field referenced by a date_histo group must be a [date] type across all " +
-                        "indices in the index pattern.  Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
             }
-        }
-        validationException.addValidationError("Could not find a [date] field with name [" + field + "] in any of the indices matching " +
+            if (matchesDateType == false) {
+                validationException.addValidationError("The field referenced by a date_histo group must be one of type [" +
+                    Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] across all " +
+                    "indices in the index pattern.  Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+            }
+        } else {
+            validationException.addValidationError("Could not find one of [" +
+                Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] fields with name [" +
+                field + "] in any of the indices matching " +
                 "the index pattern.");
+        }
     }
 
     @Override

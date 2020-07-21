@@ -6,22 +6,25 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
@@ -29,7 +32,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     private final String runtimeType;
     private final Script script;
-    private final ScriptService scriptService;
+    private final ScriptCompiler scriptCompiler;
 
     protected ScriptFieldMapper(
         String simpleName,
@@ -38,17 +41,17 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         CopyTo copyTo,
         String runtimeType,
         Script script,
-        ScriptService scriptService
+        ScriptCompiler scriptCompiler
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.runtimeType = runtimeType;
         this.script = script;
-        this.scriptService = scriptService;
+        this.scriptCompiler = scriptCompiler;
     }
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new ScriptFieldMapper.Builder(simpleName(), scriptService).init(this);
+        return new ScriptFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
     }
 
     @Override
@@ -59,8 +62,8 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        RuntimeKeywordMappedFieldType fieldType = (RuntimeKeywordMappedFieldType) fieldType();
-        fieldType.doXContentBody(builder, includeDefaults, params);
+        AbstractScriptMappedFieldType fieldType = (AbstractScriptMappedFieldType) fieldType();
+        fieldType.mapperXContentBody(builder, params);
     }
 
     @Override
@@ -74,6 +77,35 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     }
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
+
+        static final Map<String, BiFunction<Builder, BuilderContext, MappedFieldType>> FIELD_TYPE_RESOLVER = Map.of(
+            KeywordFieldMapper.CONTENT_TYPE,
+            (builder, context) -> {
+                StringScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    StringScriptFieldScript.CONTEXT
+                );
+                return new ScriptKeywordMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            },
+            NumberType.LONG.typeName(),
+            (builder, context) -> {
+                LongScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
+                    builder.script.getValue(),
+                    LongScriptFieldScript.CONTEXT
+                );
+                return new ScriptLongMappedFieldType(
+                    builder.buildFullName(context),
+                    builder.script.getValue(),
+                    factory,
+                    builder.meta.getValue()
+                );
+            }
+        );
 
         private static ScriptFieldMapper toType(FieldMapper in) {
             return (ScriptFieldMapper) in;
@@ -95,7 +127,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         private final Parameter<Script> script = new Parameter<>(
             "script",
             true,
-            null,
+            () -> null,
             Builder::parseScript,
             mapper -> toType(mapper).script
         ).setValidator(script -> {
@@ -104,11 +136,11 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
             }
         });
 
-        private final ScriptService scriptService;
+        private final ScriptCompiler scriptCompiler;
 
-        protected Builder(String name, ScriptService scriptService) {
+        protected Builder(String name, ScriptCompiler scriptCompiler) {
             super(name);
-            this.scriptService = scriptService;
+            this.scriptCompiler = scriptCompiler;
         }
 
         @Override
@@ -118,22 +150,21 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public ScriptFieldMapper build(BuilderContext context) {
-            MappedFieldType mappedFieldType;
-            if (runtimeType.getValue().equals("keyword")) {
-                StringScriptFieldScript.Factory factory = scriptService.compile(script.getValue(), StringScriptFieldScript.CONTEXT);
-                mappedFieldType = new RuntimeKeywordMappedFieldType(buildFullName(context), script.getValue(), factory, meta.getValue());
-            } else {
-                throw new IllegalArgumentException("runtime_type [" + runtimeType + "] not supported");
+            BiFunction<Builder, BuilderContext, MappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
+                runtimeType.getValue()
+            );
+            if (fieldTypeResolver == null) {
+                throw new IllegalArgumentException("runtime_type [" + runtimeType.getValue() + "] not supported");
             }
             // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
             return new ScriptFieldMapper(
                 name,
-                mappedFieldType,
+                fieldTypeResolver.apply(this, context),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
                 runtimeType.getValue(),
                 script.getValue(),
-                scriptService
+                scriptCompiler
             );
         }
 
@@ -148,19 +179,23 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
 
-        private final SetOnce<ScriptService> scriptService = new SetOnce<>();
-
-        public void setScriptService(ScriptService scriptService) {
-            this.scriptService.set(scriptService);
-        }
-
         @Override
         public ScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
 
-            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, scriptService.get());
+            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, new ScriptCompiler() {
+                @Override
+                public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+                    return parserContext.queryShardContextSupplier().get().compile(script, context);
+                }
+            });
             builder.parse(name, parserContext, node);
             return builder;
         }
+    }
+
+    @FunctionalInterface
+    private interface ScriptCompiler {
+        <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context);
     }
 }

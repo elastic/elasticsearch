@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -23,6 +22,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -33,20 +33,16 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
-public final class ScriptBinaryFieldData extends AbstractIndexComponent
-    implements
-        IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>,
-        SearchLookupAware {
+public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>, SearchLookupAware {
 
     public static class Builder implements IndexFieldData.Builder {
 
+        private final Script script;
         private final StringScriptFieldScript.Factory scriptFactory;
 
-        public Builder(StringScriptFieldScript.Factory scriptFactory) {
+        public Builder(Script script, StringScriptFieldScript.Factory scriptFactory) {
+            this.script = script;
             this.scriptFactory = scriptFactory;
         }
 
@@ -58,23 +54,24 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
             CircuitBreakerService breakerService,
             MapperService mapperService
         ) {
-            return new ScriptBinaryFieldData(indexSettings, fieldType.name(), scriptFactory);
+            return new ScriptBinaryFieldData(fieldType.name(), script, scriptFactory);
         }
     }
 
     private final String fieldName;
+    private final Script script;
     private final StringScriptFieldScript.Factory scriptFactory;
     private final SetOnce<StringScriptFieldScript.LeafFactory> leafFactory = new SetOnce<>();
 
-    private ScriptBinaryFieldData(IndexSettings indexSettings, String fieldName, StringScriptFieldScript.Factory scriptFactory) {
-        super(indexSettings);
+    private ScriptBinaryFieldData(String fieldName, Script script, StringScriptFieldScript.Factory scriptFactory) {
         this.fieldName = fieldName;
+        this.script = script;
         this.scriptFactory = scriptFactory;
     }
 
+    @Override
     public void setSearchLookup(SearchLookup searchLookup) {
-        // TODO wire the params from the mappings definition, we don't parse them yet
-        this.leafFactory.set(scriptFactory.newFactory(Collections.emptyMap(), searchLookup));
+        this.leafFactory.set(scriptFactory.newFactory(script.getParams(), searchLookup));
     }
 
     @Override
@@ -92,11 +89,7 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         try {
             return loadDirect(context);
         } catch (Exception e) {
-            if (e instanceof ElasticsearchException) {
-                throw (ElasticsearchException) e;
-            } else {
-                throw new ElasticsearchException(e);
-            }
+            throw ExceptionsHelper.convertToElastic(e);
         }
     }
 
@@ -155,18 +148,6 @@ public final class ScriptBinaryFieldData extends AbstractIndexComponent
         @Override
         public void close() {
 
-        }
-    }
-
-    static class ScriptBinaryResult {
-        private final List<String> result = new ArrayList<>();
-
-        void accept(String value) {
-            this.result.add(value);
-        }
-
-        List<String> getResult() {
-            return result;
         }
     }
 }

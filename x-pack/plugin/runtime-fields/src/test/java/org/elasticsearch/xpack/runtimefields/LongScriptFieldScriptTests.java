@@ -101,13 +101,14 @@ public class LongScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     @Override
     protected IntFunction<List<Long>> newInstance(LongScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context)
         throws IOException {
-        List<Long> results = new ArrayList<>();
-        LongScriptFieldScript script = leafFactory.newInstance(context, results::add);
+        LongScriptFieldScript script = leafFactory.newInstance(context);
         return docId -> {
-            results.clear();
-            script.setDocument(docId);
-            script.execute();
-            return results;
+            script.runForDoc(docId);
+            List<Long> list = new ArrayList<>(script.count());
+            for (int i = 0; i < script.count(); i++) {
+                list.add(script.values()[i]);
+            }
+            return list;
         };
     }
 }

@@ -40,12 +40,12 @@ Guidelines
 ----
 GET _search
 {
-    "query": {
-        "sample": {
-            "foo": "baz",
-            "bar": true
-        }
+  "query": {
+    "sample": {
+      "foo": "baz",
+      "bar": true
     }
+  }
 }
 ----
 // TEST[skip: REMOVE THIS COMMENT.]
@@ -107,12 +107,12 @@ For example:
 ----
 GET my_time_series_index/_search
 {
-    "query": {
-        "sample": {
-            "foo": "baz",
-            "bar": false
-        }
+  "query": {
+    "sample": {
+      "foo": "baz",
+      "bar": false
     }
+  }
 }
 ----
 // TEST[skip: REMOVE THIS COMMENT.]

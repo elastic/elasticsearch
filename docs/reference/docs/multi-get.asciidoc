@@ -10,16 +10,16 @@ Retrieves multiple JSON documents by ID.
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "twitter",
-            "_id" : "1"
-        },
-        {
-            "_index" : "twitter",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_index": "twitter",
+      "_id": "1"
+    },
+    {
+      "_index": "twitter",
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -130,16 +130,16 @@ If you specify an index in the request URI, only the document IDs are required i
 --------------------------------------------------
 GET /twitter/_mget
 {
-    "docs" : [
-        {
-            "_type" : "_doc",
-            "_id" : "1"
-        },
-        {
-            "_type" : "_doc",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_type": "_doc",
+      "_id": "1"
+    },
+    {
+      "_type": "_doc",
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -149,14 +149,14 @@ And type:
 --------------------------------------------------
 GET /test/_doc/_mget
 {
-    "docs" : [
-        {
-            "_id" : "1"
-        },
-        {
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_id": "1"
+    },
+    {
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -167,7 +167,7 @@ You can use the `ids` element to simplify the request:
 --------------------------------------------------
 GET /twitter/_mget
 {
-    "ids" : ["1", "2"]
+  "ids" : ["1", "2"]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -189,29 +189,29 @@ from document 3 but filters out the `user.location` field.
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1",
-            "_source" : false
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2",
-            "_source" : ["field3", "field4"]
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "3",
-            "_source" : {
-                "include": ["user"],
-                "exclude": ["user.location"]
-            }
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_type": "_doc",
+      "_id": "1",
+      "_source": false
+    },
+    {
+      "_index": "test",
+      "_type": "_doc",
+      "_id": "2",
+      "_source": [ "field3", "field4" ]
+    },
+    {
+      "_index": "test",
+      "_type": "_doc",
+      "_id": "3",
+      "_source": {
+        "include": [ "user" ],
+        "exclude": [ "user.location" ]
+      }
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -230,20 +230,20 @@ For example, the following request retrieves `field1` and `field2` from document
 --------------------------------------------------
 GET /_mget
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1",
-            "stored_fields" : ["field1", "field2"]
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2",
-            "stored_fields" : ["field3", "field4"]
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_type": "_doc",
+      "_id": "1",
+      "stored_fields": [ "field1", "field2" ]
+    },
+    {
+      "_index": "test",
+      "_type": "_doc",
+      "_id": "2",
+      "stored_fields": [ "field3", "field4" ]
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -255,15 +255,15 @@ overridden to return `field3` and `field4` for document 2.
 --------------------------------------------------
 GET /test/_doc/_mget?stored_fields=field1,field2
 {
-    "docs" : [
-        {
-            "_id" : "1"
-        },
-        {
-            "_id" : "2",
-            "stored_fields" : ["field3", "field4"]
-        }
-    ]
+  "docs": [
+    {
+      "_id": "1"
+    },
+    {
+      "_id": "2",
+      "stored_fields": [ "field3", "field4" ]
+    }
+  ]
 }
 --------------------------------------------------
 
@@ -278,18 +278,18 @@ and fetches `test/_doc/1` from the shard corresponding to routing key `key2`.
 --------------------------------------------------
 GET /_mget?routing=key1
 {
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1",
-            "routing" : "key2"
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2"
-        }
-    ]
+  "docs": [
+    {
+      "_index": "test",
+      "_type": "_doc",
+      "_id": "1",
+      "routing": "key2"
+    },
+    {
+      "_index": "test",
+      "_type": "_doc",
+      "_id": "2"
+    }
+  ]
 }
 --------------------------------------------------

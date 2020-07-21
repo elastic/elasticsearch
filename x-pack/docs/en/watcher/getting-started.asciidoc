@@ -119,10 +119,10 @@ adds a 404 error to the `logs` index:
 --------------------------------------------------
 POST logs/event
 {
-    "timestamp" : "2015-05-17T18:12:07.613Z",
-    "request" : "GET index.html",
-    "status_code" : 404,
-    "message" : "Error: File not found"
+  "timestamp": "2015-05-17T18:12:07.613Z",
+  "request": "GET index.html",
+  "status_code": 404,
+  "message": "Error: File not found"
 }
 --------------------------------------------------
 // TEST[continued]

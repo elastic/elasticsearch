@@ -68,16 +68,12 @@ public class TransportTestAction extends HandledTransportAction<TestRequest, Tes
             ActionListener.map(origListener, resp -> new TestResponse(resp.stream().allMatch(AcknowledgedResponse::isAcknowledged))),
             request.targets.size()
         );
-        boolean executeLocally = false;
         for (TestRequest.Target target : request.targets) {
             if (target.nodeId.equals(transportService.getLocalNode().getId())) {
-                executeLocally = true;
+                executeSubRequestLocally((BlockingCancellableTask) task, request.id, groupedListener);
             } else {
                 dispatchSubRequest(task, request, target, groupedListener);
             }
-        }
-        if (executeLocally) {
-            executeRequest((BlockingCancellableTask) task, request.id, groupedListener);
         }
     }
 
@@ -152,7 +148,7 @@ public class TransportTestAction extends HandledTransportAction<TestRequest, Tes
             }));
     }
 
-    void executeRequest(BlockingCancellableTask task, String requestId, ActionListener<TestResponse> listener) {
+    void executeSubRequestLocally(BlockingCancellableTask task, String requestId, ActionListener<TestResponse> listener) {
         logger.info("execute sub request {} on node {}", requestId, transportService.getLocalNode().getName());
         final CountDownLatch latch = latches.computeIfAbsent(requestId, k -> new CountDownLatch(1));
         task.setOnCancel(latch::countDown);

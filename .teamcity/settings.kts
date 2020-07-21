@@ -44,22 +44,6 @@ project {
             onDependencyCancel = FailureAction.ADD_PROBLEM
         }
 
-        features {
-            notifications {
-                buildFailed = true
-                buildFinishedSuccessfully = true
-                notifierSettings = slackNotifier {
-                    connection = "PROJECT_EXT_7"
-                    sendTo = "#es-build-test"
-                    messageFormat = verboseMessageFormat {
-                        addStatusText = true
-                        addChanges = true
-                        addBranch = true
-                    }
-                }
-            }
-        }
-
         triggers {
             vcs {
                 perCheckinTriggering = true

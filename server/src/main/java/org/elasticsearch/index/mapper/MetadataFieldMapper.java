@@ -88,6 +88,30 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
+    public static class ConfigurableTypeParser implements TypeParser {
+
+        final Function<ParserContext, MetadataFieldMapper> defaultMapperParser;
+        final Function<ParserContext, Builder> builderFunction;
+
+        public ConfigurableTypeParser(Function<ParserContext, MetadataFieldMapper> defaultMapperParser,
+                                      Function<ParserContext, Builder> builderFunction) {
+            this.defaultMapperParser = defaultMapperParser;
+            this.builderFunction = builderFunction;
+        }
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            Builder builder = builderFunction.apply(parserContext);
+            builder.parse(name, parserContext, node);
+            return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(ParserContext parserContext) {
+            return defaultMapperParser.apply(parserContext);
+        }
+    }
+
     public abstract static class Builder extends ParametrizedFieldMapper.Builder {
 
         protected Builder(String name) {

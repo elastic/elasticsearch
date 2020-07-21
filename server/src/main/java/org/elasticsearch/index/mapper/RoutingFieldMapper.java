@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class RoutingFieldMapper extends MetadataFieldMapper {
 
@@ -80,20 +79,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public Builder parse(String name, Map<String, Object> node,
-                                                      ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder();
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new RoutingFieldMapper(Defaults.REQUIRED);
-        }
-    }
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> new RoutingFieldMapper(Defaults.REQUIRED),
+        c -> new Builder()
+    );
 
     static final class RoutingFieldType extends StringFieldType {
 

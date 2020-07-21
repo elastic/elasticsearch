@@ -110,7 +110,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         MapperParsingException ex = expectThrows(MapperParsingException.class,
                 () -> createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping)));
 
-        assertEquals("The `enabled` setting for the `_field_names` field has been deprecated and removed but is still used in index [{}]. "
+        assertEquals("The `enabled` setting for the `_field_names` field has been deprecated and removed. "
                 + "Please remove it from your mappings and templates.", ex.getMessage());
     }
 

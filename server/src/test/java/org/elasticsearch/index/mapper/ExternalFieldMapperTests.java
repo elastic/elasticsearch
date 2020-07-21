@@ -67,7 +67,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
                 singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
-                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()), MapperPlugin.NOOP_FIELD_FILTER);
+                singletonMap(ExternalMetadataMapper.CONTENT_TYPE, ExternalMetadataMapper.PARSER), MapperPlugin.NOOP_FIELD_FILTER);
 
         Supplier<QueryShardContext> queryShardContext = () -> {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);

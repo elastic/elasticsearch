@@ -18,7 +18,6 @@ import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -86,21 +85,9 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-
-        @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-            throws MapperParsingException {
-            Builder builder = new Builder();
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext parserContext) {
-            return new DataStreamTimestampFieldMapper(new TimestampFieldType(), false);
-        }
-    }
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> new DataStreamTimestampFieldMapper(new TimestampFieldType(), false), c -> new Builder()
+    );
 
     private final String path = DEFAULT_PATH;
     private final boolean enabled;

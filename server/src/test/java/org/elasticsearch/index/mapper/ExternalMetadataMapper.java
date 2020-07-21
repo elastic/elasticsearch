@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class ExternalMetadataMapper extends MetadataFieldMapper {
 
@@ -80,19 +79,6 @@ public class ExternalMetadataMapper extends MetadataFieldMapper {
 
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-
-        @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
-                                                       ParserContext parserContext) throws MapperParsingException {
-            return new Builder();
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new ExternalMetadataMapper();
-        }
-
-    }
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new ExternalMetadataMapper(), c -> new Builder());
 
 }

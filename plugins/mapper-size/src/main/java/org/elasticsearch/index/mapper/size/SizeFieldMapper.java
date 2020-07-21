@@ -22,15 +22,14 @@ package org.elasticsearch.index.mapper.size;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
@@ -55,26 +54,14 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabled.getValue(),
-                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
+            return new SizeFieldMapper(enabled.getValue(), new NumberFieldType(NAME, NumberType.INTEGER));
         }
     }
 
-    public static class TypeParser implements MetadataFieldMapper.TypeParser {
-        @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
-                                                       ParserContext parserContext) throws MapperParsingException {
-            Builder builder = new Builder();
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-
-        @Override
-        public MetadataFieldMapper getDefault(ParserContext context) {
-            return new SizeFieldMapper(new Explicit<>(false, false),
-                new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
-        }
-    }
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
+        c -> new SizeFieldMapper(new Explicit<>(false, false), new NumberFieldType(NAME, NumberType.INTEGER)),
+        c -> new Builder()
+    );
 
     private final Explicit<Boolean> enabled;
 
@@ -113,7 +100,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             return;
         }
         final int value = context.sourceToParse().source().length();
-        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(name(), value, true, true, true));
+        context.doc().addAll(NumberType.INTEGER.createFields(name(), value, true, true, true));
     }
 
     @Override

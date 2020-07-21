@@ -1495,23 +1495,10 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-            return Map.of("_data_stream_timestamp", new MetadataFieldMapper.TypeParser() {
-
-                @Override
-                public MetadataFieldMapper.Builder parse(String name,
-                                                            Map<String, Object> node,
-                                                            ParserContext parserContext) throws MapperParsingException {
-                    MetadataTimestampFieldBuilder builder = new MetadataTimestampFieldBuilder();
-                    builder.parse(name, parserContext, node);
-                    return builder;
-                }
-
-                @Override
-                public MetadataFieldMapper getDefault(ParserContext parserContext) {
-                    return new MetadataTimestampFieldMapper(false);
-                }
-
-            });
+            return Map.of("_data_stream_timestamp", new MetadataFieldMapper.ConfigurableTypeParser(
+                c -> new MetadataTimestampFieldMapper(false),
+                c -> new MetadataTimestampFieldBuilder())
+            );
         }
     }
 

@@ -35,29 +35,29 @@ one hour or greater.  A rollup job might look like this:
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "60m"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "60m"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
@@ -153,14 +153,14 @@ For example, take this query:
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]
@@ -210,34 +210,34 @@ Finally, we can use those grouping fields we defined to construct a more complic
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "timeline": {
-            "date_histogram": {
-                "field": "timestamp",
-                "fixed_interval": "7d"
+  "size": 0,
+  "aggregations": {
+    "timeline": {
+      "date_histogram": {
+        "field": "timestamp",
+        "fixed_interval": "7d"
+      },
+      "aggs": {
+        "nodes": {
+          "terms": {
+            "field": "node"
+          },
+          "aggs": {
+            "max_temperature": {
+              "max": {
+                "field": "temperature"
+              }
             },
-            "aggs": {
-                "nodes": {
-                    "terms": {
-                        "field": "node"
-                    },
-                    "aggs": {
-                        "max_temperature": {
-                            "max": {
-                                "field": "temperature"
-                            }
-                        },
-                        "avg_voltage": {
-                            "avg": {
-                                "field": "voltage"
-                            }
-                        }
-                    }
-                }
+            "avg_voltage": {
+              "avg": {
+                "field": "voltage"
+              }
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]

@@ -17,9 +17,9 @@ The structure looks like this:
 [source,js]
 --------------------------------------------------
 "<query>" : {
-    "inner_hits" : {
-        <inner_hits_options>
-    }
+  "inner_hits" : {
+    <inner_hits_options>
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -29,28 +29,28 @@ If `inner_hits` is defined on a query that supports it then each search hit will
 [source,js]
 --------------------------------------------------
 "hits": [
-     {
-        "_index": ...,
-        "_type": ...,
-        "_id": ...,
-        "inner_hits": {
-           "<inner_hits_name>": {
-              "hits": {
-                 "total": ...,
-                 "hits": [
-                    {
-                       "_type": ...,
-                       "_id": ...,
-                       ...
-                    },
-                    ...
-                 ]
-              }
-           }
-        },
-        ...
-     },
-     ...
+  {
+    "_index": ...,
+    "_type": ...,
+    "_id": ...,
+    "inner_hits": {
+      "<inner_hits_name>": {
+        "hits": {
+          "total": ...,
+          "hits": [
+            {
+              "_type": ...,
+              "_id": ...,
+               ...
+            },
+            ...
+          ]
+        }
+      }
+    },
+    ...
+  },
+  ...
 ]
 --------------------------------------------------
 // NOTCONSOLE
@@ -117,7 +117,7 @@ POST test/_search
     "nested": {
       "path": "comments",
       "query": {
-        "match": {"comments.number" : 2}
+        "match": { "comments.number": 2 }
       },
       "inner_hits": {} <1>
     }
@@ -134,9 +134,9 @@ An example of a response snippet that could be generated from the above search r
 {
   ...,
   "hits": {
-    "total" : {
-        "value": 1,
-        "relation": "eq"
+    "total": {
+      "value": 1,
+      "relation": "eq"
     },
     "max_score": 1.0,
     "hits": [
@@ -149,9 +149,9 @@ An example of a response snippet that could be generated from the above search r
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total" : {
-                  "value": 1,
-                  "relation": "eq"
+              "total": {
+                "value": 1,
+                "relation": "eq"
               },
               "max_score": 1.0,
               "hits": [
@@ -240,11 +240,11 @@ POST test/_search
     "nested": {
       "path": "comments",
       "query": {
-        "match": {"comments.text" : "words"}
+        "match": { "comments.text": "words" }
       },
       "inner_hits": {
-        "_source" : false,
-        "docvalue_fields" : [
+        "_source": false,
+        "docvalue_fields": [
           "comments.text.keyword"
         ]
       }
@@ -262,9 +262,9 @@ Response not included in text but tested for completeness sake.
 {
   ...,
   "hits": {
-    "total" : {
-        "value": 1,
-        "relation": "eq"
+    "total": {
+      "value": 1,
+      "relation": "eq"
     },
     "max_score": 1.0444684,
     "hits": [
@@ -277,7 +277,7 @@ Response not included in text but tested for completeness sake.
         "inner_hits": {
           "comments": { <1>
             "hits": {
-              "total" : {
+              "total": {
                 "value": 1,
                 "relation": "eq"
               },
@@ -502,6 +502,7 @@ An example of a response snippet that could be generated from the above search r
     "hits": [
       {
         "_index": "test",
+        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": {

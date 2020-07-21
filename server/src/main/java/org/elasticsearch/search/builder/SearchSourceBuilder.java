@@ -306,7 +306,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             // TODO update version after backporting runtime fields
             out.writeMap(runtimeMappings);
         } else {
-            throw new IllegalArgumentException("[" + RUNTIME_MAPPINGS.getPreferredName() + "] are not supported on nodes older than 8.0.0");
+            if (runtimeMappings != null && false == runtimeMappings.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "[" + RUNTIME_MAPPINGS.getPreferredName() + "] are not supported on nodes older than 8.0.0"
+                );
+            }
         }
     }
 

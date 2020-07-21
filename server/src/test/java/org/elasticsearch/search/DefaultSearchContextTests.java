@@ -62,6 +62,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -103,6 +105,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
+        when(indexService.newQueryShardContext(anyInt(), any(), any(), any(), any())).thenReturn(queryShardContext);
+        when(queryShardContext.getMapperService()).thenReturn(mapperService);
 
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);

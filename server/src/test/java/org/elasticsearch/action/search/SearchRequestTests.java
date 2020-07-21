@@ -37,6 +37,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -80,11 +81,31 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
+        if (version.before(Version.V_8_0_0)) {
+            // Runtime mappings aren't supported before 8.0.0 and will fail the serialization
+            if (searchRequest.source() != null) {
+                searchRequest.source().runtimeMappings(null);
+            }
+        }
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
         assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
         assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
+    }
+
+    public void testRuntimeMappingsNotSupported() throws IOException {
+        SearchRequest searchRequest = createSearchRequest();
+        if (searchRequest.source() == null) {
+            searchRequest.source(new SearchSourceBuilder());
+        }
+        searchRequest.source().runtimeMappings(Map.of("foo", "bar"));
+        Version version = randomValueOtherThanMany(v -> v.onOrAfter(Version.V_8_0_0), () -> VersionUtils.randomVersion(random()));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version)
+        );
+        assertThat(e.getMessage(), equalTo("[runtime_mappings] are not supported on nodes older than 8.0.0"));
     }
 
     public void testIllegalArguments() {

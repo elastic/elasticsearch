@@ -52,6 +52,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -362,6 +363,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.collapse(randomCollapseBuilder.get());
+        }
+        if (randomBoolean()) {
+            builder.runtimeMappings(Map.of("foo", Map.of("bar", "baz")));
         }
         return builder;
     }

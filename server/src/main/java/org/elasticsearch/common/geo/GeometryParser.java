@@ -66,59 +66,31 @@ public final class GeometryParser {
     /**
      * Returns a geometry format object that can parse and then serialize the object back to the same format.
      */
-    public GeometryFormat<Geometry> geometryFormat(XContentParser parser) {
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            return new GeometryFormat<Geometry>() {
-                @Override
-                public Geometry fromXContent(XContentParser parser) throws IOException {
-                    return null;
-                }
-
-                @Override
-                public XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-                    if (geometry != null) {
-                        // We don't know the format of the original geometry - so going with default
-                        return GeoJson.toXContent(geometry, builder, params);
-                    } else {
-                        return builder.nullValue();
-                    }
-                }
-            };
-        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            return new GeometryFormat<Geometry>() {
-                @Override
-                public Geometry fromXContent(XContentParser parser) throws IOException {
-                    return geoJsonParser.fromXContent(parser);
-                }
-
-                @Override
-                public XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-                    if (geometry != null) {
-                        return GeoJson.toXContent(geometry, builder, params);
-                    } else {
-                        return builder.nullValue();
-                    }
-                }
-            };
-        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new GeometryFormat<Geometry>() {
-                @Override
-                public Geometry fromXContent(XContentParser parser) throws IOException, ParseException {
-                    return wellKnownTextParser.fromWKT(parser.text());
-                }
-
-                @Override
-                public XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException {
-                    if (geometry != null) {
-                        return builder.value(wellKnownTextParser.toWKT(geometry));
-                    } else {
-                        return builder.nullValue();
-                    }
-                }
-            };
-
+    public GeometryFormat<Geometry> geometryFormat(String format) {
+        if (format.equals(GeoJsonGeometryFormat.NAME)) {
+            return new GeoJsonGeometryFormat(geoJsonParser);
+        } else if (format.equals(WKTGeometryFormat.NAME)) {
+            return new WKTGeometryFormat(wellKnownTextParser);
+        } else {
+            throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
         }
-        throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
+    }
+
+    /**
+     * Returns a geometry format object that can parse and then serialize the object back to the same format.
+     * This method automatically recognizes the format by examining the provided {@link XContentParser}.
+     */
+    public GeometryFormat<Geometry> geometryFormat(XContentParser parser) {
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            return new GeoJsonGeometryFormat(geoJsonParser);
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return new WKTGeometryFormat(wellKnownTextParser);
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            // We don't know the format of the original geometry - so going with default
+            return new GeoJsonGeometryFormat(geoJsonParser);
+        } else {
+            throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
+        }
     }
 
     /**

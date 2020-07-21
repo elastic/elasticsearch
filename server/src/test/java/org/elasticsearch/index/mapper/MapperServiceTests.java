@@ -477,7 +477,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(mapperService.fieldType("r1"), notNullValue());
         assertThat(mapperService.fieldType("r2"), nullValue());
         assertThat(mapperService.simpleMatchToFullName("*1"), equalTo(Set.of("f1", "r1")));
-
     }
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {

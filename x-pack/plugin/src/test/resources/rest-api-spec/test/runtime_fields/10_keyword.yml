@@ -105,31 +105,6 @@ setup:
   - match: {hits.hits.0.fields.prefixed_node: [node_c] }
 
 ---
-"runtime defined":
-  - do:
-      search:
-        index: sensor
-        body:
-          runtime_mappings:
-            first_letter:
-              type: script
-              runtime_type: keyword
-              script: |
-                for (String node : doc['day_of_week']) {
-                  value(node.charAt(0).toString());
-                }
-          sort: timestamp
-          docvalue_fields: [first_letter]
-  - match: {hits.total.value: 6}
-  - match: {hits.hits.0.fields.first_letter: [T] }
-  - match: {hits.hits.1.fields.first_letter: [F] }
-  - match: {hits.hits.2.fields.first_letter: [S] }
-  - match: {hits.hits.3.fields.first_letter: [S] }
-  - match: {hits.hits.4.fields.first_letter: [M] }
-  - match: {hits.hits.5.fields.first_letter: [T] }
-  - match: {hits.hits.6.fields.first_letter: [W] }
-
----
 "terms agg":
   - do:
       search:
@@ -246,5 +221,49 @@ setup:
           query:
             wildcard:
               day_of_week: M*ay
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"runtime defined docvalue_fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            first_letter:
+              type: script
+              runtime_type: keyword
+              script: |
+                for (String node : doc['day_of_week']) {
+                  value(node.charAt(0).toString());
+                }
+          sort: timestamp
+          docvalue_fields: [first_letter]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.first_letter: [T] }
+  - match: {hits.hits.1.fields.first_letter: [F] }
+  - match: {hits.hits.2.fields.first_letter: [S] }
+  - match: {hits.hits.3.fields.first_letter: [S] }
+  - match: {hits.hits.4.fields.first_letter: [M] }
+  - match: {hits.hits.5.fields.first_letter: [T] }
+
+---
+"runtime defined query":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            first_letter:
+              type: script
+              runtime_type: keyword
+              script: |
+                for (String node : doc['day_of_week']) {
+                  value(node.charAt(0).toString());
+                }
+          query:
+            term:
+              first_letter: M
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.voltage: 5.8}

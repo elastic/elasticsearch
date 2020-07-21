@@ -102,15 +102,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public BooleanFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            BooleanFieldMapper.Builder builder = new BooleanFieldMapper.Builder(name);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 

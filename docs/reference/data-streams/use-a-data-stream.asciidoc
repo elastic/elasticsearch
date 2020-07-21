@@ -61,6 +61,18 @@ You can add documents to a data stream using two types of indexing requests:
 * <<data-streams-individual-indexing-requests>>
 * <<data-streams-bulk-indexing-requests>>
 
+Adding a document to a data stream adds the document to stream's
+<<data-stream-write-index,current write index>>.
+
+You cannot add new documents to a stream's other backing indices, even by
+sending requests directly to the index. This means you cannot submit the
+following requests directly to any backing index except the write index:
+
+* An <<docs-index_,index API>> request with an
+  <<docs-index-api-op_type,`op_type`>> of `create`. The `op_type` parameter
+  defaults to `create` when adding new documents.
+* A <<docs-bulk,bulk API>> request using a `create` action
+
 
 [discrete]
 [[data-streams-individual-indexing-requests]]

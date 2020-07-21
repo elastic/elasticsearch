@@ -125,13 +125,7 @@ this index.
 image::images/data-streams/data-streams-index-request.svg[align="center"]
 
 You cannot add new documents to a stream's other backing indices, even by
-sending requests directly to the index. This means you cannot submit the
-following requests directly to any backing index except the write index:
-
-* An <<docs-index_,index API>> request with an
-  <<docs-index-api-op_type,`op_type`>> of `create`. The `op_type` parameter
-  defaults to `create` when adding new documents.
-* A <<docs-bulk,bulk API>> request using a `create` action
+sending requests directly to the index.
 
 Because it's the only index capable of ingesting new documents, you cannot
 perform operations on a write index that might hinder indexing. These

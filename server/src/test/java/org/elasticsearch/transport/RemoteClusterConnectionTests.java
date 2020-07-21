@@ -1206,6 +1206,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59879")
     public void testPendingConnectListeners() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);

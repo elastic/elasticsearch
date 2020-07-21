@@ -134,8 +134,7 @@ public class StringUtilsTests extends ESTestCase {
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", false, true),
                 equalTo("Logs\\something"));
 
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", false, true),
-                equalTo(null));
+        assertNull(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", false, true));
 
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "dev", ".json", true, true),
                 equalTo("\\TestLogs\\something"));
@@ -143,14 +142,12 @@ public class StringUtilsTests extends ESTestCase {
         assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "Test", ".json", true, true),
                 equalTo("Logs\\something"));
 
-        assertThat(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", true, true),
-                equalTo(null));
+        assertNull(StringUtils.between("C:\\workspace\\dev\\TestLogs\\something.json", "test", ".json", true, true));
 
         assertThat(StringUtils.between("System Idle Process", "S", "e", false, true),
                 equalTo("yst"));
 
-        assertThat(StringUtils.between("System Idle Process", "Y", "e", false, true),
-                equalTo(null));
+        assertNull(StringUtils.between("System Idle Process", "Y", "e", false, true));
     }
 
     public void testStringContainsWithNullOrEmpty() {

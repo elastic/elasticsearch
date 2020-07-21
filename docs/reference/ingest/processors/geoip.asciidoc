@@ -230,22 +230,22 @@ PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
 
 GET /my_ip_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "1m",
-                    "geoip.location" : {
-                        "lon" : -97.822,
-                        "lat" : 37.751
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "1m",
+          "geoip.location": {
+            "lon": -97.822,
+            "lat": 37.751
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]

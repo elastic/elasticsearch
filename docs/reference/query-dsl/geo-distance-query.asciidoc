@@ -12,27 +12,27 @@ document:
 --------------------------------------------------
 PUT /my_locations
 {
-    "mappings": {
+  "mappings": {
+    "properties": {
+      "pin": {
         "properties": {
-            "pin": {
-                "properties": {
-                    "location": {
-                        "type": "geo_point"
-                    }
-                }
-            }
+          "location": {
+            "type": "geo_point"
+          }
         }
+      }
     }
+  }
 }
 
 PUT /my_locations/_doc/1
 {
-    "pin" : {
-        "location" : {
-            "lat" : 40.12,
-            "lon" : -71.34
-        }
+  "pin": {
+    "location": {
+      "lat": 40.12,
+      "lon": -71.34
     }
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -45,22 +45,22 @@ filter:
 --------------------------------------------------
 GET /my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "200km",
-                    "pin.location" : {
-                        "lat" : 40,
-                        "lon" : -70
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "200km",
+          "pin.location": {
+            "lat": 40,
+            "lon": -70
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -77,22 +77,22 @@ representations of the geo point, the filter can accept it as well:
 --------------------------------------------------
 GET /my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "12km",
-                    "pin.location" : {
-                        "lat" : 40,
-                        "lon" : -70
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "12km",
+          "pin.location": {
+            "lat": 40,
+            "lon": -70
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -106,19 +106,19 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 GET /my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "12km",
-                    "pin.location" : [-70, 40]
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "12km",
+          "pin.location": [ -70, 40 ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -132,19 +132,19 @@ Format in `lat,lon`.
 --------------------------------------------------
 GET /my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "12km",
-                    "pin.location" : "40,-70"
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "12km",
+          "pin.location": "40,-70"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -155,19 +155,19 @@ GET /my_locations/_search
 --------------------------------------------------
 GET /my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_distance" : {
-                    "distance" : "12km",
-                    "pin.location" : "drm3btev3e86"
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_distance": {
+          "distance": "12km",
+          "pin.location": "drm3btev3e86"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

@@ -107,14 +107,14 @@ Consider the following `string` mapping:
 [source,js]
 ----
 {
-    "first_name" : {
-        "type" : "text",
-        "fields" : {
-            "raw" : {
-                "type" : "keyword"
-            }
-        }
+  "first_name": {
+    "type": "text",
+    "fields": {
+      "raw": {
+        "type": "keyword"
+      }
     }
+  }
 }
 ----
 // NOTCONSOLE

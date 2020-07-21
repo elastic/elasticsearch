@@ -243,12 +243,11 @@ following:
 [source,js]
 ----
 {
-    "<enrich_policy_type>": {
-        "indices": ["..."],
-        "match_field": "...",
-        "enrich_fields": ["..."],
-        "query": {...}
-    }
+  "<enrich_policy_type>": {
+    "indices": [ "..." ],
+    "match_field": "...",
+    "enrich_fields": [ "..." ],
+    "query": {... }
   }
 }
 ----
@@ -321,16 +320,16 @@ containing at least one `geo_shape` field.
 ----
 PUT /postal_codes
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_shape"
-            },
-            "postal_code": {
-                "type": "keyword"
-            } 
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_shape"
+      },
+      "postal_code": {
+        "type": "keyword"
+      }
     }
+  }
 }
 ----
 
@@ -340,11 +339,11 @@ Use the <<docs-index_,index API>> to index enrich data to this source index.
 ----
 PUT /postal_codes/_doc/1?refresh=wait_for
 {
-    "location": {
-        "type": "envelope",
-        "coordinates": [[13.0, 53.0], [14.0, 52.0]]
-    },
-    "postal_code": "96598"
+  "location": {
+    "type": "envelope",
+    "coordinates": [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]
+  },
+  "postal_code": "96598"
 }
 ----
 // TEST[continued]
@@ -362,11 +361,11 @@ policy with the `geo_match` policy type. This policy must include:
 ----
 PUT /_enrich/policy/postal_policy
 {
-    "geo_match": {
-        "indices": "postal_codes",
-        "match_field": "location",
-        "enrich_fields": ["location","postal_code"]
-    }
+  "geo_match": {
+    "indices": "postal_codes",
+    "match_field": "location",
+    "enrich_fields": [ "location", "postal_code" ]
+  }
 }
 ----
 // TEST[continued]
@@ -419,9 +418,9 @@ include the `field` specified in your enrich processor.
 ----
 PUT /users/_doc/0?pipeline=postal_lookup
 {
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "geo_location": "POINT (13.5 52.5)"
+  "first_name": "Mardy",
+  "last_name": "Brown",
+  "geo_location": "POINT (13.5 52.5)"
 }
 ----
 // TEST[continued]
@@ -495,14 +494,14 @@ new document to that index.
 ----
 PUT /users/_doc/1?refresh=wait_for
 {
-    "email": "mardy.brown@asciidocsmith.com",
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "city": "New Orleans",
-    "county": "Orleans",
-    "state": "LA",
-    "zip": 70116,
-    "web": "mardy.asciidocsmith.com"
+  "email": "mardy.brown@asciidocsmith.com",
+  "first_name": "Mardy",
+  "last_name": "Brown",
+  "city": "New Orleans",
+  "county": "Orleans",
+  "state": "LA",
+  "zip": 70116,
+  "web": "mardy.asciidocsmith.com"
 }
 ----
 
@@ -519,11 +518,11 @@ policy type. This policy must include:
 ----
 PUT /_enrich/policy/users-policy
 {
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
-    }
+  "match": {
+    "indices": "users",
+    "match_field": "email",
+    "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+  }
 }
 ----
 // TEST[continued]

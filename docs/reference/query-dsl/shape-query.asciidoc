@@ -28,22 +28,22 @@ Given the following index:
 --------------------------------------------------
 PUT /example
 {
-    "mappings": {
-        "properties": {
-            "geometry": {
-                "type": "shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "geometry": {
+        "type": "shape"
+      }
     }
+  }
 }
 
 PUT /example/_doc/1?refresh=wait_for
 {
-    "name": "Lucky Landing",
-    "geometry": {
-        "type": "point",
-        "coordinates": [1355.400544, 5255.530286]
-    }
+  "name": "Lucky Landing",
+  "geometry": {
+    "type": "point",
+    "coordinates": [ 1355.400544, 5255.530286 ]
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -55,17 +55,17 @@ The following query will find the point using the Elasticsearch's
 --------------------------------------------------
 GET /example/_search
 {
-    "query":{
+  "query": {
+    "shape": {
+      "geometry": {
         "shape": {
-            "geometry": {
-                "shape": {
-                    "type": "envelope",
-                    "coordinates" : [[1355.0, 5355.0], [1400.0, 5200.0]]
-                },
-                "relation": "within"
-            }
-        }
+          "type": "envelope",
+          "coordinates": [ [ 1355.0, 5355.0 ], [ 1400.0, 5200.0 ] ]
+        },
+        "relation": "within"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -134,36 +134,36 @@ shape:
 --------------------------------------------------
 PUT /shapes
 {
-    "mappings": {
-        "properties": {
-            "geometry": {
-                "type": "shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "geometry": {
+        "type": "shape"
+      }
     }
+  }
 }
 
 PUT /shapes/_doc/footprint
 {
-    "geometry": {
-        "type": "envelope",
-        "coordinates" : [[1355.0, 5355.0], [1400.0, 5200.0]]
-    }
+  "geometry": {
+    "type": "envelope",
+    "coordinates": [ [ 1355.0, 5355.0 ], [ 1400.0, 5200.0 ] ]
+  }
 }
 
 GET /example/_search
 {
-    "query": {
-        "shape": {
-            "geometry": {
-                "indexed_shape": {
-                    "index": "shapes",
-                    "id": "footprint",
-                    "path": "geometry"
-                }
-            }
+  "query": {
+    "shape": {
+      "geometry": {
+        "indexed_shape": {
+          "index": "shapes",
+          "id": "footprint",
+          "path": "geometry"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

@@ -34,20 +34,15 @@ public class BasicListener implements ActionListener<SearchResponse> {
             if (CollectionUtils.isEmpty(failures) == false) {
                 listener.onFailure(new EqlIllegalArgumentException(failures[0].reason(), failures[0].getCause()));
             } else {
-                handleResponse(response, listener);
+                if (log.isTraceEnabled()) {
+                    logSearchResponse(response, log);
+                }
+                listener.onResponse(new SearchResponsePayload(response));
             }
         } catch (Exception ex) {
             onFailure(ex);
         }
     }
-
-    private void handleResponse(SearchResponse response, ActionListener<Payload> listener) {
-        if (log.isTraceEnabled()) {
-            logSearchResponse(response, log);
-        }
-        listener.onResponse(new SearchResponsePayload(response));
-    }
-
 
     @Override
     public void onFailure(Exception ex) {

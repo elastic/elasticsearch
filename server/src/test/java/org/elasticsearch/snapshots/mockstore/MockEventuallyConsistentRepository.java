@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots.mockstore;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -32,10 +31,7 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -159,7 +155,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private class MockBlobStore implements BlobStore {
 
-        private AtomicBoolean closed = new AtomicBoolean(false);
+        private final AtomicBoolean closed = new AtomicBoolean(false);
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
@@ -188,6 +184,16 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             @Override
             public BlobPath path() {
                 return path;
+            }
+
+            @Override
+            public boolean blobExists(String blobName) {
+                try {
+                    readBlob(blobName);
+                    return true;
+                } catch (NoSuchFileException ignored) {
+                    return false;
+                }
             }
 
             @Override
@@ -331,15 +337,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         if (hasConsistentContent) {
                                 if (basePath().buildAsString().equals(path().buildAsString())) {
                                     try {
-                                        // TODO: dry up the logic for reading SnapshotInfo here against the code in ChecksumBlobStoreFormat
-                                        final int offset = CodecUtil.headerLength(BlobStoreRepository.SNAPSHOT_CODEC);
-                                        final SnapshotInfo updatedInfo = SnapshotInfo.fromXContentInternal(
-                                            XContentHelper.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                                                new BytesArray(data, offset, data.length - offset - CodecUtil.footerLength()),
-                                                XContentType.SMILE));
+                                        final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+                                                blobName, namedXContentRegistry, new BytesArray(data));
                                         // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
                                         // a problem and could be the result of a correctly handled master failover.
-                                        final SnapshotInfo existingInfo = snapshotFormat.readBlob(this, blobName);
+                                        final SnapshotInfo existingInfo = SNAPSHOT_FORMAT.deserialize(
+                                                blobName, namedXContentRegistry, Streams.readFully(readBlob(blobName)));
                                         assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
                                         assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
                                         assertThat(existingInfo.state(), equalTo(updatedInfo.state()));

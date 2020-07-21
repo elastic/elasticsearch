@@ -1,3 +1,4 @@
+[role="xpack"]
 [[data-streams-overview]]
 == Data streams overview
 ++++
@@ -16,9 +17,12 @@ the stream's backing indices. It contains:
 
 * A name or wildcard (`*`) pattern for the data stream.
 
-* The data stream's _timestamp field_. This field must be mapped as a
-  <<date,`date`>> or <<date_nanos,`date_nanos`>> field datatype and must be
-  included in every document indexed to the data stream.
+* An optional mapping for the data stream's `@timestamp` field.
++
+A `@timestamp` field must be included in every document indexed to the data
+stream. This field must be mapped as a <<date,`date`>> or
+<<date_nanos,`date_nanos`>> field data type. If no mapping is specified in the
+index template, the `date` field data type with default options is used.
 
 * The mappings and settings applied to each backing index when it's created.
 

@@ -92,6 +92,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
@@ -123,6 +124,19 @@ public abstract class ESRestTestCase extends ESTestCase {
                 NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 response.getEntity().getContent())) {
             return parser.map();
+        }
+    }
+
+    /**
+     * Convert the entity from a {@link Response} into a list of maps.
+     */
+    public static List<Object> entityAsList(Response response) throws IOException {
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
+        try (XContentParser parser = xContentType.xContent().createParser(
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            response.getEntity().getContent())) {
+            return parser.list();
         }
     }
 
@@ -645,7 +659,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeDataStreams() throws IOException {
         try {
-            adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+            if (hasXPack()) {
+                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+            }
         } catch (ResponseException e) {
             // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
             if (e.getResponse().getStatusLine().getStatusCode() != 405) {
@@ -1406,6 +1422,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                 assertThat("Expecting non-null license status", status, notNullValue());
                 assertThat("Expecting active license", status, equalTo("active"));
             }
+        });
+    }
+
+    static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
+        "templates \\[(.+)\\], composable templates will only match a single template$");
+
+    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index template \\[(.+)\\] has index patterns " +
+        "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
+        "take precedence during new index creation$");
+
+    protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(warnings -> {
+            return warnings.stream().anyMatch(message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
+                PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
         });
     }
 }

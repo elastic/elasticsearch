@@ -2,16 +2,17 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('stack'), configuration: 'runtime')
+  testImplementation project(xpackModule('stack'))
 }
 
 restResources {
   restApi {
     includeCore '_common', 'cluster', 'indices', 'index', 'snapshot'
-    includeXpack 'ilm', 'slm', 'stack'
+    includeXpack 'ilm', 'slm', 'stack', 'indices'
   }
 }
 

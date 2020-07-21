@@ -39,9 +39,6 @@ following sections:
 You can use the `_source` parameter to select what fields of the source are
 returned. This is called _source filtering_.
 
-.*Example*
-[%collapsible]
-====
 The following search API request sets the `_source` request body parameter to
 `false`. The document source is not included in the response.
 
@@ -120,7 +117,6 @@ GET /_search
   }
 }
 ----
-====
 
 
 [discrete]
@@ -139,9 +135,6 @@ Doc values are stored for supported fields by default. However, doc values are
 not supported for <<text,`text`>> or
 {plugins}/mapper-annotated-text-usage.html[`text_annotated`] fields.
 
-.*Example*
-[%collapsible]
-====
 The following search request uses the `docvalue_fields` parameter to
 retrieve doc values for the following fields:
 
@@ -175,8 +168,7 @@ GET /_search
     format for the field's returned doc values. <<date,Date fields>> support a
     <<mapping-date-format,date `format`>>. <<number,Numeric fields>> support a
     https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
-    pattern]. Other field datatypes do not support the `format` parameter.
-====
+    pattern]. Other field data types do not support the `format` parameter.
 
 TIP: You cannot use the `docvalue_fields` parameter to retrieve doc values for
 nested objects. If you specify a nested object, the search returns an empty

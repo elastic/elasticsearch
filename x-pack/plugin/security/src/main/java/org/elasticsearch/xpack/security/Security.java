@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -288,6 +289,8 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 
 public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
+
+    public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
@@ -1005,9 +1008,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         if (enabled) {
-            return Collections.singletonList(
-                    new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool",
-                        false));
+            final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+            return List.of(
+                new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000,
+                    "xpack.security.authc.token.thread_pool", false),
+                new FixedExecutorBuilder(settings, SECURITY_CRYPTO_THREAD_POOL_NAME,
+                    (allocatedProcessors + 1) / 2, 1000,
+                    "xpack.security.crypto.thread_pool", false)
+            );
         }
         return Collections.emptyList();
     }
@@ -1027,11 +1035,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
-                if (licenseState.isSecurityEnabled() == false || licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                if (licenseState.isSecurityEnabled() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
                         AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                if (indicesAccessControl == null) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
@@ -1041,6 +1052,10 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 }
                 FieldPermissions fieldPermissions = indexPermissions.getFieldPermissions();
                 if (fieldPermissions.hasFieldLevelSecurity() == false) {
+                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+                }
+                if (licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                    // check license last, once we know FLS is actually used
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 return fieldPermissions::grantsAccessTo;

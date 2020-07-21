@@ -7,9 +7,6 @@
 <titleabbrev>Automate rollover</titleabbrev>
 ++++
 
-This tutorial demonstrates how to use {ilm} 
-({ilm-init}) to manage indices that contain time-series data.
-
 When you continuously index timestamped documents into {es},
 you typically use a <<data-streams, data stream>> so you can periodically roll over to a
 new index.
@@ -51,9 +48,6 @@ A lifecycle policy specifies the phases in the index lifecycle
 and the actions to perform in each phase. A lifecycle can have up to four phases:
 `hot`, `warm`, `cold`, and `delete`. 
 
-You can define and manage policies through {kib} Management or with the 
-<<ilm-put-lifecycle, put policy>> API.
-
 For example, you might define a `timeseries_policy` that has two phases:
  
 * A `hot` phase that defines a rollover action to specify that an index rolls over when it 
@@ -61,8 +55,16 @@ reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
 * A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
 Note that this value is relative to the rollover time, not the index creation time. 
 
-The underlying put policy request looks like this:
+You can create the policy through {kib} Management or with the 
+<<ilm-put-lifecycle, put policy>> API. 
+To create the policy from {kib}, go to Management and click **Index Lifecycle Policies**.
 
+[role="screenshot"]
+image:images/ilm/create-policy.png[]
+
+.API example
+[%collapsible]
+====
 [source,console]
 ------------------------
 PUT _ilm/policy/timeseries_policy
@@ -91,10 +93,7 @@ PUT _ilm/policy/timeseries_policy
 <2> Trigger the `rollover` action when either of the conditions are met.
 <3> Move the index into the `delete` phase 90 days after rollover.
 <4> Trigger the `delete` action when the index enters the delete phase.
-
-You can also invoke this API directly to add lifecycle policies.
-
-For the complete list of actions that {ilm} can perform, see <<ilm-actions>>.
+====
 
 [discrete]
 [[ilm-gs-apply-policy]]
@@ -114,28 +113,20 @@ You can use the {kib} Create template wizard to add the template.
 This wizard invokes the put _index_template API to create the <<indices-templates,index template>>
 with the options you specify.
 
-The underlying request looks like this:
-
+.API example
+[%collapsible]
+====
 [source,console]
 -----------------------
 PUT _index_template/timeseries_template
 {
   "index_patterns": ["timeseries"],                   <1>
-  "data_stream": {
-    "timestamp_field": "@timestamp"                   <2>
-  },
+  "data_stream": { },
   "template": {
     "settings": {
       "number_of_shards": 1,
       "number_of_replicas": 1,
-      "index.lifecycle.name": "timeseries_policy"     <3>
-    },
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"                              <4>
-        }
-      }
+      "index.lifecycle.name": "timeseries_policy"     <2>
     }
   }
 }
@@ -143,13 +134,8 @@ PUT _index_template/timeseries_template
 // TEST[continued]
 
 <1> Apply the template when a document is indexed into the `timeseries` target.
-<2> Identifies the timestamp field for the data source. This field must be present
-in all documents indexed into the `timeseries` data stream.
-<3> The name of the {ilm-init} policy used to manage the data stream.
-<4> A <<date,`date`>> or <<date_nanos,`date_nanos`>> field mapping for the
-timestamp field specified in the `timestamp_field` property
-
-You can also invoke this API directly to add templates.
+<2> The name of the {ilm-init} policy used to manage the data stream.
+====
 
 [discrete]
 [[ilm-gs-create-the-data-stream]]
@@ -317,10 +303,14 @@ that match the index pattern.
 * `index.lifecycle.rollover_alias` specifies the index alias to be rolled over
 when the rollover action is triggered for an index.
 
-You can use the {kib} Create template wizard to add the template.
-This wizard invokes the put template API to create the template with the options you specify.
+You can use the {kib} Create template wizard to add the template. 
+To access the wizard, go to Management, click **Index Management**,
+and select the **Index Templates** view. 
 
-The underlying request looks like this:
+[role="screenshot"]
+image:images/ilm/create-template-wizard.png[]
+
+The create template request for the example template looks like this:
 
 [source,console]
 -----------------------
@@ -341,9 +331,6 @@ PUT _template/timeseries_template
 <2> The name of the lifecycle policy to apply to each new index.
 <3> The name of the alias used to reference these indices.
 Required for policies that use the rollover action.
-
-You can also invoke this API directly to add templates.
-
 
 //////////////////////////
 

@@ -130,18 +130,9 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
             super(name, indexed, hasDocValues, meta);
         }
 
-        protected GeoShapeWithDocValuesFieldType(GeoShapeWithDocValuesFieldType ref) {
-            super(ref);
-        }
-
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new AbstractLatLonShapeIndexFieldData.Builder(GeoShapeValuesSourceType.instance());
-        }
-
-        @Override
-        public GeoShapeWithDocValuesFieldType clone() {
-            return new GeoShapeWithDocValuesFieldType(this);
         }
     }
 

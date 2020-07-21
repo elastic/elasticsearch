@@ -6,6 +6,7 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
@@ -84,6 +85,7 @@ ext.expansions = [
 
 processTestResources {
   from(sourceSets.test.resources.srcDirs) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)

@@ -44,7 +44,7 @@ public class Criterion<Q extends QueryRequest> {
         return stage;
     }
 
-    boolean reverse() {
+    public boolean reverse() {
         return reverse;
     }
 
@@ -85,5 +85,10 @@ public class Criterion<Q extends QueryRequest> {
             tbreaker = (Comparable<Object>) tb;
         }
         return new Ordinal(timestamp, tbreaker);
+    }
+
+    @Override
+    public String toString() {
+        return "[" + stage + "][" + reverse + "]";
     }
 }

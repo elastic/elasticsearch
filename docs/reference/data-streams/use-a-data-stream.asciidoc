@@ -1,3 +1,4 @@
+[role="xpack"]
 [[use-a-data-stream]]
 == Use a data stream
 
@@ -6,6 +7,7 @@ the following:
 
 * <<add-documents-to-a-data-stream>>
 * <<search-a-data-stream>>
+* <<get-stats-for-a-data-stream>>
 * <<manually-roll-over-a-data-stream>>
 * <<open-closed-backing-indices>>
 * <<reindex-with-a-data-stream>>
@@ -18,18 +20,7 @@ the following:
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_data_stream/logs
@@ -121,6 +112,64 @@ PUT /logs/_bulk?refresh
 ----
 ====
 --
+
+You can use an <<ingest,ingest pipeline>> with these requests to pre-process
+data before it's indexed.
+
+.*Example: Ingest pipeline*
+[%collapsible]
+====
+The following <<put-pipeline-api,put pipeline API>> request creates the
+`lowercase_message_field` ingest pipeline. The pipeline uses the
+<<lowercase-processor,`lowercase` ingest processor>> to change the `message`
+field value to lowercase before indexing.
+
+[source,console]
+----
+PUT /_ingest/pipeline/lowercase_message_field
+{
+  "description" : "Lowercases the message field value",
+  "processors" : [
+    {
+      "lowercase" : {
+        "field" : "message"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+The following index API request adds a new document to the `logs` data stream.
+
+The request includes a `?pipeline=lowercase_message_field` query parameter.
+This parameter indicates {es} should use the `lowercase_message_field` pipeline
+to pre-process the document before indexing it.
+
+During pre-processing, the pipeline changes the letter case of the document's
+`message` field value from `LOGIN Successful` to `login successful`.
+
+[source,console]
+----
+POST /logs/_doc?pipeline=lowercase_message_field
+{
+  "@timestamp": "2020-12-08T11:12:01.000Z",
+  "user": {
+    "id": "I1YBEOxJ"
+  },
+  "message": "LOGIN Successful"
+}
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE /_ingest/pipeline/lowercase_message_field
+----
+// TEST[continued]
+////
+====
 
 [discrete]
 [[search-a-data-stream]]
@@ -217,6 +266,59 @@ GET /_search
   }
 }
 ----
+====
+
+[discrete]
+[[get-stats-for-a-data-stream]]
+=== Get statistics for a data stream
+
+You can use the <<data-stream-stats-api,data stream stats API>> to retrieve
+statistics for one or more data streams. These statistics include:
+
+* A count of the stream's backing indices
+* The total store size of all shards for the stream's backing indices
+* The highest `@timestamp` value for the stream
+
+.*Example*
+[%collapsible]
+====
+The following data stream stats API request retrieves statistics for the
+`logs` data stream.
+
+[source,console]
+----
+GET /_data_stream/logs/_stats?human=true
+----
+
+The API returns the following response.
+
+[source,console-result]
+----
+{
+  "_shards": {
+    "total": 6,
+    "successful": 3,
+    "failed": 0
+  },
+  "data_stream_count": 1,
+  "backing_indices": 3,
+  "total_store_size": "624b",
+  "total_store_size_bytes": 624,
+  "data_streams": [
+    {
+      "data_stream": "logs",
+      "backing_indices": 3,
+      "store_size": "624b",
+      "store_size_bytes": 624,
+      "maximum_timestamp": 1607339167000
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"total_store_size": "624b"/"total_store_size": $body.total_store_size/]
+// TESTRESPONSE[s/"total_store_size_bytes": 624/"total_store_size_bytes": $body.total_store_size_bytes/]
+// TESTRESPONSE[s/"store_size": "624b"/"store_size": $body.data_streams.0.store_size/]
+// TESTRESPONSE[s/"store_size_bytes": 624/"store_size_bytes": $body.data_streams.0.store_size_bytes/]
 ====
 
 [discrete]

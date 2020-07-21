@@ -21,6 +21,10 @@ import org.elasticsearch.gradle.PropertyNormalization
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.AntFixture
 
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+
 esplugin {
   description 'Module for URL repository'
   classname 'org.elasticsearch.plugin.repository.url.URLRepositoryPlugin'
@@ -28,9 +32,11 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot' 
+    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk', 'count', 'snapshot'
   }
 }
+
+integTest.enabled = false
 
  // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
@@ -45,11 +51,14 @@ task urlFixture(type: AntFixture) {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
-
-integTest {
+yamlRestTest {
   dependsOn urlFixture
 }
-testClusters.integTest {
+
+internalClusterTest {
+  dependsOn urlFixture
+}
+testClusters.all {
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE
   // repositoryDir is used by two URL repositories to restore snapshots
@@ -57,3 +66,4 @@ testClusters.integTest {
     "http://snapshot.test*,http://${urlFixture.addressAndPort}"
   }, PropertyNormalization.IGNORE_VALUE
 }
+

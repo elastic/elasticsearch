@@ -37,7 +37,6 @@ import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampFiel
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
     public void testConvertWildcardsJustIndicesTests() {
@@ -222,7 +221,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
             .put(firstBackingIndexMetadata, true)
             .put(secondBackingIndexMetadata, true)
-            .put(new DataStream(dataStreamName, createTimestampField("timestamp"),
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
                 List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
@@ -236,13 +235,11 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
 
             // data streams are not included but expression matches the data stream
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                () -> resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_*")));
-            assertThat(illegalArgumentException.getMessage(), is("The provided expression [foo_*] matches a data stream, specify the " +
-                "corresponding concrete indices instead."));
+            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_*"));
+            assertThat(indices, containsInAnyOrder("foo_index", "foo_foo", "bar_index"));
 
             // data streams are not included and expression doesn't match the data steram
-            List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("bar_*"));
+            indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("bar_*"));
             assertThat(indices, containsInAnyOrder("bar_bar", "bar_index"));
         }
 

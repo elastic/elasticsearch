@@ -30,7 +30,7 @@ include::install_remove.asciidoc[]
 ==== ICU Analyzer
 
 The `icu_analyzer` analyzer performs basic normalization, tokenization and character folding, using the
-`icu_normalizer` char filter, `icu_tokenizer` and `icu_normalizer` token filter
+`icu_normalizer` char filter, `icu_tokenizer` and `icu_folding` token filter
 
 The following parameters are accepted:
 
@@ -153,24 +153,24 @@ Then create an analyzer to use this rule file as follows:
 --------------------------------------------------
 PUT icu_sample
 {
-    "settings": {
-        "index":{
-            "analysis":{
-                "tokenizer" : {
-                    "icu_user_file" : {
-                       "type" : "icu_tokenizer",
-                       "rule_files" : "Latn:KeywordTokenizer.rbbi"
-                    }
-                },
-                "analyzer" : {
-                    "my_analyzer" : {
-                        "type" : "custom",
-                        "tokenizer" : "icu_user_file"
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "tokenizer": {
+          "icu_user_file": {
+            "type": "icu_tokenizer",
+            "rule_files": "Latn:KeywordTokenizer.rbbi"
+          }
+        },
+        "analyzer": {
+          "my_analyzer": {
+            "type": "custom",
+            "tokenizer": "icu_user_file"
+          }
         }
+      }
     }
+  }
 }
 
 GET icu_sample/_analyze

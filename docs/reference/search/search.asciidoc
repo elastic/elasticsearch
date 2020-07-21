@@ -300,7 +300,7 @@ For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
 https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
 pattern].
 +
-For other field datatypes, this parameter is not supported.
+For other field data types, this parameter is not supported.
 ====
 
 [[request-body-search-explain]]

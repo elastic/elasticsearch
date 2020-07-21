@@ -331,6 +331,16 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
+    protected AbstractScriptMappedFieldType simpleMappedFieldType() throws IOException {
+        return build("value(source.foo)");
+    }
+
+    @Override
+    protected String runtimeType() {
+        return "keyword";
+    }
+
     private static ScriptKeywordMappedFieldType build(String code) throws IOException {
         return build(new Script(code));
     }

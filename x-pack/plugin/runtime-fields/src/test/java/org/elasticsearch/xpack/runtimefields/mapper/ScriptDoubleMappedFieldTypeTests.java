@@ -252,6 +252,11 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         return build("value(source.foo)");
     }
 
+    @Override
+    protected String runtimeType() {
+        return "double";
+    }
+
     private static ScriptDoubleMappedFieldType build(String code) throws IOException {
         return build(new Script(code));
     }

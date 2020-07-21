@@ -31,25 +31,25 @@ public class HighlighterContext {
     public final MappedFieldType fieldType;
     public final SearchShardTarget shardTarget;
     public final QueryShardContext context;
-    public final SearchHighlightContext highlight;
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
+    public final boolean forceSource;
 
     public HighlighterContext(String fieldName,
                               SearchHighlightContext.Field field,
                               MappedFieldType fieldType,
                               SearchShardTarget shardTarget,
                               QueryShardContext context,
-                              SearchHighlightContext highlight,
                               FetchSubPhase.HitContext hitContext,
-                              Query query) {
+                              Query query,
+                              boolean forceSource) {
         this.fieldName = fieldName;
         this.field = field;
         this.fieldType = fieldType;
         this.shardTarget = shardTarget;
         this.context = context;
-        this.highlight = highlight;
         this.hitContext = hitContext;
         this.query = query;
+        this.forceSource = forceSource;
     }
 }

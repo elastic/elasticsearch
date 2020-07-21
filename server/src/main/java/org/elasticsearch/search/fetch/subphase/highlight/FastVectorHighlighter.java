@@ -74,6 +74,7 @@ public class FastVectorHighlighter implements Highlighter {
         QueryShardContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         MappedFieldType fieldType = highlighterContext.fieldType;
+        boolean forceSource = highlighterContext.forceSource;
 
         if (canHighlight(fieldType) == false) {
             throw new IllegalArgumentException("the field [" + highlighterContext.fieldName +
@@ -96,7 +97,6 @@ public class FastVectorHighlighter implements Highlighter {
                 BaseFragmentsBuilder fragmentsBuilder;
 
                 final BoundaryScanner boundaryScanner = getBoundaryScanner(field);
-                boolean forceSource = highlighterContext.highlight.forceSource(field);
                 if (field.fieldOptions().numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 

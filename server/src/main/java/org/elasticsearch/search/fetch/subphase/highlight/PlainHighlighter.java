@@ -112,8 +112,7 @@ public class PlainHighlighter implements Highlighter {
         final int maxAnalyzedOffset = context.getIndexSettings().getHighlightMaxAnalyzedOffset();
 
         try {
-            textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context, hitContext,
-                highlighterContext.highlight.forceSource(field));
+            textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context, hitContext, highlighterContext.forceSource);
 
             for (Object textToHighlight : textsToHighlight) {
                 String text = convertFieldValue(fieldType, textToHighlight);

@@ -129,7 +129,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
             .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        infoService.onMaster();
         ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
         ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();

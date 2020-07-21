@@ -84,11 +84,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     /**
      * Interface representing parser in geometry indexing pipeline.
      */
-    public interface Parser<Parsed> {
+    public static abstract class Parser<Parsed> {
         /**
-         * Parse the given xContent value to an object of type {@link Parsed}.
+         * Parse the given xContent value to an object of type {@link Parsed}. The value can be
+         * in any supported format.
          */
-        Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
+        public abstract Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
 
         /**
          * Given a parsed value and a format string, formats the value into a plain Java object.
@@ -96,7 +97,30 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
          * Supported formats include 'geojson' and 'wkt'. The different formats are defined
          * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
          */
-        Object format(Parsed value, String format);
+        public abstract Object format(Parsed value, String format);
+
+        /**
+         * Parses the given value, then formats it according to the 'format' string.
+         *
+         * By default, this method simply parses the value using {@link Parser#parse}, then formats
+         * it with {@link Parser#format}. However some {@link Parser} implementations override this
+         * as they can avoid parsing the value if it is already in the right format.
+         */
+        public Object parseAndFormatObject(Object value, AbstractGeometryFieldMapper mapper, String format) {
+            Parsed geometry;
+            try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
+                parser.nextToken(); // start object
+                parser.nextToken(); // field name
+                parser.nextToken(); // field value
+                geometry = parse(parser, mapper);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
+            }
+            return format(geometry, format);
+        }
     }
 
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType>
@@ -166,20 +190,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
         Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-
-        Parsed geometry;
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("dummy_field", value), XContentType.JSON)) {
-            parser.nextToken(); // start object
-            parser.nextToken(); // field name
-            parser.nextToken(); // field value
-            geometry = geometryParser.parse(parser, this);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
-        }
-        return geometryParser.format(geometry, format);
+        return geometryParser.parseAndFormatObject(value, this, format);
     }
 
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {

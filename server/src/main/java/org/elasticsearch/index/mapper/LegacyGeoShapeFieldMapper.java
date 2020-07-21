@@ -281,7 +281,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
     }
 
-    private static class LegacyGeoShapeParser implements Parser<ShapeBuilder<?, ?, ?>> {
+    private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
         /**
          * Note that this parser is only used for formatting values.
          */

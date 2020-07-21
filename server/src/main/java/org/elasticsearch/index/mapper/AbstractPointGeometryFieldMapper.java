@@ -183,7 +183,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     /** A parser implementation that can parse the various point formats */
-    public static class PointParser<P extends ParsedPoint> implements Parser<List<P>> {
+    public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
         /**
          * Note that this parser is only used for formatting values.
          */

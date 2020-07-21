@@ -9,46 +9,6 @@ Restores a <<snapshot-restore,snapshot>> of a cluster or specified data streams 
 ////
 [source,console]
 ----
-PUT /index_1
-
-PUT /index_2
-
-PUT /index_1/_doc/1
-{
-  "title": "Elastic, Vol.1", "category": "Non-Fiction",
-  "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
-  }
-}
-
-PUT /index_1/_doc/2
-{
-  "title": "Elastic, Vol.2", "category": "Non-Fiction",
-  "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
-  }
-}
-
-PUT /index_1/_doc/3
-{
-  "title": "Elastic, Vol.3", "category": "Non-Fiction",
-  "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
-  }
-}
-
-PUT /index_1/_doc/4
-{
-  "title": "Elastic, Vol.4", "category": "Non-Fiction",
-  "author": {
-    "first_name": "Elk",
-    "last_name": "Stack"
-  }
-}
-
 PUT /_snapshot/my_repository
 {
   "type": "fs",
@@ -59,13 +19,17 @@ PUT /_snapshot/my_repository
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 
+PUT /index_1
+
+PUT /index_2
+
 PUT /index_3
 
 PUT /index_4
 
 PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
 {
-  "indices": ["index_3","index_4"],
+  "indices": "index_3,index_4",
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
@@ -73,6 +37,14 @@ PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
     "taken_because": "backup testing"
   }
 }
+
+POST /index_1/_close
+
+POST /index_2/_close
+
+POST /index_3/_close
+
+POST /index_4/_close
 
 ----
 // TESTSETUP
@@ -82,7 +54,7 @@ PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
 ----
 POST /_snapshot/my_repository/my_snapshot/_restore
 ----
-// TEST[skip:cannot restore index because index is open]
+// TEST[s/_restore/_restore?wait_for_completion=true/]
 
 [[restore-snapshot-api-request]]
 ==== {api-request-title}
@@ -132,12 +104,14 @@ Defaults to `true`.
 If `false`, prevents aliases from being restored together with associated
 indices.
 
+[[restore-snapshot-api-include-global-state]]
 `include_global_state`::
 +
 --
 (Optional, boolean)
+If `false`, the cluster state is not restored. Defaults to `false`.
+
 If `true`, the current cluster state is included in the restore operation.
-Defaults to `false`.
 
 The cluster state includes:
 
@@ -150,6 +124,7 @@ The cluster state includes:
 +
 IMPORTANT: By default, the entire restore operation will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<restore-snapshot-api-partial,`partial`>> to `true`.
 
+[[restore-snapshot-api-index-settings]]
 `index_settings`::
 (Optional, string)
 A comma-separated list of settings to add or change in all restored indices. Use this parameter to override index settings when restoring snapshots.
@@ -183,8 +158,8 @@ will be restored. All missing shards will be recreated as empty.
 Defines a rename pattern to apply to restored data streams and indices. Data streams and indices matching the rename pattern will be renamed according to
 <<restore-snapshot-api-rename-replacement,`rename_replacement`>>.
 +
-The rename pattern is applied according to the regular expression that
-supports referencing the original text according to https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[appendReplacement].
+The rename pattern is applied as defined by the regular expression that
+supports referencing the original text, according to the https://docs.oracle.com/javase/8/docs/api/java/util/regex/Matcher.html#appendReplacement-java.lang.StringBuffer-java.lang.String-[`appendReplacement`] logic.
 +
 The request will fail if two or more data streams or indices will be renamed into the same name.
 +
@@ -199,19 +174,20 @@ Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern
 (Optional, boolean)
 If `true`, the request returns a response when the restore operation
 completes.
++
 If `false`, the request returns a response when the restore operation initializes.
 Defaults to `false`.
 
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}
 
-The following request restores `index_1` and `index_2` from `snapshot_2`. Using the `rename_pattern`, any index matching the regex pattern `index_(.+)` will be renamed using the `rename_replacement` pattern `restored_index_$1`.
+The following request restores `index_1` and `index_2` from `snapshot_2`. The `rename_pattern` parameter indicates that any index matching the regex pattern `index_(.+)` will be renamed using the pattern `restored_index_$1`, which is defined by the `rename_replacement` parameter.
 
 For example, `index_1` will be renamed to `restored_index_1` and `index_2` will be renamed to `restored_index_2`.
 
 [source,console]
 ----
-POST /_snapshot/my_repository/my_snapshot/_restore
+POST /_snapshot/my_repository/snapshot_2/_restore?wait_for_completion=true
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": true,
@@ -221,7 +197,34 @@ POST /_snapshot/my_repository/my_snapshot/_restore
   "include_aliases": false
 }
 ----
-// TEST[skip:cannot restore index because index is open]
 
 The API returns an acknowledgement if the request succeeds. If the request encounters errors, the response indicates any issues found, such as
 open indices that are blocking the restore operation from completing.
+
+For example, the following error indicates that `snapshot_2` cannot be restored because an open index with the same name (`restored_index_2`) already exists in the cluster.
+
+[source,console-result]
+----
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "snapshot_restore_exception",
+        "reason" : "[my_repository:snapshot_2/0LIMUElxQkyRoimBDAkYIQ]
+        cannot restore index [restored_index_2] because an open index
+        with same name already exists in the cluster. Either close or
+        delete the existing index or restore the index under a different
+        name by providing a rename pattern and replacement name"
+      }
+    ],
+    "type" : "snapshot_restore_exception",
+    "reason" : "[my_respository:snapshot_2/0LIMUElxQkyRoimBDAkYIQ]
+    cannot restore index [restored_index_2] because an open index
+    with same name already exists in the cluster. Either close or
+    delete the existing index or restore the index under a different
+    name by providing a rename pattern and replacement name"
+  },
+  "status" : 500
+}
+----
+// TEST[skip:example only]

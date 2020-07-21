@@ -6,12 +6,6 @@ backups, and restore snapshots to a running cluster.
 
 For more information, see <<snapshot-restore>>.
 
-[NOTE]
-====
-We are working on including more snapshot and restore APIs in this section. Some
-content may not be included yet.
-====
-
 [discrete]
 [[snapshot-restore-repo-apis]]
 === Snapshot repository management APIs

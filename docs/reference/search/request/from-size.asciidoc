@@ -22,8 +22,8 @@ GET /_search
   "from": 5,
   "size": 20,
   "query": {
-    "term": {
-      "user.id": "8a4f500d"
+    "match": {
+      "user.id": "kimchy"
     }
   }
 }

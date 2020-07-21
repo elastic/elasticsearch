@@ -43,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 
@@ -75,6 +76,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
     protected final CorsHandler.Config corsConfig;
+    private RestRequestFactory restRequestFactory;
     private final NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
@@ -90,7 +92,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final HttpTracer tracer;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-                                          NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
+                                          NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings,
+                                          RestRequestFactory restRequestFactory) {
         this.settings = settings;
         this.networkService = networkService;
         this.bigArrays = bigArrays;
@@ -99,6 +102,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
         this.corsConfig = CorsHandler.fromSettings(settings);
+        this.restRequestFactory = restRequestFactory;
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
@@ -334,7 +338,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
+                innerRestRequest = restRequestFactory.createRestRequest(xContentRegistry, httpRequest, httpChannel);
             } catch (final RestRequest.ContentTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);

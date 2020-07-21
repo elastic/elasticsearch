@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
@@ -133,6 +134,15 @@ public class RestRequest implements ToXContent.Params {
         String path = path(httpRequest.uri());
         return new RestRequest(xContentRegistry, params, path, httpRequest.getHeaders(), httpRequest, httpChannel,
             requestIdGenerator.incrementAndGet());
+    }
+
+    /**
+     * An http request can be accompanied with a compatible version indicating with what version a client is using.
+     * Only a major Versions are supported. Internally we use Versions objects, but only use Version(major,0,0)
+     * @return a version with what a client is compatible with.
+     */
+    public Version getCompatibleApiVersion() {
+        return Version.CURRENT;
     }
 
     private static Map<String, String> params(final String uri) {

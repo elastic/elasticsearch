@@ -141,12 +141,15 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.RestRequestPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
@@ -515,9 +518,10 @@ public class Node implements Closeable {
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
+            RestRequestFactory restRequestFactory = getRestRequestFactory(pluginsService.filterPlugins(RestRequestPlugin.class));
             final NetworkModule networkModule = new NetworkModule(settings, pluginsService.filterPlugins(NetworkPlugin.class),
                 threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
-                networkService, restController, clusterService.getClusterSettings());
+                networkService, restController, clusterService.getClusterSettings(), restRequestFactory);
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders =
                 pluginsService.filterPlugins(Plugin.class).stream()
                     .map(Plugin::getIndexTemplateMetadataUpgrader)
@@ -678,6 +682,22 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private RestRequestFactory getRestRequestFactory(List<RestRequestPlugin> restRequestPlugins) {
+        RestRequestFactory restRequestFactory = null;
+        for (RestRequestPlugin plugin : restRequestPlugins) {
+            RestRequestFactory newRestRequestFactory = plugin.getRestRequestFactory();
+            if (newRestRequestFactory != null) {
+                logger.debug("Using REST request factory from plugin " + plugin.getClass().getName());
+                if (restRequestFactory != null) {
+                    //TODO maybe we could combine/chain them?
+                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a RestRequestPlugin");
+                }
+                restRequestFactory = newRestRequestFactory;
+            }
+        }
+        return restRequestFactory != null ? restRequestFactory : RestRequest::request;
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

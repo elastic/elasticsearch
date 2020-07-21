@@ -66,6 +66,8 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -309,10 +311,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
                                                                         NamedXContentRegistry xContentRegistry,
                                                                         NetworkService networkService,
                                                                         HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings) {
+                                                                        ClusterSettings clusterSettings, RestRequestFactory restRequestFactory) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings)));
+            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings, restRequestFactory)));
         return transports;
     }
 

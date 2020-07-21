@@ -140,7 +140,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         try (AbstractHttpServerTransport transport =
                  new AbstractHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher,
-                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)) {
+                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), RestRequest::request) {
 
                      @Override
                      protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -199,7 +199,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                          public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
                              channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
                          }
-                     }, clusterSettings) {
+                     }, clusterSettings, RestRequest::request) {
                      @Override
                      protected HttpServerChannel bind(InetSocketAddress hostAddress) {
                          return null;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.size;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -34,18 +35,14 @@ import java.util.Map;
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
 
-    public static class Defaults  {
-        public static final boolean ENABLED = false;
-    }
-
     private static SizeFieldMapper toType(FieldMapper in) {
         return (SizeFieldMapper) in;
     }
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        // TODO should this really be updateable?
-        private final Parameter<Boolean> enabled = Parameter.boolParam("enabled", true, m -> toType(m).enabled(), false);
+        private final Parameter<Explicit<Boolean>> enabled
+            = updateableBoolParam("enabled", m -> toType(m).enabled, false);
 
         private Builder() {
             super(NAME);
@@ -74,14 +71,14 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            return new SizeFieldMapper(Defaults.ENABLED,
+            return new SizeFieldMapper(new Explicit<>(false, false),
                 new NumberFieldMapper.NumberFieldType(NAME, NumberFieldMapper.NumberType.INTEGER));
         }
     }
 
-    private final boolean enabled;
+    private final Explicit<Boolean> enabled;
 
-    private SizeFieldMapper(boolean enabled, MappedFieldType mappedFieldType) {
+    private SizeFieldMapper(Explicit<Boolean> enabled, MappedFieldType mappedFieldType) {
         super(mappedFieldType);
         this.enabled = enabled;
     }
@@ -92,7 +89,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     public boolean enabled() {
-        return this.enabled;
+        return this.enabled.value();
     }
 
     @Override
@@ -112,7 +109,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) {
-        if (enabled == false) {
+        if (enabled.value() == false) {
             return;
         }
         final int value = context.sourceToParse().source().length();

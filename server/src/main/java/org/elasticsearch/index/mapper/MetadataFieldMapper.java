@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,6 +47,28 @@ public abstract class MetadataFieldMapper extends ParametrizedFieldMapper {
         MetadataFieldMapper getDefault(ParserContext parserContext);
     }
 
+    /**
+     * Declares an updateable boolean parameter for a metadata field
+     *
+     * We need to distinguish between explicit configuration and default value for metadata
+     * fields, because mapping updates will carry over the previous metadata values if a
+     * metadata field is not explicitly declared in the update.  A standard boolean
+     * parameter explicitly configured with a default value will not be serialized (as
+     * we do not serialize default parameters for mapping updates), and as such will be
+     * ignored by the update merge.  Instead, we use an {@link Explicit} object that
+     * will serialize its value if it has been configured, no matter what the value is.
+     */
+    public static Parameter<Explicit<Boolean>> updateableBoolParam(String name, Function<FieldMapper, Explicit<Boolean>> initializer,
+                                                                   boolean defaultValue) {
+        Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
+        return new Parameter<>(name, true, () -> defaultExplicit,
+            (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true), initializer)
+            .setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
+    }
+
+    /**
+     * A type parser for an unconfigurable metadata field.
+     */
     public static class FixedTypeParser implements TypeParser {
 
         final Function<ParserContext, MetadataFieldMapper> mapperParser;

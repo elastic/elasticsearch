@@ -20,7 +20,7 @@ Creates or updates an index template.
 --------------------------------------------------
 PUT _template/template_1
 {
-  "index_patterns": ["te*", "bar*"],
+  "index_patterns": [ "te*", "bar*" ],
   "settings": {
     "number_of_shards": 1
   },
@@ -146,19 +146,19 @@ You can include <<indices-aliases,index aliases>> in an index template.
 --------------------------------------------------
 PUT _template/template_1
 {
-  "index_patterns" : ["te*"],
-  "settings" : {
-    "number_of_shards" : 1
+  "index_patterns": [ "te*" ],
+  "settings": {
+    "number_of_shards": 1
   },
-  "aliases" : {
-    "alias1" : {},
-    "alias2" : {
-      "filter" : {
-        "term" : {"user" : "kimchy" }
+  "aliases": {
+    "alias1": {},
+    "alias2": {
+      "filter": {
+        "term": { "user": "kimchy" }
       },
-      "routing" : "kimchy"
+      "routing": "kimchy"
     },
-    "{index}-alias" : {} <1>
+    "{index}-alias": {} <1>
   }
 }
 --------------------------------------------------
@@ -180,25 +180,25 @@ orders overriding them. For example:
 --------------------------------------------------
 PUT /_template/template_1
 {
-  "index_patterns" : ["*"],
-  "order" : 0,
-  "settings" : {
-    "number_of_shards" : 1
+  "index_patterns": [ "*" ],
+  "order": 0,
+  "settings": {
+    "number_of_shards": 1
   },
-  "mappings" : {
-    "_source" : { "enabled" : false }
+  "mappings": {
+    "_source": { "enabled": false }
   }
 }
 
 PUT /_template/template_2
 {
-  "index_patterns" : ["te*"],
-  "order" : 1,
-  "settings" : {
-    "number_of_shards" : 1
+  "index_patterns": [ "te*" ],
+  "order": 1,
+  "settings": {
+    "number_of_shards": 1
   },
-  "mappings" : {
-    "_source" : { "enabled" : true }
+  "mappings": {
+    "_source": { "enabled": true }
   }
 }
 --------------------------------------------------
@@ -231,21 +231,12 @@ replace the template without specifying	one.
 --------------------------------------------------
 PUT /_template/template_1
 {
-<<<<<<< HEAD
-    "index_patterns" : ["*"],
-    "order" : 0,
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "version": 123
-=======
-  "index_patterns" : ["myindex-*"],
+  "index_patterns" : ["*"],
   "order" : 0,
   "settings" : {
     "number_of_shards" : 1
   },
   "version": 123
->>>>>>> ef416234e8b... [DOCS] Reformat snippets to use two-space indents (#59973)
 }
 --------------------------------------------------
 

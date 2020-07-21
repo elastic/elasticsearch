@@ -24,13 +24,10 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Map;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 import java.util.function.Supplier;

@@ -39,7 +39,7 @@ if (!isEclipse) {
   }
 
   dependencies {
-    java11Implementation sourceSets.main.output
+    java11Compile sourceSets.main.output
   }
 
   compileJava11Java {
@@ -70,6 +70,10 @@ dependencies {
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+
+  if (!isEclipse) {
+    java11Compile sourceSets.main.output
+  }
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-core'

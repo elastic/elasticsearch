@@ -10,7 +10,6 @@ testFixtures.useFixture ":x-pack:test:smb-fixture"
 
 // add test resources from security, so tests can use example certs
 processTestResources {
-  duplicatesStrategy = DuplicatesStrategy.INCLUDE
   from(project(xpackModule('core')).sourceSets.test.resources.srcDirs)
   from(project(xpackModule('security')).sourceSets.test.resources.srcDirs)
 }

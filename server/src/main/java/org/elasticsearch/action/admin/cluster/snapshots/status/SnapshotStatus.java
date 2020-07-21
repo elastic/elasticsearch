@@ -70,15 +70,13 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
     private SnapshotStats stats;
 
     @Nullable
-    private Boolean includeGlobalState;
+    private final Boolean includeGlobalState;
 
     SnapshotStatus(StreamInput in) throws IOException {
         snapshot = new Snapshot(in);
         state = State.fromValue(in.readByte());
         shards = Collections.unmodifiableList(in.readList(SnapshotIndexShardStatus::new));
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            includeGlobalState = in.readOptionalBoolean();
-        }
+        includeGlobalState = in.readOptionalBoolean();
         final long startTime;
         final long time;
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
@@ -181,9 +179,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         snapshot.writeTo(out);
         out.writeByte(state.value());
         out.writeList(shards);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeOptionalBoolean(includeGlobalState);
-        }
+        out.writeOptionalBoolean(includeGlobalState);
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeLong(stats.getStartTime());
             out.writeLong(stats.getTime());

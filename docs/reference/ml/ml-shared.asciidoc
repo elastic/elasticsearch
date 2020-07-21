@@ -1115,7 +1115,7 @@ tag::over-field-name[]
 The field used to split the data. In particular, this property is used for
 analyzing the splits with respect to the history of all splits. It is used for
 finding unusual values in the population of all splits. For more information,
-see {ml-docs}/ml-configuring-pop.html[Performing population analysis].
+see {ml-docs}/ml-configuring-populations.html[Performing population analysis].
 end::over-field-name[]
 
 tag::partition-field-name[]

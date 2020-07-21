@@ -279,12 +279,7 @@ public class MultiGetRequest extends ActionRequest
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         realtime = in.readBoolean();
-
-        int size = in.readVInt();
-        items = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            items.add(new Item(in));
-        }
+        items = in.readList(Item::new);
     }
 
     public List<Item> getItems() {
@@ -536,10 +531,6 @@ public class MultiGetRequest extends ActionRequest
         }
     }
 
-    public static void parseIds(XContentParser parser, List<Item> items) throws IOException {
-        parseIds(parser, items, null, null, null, null, null);
-    }
-
     @Override
     public Iterator<Item> iterator() {
         return Collections.unmodifiableCollection(items).iterator();
@@ -551,11 +542,7 @@ public class MultiGetRequest extends ActionRequest
         out.writeOptionalString(preference);
         out.writeBoolean(refresh);
         out.writeBoolean(realtime);
-
-        out.writeVInt(items.size());
-        for (Item item : items) {
-            item.writeTo(out);
-        }
+        out.writeList(items);
     }
 
     @Override

@@ -21,13 +21,13 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 --------------------------------------------------
 PUT /museums
 {
-    "mappings": {
-          "properties": {
-              "location": {
-                  "type": "geo_point"
-              }
-          }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 POST /museums/_bulk?refresh
@@ -46,14 +46,14 @@ POST /museums/_bulk?refresh
 
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "large-grid" : {
-            "geohash_grid" : {
-                "field" : "location",
-                "precision" : 3
-            }
-        }
+  "aggregations": {
+    "large-grid": {
+      "geohash_grid": {
+        "field": "location",
+        "precision": 3
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -62,25 +62,25 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "large-grid": {
-            "buckets": [
-                {
-                    "key": "u17",
-                    "doc_count": 3
-                },
-                {
-                    "key": "u09",
-                    "doc_count": 2
-                },
-                {
-                    "key": "u15",
-                    "doc_count": 1
-                }
-            ]
-        }
-    }
+  ...
+  "aggregations": {
+  "large-grid": {
+    "buckets": [
+      {
+        "key": "u17",
+        "doc_count": 3
+      },
+      {
+        "key": "u09",
+        "doc_count": 2
+      },
+      {
+        "key": "u15",
+        "doc_count": 1
+      }
+    ]
+  }
+}
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -93,26 +93,26 @@ When requesting detailed buckets (typically for displaying a "zoomed in" map) a 
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "zoomed-in" : {
-            "filter" : {
-                "geo_bounding_box" : {
-                    "location" : {
-                        "top_left" : "52.4, 4.9",
-                        "bottom_right" : "52.3, 5.0"
-                    }
-                }
-            },
-            "aggregations":{
-                "zoom1":{
-                    "geohash_grid" : {
-                        "field": "location",
-                        "precision": 8
-                    }
-                }
-            }
+  "aggregations": {
+    "zoomed-in": {
+      "filter": {
+        "geo_bounding_box": {
+          "location": {
+            "top_left": "52.4, 4.9",
+            "bottom_right": "52.3, 5.0"
+          }
         }
+      },
+      "aggregations": {
+        "zoom1": {
+          "geohash_grid": {
+            "field": "location",
+            "precision": 8
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -124,26 +124,26 @@ first geohash `u17` returned in the previous example, it should be specified as 
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "zoomed-in" : {
-            "filter" : {
-                "geo_bounding_box" : {
-                    "location" : {
-                        "top_left" : "u17",
-                        "bottom_right" : "u17"
-                    }
-                }
-            },
-            "aggregations":{
-                "zoom1":{
-                    "geohash_grid" : {
-                        "field": "location",
-                        "precision": 8
-                    }
-                }
-            }
+  "aggregations": {
+    "zoomed-in": {
+      "filter": {
+        "geo_bounding_box": {
+          "location": {
+            "top_left": "u17",
+            "bottom_right": "u17"
+          }
         }
+      },
+      "aggregations": {
+        "zoom1": {
+          "geohash_grid": {
+            "field": "location",
+            "precision": 8
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -151,28 +151,28 @@ POST /museums/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "zoomed-in" : {
-            "doc_count" : 3,
-            "zoom1" : {
-                "buckets" : [
-                    {
-                        "key" : "u173zy3j",
-                        "doc_count" : 1
-                    },
-                    {
-                        "key" : "u173zvfz",
-                        "doc_count" : 1
-                    },
-                    {
-                        "key" : "u173zt90",
-                        "doc_count" : 1
-                    }
-                ]
-            }
-        }
+  ...
+  "aggregations": {
+    "zoomed-in": {
+      "doc_count": 3,
+      "zoom1": {
+        "buckets": [
+          {
+            "key": "u173zy3j",
+            "doc_count": 1
+          },
+          {
+            "key": "u173zvfz",
+            "doc_count": 1
+          },
+          {
+            "key": "u173zt90",
+            "doc_count": 1
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -206,18 +206,18 @@ to any additional `geo_bounding_box` queries defined in the context of the aggre
 --------------------------------------------------
 POST /museums/_search?size=0
 {
-    "aggregations" : {
-        "tiles-in-bounds" : {
-            "geohash_grid" : {
-                "field" : "location",
-                "precision" : 8,
-                "bounds": {
-                  "top_left" : "53.4375, 4.21875",
-                  "bottom_right" : "52.03125, 5.625"
-                }
-            }
+  "aggregations": {
+    "tiles-in-bounds": {
+      "geohash_grid": {
+        "field": "location",
+        "precision": 8,
+        "bounds": {
+          "top_left": "53.4375, 4.21875",
+          "bottom_right": "52.03125, 5.625"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -225,25 +225,25 @@ POST /museums/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations" : {
-        "tiles-in-bounds" : {
-           "buckets" : [
-               {
-                 "key" : "u173zy3j",
-                 "doc_count" : 1
-               },
-               {
-                 "key" : "u173zvfz",
-                 "doc_count" : 1
-               },
-               {
-                 "key" : "u173zt90",
-                 "doc_count" : 1
-               }
-           ]
+  ...
+  "aggregations": {
+    "tiles-in-bounds": {
+      "buckets": [
+        {
+          "key": "u173zy3j",
+          "doc_count": 1
+        },
+        {
+          "key": "u173zvfz",
+          "doc_count": 1
+        },
+        {
+          "key": "u173zt90",
+          "doc_count": 1
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -274,7 +274,7 @@ Cell dimensions vary with latitude and so the table is for the worst-case scenar
 
 Aggregating on <<geo-shape>> fields works just as it does for points, except that a single
 shape can be counted for in multiple tiles. A shape will contribute to the count of matching values
-if any part of its shape intersects with that tile. Below is an image that demonstrates this
+if any part of its shape intersects with that tile. Below is an image that demonstrates this:
 
 
 image:images/spatial/geoshape_grid.png[]

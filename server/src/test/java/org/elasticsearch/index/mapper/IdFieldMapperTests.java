@@ -82,8 +82,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
         mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE);
         IdFieldMapper.IdFieldType ft = (IdFieldMapper.IdFieldType) service.mapperService().fieldType("_id");
 
-        ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
-            ft, null, null, mapperService);
+        ft.fielddataBuilder("test").build(null, null, mapperService);
         assertWarnings(ID_FIELD_DATA_DEPRECATION_MESSAGE);
 
         client().admin().cluster().prepareUpdateSettings()
@@ -91,8 +90,7 @@ public class IdFieldMapperTests extends ESSingleNodeTestCase {
             .get();
         try {
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> ft.fielddataBuilder("test").build(mapperService.getIndexSettings(),
-                    ft, null, null, mapperService));
+                () -> ft.fielddataBuilder("test").build(null, null, mapperService));
             assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         } finally {
             // unset cluster setting

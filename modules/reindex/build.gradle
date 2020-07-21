@@ -25,6 +25,8 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
@@ -108,12 +110,12 @@ jdks {
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
-  integTest.runner {
+  javaRestTest.runner {
     systemProperty "tests.fromOld", "false"
   }
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
-  integTest.runner {
+  javaRestTest.runner {
     systemProperty "tests.fromOld", "false"
   }
 } else {
@@ -154,7 +156,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
     }
 
-    integTest {
+    javaRestTest {
       dependsOn fixture
       runner {
         systemProperty "tests.fromOld", "true"

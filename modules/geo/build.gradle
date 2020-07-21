@@ -31,6 +31,4 @@ restResources {
 artifacts {
   restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
-
-integTest.enabled = false
 test.enabled = false

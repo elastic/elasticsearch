@@ -40,18 +40,20 @@ scored higher.
 --------------------------------------------------
 GET /seats/_search
 {
-    "query": {
-        "function_score": {
-            "query": {
-                "match": { "sold": "false" }
-            },
-            "script_score" : {
-                "script" : {
-                  "source": "1.0 / doc['row'].value"
-                }
-            }
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "sold": "false"
         }
+      },
+      "script_score": {
+        "script": {
+          "source": "1.0 / doc['row'].value"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:seats]

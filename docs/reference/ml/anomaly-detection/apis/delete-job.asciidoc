@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-job]]
-=== Delete {anomaly-jobs} API
+= Delete {anomaly-jobs} API
 ++++
 <titleabbrev>Delete jobs</titleabbrev>
 ++++
@@ -9,12 +9,12 @@
 Deletes an existing {anomaly-job}.
 
 [[ml-delete-job-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `DELETE _ml/anomaly_detectors/<job_id>`
 
 [[ml-delete-job-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See <<security-privileges>>.
@@ -23,7 +23,7 @@ with it. See <<ml-delete-datafeed>>.
 * Before you can delete a job, you must close it (unless you specify the `force` parameter). See <<ml-close-job>>.
 
 [[ml-delete-job-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 All job configuration, model state and results are deleted.
 
@@ -36,14 +36,14 @@ It is not currently possible to delete multiple jobs using wildcards or a comma
 separated list.
 
 [[ml-delete-job-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-delete-job-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `force`::
 (Optional, boolean) Use to forcefully delete an opened job; this method is
@@ -54,7 +54,7 @@ quicker than closing and deleting the job.
 wait until the job deletion completes. Defaults to `true`.
 
 [[ml-delete-job-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

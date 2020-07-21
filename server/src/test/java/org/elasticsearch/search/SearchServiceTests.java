@@ -64,6 +64,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -724,15 +725,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null);
 
-        assertAcked(
-            client().admin().indices().prepareAliases()
-                .addAlias("index", "alias", new MatchNoneQueryBuilder())
-                .get()
-        );
-
-        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+        /*
+         * Checks that canMatch takes into account the alias filter
+         */
+        // the source cannot be rewritten to a match_none
+        searchRequest.indices("alias").source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
-            new AliasFilter(new MatchNoneQueryBuilder(), "alias"), 1f, -1, null, null)).canMatch());
+            new AliasFilter(new TermQueryBuilder("foo", "bar"), "alias"), 1f, -1, null, null)).canMatch());
+        // the source can match and can be rewritten to a match_none, but not the alias filter
+        final IndexResponse response = client().prepareIndex("index", "_doc", "1").setSource("id", "1").get();
+        assertEquals(RestStatus.CREATED, response.status());
+        searchRequest.indices("alias").source(new SearchSourceBuilder().query(new TermQueryBuilder("id", "1")));
+        assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 1,
+            new AliasFilter(new TermQueryBuilder("foo", "bar"), "alias"), 1f, -1, null, null)).canMatch());
 
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-rare-functions]]
-=== Rare functions
+= Rare functions
 
 The rare functions detect values that occur rarely in time or rarely for a
 population.
@@ -35,7 +35,7 @@ The {ml-features} include the following rare functions:
 
 [float]
 [[ml-rare]]
-==== Rare
+== Rare
 
 The `rare` function detects values that occur rarely in time or rarely for a
 population. It detects anomalies according to the number of distinct rare values.
@@ -93,7 +93,7 @@ is rare, even if it occurs for that client IP in every bucket.
 
 [float]
 [[ml-freq-rare]]
-==== Freq_rare
+== Freq_rare
 
 The `freq_rare` function detects values that occur rarely for a population.
 It detects anomalies according to the number of times (frequency) that rare

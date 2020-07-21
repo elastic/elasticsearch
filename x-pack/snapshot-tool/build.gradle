@@ -114,7 +114,7 @@ task buildTarArchive(dependsOn: copyRuntimeLibs, type: Tar) {
   compression Compression.GZIP
   archiveBaseName.set('snapshot-tool')
   destinationDirectory.set(project.buildDir)
-  into "snapshot-tool-${version}", {
+  into "snapshot-tool-${archiveVersion.get()}", {
     into "bin", {
       from file("${project.projectDir}/src/bin")
     }

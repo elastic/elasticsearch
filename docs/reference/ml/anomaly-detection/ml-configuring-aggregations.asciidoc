@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-configuring-aggregation]]
-=== Aggregating data for faster performance
+= Aggregating data for faster performance
 
 By default, {dfeeds} fetch data from {es} using search and scroll requests.
 It can be significantly more efficient, however, to aggregate data in {es}
@@ -17,7 +17,7 @@ search and scroll behavior.
 
 [discrete]
 [[aggs-limits-dfeeds]]
-==== Requirements and limitations
+== Requirements and limitations
 
 There are some limitations to using aggregations in {dfeeds}. Your aggregation
 must include a `date_histogram` aggregation, which in turn must contain a `max`
@@ -48,7 +48,7 @@ functions, set the interval to the same value as the bucket span.
 
 [discrete]
 [[aggs-include-jobs]]
-==== Including aggregations in {anomaly-jobs}
+== Including aggregations in {anomaly-jobs}
 
 When you create or update an {anomaly-job}, you can include the names of
 aggregations, for example:
@@ -134,7 +134,7 @@ that match values in the job configuration are fed to the job.
 
 [discrete]
 [[aggs-dfeeds]]
-==== Nested aggregations in {dfeeds}
+== Nested aggregations in {dfeeds}
 
 {dfeeds-cap} support complex nested aggregations. This example uses the 
 `derivative` pipeline aggregation to find the first order derivative of the 
@@ -180,7 +180,7 @@ counter `system.network.out.bytes` for each value of the field `beat.name`.
 
 [discrete]
 [[aggs-single-dfeeds]]
-==== Single bucket aggregations in {dfeeds}
+== Single bucket aggregations in {dfeeds}
 
 {dfeeds-cap} not only supports multi-bucket aggregations, but also single bucket
 aggregations. The following shows two `filter` aggregations, each gathering the
@@ -232,7 +232,7 @@ number of unique entries for the `error` field.
 
 [discrete]
 [[aggs-define-dfeeds]]
-==== Defining aggregations in {dfeeds}
+== Defining aggregations in {dfeeds}
 
 When you define an aggregation in a {dfeed}, it must have the following form:
 

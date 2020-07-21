@@ -126,7 +126,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorIndexFieldData.Builder(true, CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), true, CoreValuesSourceType.BYTES);
         }
 
         @Override

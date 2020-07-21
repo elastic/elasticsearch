@@ -391,8 +391,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected BiFunction<MappedFieldType, String, IndexFieldData<?>> getIndexFieldDataLookup(MapperService mapperService,
                                                                                              CircuitBreakerService circuitBreakerService) {
         return (fieldType, s) -> fieldType.fielddataBuilder(mapperService.getIndexSettings().getIndex().getName())
-            .build(mapperService.getIndexSettings(), fieldType,
-                new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
+            .build(new IndexFieldDataCache.None(), circuitBreakerService, mapperService);
 
     }
 
@@ -756,8 +755,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder("")
-                                .build(createIndexSettings(), fieldType, null, null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder("").build(null, null, null).getValuesSourceType();
     }
 
     /**

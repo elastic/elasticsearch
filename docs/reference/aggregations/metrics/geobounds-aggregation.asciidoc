@@ -10,13 +10,13 @@ Example:
 --------------------------------------------------
 PUT /museums
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_point"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 POST /museums/_bulk?refresh
@@ -35,17 +35,17 @@ POST /museums/_bulk?refresh
 
 POST /museums/_search?size=0
 {
-    "query" : {
-        "match" : { "name" : "musée" }
-    },
-    "aggs" : {
-        "viewport" : {
-            "geo_bounds" : {
-                "field" : "location", <1>
-                "wrap_longitude" : true <2>
-            }
-        }
+  "query": {
+    "match": { "name": "musée" }
+  },
+  "aggs": {
+    "viewport": {
+      "geo_bounds": {
+        "field": "location",    <1>
+        "wrap_longitude": true  <2>
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -59,21 +59,21 @@ The response for the above aggregation:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "viewport": {
-            "bounds": {
-                "top_left": {
-                    "lat": 48.86111099738628,
-                    "lon": 2.3269999679178
-                },
-                "bottom_right": {
-                    "lat": 48.85999997612089,
-                    "lon": 2.3363889567553997
-                }
-            }
+  ...
+  "aggregations": {
+    "viewport": {
+      "bounds": {
+        "top_left": {
+          "lat": 48.86111099738628,
+          "lon": 2.3269999679178
+        },
+        "bottom_right": {
+          "lat": 48.85999997612089,
+          "lon": 2.3363889567553997
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
@@ -90,13 +90,13 @@ Example:
 --------------------------------------------------
 PUT /places
 {
-    "mappings": {
-        "properties": {
-            "geometry": {
-                "type": "geo_shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "geometry": {
+        "type": "geo_shape"
+      }
     }
+  }
 }
 
 POST /places/_bulk?refresh
@@ -107,13 +107,13 @@ POST /places/_bulk?refresh
 
 POST /places/_search?size=0
 {
-    "aggs" : {
-        "viewport" : {
-            "geo_bounds" : {
-                "field" : "geometry"
-            }
-        }
+  "aggs": {
+    "viewport": {
+      "geo_bounds": {
+        "field": "geometry"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST
@@ -121,21 +121,21 @@ POST /places/_search?size=0
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "viewport": {
-            "bounds": {
-                "top_left": {
-                    "lat": 52.39420966710895,
-                    "lon": 4.912349972873926
-                },
-                "bottom_right": {
-                    "lat": 52.374080987647176,
-                    "lon": 4.969425117596984
-                }
-            }
+  ...
+  "aggregations": {
+    "viewport": {
+      "bounds": {
+        "top_left": {
+          "lat": 52.39420966710895,
+          "lon": 4.912349972873926
+        },
+        "bottom_right": {
+          "lat": 52.374080987647176,
+          "lon": 4.969425117596984
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]

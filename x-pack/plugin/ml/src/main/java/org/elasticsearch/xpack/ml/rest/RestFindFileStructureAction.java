@@ -30,15 +30,8 @@ public class RestFindFileStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "find_file_structure",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "find_file_structure")
+            new Route(POST, MachineLearning.BASE_PATH + "find_file_structure")
         );
     }
 

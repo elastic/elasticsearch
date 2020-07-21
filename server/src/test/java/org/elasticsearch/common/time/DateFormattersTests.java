@@ -406,7 +406,7 @@ public class DateFormattersTests extends ESTestCase {
             String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
 
             DateFormatter dateFormatter = DateFormatter.forPattern(name);
-            assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
+            assertThat(dateFormatter.pattern(), equalTo(name));
             assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
                 "Use snake case name " + snakeCaseName + " instead.");
 

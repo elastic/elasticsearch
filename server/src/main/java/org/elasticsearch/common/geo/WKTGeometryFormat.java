@@ -58,4 +58,9 @@ public class WKTGeometryFormat implements GeometryFormat<Geometry> {
             return builder.nullValue();
         }
     }
+
+    @Override
+    public String toObject(Geometry geometry) {
+        return wellKnownTextParser.toWKT(geometry);
+    }
 }

@@ -45,4 +45,11 @@ public interface GeometryFormat<ParsedFormat> {
      * Serializes the geometry into its JSON representation
      */
     XContentBuilder toXContent(ParsedFormat geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+    /**
+     * Serializes the geometry into a standard Java object.
+     *
+     * For example, the GeoJson format returns the geometry as a map, while WKT returns a string.
+     */
+    Object toObject(ParsedFormat geometry);
 }

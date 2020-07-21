@@ -72,7 +72,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<List<P
             GeoPointFieldType ft = new GeoPointFieldType(buildFullName(context), indexed, hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new GeoPointIndexer(ft));
-            ft.setGeometryFormatter(new PointFormatter<>());
             ft.setGeometryQueryBuilder(new VectorGeoPointShapeQueryProcessor());
             return new GeoPointFieldMapper(name, fieldType, ft, multiFields, ignoreMalformed, ignoreZValue, nullValue, copyTo);
         }

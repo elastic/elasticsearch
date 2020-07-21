@@ -19,25 +19,27 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.text.ParseException;
 
-public class GeoShapeFormatter implements AbstractGeometryFieldMapper.Formatter<Geometry> {
-    @Override
-    public Object formatGeoJson(Geometry value) {
-        try {
-            return GeoJson.toXContentMap(value);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+public class GeoShapeParser implements AbstractGeometryFieldMapper.Parser<Geometry> {
+    private final GeometryParser geometryParser;
+
+    public GeoShapeParser(GeometryParser geometryParser) {
+        this.geometryParser = geometryParser;
     }
 
     @Override
-    public Object formatWKT(Geometry value) {
-        return WellKnownText.INSTANCE.toWKT(value);
+    public Geometry parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException {
+        return geometryParser.parse(parser);
+    }
+
+    @Override
+    public Object format(Geometry value, String format) {
+        return geometryParser.geometryFormat(format).toObject(value);
     }
 }

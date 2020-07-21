@@ -22,17 +22,16 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryFormat;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -185,6 +184,14 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
 
     /** A parser implementation that can parse the various point formats */
     public static class PointParser<P extends ParsedPoint> implements Parser<List<P>> {
+        /**
+         * Note that this parser is only used for formatting values.
+         */
+        private final GeometryParser geometryParser;
+
+        public PointParser() {
+            this.geometryParser = new GeometryParser(true, true, true);
+        }
 
         @Override
         public List<P> parse(XContentParser parser, AbstractGeometryFieldMapper geometryMapper) throws IOException, ParseException {
@@ -244,29 +251,14 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                 return points;
             }
         }
-    }
 
-    public static class PointFormatter<P extends ParsedPoint> implements Formatter<List<P>> {
         @Override
-        public Object formatGeoJson(List<P> points) {
+        public Object format(List<P> points, String format) {
             List<Object> result = new ArrayList<>();
-            for (ParsedPoint point : points) {
-                try {
-                    Geometry geometry = point.asGeometry();
-                    result.add(GeoJson.toXContentMap(geometry));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public Object formatWKT(List<P> points) {
-            List<String> result = new ArrayList<>();
+            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
             for (ParsedPoint point : points) {
                 Geometry geometry = point.asGeometry();
-                result.add(WellKnownText.INSTANCE.toWKT(geometry));
+                result.add(geometryFormat.toObject(geometry));
             }
             return result;
         }

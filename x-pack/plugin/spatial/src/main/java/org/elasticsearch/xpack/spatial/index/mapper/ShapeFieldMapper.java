@@ -12,7 +12,7 @@ import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFormatter;
+import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -54,9 +54,8 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
             ShapeFieldType ft = new ShapeFieldType(buildFullName(context), indexed, hasDocValues, meta);
             GeometryParser geometryParser
                 = new GeometryParser(orientation().value().getAsBoolean(), coerce().value(), ignoreZValue().value());
-            ft.setGeometryParser((parser, mapper) -> geometryParser.parse(parser));
+            ft.setGeometryParser(new GeoShapeParser(geometryParser));
             ft.setGeometryIndexer(new ShapeIndexer(ft.name()));
-            ft.setGeometryFormatter(new GeoShapeFormatter());
             ft.setGeometryQueryBuilder(new ShapeQueryProcessor());
             ft.setOrientation(orientation().value());
             return new ShapeFieldMapper(name, fieldType, ft, ignoreMalformed(context), coerce(context),

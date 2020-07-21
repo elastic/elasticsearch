@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -81,15 +82,21 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     }
 
     /**
-     * interface representing parser in geometry indexing pipeline
+     * Interface representing parser in geometry indexing pipeline.
      */
     public interface Parser<Parsed> {
+        /**
+         * Parse the given xContent value to an object of type {@link Parsed}.
+         */
         Parsed parse(XContentParser parser, AbstractGeometryFieldMapper mapper) throws IOException, ParseException;
-    }
 
-    public interface Formatter<Parsed> {
-        Object formatGeoJson(Parsed value);
-        Object formatWKT(Parsed value);
+        /**
+         * Given a parsed value and a format string, formats the value into a plain Java object.
+         *
+         * Supported formats include 'geojson' and 'wkt'. The different formats are defined
+         * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
+         */
+        Object format(Parsed value, String format);
     }
 
     public abstract static class Builder<T extends Builder<T, FT>, FT extends AbstractGeometryFieldType>
@@ -153,9 +160,12 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     @Override
     protected Object parseSourceValue(Object value, String format) {
+        if (format == null) {
+            format = GeoJsonGeometryFormat.NAME;
+        }
+
         AbstractGeometryFieldType<Parsed, Processed> mappedFieldType = fieldType();
         Parser<Parsed> geometryParser = mappedFieldType.geometryParser();
-        Formatter<Parsed> geometryFormatter = mappedFieldType.geometryFormatter();
 
         Parsed geometry;
         try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
@@ -169,15 +179,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
-
-        if (format == null || format.equals("geojson")) {
-            return geometryFormatter.formatGeoJson(geometry);
-        } else if (format.equals("wkt")) {
-            return geometryFormatter.formatWKT(geometry);
-        } else {
-            throw new IllegalArgumentException("Encountered an unsupported format [" + format + "] when " +
-                "loading values for the [" + contentType() +"] field named [" + name() + "]");
-        }
+        return geometryParser.format(geometry, format);
     }
 
     public abstract static class TypeParser<T extends Builder> implements Mapper.TypeParser {
@@ -221,7 +223,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     public abstract static class AbstractGeometryFieldType<Parsed, Processed> extends MappedFieldType {
         protected Indexer<Parsed, Processed> geometryIndexer;
         protected Parser<Parsed> geometryParser;
-        protected Formatter<Parsed> geometryFormatter;
         protected QueryProcessor geometryQueryBuilder;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
@@ -246,14 +247,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
         protected Parser<Parsed> geometryParser() {
             return geometryParser;
-        }
-
-        public void setGeometryFormatter(Formatter<Parsed> geometryFormatter) {
-            this.geometryFormatter = geometryFormatter;
-        }
-
-        protected Formatter<Parsed> geometryFormatter() {
-            return geometryFormatter;
         }
 
         public QueryProcessor geometryQueryBuilder() {

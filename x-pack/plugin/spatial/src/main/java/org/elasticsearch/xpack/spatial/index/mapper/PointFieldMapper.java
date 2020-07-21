@@ -17,8 +17,8 @@ import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
-import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper.ParsedCartesianPoint;
+import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +47,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<List<Pars
             PointFieldType ft = new PointFieldType(buildFullName(context), indexed, hasDocValues, meta);
             ft.setGeometryParser(new PointParser<>());
             ft.setGeometryIndexer(new PointIndexer(ft));
-            ft.setGeometryFormatter(new PointFormatter<>());
             ft.setGeometryQueryBuilder(new ShapeQueryPointProcessor());
             return new PointFieldMapper(simpleName, fieldType, ft, multiFields,
                 ignoreMalformed, ignoreZValue(context), nullValue, copyTo);

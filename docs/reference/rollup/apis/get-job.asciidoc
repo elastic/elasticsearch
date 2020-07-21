@@ -110,9 +110,20 @@ The API yields the following response:
             "field": "timestamp",
             "time_zone": "UTC"
           },
-          "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+          "terms": {
+            "fields": [
+              "node"
+            ]
+          }
+        },
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
           },
           {
             "field": "voltage",
@@ -125,7 +136,8 @@ The API yields the following response:
         "page_size": 1000
       },
       "status": {
-        "job_state": "stopped"
+        "job_state": "stopped",
+        "upgraded_doc_id": true
       },
       "stats": {
         "pages_processed": 0,
@@ -190,48 +202,19 @@ Which will yield the following response:
 [source,js]
 ----
 {
-    "jobs" : [
-        {
-          "config" : {
-            "id" : "sensor2",
-            "index_pattern" : "sensor-*",
-            "rollup_index" : "sensor_rollup",
-            "cron" : "*/30 * * * * ?",
-            "groups" : {
-              "date_histogram" : {
-                "fixed_interval" : "1h",
-                "delay": "7d",
-                "field": "timestamp",
-                "time_zone": "UTC"
-              },
-              "terms" : {
-                "fields" : [
-                  "node"
-                ]
-              }
-            },
-            "metrics" : [
-              {
-                "field" : "temperature",
-                "metrics" : [
-                  "min",
-                  "max",
-                  "sum"
-                ]
-              },
-              {
-                "field" : "voltage",
-                "metrics" : [
-                  "avg"
-                ]
-              }
-            ],
-            "timeout" : "20s",
-            "page_size" : 1000
-          },
-          "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+  "jobs": [
+    {
+      "config": {
+        "id": "sensor2",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
           },
           "terms": {
             "fields": [
@@ -248,9 +231,62 @@ Which will yield the following response:
               "sum"
             ]
           },
-          "status" : {
-            "job_state" : "stopped",
-            "upgraded_doc_id": true
+          {
+            "field": "voltage",
+            "metrics": [
+              "avg"
+            ]
+          }
+        ],
+        "timeout": "20s",
+        "page_size": 1000
+      },
+      "status": {
+        "job_state": "stopped",
+        "upgraded_doc_id": true
+      },
+      "stats": {
+        "pages_processed": 0,
+        "documents_processed": 0,
+        "rollups_indexed": 0,
+        "trigger_count": 0,
+        "index_failures": 0,
+        "index_time_in_ms": 0,
+        "index_total": 0,
+        "search_failures": 0,
+        "search_time_in_ms": 0,
+        "search_total": 0,
+        "processing_time_in_ms": 0,
+        "processing_total": 0
+      }
+    },
+    {
+      "config": {
+        "id": "sensor",
+        "index_pattern": "sensor-*",
+        "rollup_index": "sensor_rollup",
+        "cron": "*/30 * * * * ?",
+        "groups": {
+          "date_histogram": {
+            "fixed_interval": "1h",
+            "delay": "7d",
+            "field": "timestamp",
+            "time_zone": "UTC"
+          },
+          "terms": {
+            "fields": [
+              "node"
+            ]
+          }
+        },
+        "metrics": [
+          {
+            "field": "temperature",
+            "metrics": [
+              "min",
+              "max",
+              "sum"
+            ]
           },
           {
             "field": "voltage",
@@ -263,7 +299,8 @@ Which will yield the following response:
         "page_size": 1000
       },
       "status": {
-        "job_state": "stopped"
+        "job_state": "stopped",
+        "upgraded_doc_id": true
       },
       "stats": {
         "pages_processed": 0,

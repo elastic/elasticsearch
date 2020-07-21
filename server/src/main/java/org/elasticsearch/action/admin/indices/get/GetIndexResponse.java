@@ -59,7 +59,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
-    private String[] indices;
+    private final String[] indices;
 
     public GetIndexResponse(String[] indices,
                      ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings,
@@ -126,11 +126,9 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         settings = settingsMapBuilder.build();
 
         ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            int defaultSettingsSize = in.readVInt();
-            for (int i = 0; i < defaultSettingsSize ; i++) {
-                defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-            }
+        int defaultSettingsSize = in.readVInt();
+        for (int i = 0; i < defaultSettingsSize; i++) {
+            defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
         }
         defaultSettings = defaultSettingsMapBuilder.build();
 
@@ -245,12 +243,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             out.writeString(indexEntry.key);
             Settings.writeSettingsToStream(indexEntry.value, out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeVInt(defaultSettings.size());
-            for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
-                out.writeString(indexEntry.key);
-                Settings.writeSettingsToStream(indexEntry.value, out);
-            }
+        out.writeVInt(defaultSettings.size());
+        for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
+            out.writeString(indexEntry.key);
+            Settings.writeSettingsToStream(indexEntry.value, out);
         }
         if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
             out.writeVInt(dataStreams.size());

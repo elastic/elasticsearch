@@ -188,19 +188,19 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
 
-        assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, cacheEnabled);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
         assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
-        assertRecovered(aliasName, originalAllHits, originalBarHits);
+        assertTotalHits(aliasName, originalAllHits, originalBarHits);
 
         internalCluster().fullRestart();
-        assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, cacheEnabled);
-        assertRecovered(aliasName, originalAllHits, originalBarHits);
+        assertTotalHits(aliasName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -236,7 +236,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .isTimedOut()
         );
 
-        assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, cacheEnabled);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
 
@@ -251,7 +251,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 )
         );
 
-        assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, cacheEnabled);
 
         final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -268,7 +268,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 )
         );
         ensureGreen(clonedIndexName);
-        assertRecovered(clonedIndexName, originalAllHits, originalBarHits);
+        assertTotalHits(clonedIndexName, originalAllHits, originalBarHits);
 
         final Settings clonedIndexSettings = client().admin()
             .indices()
@@ -286,7 +286,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
         assertAcked(client().admin().indices().prepareAliases().addAlias(clonedIndexName, aliasName));
-        assertRecovered(aliasName, originalAllHits, originalBarHits);
+        assertTotalHits(aliasName, originalAllHits, originalBarHits);
 
     }
 

@@ -30,7 +30,6 @@ public final class OnDemandRecoveryState extends RecoveryState {
         if (stage == Stage.DONE) {
             stage = Stage.ON_DEMAND;
         }
-
         return super.setStage(stage);
     }
 
@@ -39,22 +38,21 @@ public final class OnDemandRecoveryState extends RecoveryState {
             super(new SearchableSnapshotsRecoveryFiles());
         }
 
-        public synchronized void trackCacheFile(String fileName, CacheFile cacheFile) {
+        public synchronized void addCacheFileDetail(String fileName, CacheFile cacheFile) {
             CachedFileDetail fileDetails = (CachedFileDetail) getFileDetails(fileName);
-            assert fileDetails != null : "Unknown file [" + fileName + "]";
-            fileDetails.trackCacheFile(cacheFile);
+            assert fileDetails != null : "Unknown file [" + fileName + "]. The file detail should have been declared during recovery";
+            fileDetails.addCacheFile(cacheFile);
         }
 
-        public synchronized void trackCacheFileEviction(String fileName, CacheFile cacheFile) {
+        public synchronized void removeCacheFileDetail(String fileName, CacheFile cacheFile) {
             CachedFileDetail fileDetails = (CachedFileDetail) getFileDetails(fileName);
-            assert fileDetails != null : "Unknown file [" + fileName + "]";
-            fileDetails.trackCacheFileEviction(cacheFile);
+            assert fileDetails != null : "Unknown file [" + fileName + "]. The file detail should have been declared during recovery";
+            fileDetails.removeCacheFile(cacheFile);
         }
 
         @Override
         public void stop() {
-            // Since this is an on demand recovery,
-            // the timer will remain open forever.
+            // Since this is an on demand recovery, the timer will remain open forever.
         }
     }
 
@@ -82,14 +80,14 @@ public final class OnDemandRecoveryState extends RecoveryState {
             super(name, length, reused);
         }
 
-        private void trackCacheFile(CacheFile cacheFile) {
+        private void addCacheFile(CacheFile cacheFile) {
             // It's possible that multiple CachedBlobContainerIndexInput use the same
             // cacheFile, so that's the reason why we use a set and we don't assert that
             // the cacheFile is added only once.
             cacheFiles.add(cacheFile);
         }
 
-        private void trackCacheFileEviction(CacheFile cacheFile) {
+        private void removeCacheFile(CacheFile cacheFile) {
             // Multiple IndexInput can point to the same CacheFile, so we can have multiple evictions
             cacheFiles.remove(cacheFile);
         }

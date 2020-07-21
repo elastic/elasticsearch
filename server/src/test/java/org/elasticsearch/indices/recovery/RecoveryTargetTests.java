@@ -345,15 +345,15 @@ public class RecoveryTargetTests extends ESTestCase {
         Stage[] regularRecoveryStages = Arrays.stream(Stage.values())
             .filter(stage -> stage != Stage.ON_DEMAND)
             .toArray(Stage[]::new);
-        assertStageSequenceIsEnforces(regularRecoveryStages);
+        assertStageSequenceIsEnforced(regularRecoveryStages);
 
         Stage[] lazyRecoveryStages = Arrays.stream(Stage.values())
             .filter(stage -> stage != Stage.DONE)
             .toArray(Stage[]::new);
-        assertStageSequenceIsEnforces(lazyRecoveryStages);
+        assertStageSequenceIsEnforced(lazyRecoveryStages);
     }
 
-    public void assertStageSequenceIsEnforces(Stage[] stageSequence) {
+    private void assertStageSequenceIsEnforced(Stage[] stageSequence) {
         final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
             Version.CURRENT);
         final AssertionError error = expectThrows(AssertionError.class, () -> {

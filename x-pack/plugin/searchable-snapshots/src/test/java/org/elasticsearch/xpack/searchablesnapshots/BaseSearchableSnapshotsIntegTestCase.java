@@ -108,7 +108,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends ESIntegTestCa
         );
     }
 
-    protected void assertRecovered(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
+    protected void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
         final Thread[] threads = new Thread[between(1, 5)];
         final AtomicArray<TotalHits> allHits = new AtomicArray<>(threads.length);
         final AtomicArray<TotalHits> barHits = new AtomicArray<>(threads.length);

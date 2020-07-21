@@ -157,7 +157,7 @@ public class SearchableSnapshotsRecoveryStateTests extends BaseSearchableSnapsho
             .index(restoredIndexName)
             .getIndex();
 
-        assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
 
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);

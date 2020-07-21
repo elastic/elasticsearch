@@ -716,12 +716,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
         public void addRecoveredBytes(long bytes) {
             assert reused() == false : "file is marked as reused, can't update recovered bytes";
-            assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
+            assert bytes >= 0 : "can't recover negative bytes. got [" + bytes + "]";
             recovered += bytes;
         }
 
         /**
-         * number of bytes recovered for this file (so far). 0 if the file is reused *
+         * Number of bytes recovered for this file (so far). 0 if the file is reused *
          */
         public long recovered() {
             return recovered;

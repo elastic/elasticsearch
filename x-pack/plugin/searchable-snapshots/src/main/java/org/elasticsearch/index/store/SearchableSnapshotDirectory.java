@@ -189,19 +189,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     this.recoveryStateIndex = recoveryStateIndex;
-                    loadFileDetails();
+                    for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
+                        recoveryStateIndex.addFileDetail(file.physicalName(), file.length(), false);
+                    }
                     prewarmCache();
                 }
             }
         }
         assert invariant();
         return alreadyLoaded == false;
-    }
-
-    private void loadFileDetails() {
-        for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
-            recoveryStateIndex.addFileDetail(file.physicalName(), file.length(), false);
-        }
     }
 
     @Nullable
@@ -457,11 +453,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public void trackCacheFile(String fileName, CacheFile cacheFile) {
-        recoveryStateIndex.trackCacheFile(fileName, cacheFile);
+        recoveryStateIndex.addCacheFileDetail(fileName, cacheFile);
     }
 
     public void trackCacheFileEviction(String fileName, CacheFile cacheFile) {
-        recoveryStateIndex.trackCacheFileEviction(fileName, cacheFile);
+        recoveryStateIndex.removeCacheFileDetail(fileName, cacheFile);
     }
 
     public static Directory create(

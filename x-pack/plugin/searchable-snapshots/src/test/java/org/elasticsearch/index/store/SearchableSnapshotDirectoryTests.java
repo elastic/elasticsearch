@@ -64,6 +64,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.TestUtils;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.translog.Translog;
@@ -99,7 +100,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.ThreadPoolExecutor;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
@@ -797,15 +798,19 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
         OnDemandRecoveryState.Index recoveryStateIndex = new OnDemandRecoveryState.Index();
         testDirectories(true, true, recoveryStateIndex, (directory, snapshotDirectory) -> {
             List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = snapshotDirectory.snapshot().indexFiles();
-
             assertBusy(() -> {
-                boolean anyFileIsRecovered = snapshotFiles.stream()
-                    .map(BlobStoreIndexShardSnapshot.FileInfo::physicalName)
-                    .map(recoveryStateIndex::getFileDetails)
-                    .filter(Objects::nonNull)
-                    .anyMatch(f -> f.recovered() > 0L);
-                assertThat(anyFileIsRecovered, is(true));
+                ThreadPoolExecutor executor = (ThreadPoolExecutor) snapshotDirectory.prewarmExecutor();
+                assertThat(executor.getQueue().size(), is(0));
+                assertThat(executor.getActiveCount(), is(0));
             });
+
+            for (BlobStoreIndexShardSnapshot.FileInfo snapshotFile : snapshotFiles) {
+                String fileName = snapshotFile.physicalName();
+
+                RecoveryState.FileDetail fileDetail = recoveryStateIndex.getFileDetails(fileName);
+                CacheFile cacheFile = snapshotDirectory.getCacheFile(snapshotDirectory.createCacheKey(fileName), snapshotFile.length());
+                assertThat(fileDetail.recovered(), is(cacheFile.getCachedLength()));
+            }
         });
     }
 

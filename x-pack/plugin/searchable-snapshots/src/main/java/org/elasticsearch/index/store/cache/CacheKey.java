@@ -37,7 +37,7 @@ public class CacheKey {
         return shardId;
     }
 
-    String getFileName() {
+    public String getFileName() {
         return fileName;
     }
 

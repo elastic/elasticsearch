@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
@@ -21,7 +22,9 @@ import org.elasticsearch.index.store.cache.CacheKey;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 
 /**
@@ -52,6 +55,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ByteSizeValue cacheSize;
     private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
+    private final List<RemovalListener> removalListeners = new CopyOnWriteArrayList<>();
 
     public CacheService(final Runnable cacheCleaner, final Settings settings) {
         this(cacheCleaner, SNAPSHOT_CACHE_SIZE_SETTING.get(settings), SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings));
@@ -67,12 +71,27 @@ public class CacheService extends AbstractLifecycleComponent {
             .weigher((key, entry) -> entry.getLength())
             // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
             // are done with reading/writing the cache file
-            .removalListener(notification -> IOUtils.closeWhileHandlingException(() -> notification.getValue().startEviction()))
+            .removalListener(this::onCacheRemoval)
             .build();
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
         return shardPath.getDataPath().resolve("snapshot_cache");
+    }
+
+    public void addRemovalListener(RemovalListener listener) {
+        removalListeners.add(listener);
+    }
+
+    public void deleteRemovalListener(RemovalListener listener) {
+        removalListeners.remove(listener);
+    }
+
+    private void onCacheRemoval(RemovalNotification<CacheKey, CacheFile> notification) {
+        IOUtils.closeWhileHandlingException(() -> notification.getValue().startEviction());
+        for (RemovalListener removalListener : removalListeners) {
+            removalListener.onRemoval(notification.getKey(), notification.getValue());
+        }
     }
 
     @Override
@@ -136,5 +155,9 @@ public class CacheService extends AbstractLifecycleComponent {
             }
         }
         cache.refresh();
+    }
+
+    public interface RemovalListener {
+        void onRemoval(CacheKey cacheKey, CacheFile cacheFile);
     }
 }

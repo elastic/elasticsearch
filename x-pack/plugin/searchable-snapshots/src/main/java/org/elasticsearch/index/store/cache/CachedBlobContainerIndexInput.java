@@ -513,7 +513,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             synchronized (this) {
                 if (cacheFile.compareAndSet(evictedCacheFile, null)) {
                     evictedCacheFile.release(this);
-                    directory.trackCacheFileEviction(cacheKey.getFileName(), evictedCacheFile);
                 }
             }
         }
@@ -523,22 +522,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 final CacheFile currentCacheFile = cacheFile.getAndSet(null);
                 if (currentCacheFile != null) {
                     currentCacheFile.release(this);
-                    try {
-                        // It's possible that a different CachedBlobContainerIndexInput is using the same
-                        // underlying CacheFile, in that case we register a listener that would track the
-                        // CacheFile eviction once its ref count reaches 0. If this was the last reference
-                        // we just track the file cache eviction.
-                        RecoveryStateCacheFileEvictionListener listener = new RecoveryStateCacheFileEvictionListener(
-                            cacheKey,
-                            currentCacheFile,
-                            directory
-                        );
-                        if (currentCacheFile.acquire(listener) == false) {
-                            directory.trackCacheFileEviction(cacheKey.getFileName(), currentCacheFile);
-                        }
-                    } catch (AlreadyClosedException | IOException e) {
-                        directory.trackCacheFileEviction(cacheKey.getFileName(), currentCacheFile);
-                    }
                 }
             }
         }
@@ -554,26 +537,6 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + ", acquired="
                 + (cacheFile.get() != null)
                 + '}';
-        }
-    }
-
-    private static class RecoveryStateCacheFileEvictionListener implements CacheFile.EvictionListener {
-        private final AtomicReference<CacheFile> cacheFileRef = new AtomicReference<>();
-        private final CacheKey cacheKey;
-        private final SearchableSnapshotDirectory directory;
-
-        private RecoveryStateCacheFileEvictionListener(CacheKey cacheKey, CacheFile cacheFile, SearchableSnapshotDirectory directory) {
-            this.cacheKey = cacheKey;
-            this.directory = directory;
-            cacheFileRef.set(cacheFile);
-        }
-
-        @Override
-        public void onEviction(CacheFile evictedCacheFile) {
-            if (cacheFileRef.compareAndSet(evictedCacheFile, null)) {
-                evictedCacheFile.release(this);
-                directory.trackCacheFileEviction(cacheKey.getFileName(), evictedCacheFile);
-            }
         }
     }
 

@@ -96,7 +96,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCon
  * shard files and what it stored in the snapshot the {@link BlobStoreIndexShardSnapshot} is used to map a physical file name as expected by
  * Lucene with the one (or the ones) corresponding blob(s) in the snapshot.
  */
-public class SearchableSnapshotDirectory extends BaseDirectory {
+public class SearchableSnapshotDirectory extends BaseDirectory implements CacheService.RemovalListener {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotDirectory.class);
 
@@ -153,6 +153,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.threadPool = threadPool;
         this.loaded = false;
+        cacheService.addRemovalListener(this);
         assert invariant();
     }
 
@@ -316,6 +317,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void clearCache() {
         cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
+        cacheService.deleteRemovalListener(this);
+    }
+
+    @Override
+    public void onRemoval(CacheKey cacheKey, CacheFile cacheFile) {
+        if (cacheKey.belongsTo(snapshotId, indexId, shardId)) {
+            recoveryStateIndex.removeCacheFileDetail(cacheKey.getFileName(), cacheFile);
+        }
     }
 
     protected IndexInputStats createIndexInputStats(final long fileLength) {
@@ -454,10 +463,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void trackCacheFile(String fileName, CacheFile cacheFile) {
         recoveryStateIndex.addCacheFileDetail(fileName, cacheFile);
-    }
-
-    public void trackCacheFileEviction(String fileName, CacheFile cacheFile) {
-        recoveryStateIndex.removeCacheFileDetail(fileName, cacheFile);
     }
 
     public static Directory create(

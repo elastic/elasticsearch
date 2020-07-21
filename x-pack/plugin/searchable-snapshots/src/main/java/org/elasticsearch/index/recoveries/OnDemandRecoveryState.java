@@ -88,7 +88,9 @@ public final class OnDemandRecoveryState extends RecoveryState {
         }
 
         private void removeCacheFile(CacheFile cacheFile) {
-            // Multiple IndexInput can point to the same CacheFile, so we can have multiple evictions
+            // It's possible that the file is evicted even before CachedBlobContainerIndexInput
+            // was able to get a reference to the file (i.e. a small cache size), so we can
+            // have notifications about unknown CacheFiles for this FileDetail
             cacheFiles.remove(cacheFile);
         }
 
@@ -101,7 +103,7 @@ public final class OnDemandRecoveryState extends RecoveryState {
         public long recovered() {
             long recovered = 0;
             for (CacheFile cacheFile : cacheFiles) {
-                recovered += cacheFile.getLength();
+                recovered += cacheFile.getCachedLength();
             }
             return recovered;
         }

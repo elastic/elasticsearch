@@ -80,6 +80,10 @@ public class CacheFile {
         return tracker.getLength();
     }
 
+    public long getCachedLength() {
+        return tracker.getPhysicalLength();
+    }
+
     public Path getFile() {
         return file;
     }

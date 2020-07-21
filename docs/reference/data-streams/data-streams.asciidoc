@@ -101,7 +101,7 @@ generation contain older data.
 
 A backing index's name can change after its creation due to a
 <<indices-shrink-index,shrink>>, <<snapshots-restore-snapshot,restore>>, or
-other operations. However, renaming does not detach a backing index from its
+other operations. However, renaming a backing index does not detach it from a
 data stream.
 
 [discrete]

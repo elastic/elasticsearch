@@ -506,9 +506,9 @@ POST /logs/_update_by_query
 You cannot send document deletion requests directly to a data stream. These
 prohibited requests include:
 
-* A <<docs-bulk,bulk API>> request using the `delete` action.
-
 * A <<docs-delete,delete API>> request
+
+* A <<docs-bulk,bulk API>> request using the `delete` action.
 
 Instead, you can use the <<docs-delete-by-query,delete by query API>> to delete
 documents in a data stream that matches a provided query.

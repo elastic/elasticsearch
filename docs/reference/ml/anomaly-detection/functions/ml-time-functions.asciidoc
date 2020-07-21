@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-time-functions]]
-=== Time functions
+= Time functions
 
 The time functions detect events that happen at unusual times, either of the day
 or of the week. These functions can be used to find unusual patterns of behavior,
@@ -37,7 +37,7 @@ step change in behavior and the new times will be learned quickly.
 
 [float]
 [[ml-time-of-day]]
-==== Time_of_day
+== Time_of_day
 
 The `time_of_day` function detects when events occur that are outside normal
 usage patterns. For example, it detects unusual activity in the middle of the
@@ -73,7 +73,7 @@ its past behavior.
 
 [float]
 [[ml-time-of-week]]
-==== Time_of_week
+== Time_of_week
 
 The `time_of_week` function detects when events occur that are outside normal
 usage patterns. For example, it detects login events on the weekend.

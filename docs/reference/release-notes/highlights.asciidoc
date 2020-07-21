@@ -39,7 +39,7 @@ Other versions:
 //
 // Description.
 
-tag::notable-highlights[]
+// tag::notable-highlights[]
 [discrete]
 === EQL
 
@@ -65,9 +65,9 @@ This release includes the following features:
 * Pipes
 
 An in-depth discussion of EQL in ES scope can be found at {es-issue}49581[#49581].
-end::notable-highlights[]
+// end::notable-highlights[]
 
-tag::notable-highlights[]
+// tag::notable-highlights[]
 [discrete]
 === Data streams
 
@@ -76,10 +76,10 @@ continuously generated time-series data. The provide a simpler way to split
 data across multiple indices and still query it via a single named resource.
 
 See the <<data-streams,Data streams documentation>> to get started.
-end::notable-highlights[]
+// end::notable-highlights[]
 
 
-tag::notable-highlights[]
+// tag::notable-highlights[]
 [discrete]
 === Enable fully concurrent snapshot operations
 
@@ -94,7 +94,47 @@ Snapshot operations can now execute in a fully concurrent manner.
   snapshots are linearized for each repository, as are snapshot
   finalizations
 
-end::notable-highlights[]
+// end::notable-highlights[]
+
+
+// tag::notable-highlights[]
+[float]
+=== Improve speed and memory usage of multi-bucket aggregations
+
+Before {minor-version}, many of our more complex aggregations made a simplifying
+assumption that required that they duplicate many data structures once per
+bucket that contained them. The most expensive of these weighed in at a
+couple of kilobytes each. So for an aggregation like:
+
+----
+POST _search
+{
+  "aggs": {
+    "date": {
+      "date_histogram": { "field": "timestamp", "calendar_interval": "day" },
+      "aggs": {
+        "ips": {
+          "terms": { "field": "ip" }
+        }
+      }
+    }
+  }
+}
+----
+
+When run over three years, this aggregation spends a couple of megabytes
+just on bucket accounting. More deeply nested aggregations spend even more
+on this overhead. {es} {minor-version} removes all of this overhead, which
+should allow us to run better in lower memory environments.
+
+As a bonus we wrote quite a few Rally benchmarks for aggregations to make
+sure that these tests didn't slow down aggregations, so now we can think
+much more scientifically about aggregation performance. The benchmarks
+suggest that these changes don't affect simple aggregation trees and speed
+up complex aggregation trees of similar or higher depth than the example
+above. Your actual performance changes will vary but this optimization
+should help!
+// end::notable-highlights[]
 
 
 [float]
@@ -125,7 +165,7 @@ The mapping is also defined as `flattened` by default. This is to avoid
 field explosion while still providing (limited) search and aggregation
 capabilities.
 
-tag::notable-highlights[]
+// tag::notable-highlights[]
 [float]
 === Optimize `date_histograms` across daylight savings time
 
@@ -136,19 +176,19 @@ of short-lived objects in memory. {es} {minor-version} has a revised and
 far more efficient implemention that adds only a comparatively small
 overhead to requests.
 
-end::notable-highlights[]
+// end::notable-highlights[]
 
-tag::notable-highlights[]
+// tag::notable-highlights[]
 [float]
 === Improved resilience to network disruption
 
 {es} now has mechansisms to safely resume peer recoveries when there is
 network disruption, which would previously have failed any in-progress peer
 recoveries.
-end::notable-highlights[]
+// end::notable-highlights[]
 
 
-tag::notable-highlights[]
+// tag::notable-highlights[]
 [float]
 === Wildcard field optimised for wildcard queries
 
@@ -159,4 +199,25 @@ field types, they suffer from constraint that limit their usefulness.
 This field type is especially well suited for running grep-like queries on
 log lines. See the <<wildcard,wildcard datatype>> documentation for more
 information.
-end::notable-highlights[]
+// end::notable-highlights[]
+
+
+// tag::notable-highlights[]
+[float]
+=== Indexing metrics and back pressure
+
+{es} {minor-version} now tracks metrics about the number of indexing
+request bytes that are outstanding at each point in the indexing process
+(coordinating, primary, and replication). These metrics are exposed in the
+node stats API. Additionally, the new setting
+`indexing_pressure.memory.limit` controls the maximum number of bytes that
+can be outstanding, which is 10% of the heap by default. Once this number
+of bytes from a node's heap is consumed by outstanding indexing bytes, {es}
+will start rejecting new coordinating and primary requests.
+
+Additionally, since a failed replication operation can fail a replica, {es}
+will assign 1.5X limit for the number of replication bytes.
+Only replication bytes can trigger this limit. If replication bytes
+increase to high levels, the node will stop accepting new coordinating and
+primary operations until the replication work load has dropped.
+// end::notable-highlights[]

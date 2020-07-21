@@ -45,13 +45,8 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
-        items = new BulkItemRequest[in.readVInt()];
         final ShardId itemShardId = in.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION) ? shardId : null;
-        for (int i = 0; i < items.length; i++) {
-            if (in.readBoolean()) {
-                items[i] = new BulkItemRequest(itemShardId, in);
-            }
-        }
+        items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(itemShardId, inpt)), BulkItemRequest[]::new);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -102,21 +97,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(items.length);
-        if (out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION)) {
-            for (BulkItemRequest item : items) {
-                if (item != null) {
-                    out.writeBoolean(true);
-                    item.writeThin(out);
-                } else {
-                    out.writeBoolean(false);
-                }
+        out.writeArray(out.getVersion().onOrAfter(COMPACT_SHARD_ID_VERSION) ? (o, item) -> {
+            if (item != null) {
+                o.writeBoolean(true);
+                item.writeThin(o);
+            } else {
+                o.writeBoolean(false);
             }
-        } else {
-            for (BulkItemRequest item : items) {
-                out.writeOptionalWriteable(item);
-            }
-        }
+        } : StreamOutput::writeOptionalWriteable, items);
     }
 
     @Override

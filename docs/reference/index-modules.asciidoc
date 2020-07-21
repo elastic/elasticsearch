@@ -281,6 +281,10 @@ Other index settings are available in index modules:
 
     Control over the retention of a history of operations in the index.
 
+<<index-modules-indexing-pressure,Indexing pressure>>::
+
+    Configure indexing back pressure limits.
+
 [float]
 [[x-pack-index-settings]]
 === [xpack]#{xpack} index settings#
@@ -311,3 +315,5 @@ include::index-modules/translog.asciidoc[]
 include::index-modules/history-retention.asciidoc[]
 
 include::index-modules/index-sorting.asciidoc[]
+
+include::index-modules/indexing-pressure.asciidoc[]

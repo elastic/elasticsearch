@@ -37,4 +37,3 @@ testClusters.all {
 }
 
 test.enabled = false
-integTest.enabled = false

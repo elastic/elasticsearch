@@ -64,8 +64,6 @@ restResources {
   }
 }
 
-integTest.enabled = false
-
 // needed to be consistent with ssl host checking
 String host = InetAddress.getLoopbackAddress().getHostAddress()
 

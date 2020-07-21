@@ -29,8 +29,6 @@ restResources {
   }
 }
 
-integTest.enabled = false
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /google-.*/, to: 'google'
 }

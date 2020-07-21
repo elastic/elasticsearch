@@ -28,5 +28,4 @@ esplugin {
 }
 
 test.enabled = false
-integTest.enabled = false
 

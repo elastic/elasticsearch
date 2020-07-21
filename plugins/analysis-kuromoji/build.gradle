@@ -32,9 +32,6 @@ restResources {
     includeCore '_common', 'indices', 'index', 'search'
   }
 }
-
-integTest.enabled = false
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }

@@ -32,4 +32,3 @@ testClusters.all {
   keystore 'custom.secured', 'password'
 }
 
-integTest.enabled = false

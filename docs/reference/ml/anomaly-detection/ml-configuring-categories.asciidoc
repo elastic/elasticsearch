@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-configuring-categories]]
-=== Detecting anomalous categories of data
+= Detecting anomalous categories of data
 
 Categorization is a {ml} process that tokenizes a text field, clusters similar
 data together, and classifies it into categories. It works best on
@@ -100,7 +100,7 @@ SQL statement from the categorization algorithm.
 
 [discrete]
 [[ml-configuring-analyzer]]
-==== Customizing the categorization analyzer
+== Customizing the categorization analyzer
 
 Categorization uses English dictionary words to identify log message categories.
 By default, it also uses English tokenization rules. For this reason, if you use

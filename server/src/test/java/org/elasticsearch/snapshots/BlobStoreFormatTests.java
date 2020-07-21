@@ -26,7 +26,6 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
-import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -44,13 +43,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -110,18 +102,15 @@ public class BlobStoreFormatTests extends ESTestCase {
     public void testBlobStoreOperations() throws IOException {
         BlobStore blobStore = createTestBlobStore();
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
-            xContentRegistry(), false);
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILECompressed = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
-            xContentRegistry(), true);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
 
         // Write blobs in different formats
-        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", true);
-        checksumSMILECompressed.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp", true);
+        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", false);
+        checksumSMILE.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp", true);
 
-        // Assert that all checksum blobs can be read by all formats
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile").getText(), "checksum smile");
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile-comp").getText(), "checksum smile compressed");
+        // Assert that all checksum blobs can be read
+        assertEquals(checksumSMILE.read(blobContainer, "check-smile", xContentRegistry()).getText(), "checksum smile");
+        assertEquals(checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry()).getText(), "checksum smile compressed");
     }
 
     public void testCompressionIsApplied() throws IOException {
@@ -131,13 +120,10 @@ public class BlobStoreFormatTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(100, 300); i++) {
             veryRedundantText.append("Blah ");
         }
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
-            xContentRegistry(), false);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormatComp = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
-            xContentRegistry(), true);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
-        checksumFormatComp.write(blobObj, blobContainer, "blob-comp", true);
-        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", true);
+        checksumFormat.write(blobObj, blobContainer, "blob-comp", true);
+        checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false);
         Map<String, BlobMetadata> blobs = blobContainer.listBlobsByPrefix("blob-");
         assertEquals(blobs.size(), 2);
         assertThat(blobs.get("blob-not-comp").length(), greaterThan(blobs.get("blob-comp").length()));
@@ -148,91 +134,17 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
         String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
-            xContentRegistry(), randomBoolean());
-        checksumFormat.write(blobObj, blobContainer, "test-path", true);
-        assertEquals(checksumFormat.read(blobContainer, "test-path").getText(), testString);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+        checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean());
+        assertEquals(checksumFormat.read(blobContainer, "test-path", xContentRegistry()).getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {
-            checksumFormat.read(blobContainer, "test-path");
+            checksumFormat.read(blobContainer, "test-path", xContentRegistry());
             fail("Should have failed due to corruption");
         } catch (ElasticsearchCorruptionException ex) {
             assertThat(ex.getMessage(), containsString("test-path"));
         } catch (EOFException ex) {
             // This can happen if corrupt the byte length
-        }
-    }
-
-    public void testAtomicWrite() throws Exception {
-        final BlobStore blobStore = createTestBlobStore();
-        final BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-        String testString = randomAlphaOfLength(randomInt(10000));
-        final CountDownLatch block = new CountDownLatch(1);
-        final CountDownLatch unblock = new CountDownLatch(1);
-        final BlobObj blobObj = new BlobObj(testString) {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-                super.toXContent(builder, params);
-                // Block before finishing writing
-                try {
-                    block.countDown();
-                    unblock.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
-                return builder;
-            }
-        };
-        final ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
-            xContentRegistry(), randomBoolean());
-        ExecutorService threadPool = Executors.newFixedThreadPool(1);
-        try {
-            Future<Void> future = threadPool.submit(new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    checksumFormat.writeAtomic(blobObj, blobContainer, "test-blob");
-                    return null;
-                }
-            });
-            // signalling
-            block.await(5, TimeUnit.SECONDS);
-            assertFalse(blobContainer.blobExists("test-blob"));
-            unblock.countDown();
-            future.get();
-            assertTrue(blobContainer.blobExists("test-blob"));
-        } finally {
-            threadPool.shutdown();
-        }
-    }
-
-    public void testAtomicWriteFailures() throws Exception {
-        final String name = randomAlphaOfLength(10);
-        final BlobObj blobObj = new BlobObj("test");
-        final ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent,
-            xContentRegistry(), randomBoolean());
-
-        final BlobStore blobStore = createTestBlobStore();
-        final BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
-
-        {
-            IOException writeBlobException = expectThrows(IOException.class, () -> {
-                BlobContainer wrapper = new FilterBlobContainer(blobContainer) {
-                    @Override
-                    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                        throws IOException {
-                        throw new IOException("Exception thrown in writeBlobAtomic() for " + blobName);
-                    }
-
-                    @Override
-                    protected BlobContainer wrapChild(BlobContainer child) {
-                        return child;
-                    }
-                };
-                checksumFormat.writeAtomic(blobObj, wrapper, name);
-            });
-
-            assertEquals("Exception thrown in writeBlobAtomic() for " + name, writeBlobException.getMessage());
-            assertEquals(0, writeBlobException.getSuppressed().length);
         }
     }
 

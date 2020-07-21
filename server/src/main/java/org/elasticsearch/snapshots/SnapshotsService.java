@@ -276,7 +276,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     dataStreams,
                     threadPool.absoluteTimeInMillis(),
                     RepositoryData.UNKNOWN_REPO_GEN,
-                    null,
+                    ImmutableOpenMap.of(),
                     userMeta, Version.CURRENT
                 );
                 initializingSnapshots.add(newEntry.snapshot());
@@ -627,7 +627,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         public void onFailure(String source, Exception e) {
                             logger.warn(() -> new ParameterizedMessage("[{}] failed to create snapshot",
                                 snapshot.snapshot().getSnapshotId()), e);
-                            removeFailedSnapshotFromClusterState(snapshot.snapshot(), e, repositoryData,
+                            removeFailedSnapshotFromClusterState(snapshot.snapshot(), e, null,
                                 new CleanupAfterErrorListener(userCreateSnapshotListener, e));
                         }
 
@@ -1422,12 +1422,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * used when the snapshot fails for some reason. During normal operation the snapshot repository will remove the
      * {@link SnapshotsInProgress.Entry} from the cluster state once it's done finalizing the snapshot.
      *
-     * @param snapshot snapshot that failed
-     * @param failure  exception that failed the snapshot
+     * @param snapshot       snapshot that failed
+     * @param failure        exception that failed the snapshot
+     * @param repositoryData repository data or {@code null} when cleaning up a BwC snapshot that never fully initialized
+     * @param listener       listener to invoke when done with, only passed by the BwC path that has {@code repositoryData} set to
+     *                       {@code null}
      */
     private void removeFailedSnapshotFromClusterState(Snapshot snapshot, Exception failure, @Nullable RepositoryData repositoryData,
                                                       @Nullable CleanupAfterErrorListener listener) {
         assert failure != null : "Failure must be supplied";
+        assert (listener == null || repositoryData == null) && (repositoryData != null || listener != null) :
+                "Either repository data or a listener but not both must be null but saw [" + listener + "] and [" + repositoryData + "]";
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 
             @Override
@@ -1459,15 +1464,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 failSnapshotCompletionListeners(snapshot, failure);
-                if (listener != null) {
-                    listener.onFailure(null);
-                }
-                // BwC path, null RepositoryData is only set if a snapshot following the pre-7.5 state machine failed to load initial
-                // RepositoryData
-                if (repositoryData == null) {
-                    leaveRepoLoop(snapshot.getRepository());
-                } else {
+                if (listener == null) {
                     runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
+                } else {
+                    listener.onFailure(null);
                 }
             }
         });

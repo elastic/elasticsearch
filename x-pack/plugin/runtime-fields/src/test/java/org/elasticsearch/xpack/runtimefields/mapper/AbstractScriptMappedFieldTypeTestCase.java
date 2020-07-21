@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -53,12 +55,20 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fieldType(anyString())).thenReturn(mappedFieldType);
         QueryShardContext context = mock(QueryShardContext.class);
+        when(context.getMapperService()).thenReturn(mapperService);
         if (mappedFieldType != null) {
             when(context.fieldMapper(anyString())).thenReturn(mappedFieldType);
             when(context.getSearchAnalyzer(any())).thenReturn(mappedFieldType.getTextSearchInfo().getSearchAnalyzer());
         }
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        when(context.lookup()).thenReturn(new SearchLookup(mapperService, mft -> mft.fielddataBuilder("test").build(indexSettings, fieldType, cache, breakerService, mapperService)));
+        SearchLookup lookup = new SearchLookup(mapperService, mft -> {
+            IndexFieldData<?> ifd = mft.fielddataBuilder("test").build(null, null, mapperService);
+            if (ifd instanceof SearchLookupAware) {
+                ((SearchLookupAware) ifd).setSearchLookup(context.lookup());
+            }
+            return ifd;
+        });
+        when(context.lookup()).thenReturn(lookup);
         return context;
     }
 }

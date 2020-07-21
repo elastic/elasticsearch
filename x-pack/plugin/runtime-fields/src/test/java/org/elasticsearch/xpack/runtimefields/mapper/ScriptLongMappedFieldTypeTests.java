@@ -24,12 +24,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -59,12 +60,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 ScriptLongMappedFieldType ft = build("for (def v : source.foo) {value(v + params.param)}", Map.of("param", 1));
-                IndexMetadata imd = IndexMetadata.builder("test")
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-                    .build();
-                ScriptLongFieldData ifd = ft.fielddataBuilder("test").build(new IndexSettings(imd, Settings.EMPTY), ft, null, null, null);
+                ScriptLongFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
                 ifd.setSearchLookup(mockContext().lookup());
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -103,19 +99,44 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IndexMetadata imd = IndexMetadata.builder("test")
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-                    .build();
                 ScriptLongMappedFieldType ft = build("for (def v : source.foo) { value(v)}");
-                ScriptLongFieldData ifd = ft.fielddataBuilder("test").build(new IndexSettings(imd, Settings.EMPTY), ft, null, null, null);
+                ScriptLongFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
                 ifd.setSearchLookup(mockContext().lookup());
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
                 assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [2]}"));
                 assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [4]}"));
+            }
+        }
+    }
+
+    @Override
+    public void testUsedInScript() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                QueryShardContext qsc = mockContext(true, build("for (def v : source.foo) {value(v)}"));
+                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                    @Override
+                    public boolean needs_score() {
+                        return false;
+                    }
+
+                    @Override
+                    public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
+                            @Override
+                            public double execute(ExplanationHolder explanation) {
+                                ScriptDocValues.Longs doubles = (ScriptDocValues.Longs) getDoc().get("test");
+                                return doubles.get(0);
+                            }
+                        };
+                    }
+                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }

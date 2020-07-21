@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.runtimefields.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.Script;
@@ -30,24 +28,19 @@ import java.io.IOException;
 public final class ScriptDoubleFieldData extends IndexNumericFieldData implements SearchLookupAware {
 
     public static class Builder implements IndexFieldData.Builder {
-
+        private final String name;
         private final Script script;
         private final DoubleScriptFieldScript.Factory scriptFactory;
 
-        public Builder(Script script, DoubleScriptFieldScript.Factory scriptFactory) {
+        public Builder(String name, Script script, DoubleScriptFieldScript.Factory scriptFactory) {
+            this.name = name;
             this.script = script;
             this.scriptFactory = scriptFactory;
         }
 
         @Override
-        public ScriptDoubleFieldData build(
-            IndexSettings indexSettings,
-            MappedFieldType fieldType,
-            IndexFieldDataCache cache,
-            CircuitBreakerService breakerService,
-            MapperService mapperService
-        ) {
-            return new ScriptDoubleFieldData(fieldType.name(), script, scriptFactory);
+        public ScriptDoubleFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new ScriptDoubleFieldData(name, script, scriptFactory);
         }
     }
 

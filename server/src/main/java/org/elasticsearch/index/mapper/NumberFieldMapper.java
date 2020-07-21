@@ -1009,7 +1009,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(type.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), type.numericType());
         }
 
         @Override

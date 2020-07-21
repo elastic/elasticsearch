@@ -48,7 +48,7 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
     @Override
     public ScriptDoubleFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptDoubleFieldData.Builder(script, scriptFactory);
+        return new ScriptDoubleFieldData.Builder(name(), script, scriptFactory);
     }
 
     private DoubleScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {

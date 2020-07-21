@@ -331,17 +331,17 @@ To get some data into {es} that you can start searching and analyzing:
 [source,js]
 --------------------------------------------------
 {
-    "account_number": 0,
-    "balance": 16623,
-    "firstname": "Bradshaw",
-    "lastname": "Mckenzie",
-    "age": 29,
-    "gender": "F",
-    "address": "244 Columbus Place",
-    "employer": "Euron",
-    "email": "bradshawmckenzie@euron.com",
-    "city": "Hobucken",
-    "state": "CO"
+  "account_number": 0,
+  "balance": 16623,
+  "firstname": "Bradshaw",
+  "lastname": "Mckenzie",
+  "age": 29,
+  "gender": "F",
+  "address": "244 Columbus Place",
+  "employer": "Euron",
+  "email": "bradshawmckenzie@euron.com",
+  "city": "Hobucken",
+  "state": "CO"
 }
 --------------------------------------------------
 // NOTCONSOLE

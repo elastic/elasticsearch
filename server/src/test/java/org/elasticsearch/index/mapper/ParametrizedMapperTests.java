@@ -196,7 +196,7 @@ public class ParametrizedMapperTests extends ESSingleNodeTestCase {
                 return new KeywordFieldMapper.TypeParser();
             }
             if (Objects.equals("binary", s)) {
-                return new BinaryFieldMapper.TypeParser();
+                return BinaryFieldMapper.PARSER;
             }
             return null;
         }, version, () -> null, null);

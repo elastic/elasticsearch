@@ -92,6 +92,22 @@ setup:
   - match: {sensor.mappings.properties.prefixed_node.script.lang: painless }
 
 ---
+"get field mapping":
+  - do:
+      indices.get_field_mapping:
+        index: sensor
+        fields: day_of_week
+        include_defaults: true
+  - match:
+      sensor.mappings.day_of_week.mapping.day_of_week:
+        type: script
+        runtime_type: keyword
+        script:
+          source: |
+            value(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))
+          lang: painless
+        meta: {}
+---
 "docvalue_fields":
   - do:
       search:

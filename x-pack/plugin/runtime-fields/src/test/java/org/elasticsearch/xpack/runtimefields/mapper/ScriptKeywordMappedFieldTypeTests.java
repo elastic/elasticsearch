@@ -24,11 +24,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -68,12 +66,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                     "for (def v : source.foo) {value(v.toString() + params.param)}",
                     Map.of("param", "-suffix")
                 );
-                IndexMetadata imd = IndexMetadata.builder("test")
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-                    .build();
-                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(new IndexSettings(imd, Settings.EMPTY), ft, null, null, null);
+                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
                 ifd.setSearchLookup(mockContext().lookup());
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -112,13 +105,8 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IndexMetadata imd = IndexMetadata.builder("test")
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-                    .build();
                 ScriptKeywordMappedFieldType ft = build("for (def v : source.foo) { value(v.toString())}");
-                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(new IndexSettings(imd, Settings.EMPTY), ft, null, null, null);
+                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
                 ifd.setSearchLookup(mockContext().lookup());
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
@@ -154,7 +142,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
                             }
                         };
                     }
-                }, 2f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }

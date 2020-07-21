@@ -24,21 +24,22 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.bundling.Zip;
 
 /**
- * Helper parent to configure the necessary tasks and dependencies.
+ * Utility class to configure the necessary tasks and dependencies.
  */
-public abstract class AbstractRestTestPlugin implements Plugin<Project> {
+public class RestTestUtil {
+
+    private RestTestUtil() {}
 
     /**
      * Creates a task with the source set name of type {@link RestIntegTestTask}
      */
-    protected RestIntegTestTask setupTask(Project project, String sourceSetName) {
+    static RestIntegTestTask setupTask(Project project, String sourceSetName) {
         // create task - note can not use .register due to the work in RestIntegTestTask's constructor :(
         // see: https://github.com/elastic/elasticsearch/issues/47804
         RestIntegTestTask testTask = project.getTasks().create(sourceSetName, RestIntegTestTask.class);
@@ -52,7 +53,7 @@ public abstract class AbstractRestTestPlugin implements Plugin<Project> {
     /**
      * Creates the runner task and configures the test clusters
      */
-    protected RestTestRunnerTask setupRunnerTask(Project project, RestIntegTestTask testTask, SourceSet sourceSet) {
+    static RestTestRunnerTask setupRunnerTask(Project project, RestIntegTestTask testTask, SourceSet sourceSet) {
         RestTestRunnerTask runner = testTask.getRunner();
         runner.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
         runner.setClasspath(sourceSet.getRuntimeClasspath());
@@ -88,7 +89,7 @@ public abstract class AbstractRestTestPlugin implements Plugin<Project> {
     /**
      * Setup the dependencies needed for the REST tests.
      */
-    protected void setupDependencies(Project project, SourceSet sourceSet) {
+    static void setupDependencies(Project project, SourceSet sourceSet) {
         if (BuildParams.isInternal()) {
             project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
         } else {

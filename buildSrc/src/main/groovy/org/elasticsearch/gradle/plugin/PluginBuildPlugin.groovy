@@ -115,11 +115,14 @@ class PluginBuildPlugin implements Plugin<Project> {
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(project, extension1)
             }
-            if (project.pluginManager.hasPlugin("elasticsearch.yaml-rest-test")
-                || project.pluginManager.hasPlugin("elasticsearch.java-rest-test")) {
-                //disable integTest task if project has been converted to use yaml or java rest test plugin
-                project.tasks.integTest.enabled = false
-            }
+        }
+
+        //disable integTest task if project has been converted to use yaml or java rest test plugin
+        project.pluginManager.withPlugin("elasticsearch.yaml-rest-test") {
+            project.tasks.integTest.enabled = false
+        }
+        project.pluginManager.withPlugin("elasticsearch.java-rest-test") {
+            project.tasks.integTest.enabled = false
         }
 
         project.tasks.named('testingConventions').configure {

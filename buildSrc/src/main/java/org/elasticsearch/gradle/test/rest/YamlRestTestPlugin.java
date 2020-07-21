@@ -23,15 +23,20 @@ import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 
+import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
+import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupRunnerTask;
+import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupTask;
+
 /**
  * Apply this plugin to run the YAML based REST tests.
  */
-public class YamlRestTestPlugin extends AbstractRestTestPlugin {
+public class YamlRestTestPlugin implements Plugin<Project> {
 
     public static final String SOURCE_SET_NAME = "yamlRestTest";
 

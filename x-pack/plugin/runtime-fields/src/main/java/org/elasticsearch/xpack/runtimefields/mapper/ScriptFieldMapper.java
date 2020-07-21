@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -21,7 +20,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -57,13 +55,6 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) {
         // there is no lucene field
-    }
-
-    @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        super.doXContentBody(builder, includeDefaults, params);
-        AbstractScriptMappedFieldType fieldType = (AbstractScriptMappedFieldType) fieldType();
-        fieldType.mapperXContentBody(builder, params);
     }
 
     @Override
@@ -117,8 +108,6 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
                 throw new IllegalArgumentException("runtime_type must be specified for script field [" + name + "]");
             }
         });
-        // TODO script and runtime_type can be updated: what happens to the currently running queries when they get updated?
-        // do all the shards get a consistent view?
         private final Parameter<Script> script = new Parameter<>(
             "script",
             true,

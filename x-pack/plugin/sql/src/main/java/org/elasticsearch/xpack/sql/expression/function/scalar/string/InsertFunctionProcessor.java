@@ -70,6 +70,10 @@ public class InsertFunctionProcessor implements Processor {
         if (((Number) length).intValue() < 0) {
             throw new SqlIllegalArgumentException("A positive number is required for [length]; received [{}]", length);
         }
+        
+        if (((Number) start).longValue() - 1 > Integer.MAX_VALUE) {
+            return input;
+        }
 
         int startInt = ((Number) start).intValue() - 1;
         int realStart = startInt < 0 ? 0 : startInt;

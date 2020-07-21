@@ -21,19 +21,19 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
-import org.elasticsearch.painless.ir.TypedCaptureReferenceNode;
-import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
+import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ReferenceDecoration;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
+import java.util.Collections;
 import java.util.Objects;
 
 /**
@@ -65,12 +65,11 @@ public class EFunctionRef extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    void analyze(SemanticScope semanticScope) {
         ScriptScope scriptScope = semanticScope.getScriptScope();
         boolean read = semanticScope.getCondition(this, Read.class);
         TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
 
-        Output output = new Output();
         Class<?> valueType;
         Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(symbol);
 
@@ -88,24 +87,12 @@ public class EFunctionRef extends AExpression {
             if (targetType == null) {
                 valueType = String.class;
                 String defReferenceEncoding = "S" + symbol + "." + methodName + ",0";
-
-                DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
-
-                defInterfaceReferenceNode.setLocation(getLocation());
-                defInterfaceReferenceNode.setExpressionType(valueType);
-                defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
-
-                output.expressionNode = defInterfaceReferenceNode;
+                semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
             } else {
                 FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                         getLocation(), targetType.getTargetType(), symbol, methodName, 0);
                 valueType = targetType.getTargetType();
-
-                TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
-                typedInterfaceReferenceNode.setLocation(getLocation());
-                typedInterfaceReferenceNode.setExpressionType(valueType);
-                typedInterfaceReferenceNode.setReference(ref);
-                output.expressionNode = typedInterfaceReferenceNode;
+                semanticScope.putDecoration(this, new ReferenceDecoration(ref));
             }
         } else {
             if (semanticScope.getCondition(this, Write.class)) {
@@ -119,6 +106,7 @@ public class EFunctionRef extends AExpression {
             }
 
             SemanticScope.Variable captured = semanticScope.getVariable(getLocation(), symbol);
+            semanticScope.putDecoration(this, new CapturesDecoration(Collections.singletonList(captured)));
             if (targetType == null) {
                 String defReferenceEncoding;
                 if (captured.getType() == def.class) {
@@ -129,40 +117,18 @@ public class EFunctionRef extends AExpression {
                     defReferenceEncoding = "S" + captured.getCanonicalTypeName() + "." + methodName + ",1";
                 }
                 valueType = String.class;
-
-                DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
-
-                defInterfaceReferenceNode.setLocation(getLocation());
-                defInterfaceReferenceNode.setExpressionType(valueType);
-                defInterfaceReferenceNode.addCapture(captured.getName());
-                defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
-                output.expressionNode = defInterfaceReferenceNode;
+                semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
             } else {
                 valueType = targetType.getTargetType();
                 // static case
                 if (captured.getType() != def.class) {
                     FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(), getLocation(),
                             targetType.getTargetType(), captured.getCanonicalTypeName(), methodName, 1);
-
-                    TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
-                    typedInterfaceReferenceNode.setLocation(getLocation());
-                    typedInterfaceReferenceNode.setExpressionType(valueType);
-                    typedInterfaceReferenceNode.addCapture(captured.getName());
-                    typedInterfaceReferenceNode.setReference(ref);
-                    output.expressionNode = typedInterfaceReferenceNode;
-                } else {
-                    TypedCaptureReferenceNode typedCaptureReferenceNode = new TypedCaptureReferenceNode();
-                    typedCaptureReferenceNode.setLocation(getLocation());
-                    typedCaptureReferenceNode.setExpressionType(valueType);
-                    typedCaptureReferenceNode.addCapture(captured.getName());
-                    typedCaptureReferenceNode.setMethodName(methodName);
-                    output.expressionNode = typedCaptureReferenceNode;
+                    semanticScope.putDecoration(this, new ReferenceDecoration(ref));
                 }
             }
         }
 
         semanticScope.putDecoration(this, new ValueType(valueType));
-
-        return output;
     }
 }

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[ml-find-file-structure]]
-=== Find file structure API
+= Find file structure API
 ++++
 <titleabbrev>Find file structure</titleabbrev>
 ++++
@@ -13,13 +13,13 @@ suitable to be ingested into {es}.
 
 
 [[ml-find-file-structure-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/find_file_structure`
 
 
 [[ml-find-file-structure-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml` or
 `monitor` cluster privileges to use this API. See
@@ -27,7 +27,7 @@ suitable to be ingested into {es}.
 
 
 [[ml-find-file-structure-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API provides a starting point for ingesting data into {es} in a format that
 is suitable for subsequent use with other {ml} functionality.
@@ -60,7 +60,7 @@ chosen.
 
 
 [[ml-find-file-structure-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `charset`::
   (Optional, string) The file's character set. It must be a character set that
@@ -233,7 +233,7 @@ for more information about date and time format syntax.
 --
 
 [[ml-find-file-structure-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 The text file that you want to analyze. It must contain data that is suitable to
 be ingested into {es}. It does not need to be in JSON format and it does not
@@ -241,10 +241,10 @@ need to be UTF-8 encoded. The size is limited to the {es} HTTP receive buffer
 size, which defaults to 100 Mb.
 
 [[ml-find-file-structure-examples]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [[ml-find-file-structure-example-nld-json]]
-===== Ingesting newline-delimited JSON
+=== Ingesting newline-delimited JSON
 
 Suppose you have a newline-delimited JSON file that contains information about
 some books. You can send the contents to the `find_file_structure` endpoint:
@@ -556,7 +556,7 @@ If the request does not encounter errors, you receive the following result:
 
 
 [[ml-find-file-structure-example-nyc]]
-===== Finding the structure of NYC yellow cab example data
+=== Finding the structure of NYC yellow cab example data
 
 The next example shows how it's possible to find the structure of some New York
 City yellow cab trip data. The first `curl` command downloads the data, the
@@ -1479,7 +1479,7 @@ If the request does not encounter errors, you receive the following result:
 
 
 [[ml-find-file-structure-example-timeout]]
-===== Setting the timeout parameter
+=== Setting the timeout parameter
 
 If you try to analyze a lot of data then the analysis will take a long time.
 If you want to limit the amount of processing your {es} cluster performs for
@@ -1525,7 +1525,7 @@ data.
 
 
 [[ml-find-file-structure-example-eslog]]
-===== Analyzing {es} log files
+=== Analyzing {es} log files
 
 This is an example of analyzing {es}'s own log file:
 
@@ -1677,7 +1677,7 @@ this:
 
 
 [[ml-find-file-structure-example-grok]]
-===== Specifying `grok_pattern` as query parameter
+=== Specifying `grok_pattern` as query parameter
 
 If you recognize more fields than the simple `grok_pattern` produced by the
 structure finder unaided then you can resubmit the request specifying a more

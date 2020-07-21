@@ -66,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -962,9 +963,17 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Function<byte[], Number> pointReaderIfPossible() {
+            if (isSearchable()) {
+                return this::parsePoint;
+            }
+            return null;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(type.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), type.numericType());
         }
 
         @Override

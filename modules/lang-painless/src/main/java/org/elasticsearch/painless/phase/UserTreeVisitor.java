@@ -21,8 +21,8 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
-import org.elasticsearch.painless.node.EBool;
-import org.elasticsearch.painless.node.EBoolean;
+import org.elasticsearch.painless.node.EBooleanComp;
+import org.elasticsearch.painless.node.EBooleanConstant;
 import org.elasticsearch.painless.node.EBrace;
 import org.elasticsearch.painless.node.ECall;
 import org.elasticsearch.painless.node.ECallLocal;
@@ -90,7 +90,7 @@ public interface UserTreeVisitor<Input, Output> {
     Output visitAssignment(EAssignment userAssignmentNode, Input input);
     Output visitUnary(EUnary userUnaryNode, Input input);
     Output visitBinary(EBinary userBinaryNode, Input input);
-    Output visitBool(EBool userBoolNode, Input input);
+    Output visitBool(EBooleanComp userBoolNode, Input input);
     Output visitComp(EComp userCompNode, Input input);
     Output visitExplicit(EExplicit userExplicitNode, Input input);
     Output visitInstanceof(EInstanceof userInstanceofNode, Input input);
@@ -101,7 +101,7 @@ public interface UserTreeVisitor<Input, Output> {
     Output visitNewArray(ENewArray userNewArrayNode, Input input);
     Output visitNewObj(ENewObj userNewObjectNode, Input input);
     Output visitCallLocal(ECallLocal userCallLocalNode, Input input);
-    Output visitBoolean(EBoolean userBooleanNode, Input input);
+    Output visitBoolean(EBooleanConstant userBooleanNode, Input input);
     Output visitNumeric(ENumeric userNumericNode, Input input);
     Output visitDecimal(EDecimal userDecimalNode, Input input);
     Output visitString(EString userStringNode, Input input);

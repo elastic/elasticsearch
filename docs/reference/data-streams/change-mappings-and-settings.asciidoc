@@ -52,35 +52,13 @@ PUT /_ilm/policy/logs_policy
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_data_stream/logs
@@ -111,10 +89,9 @@ To add a mapping for a new field to a data stream, following these steps:
 . Update the index template used by the data stream. This ensures the new
 field mapping is added to future backing indices created for the stream.
 +
-.*Example*
-[%collapsible]
-====
-`logs_data_stream` is an existing index template used by the `logs` data stream.
+--
+For example, `logs_data_stream` is an existing index template used by the `logs`
+data stream.
 
 The following <<indices-templates,put index template>> request adds a mapping
 for a new field, `message`, to the template.
@@ -124,15 +101,10 @@ for a new field, `message`, to the template.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
         "message": {                              <1>
           "type": "text"
         }
@@ -142,15 +114,13 @@ PUT /_index_template/logs_data_stream
 }
 ----
 <1> Adds a mapping for the new `message` field.
-====
+--
 
 . Use the <<indices-put-mapping,put mapping API>> to add the new field mapping
 to the data stream. By default, this adds the mapping to the stream's existing
 backing indices, including the write index.
 +
-.*Example*
-[%collapsible]
-====
+--
 The following put mapping API request adds the new `message` field mapping to
 the `logs` data stream.
 
@@ -165,7 +135,28 @@ PUT /logs/_mapping
   }
 }
 ----
-====
+--
++
+To add the mapping only to the stream's write index, set the put mapping API's
+`write_index_only` query parameter to `true`.
++
+--
+The following put mapping request adds the new `message` field mapping only to
+the `logs` stream's write index. The new field mapping is not added to the
+stream's other backing indices.
+
+[source,console]
+----
+PUT /logs/_mapping?write_index_only=true
+{
+  "properties": {
+    "message": {
+      "type": "text"
+    }
+  }
+}
+----
+--
 
 [discrete]
 [[change-existing-field-mapping-in-a-data-stream]]
@@ -179,10 +170,9 @@ existing field, follow these steps:
 . Update the index template used by the data stream. This ensures the updated
 field mapping is added to future backing indices created for the stream.
 +
-.*Example*
-[%collapsible]
-====
-`logs_data_stream` is an existing index template used by the `logs` data stream.
+--
+For example, `logs_data_stream` is an existing index template used by the `logs`
+data stream.
 
 The following <<indices-templates,put index template>> request changes the
 argument for the `host.ip` field's <<ignore-malformed,`ignore_malformed`>>
@@ -193,15 +183,10 @@ mapping parameter to `true`.
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {
-        "@timestamp": {
-          "type": "date"
-        },
         "host": {
           "properties": {
             "ip": {
@@ -216,15 +201,13 @@ PUT /_index_template/logs_data_stream
 }
 ----
 <1> Changes the `host.ip` field's `ignore_malformed` value to `true`.
-====
+--
 
 . Use the <<indices-put-mapping,put mapping API>> to apply the mapping changes
 to the data stream. By default, this applies the changes to the stream's
 existing backing indices, including the write index.
 +
-.*Example*
-[%collapsible]
-====
+--
 The following <<indices-put-mapping,put mapping API>> request targets the `logs`
 data stream. The request changes the argument for the `host.ip` field's
 `ignore_malformed` mapping parameter to `true`.
@@ -245,7 +228,33 @@ PUT /logs/_mapping
   }
 }
 ----
-====
+--
++
+To apply the mapping changes only to the stream's write index, set the put mapping API's
+`write_index_only` query parameter to `true`.
++
+--
+The following put mapping request changes the `host.ip` field's mapping only for
+the `logs` stream's write index. The change is not applied to the stream's other
+backing indices.
+
+[source,console]
+----
+PUT /logs/_mapping?write_index_only=true
+{
+  "properties": {
+    "host": {
+      "properties": {
+        "ip": {
+          "type": "ip",
+          "ignore_malformed": true
+        }
+      }
+    }
+  }
+}
+----
+--
 
 Except for supported mapping parameters, we don't recommend you change the
 mapping or field data type of existing fields, even in a data stream's matching
@@ -266,10 +275,9 @@ follow these steps:
 . Update the index template used by the data stream. This ensures the setting is
 applied to future backing indices created for the stream.
 +
-.*Example*
-[%collapsible]
-====
-`logs_data_stream` is an existing index template used by the `logs` data stream.
+--
+For example, `logs_data_stream` is an existing index template used by the `logs`
+data stream.
 
 The following <<indices-templates,put index template>> request changes the
 template's `index.refresh_interval` index setting to `30s` (30 seconds).
@@ -279,17 +287,8 @@ template's `index.refresh_interval` index setting to `30s` (30 seconds).
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "index.refresh_interval": "30s"             <1>
     }
@@ -297,15 +296,13 @@ PUT /_index_template/logs_data_stream
 }
 ----
 <1> Changes the `index.refresh_interval` setting to `30s` (30 seconds).
-====
+--
 
 . Use the <<indices-update-settings,update index settings API>> to update the
 index setting for the data stream. By default, this applies the setting to
 the stream's existing backing indices, including the write index.
 +
-.*Example*
-[%collapsible]
-====
+--
 The following update index settings API request updates the
 `index.refresh_interval` setting for the `logs` data stream.
 
@@ -318,7 +315,7 @@ PUT /logs/_settings
   }
 }
 ----
-====
+--
 
 [discrete]
 [[change-static-index-setting-for-a-data-stream]]
@@ -332,10 +329,8 @@ To apply a new static setting to future backing indices, update the index
 template used by the data stream. The setting is automatically applied to any
 backing index created after the update.
 
-.*Example*
-[%collapsible]
-====
-`logs_data_stream` is an existing index template used by the `logs` data stream.
+For example, `logs_data_stream` is an existing index template used by the `logs`
+data stream.
 
 The following <<indices-templates,put index template API>> requests adds new
 `sort.field` and `sort.order index` settings to the template.
@@ -345,17 +340,8 @@ The following <<indices-templates,put index template API>> requests adds new
 PUT /_index_template/logs_data_stream
 {
   "index_patterns": [ "logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    },
     "settings": {
       "sort.field": [ "@timestamp"],             <1>
       "sort.order": [ "desc"]                    <2>
@@ -365,7 +351,6 @@ PUT /_index_template/logs_data_stream
 ----
 <1> Adds the `sort.field` index setting.
 <2> Adds the `sort.order` index setting.
-====
 
 If wanted, you can <<manually-roll-over-a-data-stream,roll over the data
 stream>> to immediately apply the setting to the data stream’s write index. This
@@ -399,10 +384,7 @@ stream will contain data from your existing stream.
 You can use the resolve index API to check if the name or pattern matches any
 existing indices, index aliases, or data streams. If so, you should consider
 using another name or pattern.
-+
-.*Example*
-[%collapsible]
-====
+--
 The following resolve index API request checks for any existing indices, index
 aliases, or data streams that start with `new_logs`. If not, the `new_logs*`
 wildcard pattern can be used to create a new data stream.
@@ -424,7 +406,7 @@ this pattern.
 }
 ----
 // TESTRESPONSE[s/"data_streams": \[ \]/"data_streams": $body.data_streams/]
-====
+--
 
 . Create or update an index template. This template should contain the
 mappings and settings you'd like to apply to the new data stream's backing
@@ -438,10 +420,8 @@ should also contain your previously chosen name or wildcard pattern in the
 TIP: If you are only adding or changing a few things, we recommend you create a
 new template by copying an existing one and modifying it as needed.
 +
-.*Example*
-[%collapsible]
-====
-`logs_data_stream` is an existing index template used by the
+--
+For example, `logs_data_stream` is an existing index template used by the
 `logs` data stream.
 
 The following <<indices-templates,put index template API>> request creates
@@ -460,9 +440,7 @@ uses the `logs_data_stream` template as its basis, with the following changes:
 PUT /_index_template/new_logs_data_stream
 {
   "index_patterns": [ "new_logs*" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
+  "data_stream": { },
   "template": {
     "mappings": {
       "properties": {
@@ -481,7 +459,7 @@ PUT /_index_template/new_logs_data_stream
 <1>  Changes the `@timestamp` field mapping to the `date_nanos` field data type.
 <2>  Adds the `sort.field` index setting.
 <3>  Adds the `sort.order` index setting.
-====
+--
 
 . Use the <<indices-create-data-stream,create data stream API>> to manually
 create the new data stream. The name of the data stream must match the name or
@@ -502,9 +480,7 @@ contains both new and old data. To prevent premature data loss, you would need
 to retain such a backing index until you are ready to delete its newest data.
 ====
 +
-.*Example*
-[%collapsible]
-====
+--
 The following create data stream API request targets `new_logs`, which matches
 the wildcard pattern for the `new_logs_data_stream` template. Because no
 existing index or data stream uses this name, this request creates the
@@ -515,7 +491,7 @@ existing index or data stream uses this name, this request creates the
 PUT /_data_stream/new_logs
 ----
 // TEST[s/new_logs/new_logs_two/]
-====
+--
 
 . If you do not want to mix new and old data in your new data stream, pause the
 indexing of new documents. While mixing old and new data is safe, it could
@@ -527,9 +503,7 @@ rollover>>, reduce the {ilm-init} poll interval. This ensures the current write
 index doesn’t grow too large while waiting for the rollover check. By default,
 {ilm-init} checks rollover conditions every 10 minutes.
 +
-.*Example*
-[%collapsible]
-====
+--
 The following <<cluster-update-settings,update cluster settings API>> request
 lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
 
@@ -542,7 +516,7 @@ PUT /_cluster/settings
   }
 }
 ----
-====
+--
 
 . Reindex your data to the new data stream using an `op_type` of `create`.
 +
@@ -552,9 +526,7 @@ individual backing indices as the source. You can use the
 <<indices-get-data-stream,get data stream API>> to retrieve a list of backing
 indices.
 +
-.*Example*
-[%collapsible]
-====
+--
 You plan to reindex data from the `logs` data stream into the newly created
 `new_logs` data stream. However, you want to submit a separate reindex request
 for each backing index in the `logs` data stream, starting with the oldest
@@ -623,14 +595,12 @@ POST /_reindex
   }
 }
 ----
-====
+--
 +
 You can also use a query to reindex only a subset of documents with each
 request.
 +
-.*Example*
-[%collapsible]
-====
+--
 The following <<docs-reindex,reindex API>> request copies documents from the
 `logs` data stream to the `new_logs` data stream. The request uses a
 <<query-dsl-range-query,`range` query>> to only reindex documents with a
@@ -657,15 +627,13 @@ POST /_reindex
   }
 }
 ----
-====
+--
 
 . If you previously changed your {ilm-init} poll interval, change it back to its
 original value when reindexing is complete. This prevents unnecessary load on
 the master node.
 +
-.*Example*
-[%collapsible]
-====
+--
 The following update cluster settings API request resets the
 `indices.lifecycle.poll_interval` setting to its default value, 10 minutes.
 
@@ -678,7 +646,7 @@ PUT /_cluster/settings
   }
 }
 ----
-====
+--
 
 . Resume indexing using the new data stream. Searches on this stream will now
 query your new data and the reindexed data.
@@ -686,9 +654,7 @@ query your new data and the reindexed data.
 . Once you have verified that all reindexed data is available in the new
 data stream, you can safely remove the old stream.
 +
-.*Example*
-[%collapsible]
-====
+--
 The following <<indices-delete-data-stream,delete data stream API>> request
 deletes the `logs` data stream. This request also deletes the stream's backing
 indices and any data they contain.
@@ -697,4 +663,4 @@ indices and any data they contain.
 ----
 DELETE /_data_stream/logs
 ----
-====
+--

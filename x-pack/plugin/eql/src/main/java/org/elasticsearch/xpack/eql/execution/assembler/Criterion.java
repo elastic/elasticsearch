@@ -44,7 +44,7 @@ public class Criterion<Q extends QueryRequest> {
         return stage;
     }
 
-    boolean reverse() {
+    public boolean reverse() {
         return reverse;
     }
 

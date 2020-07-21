@@ -1,8 +1,8 @@
 ---
 "Indexing pressure stats":
   - skip:
-      version: " - 7.99.99"
-      reason: "indexing_pressure not in prior versions"
+      version: " - 7.8.99"
+      reason: "indexing_pressure was added in 7.9"
       features: [arbitrary_key]
 
   - do:
@@ -14,12 +14,19 @@
       nodes.stats:
         metric: [ indexing_pressure ]
 
-  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_and_primary_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.combined_coordinating_and_primary_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.primary_bytes: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.total.replica_bytes: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.total.all_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_and_primary_memory_limit_rejections: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.replica_memory_limit_rejections: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.current.coordinating_and_primary_bytes: 0 }
+
+  - gte:  { nodes.$node_id.indexing_pressure.total.coordinating_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.primary_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.replica_rejections: 0 }
+
+  - gte:  { nodes.$node_id.indexing_pressure.current.combined_coordinating_and_primary_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.coordinating_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.primary_bytes: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.current.replica_bytes: 0 }
   - gte:  { nodes.$node_id.indexing_pressure.current.all_bytes: 0 }
 

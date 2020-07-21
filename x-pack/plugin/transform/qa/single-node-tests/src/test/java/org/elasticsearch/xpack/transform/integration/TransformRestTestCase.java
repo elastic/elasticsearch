@@ -121,7 +121,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                     "{\n" +
                         "  \"index_patterns\": [ \"" + indexName + "\" ],\n" +
                         "  \"data_stream\": {\n" +
-                        "    \"timestamp_field\": \"@timestamp\"\n" +
                         "  },\n" +
                         "  \"template\": \n" + Strings.toString(builder) +
                         "}"

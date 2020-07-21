@@ -237,6 +237,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
+     * Sets the require_alias request flag on the destination index
+     */
+    public ReindexRequest setRequireAlias(boolean requireAlias) {
+        this.getDestination().setRequireAlias(requireAlias);
+        return this;
+    }
+
+    /**
      * Gets the target for this reindex request in the for of an {@link IndexRequest}
      */
     public IndexRequest getDestination() {

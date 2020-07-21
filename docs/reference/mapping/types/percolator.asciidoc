@@ -20,16 +20,16 @@ If the following mapping configures the `percolator` field type for the
 --------------------------------------------------
 PUT my_index
 {
-    "mappings": {
-        "properties": {
-            "query": {
-                "type": "percolator"
-            },
-            "field": {
-                "type": "text"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "query": {
+        "type": "percolator"
+      },
+      "field": {
+        "type": "text"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -40,11 +40,11 @@ Then you can index a query:
 --------------------------------------------------
 PUT my_index/_doc/match_value
 {
-    "query" : {
-        "match" : {
-            "field" : "value"
-        }
+  "query": {
+    "match": {
+      "field": "value"
     }
+  }
 }
 --------------------------------------------------
 

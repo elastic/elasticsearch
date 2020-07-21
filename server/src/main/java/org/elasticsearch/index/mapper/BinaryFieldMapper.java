@@ -56,8 +56,8 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
 
     public static class Builder extends ParametrizedFieldMapper.Builder {
 
-        private final Parameter<Boolean> stored = Parameter.boolParam("store", false, m -> toType(m).stored, false);
-        private final Parameter<Boolean> hasDocValues = Parameter.boolParam("doc_values", false, m -> toType(m).hasDocValues,  false);
+        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -81,15 +81,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
-        @Override
-        public BinaryFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(name);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     public static final class BinaryFieldType extends MappedFieldType {
 
@@ -133,7 +125,7 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

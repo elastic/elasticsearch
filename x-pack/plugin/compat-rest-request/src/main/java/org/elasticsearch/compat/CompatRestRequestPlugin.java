@@ -1,3 +1,8 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
 package org.elasticsearch.compat;
 
 import org.elasticsearch.Version;
@@ -23,7 +28,7 @@ public class CompatRestRequestPlugin implements RestRequestPlugin {
     public static class CompatibleRestRequest extends RestRequest {
 
         // TODO this requires copying the content of original rest request. Isn't this against why multiple rest wrappers were disallowed?
-        //https://github.com/elastic/elasticsearch/pull/21905/files#r90480951
+        // https://github.com/elastic/elasticsearch/pull/21905/files#r90480951
         protected CompatibleRestRequest(RestRequest restRequest) {
             super(restRequest);
         }
@@ -31,7 +36,6 @@ public class CompatRestRequestPlugin implements RestRequestPlugin {
         public Version getCompatibleApiVersion() {
             return Version.CURRENT;
         }
-
 
     }
 }

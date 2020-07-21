@@ -42,7 +42,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFactory;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
@@ -108,7 +107,6 @@ public final class NetworkModule {
     /**
      * Creates a network module that custom networking classes can be plugged into.
      * @param settings The settings for the node
-     * @param restRequestFactory
      */
     public NetworkModule(Settings settings, List<NetworkPlugin> plugins, ThreadPool threadPool,
                          BigArrays bigArrays,
@@ -121,7 +119,8 @@ public final class NetworkModule {
         this.settings = settings;
         for (NetworkPlugin plugin : plugins) {
             Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
-                pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings, restRequestFactory);
+                pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings,
+                restRequestFactory);
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }

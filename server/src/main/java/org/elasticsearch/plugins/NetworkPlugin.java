@@ -76,7 +76,8 @@ public interface NetworkPlugin {
                                                                          NamedXContentRegistry xContentRegistry,
                                                                          NetworkService networkService,
                                                                          HttpServerTransport.Dispatcher dispatcher,
-                                                                         ClusterSettings clusterSettings, RestRequestFactory restRequestFactory) {
+                                                                         ClusterSettings clusterSettings,
+                                                                         RestRequestFactory restRequestFactory) {
         return Collections.emptyMap();
     }
 }

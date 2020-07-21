@@ -64,7 +64,7 @@ public final class ScriptKeywordMappedFieldType extends AbstractScriptMappedFiel
     @Override
     public ScriptBinaryFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptBinaryFieldData.Builder(script, scriptFactory);
+        return new ScriptBinaryFieldData.Builder(name(), script, scriptFactory);
     }
 
     private StringScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {

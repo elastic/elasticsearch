@@ -48,7 +48,7 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
     @Override
     public ScriptLongFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
         // TODO once we get SearchLookup as an argument, we can already call scriptFactory.newFactory here and pass through the result
-        return new ScriptLongFieldData.Builder(script, scriptFactory);
+        return new ScriptLongFieldData.Builder(name(), script, scriptFactory);
     }
 
     private LongScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {

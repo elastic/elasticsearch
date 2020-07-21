@@ -16,11 +16,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -72,7 +69,7 @@ public abstract class ScriptFieldScriptTestCase<F, LF, R> extends ESTestCase {
             when(mapperService.fieldType(type.name())).thenReturn(type);
         }
         Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup = ft -> ft.fielddataBuilder("test")
-            .build(indexSettings(), ft, null, new NoneCircuitBreakerService(), mapperService);
+            .build(null, new NoneCircuitBreakerService(), mapperService);
         SearchLookup searchLookup = new SearchLookup(mapperService, fieldDataLookup);
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             F factory = AccessController.doPrivileged(
@@ -109,17 +106,5 @@ public abstract class ScriptFieldScriptTestCase<F, LF, R> extends ESTestCase {
                 }
             }
         }
-    }
-
-    private IndexSettings indexSettings() {
-        return new IndexSettings(
-            IndexMetadata.builder("_index")
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .creationDate(System.currentTimeMillis())
-                .build(),
-            Settings.EMPTY
-        );
     }
 }

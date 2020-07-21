@@ -20,10 +20,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
@@ -54,12 +51,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractScriptMappedFieldTyp
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 ScriptLongMappedFieldType ft = build("for (def v : source.foo) {value(v + params.param)}", Map.of("param", 1));
-                IndexMetadata imd = IndexMetadata.builder("test")
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-                    .build();
-                ScriptLongFieldData ifd = ft.fielddataBuilder("test").build(new IndexSettings(imd, Settings.EMPTY), ft, null, null, null);
+                ScriptLongFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
                 ifd.setSearchLookup(mockContext().lookup());
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override

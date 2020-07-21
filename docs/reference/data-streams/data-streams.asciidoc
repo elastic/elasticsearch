@@ -101,11 +101,12 @@ generation contain older data.
 
 A backing index's name can change after its creation due to a
 <<indices-shrink-index,shrink>>, <<snapshots-restore-snapshot,restore>>, or
-other operations.
+other operations. However, renaming does not detach a backing index from its
+data stream.
 
 [discrete]
-[[data-stream-write-index]]
-== Write index
+[[data-stream-read-requests]]
+== Read requests
 
 When a read request is sent to a data stream, it routes the request to all its
 backing indices. For example, a search request sent to a data stream would query
@@ -113,7 +114,11 @@ all its backing indices.
 
 image::images/data-streams/data-streams-search-request.svg[align="center"]
 
-However, the most recently created backing index is the data stream’s only
+[discrete]
+[[data-stream-write-index]]
+== Write index
+
+The most recently created backing index is the data stream’s only
 _write index_. The data stream routes all indexing requests for new documents to
 this index.
 
@@ -167,23 +172,14 @@ For most time-series use cases, existing data is rarely, if ever, updated.
 Because of this, data streams are designed to be append-only.
 
 You can send <<add-documents-to-a-data-stream,indexing requests for new
-documents>> directly to a data stream. However, you cannot send the following
-requests for existing documents directly to a data stream:
-
-* An <<docs-index_,index API>> request with an
-  <<docs-index-api-op_type,`op_type`>> of `index`. The `op_type` parameter
-  defaults to `index` for existing documents.
-
-* A <<docs-bulk,bulk API>> request using the `delete`, `index`, or `update`
-  action.
-
-* A <<docs-delete,delete API>> request
+documents>> directly to a data stream. However, you cannot send the update or
+deletion requests for existing documents directly to a data stream.
 
 Instead, you can use the <<docs-update-by-query,update by query>> and
 <<docs-delete-by-query,delete by query>> APIs to update or delete existing
 documents in a data stream. See <<update-docs-in-a-data-stream-by-query>> and <<delete-docs-in-a-data-stream-by-query>>.
 
-Alternatively, you can update or delete a document by submitting requests to the
+If needed, you can update or delete a document by submitting requests to the
 backing index containing the document. See
 <<update-delete-docs-in-a-backing-index>>.
 

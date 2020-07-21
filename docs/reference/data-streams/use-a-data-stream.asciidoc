@@ -463,8 +463,18 @@ POST /_reindex
 [[update-docs-in-a-data-stream-by-query]]
 === Update documents in a data stream by query
 
-You can use the <<docs-update-by-query,update by query API>> to update documents
-in a data stream that matches a provided query.
+You cannot send indexing or update requests for existing documents directly to a
+data stream. These prohibited requests include:
+
+* An <<docs-index_,index API>> request with an
+  <<docs-index-api-op_type,`op_type`>> of `index`. The `op_type` parameter
+  defaults to `index` for existing documents.
+
+* A <<docs-bulk,bulk API>> request using the `index`  or `update`
+  action.
+
+Instead, you can use the <<docs-update-by-query,update by query API>> to update
+documents in a data stream that matches a provided query.
 
 The following update by query request updates documents in the `logs` data
 stream with a `user.id` of `l7gk7f82`. The request uses a
@@ -493,8 +503,15 @@ POST /logs/_update_by_query
 [[delete-docs-in-a-data-stream-by-query]]
 === Delete documents in a data stream by query
 
-You can use the <<docs-delete-by-query,delete by query API>> to delete documents
-in a data stream that matches a provided query.
+You cannot send document deletion requests directly to a data stream. These
+prohibited requests include:
+
+* A <<docs-bulk,bulk API>> request using the `delete` action.
+
+* A <<docs-delete,delete API>> request
+
+Instead, you can use the <<docs-delete-by-query,delete by query API>> to delete
+documents in a data stream that matches a provided query.
 
 The following delete by query request deletes documents in the `logs` data
 stream with a `user.id` of `vlb44hny`.

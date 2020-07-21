@@ -49,8 +49,8 @@ To use {ilm-init} with a data stream, you must
 should contain the automated actions to take on backing indices and the
 triggers for such actions.
 
-TIP: While optional, we recommend using {ilm-init} to scale data streams in
-production.
+TIP: While optional, we recommend using {ilm-init} to manage the backing indices
+associated with a data stream.
 
 The following <<ilm-put-lifecycle,create lifecycle policy API>> request
 configures the `logs_policy` lifecycle policy.
@@ -89,28 +89,25 @@ PUT /_ilm/policy/logs_policy
 [[create-a-data-stream-template]]
 === Create an index template for a data stream
 
-Each data stream requires a matching <<indices-templates,index template>>. The
-data stream uses this template to apply settings and mappings to its backing
-indices. This index template contains:
+A data stream uses an index template to configure its backing indices. A
+template for a data stream must specify:
 
-* The mappings and settings you'd like to apply to the stream's backing indices.
+* An index pattern that matches the name of the stream.
 
-* A name or wildcard (`*`) pattern that matches the data stream's name in the
-`index_patterns` property.
+* An empty `data_stream` object that indicates the template is used for data
+  streams.
 
-* A required `data_stream` object with an empty body (`{ }`).  This object
-indicates the template is used for data streams.
+* The mappings and settings for the stream's backing indices.
 
-A `@timestamp` field must be included in every document indexed to the data
-stream. This field can be mapped as a <<date,`date`>> or
-<<date_nanos,`date_nanos`>> field data type in the stream's matching index
-template. This mapping can include other <<mapping-params,mapping parameters>>,
-such as <<mapping-date-format,`format`>>. If no mapping is specified in the
-template, the `date` field data type with default options is used.
+Every document indexed to a data stream must have a `@timestamp` field. This
+field can be mapped as a <<date,`date`>> or <<date_nanos,`date_nanos`>> field
+data type by the stream's index template. This mapping can include other
+<<mapping-params,mapping parameters>>, such as <<mapping-date-format,`format`>>.
+If the template does not specify a mapping is specified in the template, the
+`@timestamp` field is mapped as a `date` field  with default options.
 
-If you intend to use {ilm-init}, include the
-<<configure-a-data-stream-ilm-policy,lifecycle policy>> in the template's
-`index.lifecycle.name` setting.
+We recommend using {ilm-init} to manage a data stream's backing indices. Specify
+the name of the lifecycle policy with the `index.lifecycle.name` setting.
 
 TIP: We recommend you carefully consider which mappings and settings to include
 in this template before creating a data stream. Later changes to the mappings or
@@ -170,8 +167,7 @@ This would prevent the data stream from creating new backing indices.
 [[create-a-data-stream]]
 === Create a data stream
 
-With an index template, you can create a data stream using one of two
-methods:
+You can create a data stream using one of two methods:
 
 * <<index-documents-to-create-a-data-stream>>
 * <<manually-create-a-data-stream>>

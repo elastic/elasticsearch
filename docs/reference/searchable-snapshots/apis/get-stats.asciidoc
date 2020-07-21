@@ -45,16 +45,16 @@ statistics must be retrieved.
 -----------------------------------
 PUT /docs
 {
-    "settings" : {
-        "index.number_of_shards" : 1,
-        "index.number_of_replicas" : 0
-    }
+  "settings" : {
+    "index.number_of_shards" : 1,
+    "index.number_of_replicas" : 0
+  }
 }
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 {
-    "include_global_state": false,
-    "indices": "docs"
+  "include_global_state": false,
+  "indices": "docs"
 }
 
 DELETE /docs

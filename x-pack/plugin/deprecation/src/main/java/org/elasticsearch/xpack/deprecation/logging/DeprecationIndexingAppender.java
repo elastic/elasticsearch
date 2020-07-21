@@ -41,7 +41,7 @@ public class DeprecationIndexingAppender extends AbstractAppender {
     private String nodeId;
 
     /**
-     * You apparently can't start and stop an appender to toggle it, so this flag reflects whether
+     * You can't start and stop an appender to toggle it, so this flag reflects whether
      * writes should in fact be carried out.
      */
     private volatile boolean isEnabled = false;

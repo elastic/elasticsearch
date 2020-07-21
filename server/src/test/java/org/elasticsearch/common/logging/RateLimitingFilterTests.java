@@ -43,7 +43,10 @@ public class RateLimitingFilterTests extends ESTestCase {
         this.filter.stop();
     }
 
-    public void testRateLimitingFilter() {
+    /**
+     * Check that messages are rate-limited by their key.
+     */
+    public void testMessagesAreRateLimitedByKey() {
         // Fill up the cache
         for (int i = 0; i < 128; i++) {
             Message message = DeprecatedMessage.of("", "msg " + i).field("key", "key" + i);
@@ -63,6 +66,76 @@ public class RateLimitingFilterTests extends ESTestCase {
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
     }
 
+    /**
+     * Check that messages are rate-limited by their x-opaque-id value
+     */
+    public void testMessagesAreRateLimitedByXOpaqueId() {
+        // Fill up the cache
+        for (int i = 0; i < 128; i++) {
+            Message message = DeprecatedMessage.of("key " + i, "msg " + i);
+            assertThat("Expected key" + i + " to be accepted", filter.filter(message), equalTo(Result.ACCEPT));
+        }
+
+        // Should be rate-limited because it's still in the cache
+        Message message = DeprecatedMessage.of("key 0", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.DENY));
+
+        // Filter a message with a previously unseen key, in order to evict key0 as it's the oldest
+        message = DeprecatedMessage.of("key 129", "msg 129");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+
+        // Should be allowed because key0 was evicted from the cache
+        message = DeprecatedMessage.of("key 0", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+    }
+
+    /**
+     * Check that messages are rate-limited by their key and x-opaque-id value
+     */
+    public void testMessagesAreRateLimitedByKeyAndXOpaqueId() {
+        // Fill up the cache
+        for (int i = 0; i < 128; i++) {
+            Message message = DeprecatedMessage.of("opaque-id " + i, "msg " + i).field("key", "key " + i);
+            assertThat("Expected key" + i + " to be accepted", filter.filter(message), equalTo(Result.ACCEPT));
+        }
+
+        // Should be rate-limited because it's still in the cache
+        Message message = DeprecatedMessage.of("opaque-id 0", "msg 0").field("key", "key 0");
+        assertThat(filter.filter(message), equalTo(Result.DENY));
+
+        // Filter a message with a previously unseen key, in order to evict key0 as it's the oldest
+        message = DeprecatedMessage.of("opaque-id 129", "msg 129").field("key", "key 129");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+
+        // Should be allowed because key0 was evicted from the cache
+        message = DeprecatedMessage.of("opaque-id 0", "msg 0").field("key", "key 0");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+    }
+
+    /**
+     * Check that it is the combination of key and x-opaque-id that rate-limits messages, by varying each
+     * independently and checking that a message is not filtered.
+     */
+    public void testVariationsInKeyAndXOpaqueId() {
+        Message message = DeprecatedMessage.of("opaque-id 0", "msg 0").field("key", "key 0");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+
+        message = DeprecatedMessage.of("opaque-id 0", "msg 0").field("key", "key 0");
+        // Rejected because the "x-opaque-id" and "key" values are the same as above
+        assertThat(filter.filter(message), equalTo(Result.DENY));
+
+        message = DeprecatedMessage.of("opaque-id 0", "msg 0").field("key", "key 1");
+        // Accepted because the "key" value is different
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+
+        message = DeprecatedMessage.of("opaque-id 1", "msg 0").field("key", "key 0");
+        // Accepted because the "x-opaque-id" value is different
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+    }
+
+    /**
+     * Check that rate-limiting is not applied to messages if they are not an EsLogMessage.
+     */
     public void testOnlyEsMessagesAreFiltered() {
         Message message = new SimpleMessage("a message");
         assertThat(filter.filter(message), equalTo(Result.NEUTRAL));

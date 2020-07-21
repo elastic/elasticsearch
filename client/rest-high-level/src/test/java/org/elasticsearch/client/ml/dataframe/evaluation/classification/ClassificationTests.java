@@ -36,7 +36,7 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    static Classification createRandom() {
+    public static Classification createRandom() {
         List<EvaluationMetric> metrics =
             randomSubsetOf(
                 Arrays.asList(

@@ -45,7 +45,8 @@ import java.util.function.BiConsumer;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ScriptDoubleMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
+public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappedFieldTypeTestCase {
+    @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.0]}"))));
@@ -90,6 +91,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractScriptMappedFieldT
         }
     }
 
+    @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -101,6 +103,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractScriptMappedFieldT
         }
     }
 
+    @Override
     public void testExistsQueryIsExpensive() throws IOException {
         checkExpensiveQuery(ScriptDoubleMappedFieldType::existsQuery);
     }
@@ -150,6 +153,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractScriptMappedFieldT
         );
     }
 
+    @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -167,10 +171,12 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractScriptMappedFieldT
         }
     }
 
+    @Override
     public void testTermQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomLong(), ctx));
     }
 
+    @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -186,19 +192,25 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractScriptMappedFieldT
         }
     }
 
+    @Override
     public void testTermsQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.termsQuery(List.of(randomLong()), ctx));
     }
 
-    private ScriptDoubleMappedFieldType build(String code) throws IOException {
+    @Override
+    protected ScriptDoubleMappedFieldType simpleMappedFieldType() throws IOException {
+        return build("value(source.foo)");
+    }
+
+    private static ScriptDoubleMappedFieldType build(String code) throws IOException {
         return build(new Script(code));
     }
 
-    private ScriptDoubleMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static ScriptDoubleMappedFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, code, params));
     }
 
-    private ScriptDoubleMappedFieldType build(Script script) throws IOException {
+    private static ScriptDoubleMappedFieldType build(Script script) throws IOException {
         PainlessPlugin painlessPlugin = new PainlessPlugin();
         painlessPlugin.loadExtensions(new ExtensionLoader() {
             @Override
@@ -214,7 +226,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractScriptMappedFieldT
         }
     }
 
-    private void checkExpensiveQuery(BiConsumer<ScriptDoubleMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+    private static void checkExpensiveQuery(BiConsumer<ScriptDoubleMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
         ScriptDoubleMappedFieldType ft = build("value(1)");
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(

@@ -49,6 +49,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
+    @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -96,6 +97,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -107,6 +109,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testExistsQueryIsExpensive() throws IOException {
         checkExpensiveQuery(ScriptKeywordMappedFieldType::existsQuery);
     }
@@ -157,6 +160,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         checkExpensiveQuery((ft, ctx) -> ft.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
     }
 
+    @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
@@ -172,6 +176,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testRangeQueryIsExpensive() throws IOException {
         checkExpensiveQuery(
             (ft, ctx) -> ft.rangeQuery(
@@ -208,6 +213,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), randomInt(), null, ctx));
     }
 
+    @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -220,10 +226,12 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testTermQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx));
     }
 
+    @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -237,6 +245,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testTermsQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx));
     }
@@ -256,15 +265,15 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         checkExpensiveQuery((ft, ctx) -> ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
     }
 
-    private ScriptKeywordMappedFieldType build(String code) throws IOException {
+    private static ScriptKeywordMappedFieldType build(String code) throws IOException {
         return build(new Script(code));
     }
 
-    private ScriptKeywordMappedFieldType build(String code, Map<String, Object> params) throws IOException {
+    private static ScriptKeywordMappedFieldType build(String code, Map<String, Object> params) throws IOException {
         return build(new Script(ScriptType.INLINE, PainlessScriptEngine.NAME, code, params));
     }
 
-    private ScriptKeywordMappedFieldType build(Script script) throws IOException {
+    private static ScriptKeywordMappedFieldType build(Script script) throws IOException {
         PainlessPlugin painlessPlugin = new PainlessPlugin();
         painlessPlugin.loadExtensions(new ExtensionLoader() {
             @Override
@@ -280,7 +289,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
-    private void checkExpensiveQuery(BiConsumer<ScriptKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+    private static void checkExpensiveQuery(BiConsumer<ScriptKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
         ScriptKeywordMappedFieldType ft = build("value('cat')");
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(

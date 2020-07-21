@@ -28,13 +28,13 @@ public class QueryFolderFailTests extends AbstractQueryFolderTestCase {
 
     public void testBetweenMissingOrNullParams() {
         final String[] queries = {
-                "process where between() == \"yst\"",
-                "process where between(process_name) == \"yst\"",
-                "process where between(process_name, \"s\") == \"yst\"",
-                "process where between(null) == \"yst\"",
-                "process where between(process_name, null) == \"yst\"",
+            "process where between() == \"yst\"",
+            "process where between(process_name) == \"yst\"",
+            "process where between(process_name, \"s\") == \"yst\"",
+            "process where between(null) == \"yst\"",
+            "process where between(process_name, null) == \"yst\"",
             "process where between(process_name, \"s\", \"e\", false, false) == \"yst\"",
-                "process where between(process_name, \"s\", \"e\", false, false, true) == \"yst\"",
+            "process where between(process_name, \"s\", \"e\", false, false, true) == \"yst\"",
         };
 
         for (String query : queries) {

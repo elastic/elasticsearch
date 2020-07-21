@@ -27,19 +27,19 @@ field mapping. For example:
 ----
 PUT /my-index
 {
-    "mappings": {
-        "properties" : {
-            "my-join-field" : {
-                "type" : "join",
-                "relations": {
-                    "parent": "child"
-                }
-            },
-            "tag" : {
-                "type" : "keyword"
-            }
+  "mappings": {
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "parent": "child"
         }
+      },
+      "tag": {
+        "type": "keyword"
+      }
     }
+  }
 }
 
 ----
@@ -52,18 +52,18 @@ PUT /my-index
 ----
 GET /my-index/_search
 {
-    "query": {
-        "has_parent" : {
-            "parent_type" : "parent",
-            "query" : {
-                "term" : {
-                    "tag" : {
-                        "value" : "Elasticsearch"
-                    }
-                }
-            }
+  "query": {
+    "has_parent": {
+      "parent_type": "parent",
+      "query": {
+        "term": {
+          "tag": {
+            "value": "Elasticsearch"
+          }
         }
+      }
     }
+  }
 }
 ----
 
@@ -122,18 +122,18 @@ sorts returned documents by the `view_count` field of their parent documents.
 ----
 GET /_search
 {
-    "query": {
-        "has_parent" : {
-            "parent_type" : "parent",
-            "score" : true,
-            "query" : {
-                "function_score" : {
-                    "script_score": {
-                        "script": "_score * doc['view_count'].value"
-                    }
-                }
-            }
+  "query": {
+    "has_parent": {
+      "parent_type": "parent",
+      "score": true,
+      "query": {
+        "function_score": {
+          "script_score": {
+            "script": "_score * doc['view_count'].value"
+          }
         }
+      }
     }
+  }
 }
 ----

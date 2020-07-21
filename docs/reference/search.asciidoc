@@ -18,9 +18,9 @@ the user name:
 --------------------------------------------------
 POST /twitter/_doc?routing=kimchy
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
 
@@ -32,18 +32,18 @@ only the relevant shard:
 --------------------------------------------------
 POST /twitter/_search?routing=kimchy
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "query_string" : {
-                    "query" : "some query string here"
-                }
-            },
-            "filter" : {
-                "term" : { "user" : "kimchy" }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "query_string": {
+          "query": "some query string here"
         }
+      },
+      "filter": {
+        "term": { "user": "kimchy" }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -72,9 +72,9 @@ This can be turned off by changing the dynamic cluster setting
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "transient": {
-        "cluster.routing.use_adaptive_replica_selection": false
-    }
+  "transient": {
+    "cluster.routing.use_adaptive_replica_selection": false
+  }
 }
 --------------------------------------------------
 
@@ -96,10 +96,10 @@ the request with two different groups:
 --------------------------------------------------
 POST /_search
 {
-    "query" : {
-        "match_all" : {}
-    },
-    "stats" : ["group1", "group2"]
+  "query" : {
+    "match_all" : {}
+  },
+  "stats" : ["group1", "group2"]
 }
 --------------------------------------------------
 // TEST[setup:twitter]

@@ -231,18 +231,18 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-    "_index" : "twitter",
-    "_id" : "0",
-    "_version" : 1,
-    "_seq_no" : 10,
-    "_primary_term" : 1,
-    "found": true,
-    "_source" : {
-        "user" : "kimchy",
-        "date" : "2009-11-15T14:12:12",
-        "likes": 0,
-        "message" : "trying out Elasticsearch"
-    }
+  "_index": "twitter",
+  "_id": "0",
+  "_version": 1,
+  "_seq_no": 10,
+  "_primary_term": 1,
+  "found": true,
+  "_source": {
+    "user": "kimchy",
+    "date": "2009-11-15T14:12:12",
+    "likes": 0,
+    "message": "trying out Elasticsearch"
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
@@ -323,8 +323,8 @@ Now we can add a document:
 --------------------------------------------------
 PUT twitter/_doc/1
 {
-    "counter" : 1,
-    "tags" : ["red"]
+  "counter": 1,
+  "tags": [ "red" ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -366,8 +366,8 @@ You can also retrieve metadata fields like the `_routing` field:
 --------------------------------------------------
 PUT twitter/_doc/2?routing=user1
 {
-    "counter" : 1,
-    "tags" : ["white"]
+  "counter" : 1,
+  "tags" : ["white"]
 }
 --------------------------------------------------
 // TEST[continued]

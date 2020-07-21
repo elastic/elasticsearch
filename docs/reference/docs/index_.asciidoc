@@ -190,23 +190,23 @@ creation of indices. It does not affect the creation of data streams.
 --------------------------------------------------
 PUT _cluster/settings
 {
-    "persistent": {
-        "action.auto_create_index": "twitter,index10,-index1*,+ind*" <1>
-    }
+  "persistent": {
+    "action.auto_create_index": "twitter,index10,-index1*,+ind*" <1>
+  }
 }
 
 PUT _cluster/settings
 {
-    "persistent": {
-        "action.auto_create_index": "false" <2>
-    }
+  "persistent": {
+    "action.auto_create_index": "false" <2>
+  }
 }
 
 PUT _cluster/settings
 {
-    "persistent": {
-        "action.auto_create_index": "true" <3>
-    }
+  "persistent": {
+    "action.auto_create_index": "true" <3>
+  }
 }
 --------------------------------------------------
 
@@ -239,9 +239,9 @@ the document.
 --------------------------------------------------
 POST twitter/_doc/
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
 
@@ -250,17 +250,17 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    },
-    "_index" : "twitter",
-    "_id" : "W0tpsmIBdwcYyG50zbta",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "result": "created"
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  },
+  "_index": "twitter",
+  "_id": "W0tpsmIBdwcYyG50zbta",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "result": "created"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful" : 2/"successful" : 1/]
@@ -288,9 +288,9 @@ on a per-operation basis using the `routing` parameter. For example:
 --------------------------------------------------
 POST twitter/_doc?routing=kimchy
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
 
@@ -365,11 +365,11 @@ replication succeeded/failed.
 [source,js]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    }
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -413,9 +413,9 @@ to 5 minutes:
 --------------------------------------------------
 PUT twitter/_doc/1?timeout=5m
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
 
@@ -442,7 +442,7 @@ conflict will occur and the index operation will fail. For example:
 --------------------------------------------------
 PUT twitter/_doc/1?version=2&version_type=external
 {
-    "message" : "elasticsearch now has versioning support, double cool!"
+  "message" : "elasticsearch now has versioning support, double cool!"
 }
 --------------------------------------------------
 // TEST[continued]
@@ -500,9 +500,9 @@ Insert a JSON document into the `twitter` index with an `_id` of 1:
 --------------------------------------------------
 PUT twitter/_doc/1
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
 
@@ -511,17 +511,17 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    },
-    "_index" : "twitter",
-    "_id" : "1",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "result" : "created"
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  },
+  "_index": "twitter",
+  "_id": "1",
+  "_version": 1,
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "result": "created"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
@@ -533,9 +533,9 @@ no document with that ID exists:
 --------------------------------------------------
 PUT twitter/_create/1
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
 
@@ -546,8 +546,8 @@ index if no document with that ID exists:
 --------------------------------------------------
 PUT twitter/_doc/1?op_type=create
 {
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
+  "user" : "kimchy",
+  "post_date" : "2009-11-15T14:12:12",
+  "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------

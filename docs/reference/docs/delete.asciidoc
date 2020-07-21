@@ -65,7 +65,7 @@ Example to delete with routing
 --------------------------------------------------
 PUT /twitter/_doc/1?routing=kimchy
 {
-    "test": "test"
+  "test": "test"
 }
 --------------------------------------------------
 ////
@@ -179,17 +179,17 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-    "_shards" : {
-        "total" : 2,
-        "failed" : 0,
-        "successful" : 2
-    },
-    "_index" : "twitter",
-    "_id" : "1",
-    "_version" : 2,
-    "_primary_term": 1,
-    "_seq_no": 5,
-    "result": "deleted"
+  "_shards": {
+    "total": 2,
+    "failed": 0,
+    "successful": 2
+  },
+  "_index": "twitter",
+  "_id": "1",
+  "_version": 2,
+  "_primary_term": 1,
+  "_seq_no": 5,
+  "result": "deleted"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]

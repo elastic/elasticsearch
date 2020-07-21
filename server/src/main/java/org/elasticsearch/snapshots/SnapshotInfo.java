@@ -57,7 +57,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
-    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strictDateOptionalTime");
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
     private static final String INDICES = "indices";
@@ -301,28 +301,14 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      */
     public SnapshotInfo(final StreamInput in) throws IOException {
         snapshotId = new SnapshotId(in);
-        int size = in.readVInt();
-        List<String> indicesListBuilder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            indicesListBuilder.add(in.readString());
-        }
-        indices = Collections.unmodifiableList(indicesListBuilder);
+        indices = Collections.unmodifiableList(in.readStringList());
         state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         reason = in.readOptionalString();
         startTime = in.readVLong();
         endTime = in.readVLong();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
-        size = in.readVInt();
-        if (size > 0) {
-            List<SnapshotShardFailure> failureBuilder = new ArrayList<>();
-            for (int i = 0; i < size; i++) {
-                failureBuilder.add(new SnapshotShardFailure(in));
-            }
-            shardFailures = Collections.unmodifiableList(failureBuilder);
-        } else {
-            shardFailures = Collections.emptyList();
-        }
+        shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
         version = in.readBoolean() ? Version.readVersion(in) : null;
         includeGlobalState = in.readOptionalBoolean();
         userMetadata = in.readMap();
@@ -726,10 +712,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         snapshotId.writeTo(out);
-        out.writeVInt(indices.size());
-        for (String index : indices) {
-            out.writeString(index);
-        }
+        out.writeStringCollection(indices);
         if (state != null) {
             out.writeBoolean(true);
             out.writeByte(state.value());
@@ -741,10 +724,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeVLong(endTime);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-        out.writeVInt(shardFailures.size());
-        for (SnapshotShardFailure failure : shardFailures) {
-            failure.writeTo(out);
-        }
+        out.writeList(shardFailures);
         if (version != null) {
             out.writeBoolean(true);
             Version.writeVersion(version, out);

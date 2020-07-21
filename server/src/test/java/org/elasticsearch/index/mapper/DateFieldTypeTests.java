@@ -258,10 +258,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         docValuesField.setLongValue(1459641600000L);
         w.addDocument(doc);
         // Create the doc values reader
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        IndexSettings indexSettings =  new IndexSettings(IndexMetadata.builder("foo").settings(settings).build(), settings);
-        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(indexSettings.getIndex(), "my_date",
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData("my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS);
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

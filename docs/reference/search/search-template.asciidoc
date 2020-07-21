@@ -7,15 +7,15 @@ Allows you to use the mustache language to pre render search requests.
 ------------------------------------------
 GET _search/template
 {
-    "source" : {
-      "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
-      "size" : "{{my_size}}"
-    },
-    "params" : {
-        "my_field" : "message",
-        "my_value" : "some message",
-        "my_size" : 5
-    }
+  "source" : {
+    "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
+    "size" : "{{my_size}}"
+  },
+  "params" : {
+    "my_field" : "message",
+    "my_value" : "some message",
+    "my_size" : 5
+  }
 }
 ------------------------------------------
 // TEST[setup:twitter]
@@ -112,16 +112,16 @@ You can store a search template using the stored scripts API.
 ------------------------------------------
 POST _scripts/<templateid>
 {
-    "script": {
-        "lang": "mustache",
-        "source": {
-            "query": {
-                "match": {
-                    "title": "{{query_string}}"
-                }
-            }
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "title": "{{query_string}}"
         }
+      }
     }
+  }
 }
 ------------------------------------------
 // TEST[continued]
@@ -134,7 +134,7 @@ created:
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged" : true
+  "acknowledged" : true
 }
 --------------------------------------------------
 
@@ -154,15 +154,15 @@ The API returns the following result:
 [source,console-result]
 ------------------------------------------
 {
-    "script" : {
-        "lang" : "mustache",
-        "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
-        "options": {
-          "content_type" : "application/json; charset=UTF-8"
-        }
-    },
-    "_id": "<templateid>",
-    "found": true
+  "script" : {
+    "lang" : "mustache",
+    "source" : "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}",
+    "options": {
+      "content_type" : "application/json; charset=UTF-8"
+    }
+  },
+  "_id": "<templateid>",
+  "found": true
 }
 ------------------------------------------
 
@@ -185,10 +185,10 @@ To use a stored template at search time send the following request:
 ------------------------------------------
 GET _search/template
 {
-    "id": "<templateid>", <1>
-    "params": {
-        "query_string": "search for these words"
-    }
+  "id": "<templateid>", <1>
+  "params": {
+    "query_string": "search for these words"
+  }
 }
 ------------------------------------------
 // TEST[catch:missing]
@@ -294,16 +294,16 @@ GET _search/template
 ------------------------------------------
 GET _search/template
 {
-    "source": {
-        "query": {
-            "term": {
-                "message": "{{query_string}}"
-            }
-        }
-    },
-    "params": {
-        "query_string": "search for these words"
+  "source": {
+    "query": {
+      "term": {
+        "message": "{{query_string}}"
+      }
     }
+  },
+  "params": {
+    "query_string": "search for these words"
+  }
 }
 ------------------------------------------
 // TEST[setup:twitter]
@@ -350,13 +350,13 @@ A more complex example substitutes an array of JSON objects:
 ------------------------------------------
 GET _search/template
 {
-    "source": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
-    "params": {
-        "clauses": [
-            { "term": { "user" : "foo" } },
-            { "term": { "user" : "bar" } }
-        ]
-   }
+  "source": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
+  "params": {
+    "clauses": [
+      { "term": { "user" : "foo" } },
+      { "term": { "user" : "bar" } }
+    ]
+  }
 }
 ------------------------------------------
 
@@ -365,22 +365,22 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "query" : {
-      "bool" : {
-        "must" : [
-          {
-            "term" : {
-                "user" : "foo"
-            }
-          },
-          {
-            "term" : {
-                "user" : "bar"
-            }
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "user": "foo"
           }
-        ]
-      }
+        },
+        {
+          "term": {
+            "user": "bar"
+          }
+        }
+      ]
     }
+  }
 }
 ------------------------------------------
 // NOTCONSOLE
@@ -413,11 +413,11 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "query" : {
-        "match" : {
-            "emails" : "username@email.com,lastname@email.com"
-        }
+  "query" : {
+    "match" : {
+      "emails" : "username@email.com,lastname@email.com"
     }
+  }
 }
 ------------------------------------------
 // NOTCONSOLE
@@ -454,15 +454,15 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-    "query" : {
-      "range" : {
-        "born" : {
-          "gte" : "2016",
-          "lte" : "31/12/2017",
-          "format" : "dd/MM/yyyy||yyyy"
-        }
+  "query": {
+    "range": {
+      "born": {
+        "gte": "2016",
+        "lte": "31/12/2017",
+        "format": "dd/MM/yyyy||yyyy"
       }
     }
+  }
 }
 
 ------------------------------------------
@@ -496,11 +496,11 @@ When `params` is `{ "start": 10, "end": 15 }` this query would be rendered as:
 [source,js]
 ------------------------------------------
 {
-    "range": {
-        "line_no": {
-            "gte": "10",
-            "lte": "15"
-        }
+  "range": {
+    "line_no": {
+      "gte": "10",
+      "lte": "15"
+    }
   }
 }
 ------------------------------------------
@@ -512,12 +512,12 @@ for `end`:
 [source,js]
 ------------------------------------------
 {
-    "range": {
-        "line_no": {
-            "gte": "10",
-            "lte": "20"
-        }
+  "range": {
+    "line_no": {
+      "gte": "10",
+      "lte": "20"
     }
+  }
 }
 ------------------------------------------
 // NOTCONSOLE
@@ -535,13 +535,13 @@ The `params` would look like:
 [source,js]
 ------------------------------------------
 {
-    "params": {
-        "text":      "words to search for",
-        "line_no": { <1>
-            "start": 10,
-            "end":   20
-        }
+  "params": {
+    "text": "words to search for",
+    "line_no": {                      <1>
+      "start": 10,
+      "end": 20
     }
+  }
 }
 ------------------------------------------
 // NOTCONSOLE
@@ -612,17 +612,17 @@ As an example, it is useful to encode a URL:
 ------------------------------------------
 GET _render/template
 {
-    "source" : {
-        "query" : {
-            "term": {
-                "http_access_log": "{{#url}}{{host}}/{{page}}{{/url}}"
-            }
-        }
-    },
-    "params": {
-        "host": "https://www.elastic.co/",
-        "page": "learn"
+  "source": {
+    "query": {
+      "term": {
+        "http_access_log": "{{#url}}{{host}}/{{page}}{{/url}}"
+      }
     }
+  },
+  "params": {
+    "host": "https://www.elastic.co/",
+    "page": "learn"
+  }
 }
 ------------------------------------------
 
@@ -632,13 +632,13 @@ The previous query will be rendered as:
 [source,console-result]
 ------------------------------------------
 {
-    "template_output" : {
-        "query" : {
-            "term" : {
-                "http_access_log" : "https%3A%2F%2Fwww.elastic.co%2F%2Flearn"
-            }
-        }
+  "template_output": {
+    "query": {
+      "term": {
+        "http_access_log": "https%3A%2F%2Fwww.elastic.co%2F%2Flearn"
+      }
     }
+  }
 }
 ------------------------------------------
 

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[update-dfanalytics]]
-=== Update {dfanalytics-jobs} API
+= Update {dfanalytics-jobs} API
 [subs="attributes"]
 ++++
 <titleabbrev>Update {dfanalytics-jobs}</titleabbrev>
@@ -12,13 +12,13 @@ Updates an existing {dfanalytics-job}.
 experimental[]
 
 [[ml-update-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/data_frame/analytics/<data_frame_analytics_id>/_update`
 
 
 [[ml-update-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 built-in roles and privileges:
@@ -40,14 +40,14 @@ those same roles. If you provide
 those credentials are used instead.
 
 [[ml-update-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API updates an existing {dfanalytics-job} that performs an analysis on the source
 indices and stores the outcome in a destination index.
 
 
 [[ml-update-dfanalytics-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
 (Required, string)
@@ -55,7 +55,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 
 [role="child_attributes"]
 [[ml-update-dfanalytics-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `allow_lazy_start`::
 (Optional, boolean) 
@@ -89,10 +89,10 @@ setting, an error occurs when you try to create {dfanalytics-jobs} that have
 <<ml-settings>>.
 
 [[ml-update-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [[ml-update-dfanalytics-example-preprocess]]
-===== Updating model memory limit example
+=== Updating model memory limit example
 
 The following example shows how to update the model memory limit for the existing {dfanalytics} configuration.
 

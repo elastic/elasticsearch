@@ -11,9 +11,9 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "percentiles_bucket": {
-        "buckets_path": "the_sum"
-    }
+  "percentiles_bucket": {
+    "buckets_path": "the_sum"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -38,28 +38,28 @@ The following snippet calculates the percentiles for the total monthly `sales` b
 --------------------------------------------------
 POST /sales/_search
 {
-    "size": 0,
-    "aggs" : {
-        "sales_per_month" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            },
-            "aggs": {
-                "sales": {
-                    "sum": {
-                        "field": "price"
-                    }
-                }
-            }
-        },
-        "percentiles_monthly_sales": {
-            "percentiles_bucket": {
-                "buckets_path": "sales_per_month>sales", <1>
-                "percents": [ 25.0, 50.0, 75.0 ] <2>
-            }
+  "size": 0,
+  "aggs": {
+    "sales_per_month": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      },
+      "aggs": {
+        "sales": {
+          "sum": {
+            "field": "price"
+          }
         }
+      }
+    },
+    "percentiles_monthly_sales": {
+      "percentiles_bucket": {
+        "buckets_path": "sales_per_month>sales", <1>
+        "percents": [ 25.0, 50.0, 75.0 ]         <2>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

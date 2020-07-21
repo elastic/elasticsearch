@@ -87,6 +87,7 @@ public class TumblingWindow implements Executable {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
         // remove any potential upper limit (if a criteria has been promoted)
         base.queryRequest().to(null);
+        matcher.resetInsertPosition();
 
         log.trace("{}", matcher);
         log.trace("Querying base stage [{}] {}", base.stage(), base.queryRequest());
@@ -267,10 +268,11 @@ public class TumblingWindow implements Executable {
         final BoxedQueryRequest request = criterion.queryRequest();
         Criterion<BoxedQueryRequest> base = criteria.get(window.baseStage);
 
+        boolean reverse = criterion.reverse() != base.reverse();
         // first box the query
         // only the first base can be descending
         // all subsequence queries are ascending
-        if (criterion.reverse() != base.reverse()) {
+        if (reverse) {
             if (window.end.equals(request.from()) == false) {
                 // if that's the case, set the starting point
                 request.from(window.end);
@@ -282,7 +284,7 @@ public class TumblingWindow implements Executable {
             request.to(window.end);
         }
 
-        return criterion.reverse() != base.reverse();
+        return reverse;
     }
 
     private void payload(ActionListener<Payload> listener) {
@@ -305,6 +307,7 @@ public class TumblingWindow implements Executable {
     private TimeValue timeTook() {
         return new TimeValue(System.currentTimeMillis() - startTime);
     }
+
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
         return () -> {
             final Iterator<Sequence> delegate = criteria.get(0).reverse() != criteria.get(1).reverse() ?

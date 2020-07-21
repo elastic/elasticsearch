@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.StringJoiner;
@@ -50,6 +52,7 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         StreamInput streamInput = out.bytes().streamInput();
         SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(streamInput);
         assertThat(otherSimulateProcessorResult.getProcessorTag(), equalTo(simulateProcessorResult.getProcessorTag()));
+        assertThat(otherSimulateProcessorResult.getDescription(), equalTo(simulateProcessorResult.getDescription()));
         if (isSuccessful) {
             assertIngestDocument(otherSimulateProcessorResult.getIngestDocument(), simulateProcessorResult.getIngestDocument());
             if (isIgnoredException) {
@@ -65,6 +68,20 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
             IllegalArgumentException e = (IllegalArgumentException) otherSimulateProcessorResult.getFailure();
             assertThat(e.getMessage(), equalTo("test"));
         }
+    }
+
+    public void testBWCDescription() throws IOException {
+        boolean isSuccessful = randomBoolean();
+        boolean isIgnoredException = randomBoolean();
+        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException);
+        
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
+        simulateProcessorResult.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
+        SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(in);
+        assertNull(otherSimulateProcessorResult.getDescription());
     }
 
     static SimulateProcessorResult createTestInstance(boolean isSuccessful,

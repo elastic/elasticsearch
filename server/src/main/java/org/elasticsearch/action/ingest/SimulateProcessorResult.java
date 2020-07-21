@@ -204,6 +204,9 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return failure;
     }
 
+    public String getDescription() {
+        return description;
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -8,9 +8,9 @@ Returns search hits that match the query defined in the request.
 
 [source,console]
 ----
-GET /twitter/_search
+GET /my-index-000001/_search
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
 [[search-search-api-request]]
 ==== {api-request-title}
@@ -599,9 +599,9 @@ Key is the field name. Value is the value for the field.
 
 [source,console]
 ----
-GET /twitter/_search?q=user:kimchy
+GET /my-index-000001/_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 The API returns the following response:
 
@@ -624,15 +624,29 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "twitter",
+        "_index": "my-index-000001",
         "_type" : "_doc",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "date": "2009-11-15T14:12:12",
-          "likes": 0,
-          "message": "trying out Elasticsearch",
-          "user": "kimchy"
+          "@timestamp": "2099-11-15T14:12:12",
+          "http": {
+            "request": {
+              "method": "get"
+            },
+            "response": {
+              "status_code": 200,
+              "bytes": 1070000
+            },
+            "version": "1.1"
+          },
+          "source": {
+            "ip": "127.0.0.1"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "user": {
+            "id": "kimchy"
+          }
         }
       }
     ]
@@ -646,9 +660,10 @@ The API returns the following response:
 
 [source,console]
 ----
-GET /kimchy,elasticsearch/_search?q=user:kimchy
+GET /my-index-000001,my-index-000002/_search?q=user.id:kimchy
 ----
-// TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\n/]
 
 [[search-api-all-ex]]
 ===== Search a cluster using the `q` query parameter
@@ -658,47 +673,47 @@ omit the `<target>` parameter.
 
 [source,console]
 ----
-GET /_search?q=user:kimchy
+GET /_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 Alternatively,
 you can use the `_all` or `*` value in the `<target>` parameter.
 
 [source,console]
 ----
-GET /_all/_search?q=user:kimchy
+GET /_all/_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 [source,console]
 ----
-GET /*/_search?q=user:kimchy
+GET /*/_search?q=user.id:kimchy
 ----
-// TEST[continued]
+// TEST[setup:my_index]
 
 [[search-request-body-api-example]]
 ===== Search using the `query` request body parameter
 
 [source,console]
---------------------------------------------------
-GET /twitter/_search
+----
+GET /my-index-000001/_search
 {
   "query": {
     "term": {
-      "user": "kimchy"
+      "user.id": "kimchy"
     }
   }
 }
---------------------------------------------------
-// TEST[setup:twitter]
+----
+// TEST[setup:my_index]
 
 The API returns the following response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "took": 1,
+  "took": 5,
   "timed_out": false,
   "_shards": {
     "total": 1,
@@ -714,19 +729,33 @@ The API returns the following response:
     "max_score": 1.3862942,
     "hits": [
       {
-        "_index": "twitter",
+        "_index": "my-index-000001",
         "_type" : "_doc",
         "_id": "0",
         "_score": 1.3862942,
         "_source": {
-          "user": "kimchy",
-          "message": "trying out Elasticsearch",
-          "date": "2009-11-15T14:12:12",
-          "likes": 0
+          "@timestamp": "2099-11-15T14:12:12",
+          "http": {
+            "request": {
+              "method": "get"
+            },
+            "response": {
+              "status_code": 200,
+              "bytes": 1070000
+            },
+            "version": "1.1"
+          },
+          "source": {
+            "ip": "127.0.0.1"
+          },
+          "message": "GET /search HTTP/1.1 200 1070000",
+          "user": {
+            "id": "kimchy"
+          }
         }
       }
     ]
   }
 }
---------------------------------------------------
-// TESTRESPONSE[s/"took": 1/"took": $body.took/]
+----
+// TESTRESPONSE[s/"took": 5/"took": $body.took/]

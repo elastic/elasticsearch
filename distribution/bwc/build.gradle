@@ -327,8 +327,6 @@ BuildParams.bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInf
     }
     // make sure no dependencies were added to assemble; we want it to be a no-op
     assemble.dependsOn = []
-
-    project.ext.getCheckoutDir = {-> checkoutDir }
   }
 }
 

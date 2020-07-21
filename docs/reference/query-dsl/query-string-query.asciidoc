@@ -42,12 +42,12 @@ whitespace as an operator, `new york city` is passed as-is to the analyzer.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "query" : "(new york city) OR (big apple)",
-            "default_field" : "content"
-        }
+  "query": {
+    "query_string": {
+      "query": "(new york city) OR (big apple)",
+      "default_field": "content"
     }
+  }
 }
 --------------------------------------------------
 
@@ -265,12 +265,12 @@ For example, the following query
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name"],
-            "query" : "this AND that"
-        }
+  "query": {
+    "query_string": {
+      "fields": [ "content", "name" ],
+      "query": "this AND that"
     }
+  }
 }
 --------------------------------------------------
 
@@ -281,11 +281,11 @@ matches the same words as
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "query": "(content:this OR name:this) AND (content:that OR name:that)"
-        }
+  "query": {
+    "query_string": {
+      "query": "(content:this OR name:this) AND (content:that OR name:that)"
     }
+  }
 }
 --------------------------------------------------
 
@@ -297,13 +297,13 @@ For example (the `name` is boosted by 5 using `^5` notation):
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name^5"],
-            "query" : "this AND that OR thus",
-            "tie_breaker" : 0
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["content", "name^5"],
+      "query" : "this AND that OR thus",
+      "tie_breaker" : 0
     }
+  }
 }
 --------------------------------------------------
 
@@ -316,12 +316,12 @@ search on all "city" fields:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["city.*"],
-            "query" : "this AND that OR thus"
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["city.*"],
+      "query" : "this AND that OR thus"
     }
+  }
 }
 --------------------------------------------------
 
@@ -333,11 +333,11 @@ string itself (properly escaping the `*` sign), for example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "query" : "city.\\*:(this AND that OR thus)"
-        }
+  "query": {
+    "query_string" : {
+      "query" : "city.\\*:(this AND that OR thus)"
     }
+  }
 }
 --------------------------------------------------
 
@@ -352,12 +352,12 @@ introduced fields included). For example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string" : {
-            "fields" : ["content", "name.*^5"],
-            "query" : "this AND that OR thus"
-        }
+  "query": {
+    "query_string" : {
+      "fields" : ["content", "name.*^5"],
+      "query" : "this AND that OR thus"
     }
+  }
 }
 --------------------------------------------------
 
@@ -446,15 +446,15 @@ many "should" clauses in the resulting query should match.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title"
-            ],
-            "query": "this that thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title"
+      ],
+      "query": "this that thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 
@@ -472,16 +472,16 @@ in the single field `title`.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this that thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this that thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 
@@ -496,16 +496,16 @@ that matches documents with the disjunction max over the fields `title` and
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this OR that OR thus",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this OR that OR thus",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 
@@ -528,17 +528,17 @@ analyzer are grouped together when the input is analyzed.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "query_string": {
-            "fields": [
-                "title",
-                "content"
-            ],
-            "query": "this OR that OR thus",
-            "type": "cross_fields",
-            "minimum_should_match": 2
-        }
+  "query": {
+    "query_string": {
+      "fields": [
+        "title",
+        "content"
+      ],
+      "query": "this OR that OR thus",
+      "type": "cross_fields",
+      "minimum_should_match": 2
     }
+  }
 }
 --------------------------------------------------
 

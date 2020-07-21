@@ -48,13 +48,14 @@ GET /_snapshot/my_backup/snapshot_1/_status
 While snapshot info method returns only basic information about the snapshot in progress, the snapshot status returns
 complete breakdown of the current state for each shard participating in the snapshot.
 
-The restore process piggybacks on the standard recovery mechanism of the Elasticsearch. As a result, standard recovery
-monitoring services can be used to monitor the state of restore. When restore operation is executed the cluster
-typically goes into `red` state. It happens because the restore operation starts with "recovering" primary shards of the
-restored indices. During this operation the primary shards become unavailable which manifests itself in the `red` cluster
-state. Once recovery of primary shards is completed Elasticsearch is switching to standard replication process that
-creates the required number of replicas at this moment cluster switches to the `yellow` state. Once all required replicas
-are created, the cluster switches to the `green` states.
+The restore process piggybacks on the standard recovery mechanism of the
+Elasticsearch. As a result, standard recovery monitoring services can be used
+to monitor the state of restore. When the restore operation is executed the
+cluster typically goes into `yellow` state because the restore operation works
+by recovering primary shards of the restored indices. Once the recovery of the
+primary shards is completed Elasticsearch switches to the standard replication
+process that creates the required number of replicas. Once all required
+replicas are created, the cluster switches to the `green` states.
 
 The cluster health operation provides only a high level status of the restore process. It's possible to get more
 detailed insight into the current state of the recovery process by using <<indices-recovery, index recovery>> and
@@ -75,15 +76,15 @@ DELETE /_snapshot/my_backup/snapshot_1
 // TEST[continued]
 
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
-be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed
+be canceled by deleting data streams and indices that are being restored. Please note that data for all deleted data streams and indices will be removed
 from the cluster as a result of this operation.
 
 [float]
 === Effect of cluster blocks on snapshot and restore 
 
 Many snapshot and restore operations are affected by cluster and index blocks. For example, registering and unregistering
-repositories require write global metadata access. The snapshot operation requires that all indices and their metadata as
-well as the global metadata were readable. The restore operation requires the global metadata to be writable, however
+repositories require write global metadata access. The snapshot operation requires that all indices, backing indices, and their metadata as
+well as the global metadata be readable. The restore operation requires the global metadata to be writable, however
 the index level blocks are ignored during restore because indices are essentially recreated during restore.
 Please note that a repository content is not part of the cluster and therefore cluster blocks don't affect internal
 repository operations such as listing or deleting snapshots from an already registered repository.

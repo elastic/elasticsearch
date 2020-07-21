@@ -34,7 +34,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -73,6 +72,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "scaled_float";
     // use the same default as numbers
     private static final Setting<Boolean> COERCE_SETTING = NumberFieldMapper.COERCE_SETTING;
+    private static final FieldType FIELD_TYPE = new FieldType();
+    static {
+        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+    }
 
     public static class Builder extends FieldMapper.Builder<Builder> {
 
@@ -83,7 +86,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private Double nullValue;
 
         public Builder(String name) {
-            super(name, new FieldType());
+            super(name, FIELD_TYPE);
             builder = this;
         }
 
@@ -141,7 +144,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             ScaledFloatFieldType type = new ScaledFloatFieldType(buildFullName(context), indexed, hasDocValues, meta, scalingFactor);
             return new ScaledFloatFieldMapper(name, fieldType, type, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, nullValue);
+                    coerce(context), multiFieldsBuilder.build(this, context), copyTo, nullValue);
         }
     }
 
@@ -182,7 +185,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final double scalingFactor;
 
         public ScaledFloatFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta, double scalingFactor) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.scalingFactor = scalingFactor;
         }
 
@@ -190,18 +193,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             this(name, true, true, Collections.emptyMap(), scalingFactor);
         }
 
-        ScaledFloatFieldType(ScaledFloatFieldType other) {
-            super(other);
-            this.scalingFactor = other.scalingFactor;
-        }
-
         public double getScalingFactor() {
             return scalingFactor;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new ScaledFloatFieldType(this);
         }
 
         @Override
@@ -307,19 +300,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            return scalingFactor == ((ScaledFloatFieldType) o).scalingFactor;
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * super.hashCode() + Double.hashCode(scalingFactor);
-        }
-
         /**
          * Parses input value and multiplies it with the scaling factor.
          * Uses the round-trip of creating a {@link BigDecimal} from the stringified {@code double}
@@ -347,11 +327,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             ScaledFloatFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo,
             Double nullValue) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.scalingFactor = mappedFieldType.scalingFactor;
         this.nullValue = nullValue;
         if (Double.isFinite(scalingFactor) == false || scalingFactor <= 0) {

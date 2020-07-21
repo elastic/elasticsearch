@@ -1,7 +1,7 @@
 [[mapper]]
 == Mapper Plugins
 
-Mapper plugins allow new field datatypes to be added to Elasticsearch.
+Mapper plugins allow new field data types to be added to Elasticsearch.
 
 [float]
 === Core mapper plugins

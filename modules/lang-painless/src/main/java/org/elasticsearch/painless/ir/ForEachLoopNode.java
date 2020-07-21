@@ -21,7 +21,8 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
+import org.elasticsearch.painless.symbol.WriteScope;
 
 public class ForEachLoopNode extends StatementNode {
 
@@ -37,11 +38,18 @@ public class ForEachLoopNode extends StatementNode {
         return conditionNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        scopeTable = scopeTable.newScope();
-        conditionNode.write(classWriter, methodWriter, scopeTable);
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitForEachLoop(this, input);
+    }
+
+    /* ---- end visitor ---- */
+
+    @Override
+    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
+        writeScope = writeScope.newScope();
+        conditionNode.write(classWriter, methodWriter, writeScope);
     }
 }

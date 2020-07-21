@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -55,7 +57,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
-public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest> {
+public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
 
@@ -73,6 +77,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalPipeline;
     private String globalRouting;
     private String globalIndex;
+    private Boolean globalRequireAlias;
 
     private long sizeInBytes = 0;
 
@@ -83,7 +88,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            requests.add(DocWriteRequest.readDocumentRequest(in));
+            requests.add(DocWriteRequest.readDocumentRequest(null, in));
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
@@ -230,7 +235,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, true, xContentType);
+        return add(data, defaultIndex, null, null, null, null, true, xContentType);
     }
 
     /**
@@ -238,17 +243,18 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, allowExplicitIndex, xContentType);
+        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType);
 
     }
 
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
                            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-                           @Nullable String defaultPipeline, boolean allowExplicitIndex,
+                           @Nullable String defaultPipeline, @Nullable Boolean defaultRequireAlias, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
-        new BulkRequestParser(true).parse(data, defaultIndex, routing, defaultFetchSourceContext, pipeline,
+        Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
+        new BulkRequestParser(true).parse(data, defaultIndex, routing, defaultFetchSourceContext, pipeline, requireAlias,
                 allowExplicitIndex, xContentType, (indexRequest, type) -> internalAdd(indexRequest), this::internalAdd, this::add);
         return this;
     }
@@ -322,6 +328,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return globalRouting;
     }
 
+    public Boolean requireAlias() {
+        return globalRequireAlias;
+    }
+
+    public BulkRequest requireAlias(Boolean globalRequireAlias) {
+        this.globalRequireAlias = globalRequireAlias;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -372,5 +387,17 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             return globalDefault;
         }
         return value;
+    }
+
+    private static Boolean valueOrDefault(Boolean value, Boolean globalDefault) {
+        if (Objects.isNull(value) && !Objects.isNull(globalDefault)) {
+            return globalDefault;
+        }
+        return value;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + requests.stream().mapToLong(Accountable::ramBytesUsed).sum();
     }
 }

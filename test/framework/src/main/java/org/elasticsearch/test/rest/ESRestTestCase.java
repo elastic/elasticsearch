@@ -27,6 +27,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -91,6 +92,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
@@ -122,6 +124,19 @@ public abstract class ESRestTestCase extends ESTestCase {
                 NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 response.getEntity().getContent())) {
             return parser.map();
+        }
+    }
+
+    /**
+     * Convert the entity from a {@link Response} into a list of maps.
+     */
+    public static List<Object> entityAsList(Response response) throws IOException {
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        // EMPTY and THROW are fine here because `.map` doesn't use named x content or deprecation
+        try (XContentParser parser = xContentType.xContent().createParser(
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            response.getEntity().getContent())) {
+            return parser.list();
         }
     }
 
@@ -471,7 +486,8 @@ public abstract class ESRestTestCase extends ESTestCase {
      * A set of ILM policies that should be preserved between runs.
      */
     protected Set<String> preserveILMPolicyIds() {
-        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy", "watch-history-ilm-policy", "ml-size-based-ilm-policy");
+        return Sets.newHashSet("ilm-history-ilm-policy", "slm-history-ilm-policy",
+            "watch-history-ilm-policy", "ml-size-based-ilm-policy", "logs", "metrics");
     }
 
     /**
@@ -575,8 +591,25 @@ public abstract class ESRestTestCase extends ESTestCase {
                     }
                 }
                 try {
-                    adminClient().performRequest(new Request("DELETE", "_component_template/*"));
-                } catch (ResponseException e) {
+                    Request compReq = new Request("GET", "_component_template");
+                    String componentTemplates = EntityUtils.toString(adminClient().performRequest(compReq).getEntity());
+                    Map<String, Object> cTemplates = XContentHelper.convertToMap(JsonXContent.jsonXContent, componentTemplates, false);
+                    @SuppressWarnings("unchecked")
+                    List<String> names = ((List<Map<String, Object>>) cTemplates.get("component_templates")).stream()
+                        .map(ct -> (String) ct.get("name"))
+                        .collect(Collectors.toList());
+                    for (String componentTemplate : names) {
+                        try {
+                            if (isXPackTemplate(componentTemplate)) {
+                                continue;
+                            }
+                            adminClient().performRequest(new Request("DELETE", "_component_template/" + componentTemplate));
+                        } catch (ResponseException e) {
+                                logger.debug(new ParameterizedMessage("unable to remove component template {}", componentTemplate), e);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.info("ignoring exception removing all component templates", e);
                     // We hit a version of ES that doesn't support index templates v2 yet, so it's safe to ignore
                 }
             } else {
@@ -626,7 +659,9 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void wipeDataStreams() throws IOException {
         try {
-            adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+            if (hasXPack()) {
+                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+            }
         } catch (ResponseException e) {
             // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
             if (e.getResponse().getStatusLine().getStatusCode() != 405) {
@@ -1175,7 +1210,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             return true;
         }
         switch (name) {
-            case ".triggered_watches":
             case ".watches":
             case "logstash-index-template":
             case ".logstash-management":
@@ -1183,6 +1217,12 @@ public abstract class ESRestTestCase extends ESTestCase {
             case ".slm-history":
             case ".async-search":
             case "saml-service-provider":
+            case "logs":
+            case "logs-settings":
+            case "logs-mappings":
+            case "metrics":
+            case "metrics-settings":
+            case "metrics-mappings":
                 return true;
             default:
                 return false;
@@ -1382,6 +1422,21 @@ public abstract class ESRestTestCase extends ESTestCase {
                 assertThat("Expecting non-null license status", status, notNullValue());
                 assertThat("Expecting active license", status, equalTo("active"));
             }
+        });
+    }
+
+    static final Pattern CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index \\[(.+)\\] matches multiple legacy " +
+        "templates \\[(.+)\\], composable templates will only match a single template$");
+
+    static final Pattern PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES = Pattern.compile("^index template \\[(.+)\\] has index patterns " +
+        "\\[(.+)\\] matching patterns from existing older templates \\[(.+)\\] with patterns \\((.+)\\); this template \\[(.+)\\] will " +
+        "take precedence during new index creation$");
+
+    protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.setWarningsHandler(warnings -> {
+            return warnings.stream().anyMatch(message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
+                PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
         });
     }
 }

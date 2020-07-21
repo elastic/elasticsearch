@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,13 +30,14 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PivotConfig implements Writeable, ToXContentObject {
 
     private static final String NAME = "data_frame_transform_pivot";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PivotConfig.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PivotConfig.class);
 
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
@@ -174,6 +175,21 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
     public boolean isValid() {
         return groups.isValid() && aggregationConfig.isValid();
+    }
+
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
+            validationException = addValidationError(
+                "pivot.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 10,000",
+                validationException
+            );
+        }
+
+        for (String failure : aggFieldValidation()) {
+            validationException = addValidationError(failure, validationException);
+        }
+
+        return validationException;
     }
 
     public List<String> aggFieldValidation() {

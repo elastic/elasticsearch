@@ -7,7 +7,6 @@
 :xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
-
 include::../Versions.asciidoc[]
 
 include::intro.asciidoc[]
@@ -26,9 +25,7 @@ include::search/index.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
-ifdef::permanently-unreleased-branch[]
 include::eql/index.asciidoc[]
-endif::[]
 
 include::sql/index.asciidoc[]
 

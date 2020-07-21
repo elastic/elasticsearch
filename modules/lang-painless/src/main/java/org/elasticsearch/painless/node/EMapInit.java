@@ -19,18 +19,20 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.MapInitializationNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardPainlessConstructor;
+import org.elasticsearch.painless.symbol.Decorations.StandardPainlessMethod;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -62,76 +64,59 @@ public class EMapInit extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitMapInit(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to map initializer"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException("not a statement: result not used from map initializer"));
         }
 
-        Output output = new Output();
-        output.actual = HashMap.class;
+        Class<?> valueType = HashMap.class;
 
-        PainlessConstructor constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(output.actual, 0);
+        PainlessConstructor constructor = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessConstructor(valueType, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(output.actual) + ", <init>/0] not found"));
+                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/0] not found"));
         }
 
-        PainlessMethod method = scriptRoot.getPainlessLookup().lookupPainlessMethod(output.actual, false, "put", 2);
+        semanticScope.putDecoration(this, new StandardPainlessConstructor(constructor));
+
+        PainlessMethod method = semanticScope.getScriptScope().getPainlessLookup().lookupPainlessMethod(valueType, false, "put", 2);
 
         if (method == null) {
-            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(output.actual) + ", put/2] not found"));
+            throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(valueType) + ", put/2] not found"));
         }
+
+        semanticScope.putDecoration(this, new StandardPainlessMethod(method));
 
         if (keyNodes.size() != valueNodes.size()) {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        List<Output> keyOutputs = new ArrayList<>(keyNodes.size());
-        List<PainlessCast> keyCasts = new ArrayList<>(keyNodes.size());
-        List<Output> valueOutputs = new ArrayList<>(valueNodes.size());
-        List<PainlessCast> valueCasts = new ArrayList<>(valueNodes.size());
-
         for (int i = 0; i < keyNodes.size(); ++i) {
             AExpression expression = keyNodes.get(i);
-            Input expressionInput = new Input();
-            expressionInput.expected = def.class;
-            expressionInput.internal = true;
-            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
-            keyOutputs.add(expressionOutput);
-            keyCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
+            semanticScope.setCondition(expression, Read.class);
+            semanticScope.putDecoration(expression, new TargetType(def.class));
+            semanticScope.setCondition(expression, Internal.class);
+            analyze(expression, semanticScope);
+            expression.cast(semanticScope);
 
             expression = valueNodes.get(i);
-            expressionInput = new Input();
-            expressionInput.expected = def.class;
-            expressionInput.internal = true;
-            expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
-            valueCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
-
-            valueOutputs.add(expressionOutput);
+            semanticScope.setCondition(expression, Read.class);
+            semanticScope.putDecoration(expression, new TargetType(def.class));
+            semanticScope.setCondition(expression, Internal.class);
+            analyze(expression, semanticScope);
+            expression.cast(semanticScope);
         }
 
-        MapInitializationNode mapInitializationNode = new MapInitializationNode();
-
-        for (int i = 0; i < keyNodes.size(); ++i) {
-            mapInitializationNode.addArgumentNode(
-                    cast(keyOutputs.get(i).expressionNode, keyCasts.get(i)),
-                    cast(valueOutputs.get(i).expressionNode, valueCasts.get(i)));
-        }
-
-        mapInitializationNode.setLocation(getLocation());
-        mapInitializationNode.setExpressionType(output.actual);
-        mapInitializationNode.setConstructor(constructor);
-        mapInitializationNode.setMethod(method);
-
-        output.expressionNode = mapInitializationNode;
-
-        return output;
+        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

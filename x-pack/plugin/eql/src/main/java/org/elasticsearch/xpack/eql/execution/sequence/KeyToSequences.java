@@ -6,10 +6,12 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import java.util.ArrayList;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
+
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /** Dedicated collection for mapping a key to a list of sequences */
 /** The list represents the sequence for each stage (based on its index) and is fixed in size */
@@ -17,32 +19,97 @@ import java.util.Map;
 class KeyToSequences {
 
     private final int listSize;
-    private final Map<SequenceKey, List<SequenceFrame>> keyToSequences;
+    /** for each key, associate the frame per state (determined by index) */
+    private final Map<SequenceKey, SequenceGroup[]> keyToSequences;
+    private final Map<SequenceKey, UntilGroup> keyToUntil;
 
     KeyToSequences(int listSize) {
         this.listSize = listSize;
         this.keyToSequences = new LinkedHashMap<>();
+        this.keyToUntil = new LinkedHashMap<>();
     }
 
-    SequenceFrame frame(int stage, SequenceKey key) {
-        return frame(key).get(stage);
+    private SequenceGroup[] group(SequenceKey key) {
+        return keyToSequences.computeIfAbsent(key, k -> new SequenceGroup[listSize]);
     }
 
-    private List<SequenceFrame> frame(SequenceKey key) {
-        List<SequenceFrame> frames = keyToSequences.get(key);
-        if (frames == null) {
-            frames = new ArrayList<>(listSize);
-            keyToSequences.put(key, frames);
+    SequenceGroup groupIfPresent(int stage, SequenceKey key) {
+        SequenceGroup[] groups = keyToSequences.get(key);
+        return groups == null ? null : groups[stage];
+    }
 
-            for (int i = 0; i < listSize; i++) {
-                frames.add(new SequenceFrame());
+    UntilGroup untilIfPresent(SequenceKey key) {
+        return keyToUntil.get(key);
+    }
+
+    void add(int stage, Sequence sequence) {
+        SequenceKey key = sequence.key();
+        SequenceGroup[] groups = group(key);
+        // create the group on demand
+        if (groups[stage] == null) {
+            groups[stage] = new SequenceGroup(key);
+        }
+        groups[stage].add(sequence);
+    }
+
+    void until(Iterable<KeyAndOrdinal> until) {
+        for (KeyAndOrdinal keyAndOrdinal : until) {
+            // ignore unknown keys
+            SequenceKey key = keyAndOrdinal.key();
+            if (keyToSequences.containsKey(key)) {
+                UntilGroup group = keyToUntil.computeIfAbsent(key, UntilGroup::new);
+                group.add(keyAndOrdinal);
             }
         }
-        return frames;
     }
 
-    SequenceFrame frameIfPresent(int stage, SequenceKey key) {
-        List<SequenceFrame> list = keyToSequences.get(key);
-        return list == null ? null : list.get(stage);
+    void remove(int stage, SequenceGroup group) {
+        SequenceKey key = group.key();
+        SequenceGroup[] groups = keyToSequences.get(key);
+        groups[stage] = null;
+        // clean-up the key if all groups are empty
+        boolean shouldRemoveKey = true;
+        for (SequenceGroup gp : groups) {
+            if (gp != null && gp.isEmpty() == false) {
+                shouldRemoveKey = false;
+                break;
+            }
+        }
+        if (shouldRemoveKey) {
+            keyToSequences.remove(key);
+        }
     }
+
+    void dropUntil() {
+        // clean-up all candidates that occur before until
+        for (Entry<SequenceKey, UntilGroup> entry : keyToUntil.entrySet()) {
+            SequenceGroup[] groups = keyToSequences.get(entry.getKey());
+            if (groups != null) {
+                for (Ordinal o : entry.getValue()) {
+                    for (SequenceGroup group : groups) {
+                        if (group != null) {
+                            group.trimBefore(o);
+                        }
+                    }
+                }
+            }
+        }
+
+        keyToUntil.clear();
+    }
+
+    public void clear() {
+        keyToSequences.clear();
+        keyToUntil.clear();
+    }
+
+    int numberOfKeys() {
+        return keyToSequences.size();
+    }
+
+    @Override
+    public String toString() {
+        return LoggerMessageFormat.format(null, "Keys=[{}], Until=[{}]", keyToSequences.size(), keyToUntil.size());
+    }
+
 }

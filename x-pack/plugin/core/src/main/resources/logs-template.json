@@ -1,0 +1,14 @@
+{
+  "index_patterns": ["logs-*-*"],
+  "priority": 100,
+  "data_stream": {},
+  "composed_of": [
+    "logs-mappings",
+    "logs-settings"
+  ],
+  "_meta": {
+    "description": "default logs template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version}
+}

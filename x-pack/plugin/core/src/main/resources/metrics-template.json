@@ -1,0 +1,14 @@
+{
+  "index_patterns": ["metrics-*-*"],
+  "priority": 100,
+  "data_stream": {},
+  "composed_of": [
+    "metrics-mappings",
+    "metrics-settings"
+  ],
+  "_meta": {
+    "description": "default metrics template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version}
+}

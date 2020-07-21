@@ -22,10 +22,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -43,18 +41,11 @@ public class ChunkingConfig implements ToXContentObject {
         "chunking_config", true, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Mode.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, MODE_FIELD, ValueType.STRING);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return TimeValue.parseTimeValue(p.text(), TIME_SPAN_FIELD.getPreferredName());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, TIME_SPAN_FIELD, ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), Mode::fromString, MODE_FIELD);
+        PARSER.declareString(
+            ConstructingObjectParser.optionalConstructorArg(),
+            text -> TimeValue.parseTimeValue(text, TIME_SPAN_FIELD.getPreferredName()),
+            TIME_SPAN_FIELD);
 
     }
 

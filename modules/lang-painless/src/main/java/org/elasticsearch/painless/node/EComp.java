@@ -22,13 +22,15 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ComparisonNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -62,31 +64,36 @@ public class EComp extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitComp(this, input);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
-        if (input.read == false) {
+        if (semanticScope.getCondition(this, Read.class) == false) {
             throw createError(new IllegalArgumentException(
                     "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
         }
 
+        semanticScope.setCondition(leftNode, Read.class);
+        analyze(leftNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, ValueType.class).getValueType();
+
+        semanticScope.setCondition(rightNode, Read.class);
+        analyze(rightNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+
         Class<?> promotedType;
 
-        Output output = new Output();
-
-        Input leftInput = new Input();
-        Output leftOutput = analyze(leftNode, classNode, scriptRoot, scope, leftInput);
-
-        Input rightInput = new Input();
-        Output rightOutput = analyze(rightNode, classNode, scriptRoot, scope, rightInput);
-
         if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
-            promotedType = AnalyzerCaster.promoteEquality(leftOutput.actual, rightOutput.actual);
+            promotedType = AnalyzerCaster.promoteEquality(leftValueType, rightValueType);
         } else if (operation == Operation.GT || operation == Operation.GTE || operation == Operation.LT || operation == Operation.LTE) {
-            promotedType = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+            promotedType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
         } else {
             throw createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
         }
@@ -94,16 +101,8 @@ public class EComp extends AExpression {
         if (promotedType == null) {
             throw createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
                     "[" + operation.symbol + "] to the types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
-        }
-
-        if (operation != Operation.EQR && operation != Operation.NER && promotedType == def.class) {
-            leftInput.expected = leftOutput.actual;
-            rightInput.expected = rightOutput.actual;
-        } else {
-            leftInput.expected = promotedType;
-            rightInput.expected = promotedType;
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
         }
 
         if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
@@ -111,25 +110,14 @@ public class EComp extends AExpression {
             throw createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
         }
 
-        PainlessCast leftCast = AnalyzerCaster.getLegalCast(leftNode.getLocation(),
-                leftOutput.actual, leftInput.expected, leftInput.explicit, leftInput.internal);
-        PainlessCast rightCast = AnalyzerCaster.getLegalCast(rightNode.getLocation(),
-                rightOutput.actual, rightInput.expected, rightInput.explicit, rightInput.internal);
+        if (operation == Operation.EQR || operation == Operation.NER || promotedType != def.class) {
+            semanticScope.putDecoration(leftNode, new TargetType(promotedType));
+            semanticScope.putDecoration(rightNode, new TargetType(promotedType));
+            leftNode.cast(semanticScope);
+            rightNode.cast(semanticScope);
+        }
 
-        output.actual = boolean.class;
-
-        ComparisonNode comparisonNode = new ComparisonNode();
-
-        comparisonNode.setLeftNode(cast(leftOutput.expressionNode, leftCast));
-        comparisonNode.setRightNode(cast(rightOutput.expressionNode, rightCast));
-
-        comparisonNode.setLocation(getLocation());
-        comparisonNode.setExpressionType(output.actual);
-        comparisonNode.setComparisonType(promotedType);
-        comparisonNode.setOperation(operation);
-
-        output.expressionNode = comparisonNode;
-
-        return output;
+        semanticScope.putDecoration(this, new ValueType(boolean.class));
+        semanticScope.putDecoration(this, new ComparisonType(promotedType));
     }
 }

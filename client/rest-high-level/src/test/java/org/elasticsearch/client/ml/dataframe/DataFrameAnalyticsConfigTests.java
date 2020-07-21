@@ -36,8 +36,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSourceTests.randomSourceConfig;
 import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDestTests.randomDestConfig;
+import static org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSourceTests.randomSourceConfig;
 import static org.elasticsearch.client.ml.dataframe.OutlierDetectionTests.randomOutlierDetection;
 
 public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<DataFrameAnalyticsConfig> {
@@ -68,6 +68,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractXContentTestCase<Data
         }
         if (randomBoolean()) {
             builder.setAllowLazyStart(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setMaxNumThreads(randomIntBetween(1, 20));
         }
         return builder.build();
     }

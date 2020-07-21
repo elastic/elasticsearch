@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -30,7 +31,11 @@ import java.util.Map;
 
 public abstract class MetricsAggregator extends AggregatorBase {
     protected MetricsAggregator(String name, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, AggregatorFactories.EMPTY, context, parent, metadata);
+        super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
+        /*
+         * MetricsAggregators may not have sub aggregators so it is safe for
+         * us to pass NONE for the super ctor's subAggregatorCardinality.
+         */
     }
 
     /**

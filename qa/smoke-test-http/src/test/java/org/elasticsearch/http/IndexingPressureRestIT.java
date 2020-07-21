@@ -76,15 +76,15 @@ public class IndexingPressureRestIT extends HttpSmokeTestCase {
         ArrayList<Object> values = new ArrayList<>(((Map<Object, Object>) nodeStatsMap.get("nodes")).values());
         assertThat(values.size(), equalTo(2));
         XContentTestUtils.JsonMapView node1 = new XContentTestUtils.JsonMapView((Map<String, Object>) values.get(0));
-        Integer node1CombinedBytes = node1.get("indexing_pressure.total.combined_coordinating_and_primary_bytes");
-        Integer node1PrimaryBytes = node1.get("indexing_pressure.total.primary_bytes");
-        Integer node1ReplicaBytes = node1.get("indexing_pressure.total.replica_bytes");
+        Integer node1CombinedBytes = node1.get("indexing_pressure.total.combined_coordinating_and_primary_in_bytes");
+        Integer node1PrimaryBytes = node1.get("indexing_pressure.total.primary_in_bytes");
+        Integer node1ReplicaBytes = node1.get("indexing_pressure.total.replica_in_bytes");
         Integer node1CoordinatingRejections = node1.get("indexing_pressure.total.coordinating_rejections");
         Integer node1PrimaryRejections = node1.get("indexing_pressure.total.primary_rejections");
         XContentTestUtils.JsonMapView node2 = new XContentTestUtils.JsonMapView((Map<String, Object>) values.get(1));
-        Integer node2IndexingBytes = node2.get("indexing_pressure.total.combined_coordinating_and_primary_bytes");
-        Integer node2PrimaryBytes = node2.get("indexing_pressure.total.primary_bytes");
-        Integer node2ReplicaBytes = node2.get("indexing_pressure.total.replica_bytes");
+        Integer node2IndexingBytes = node2.get("indexing_pressure.total.combined_coordinating_and_primary_in_bytes");
+        Integer node2PrimaryBytes = node2.get("indexing_pressure.total.primary_in_bytes");
+        Integer node2ReplicaBytes = node2.get("indexing_pressure.total.replica_in_bytes");
         Integer node2CoordinatingRejections = node2.get("indexing_pressure.total.coordinating_rejections");
         Integer node2PrimaryRejections = node2.get("indexing_pressure.total.primary_rejections");
 

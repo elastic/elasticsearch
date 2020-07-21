@@ -16,31 +16,44 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class AucRocMetricAucRocPointTests extends AbstractXContentTestCase<AucRocMetric.AucRocPoint> {
+public class PrecisionMetricResultTests extends AbstractXContentTestCase<PrecisionMetric.Result> {
 
-    static AucRocMetric.AucRocPoint randomPoint() {
-        return new AucRocMetric.AucRocPoint(randomDouble(), randomDouble(), randomDouble());
+    public static PrecisionMetric.Result randomResult() {
+        return new PrecisionMetric.Result(
+            Stream
+                .generate(() -> randomDouble())
+                .limit(randomIntBetween(1, 5))
+                .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
     }
 
     @Override
-    protected AucRocMetric.AucRocPoint createTestInstance() {
-        return randomPoint();
+    protected PrecisionMetric.Result createTestInstance() {
+        return randomResult();
     }
 
     @Override
-    protected AucRocMetric.AucRocPoint doParseInstance(XContentParser parser) throws IOException {
-        return AucRocMetric.AucRocPoint.fromXContent(parser);
+    protected PrecisionMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return PrecisionMetric.Result.fromXContent(parser);
     }
 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // disallow unknown fields in the root of the object as field names must be parsable as numbers
+        return field -> field.isEmpty();
     }
 }

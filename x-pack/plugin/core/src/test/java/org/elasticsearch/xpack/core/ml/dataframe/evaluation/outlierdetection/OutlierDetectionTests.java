@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -27,7 +27,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-public class BinarySoftClassificationTests extends AbstractSerializingTestCase<BinarySoftClassification> {
+public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDetection> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
 
@@ -41,7 +41,7 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
         return new NamedXContentRegistry(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
     }
 
-    public static BinarySoftClassification createRandom() {
+    public static OutlierDetection createRandom() {
         List<EvaluationMetric> metrics = new ArrayList<>();
         if (randomBoolean()) {
             metrics.add(AucRocTests.createRandom());
@@ -62,28 +62,28 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
             metrics.add(RecallTests.createRandom());
             metrics.add(ConfusionMatrixTests.createRandom());
         }
-        return new BinarySoftClassification(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics);
+        return new OutlierDetection(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics);
     }
 
     @Override
-    protected BinarySoftClassification doParseInstance(XContentParser parser) throws IOException {
-        return BinarySoftClassification.fromXContent(parser);
+    protected OutlierDetection doParseInstance(XContentParser parser) throws IOException {
+        return OutlierDetection.fromXContent(parser);
     }
 
     @Override
-    protected BinarySoftClassification createTestInstance() {
+    protected OutlierDetection createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected Writeable.Reader<BinarySoftClassification> instanceReader() {
-        return BinarySoftClassification::new;
+    protected Writeable.Reader<OutlierDetection> instanceReader() {
+        return OutlierDetection::new;
     }
 
     public void testConstructor_GivenEmptyMetrics() {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new BinarySoftClassification("foo", "bar", Collections.emptyList()));
-        assertThat(e.getMessage(), equalTo("[binary_soft_classification] must have one or more metrics"));
+            () -> new OutlierDetection("foo", "bar", Collections.emptyList()));
+        assertThat(e.getMessage(), equalTo("[outlier_detection] must have one or more metrics"));
     }
 
     public void testBuildSearch() {
@@ -99,7 +99,7 @@ public class BinarySoftClassificationTests extends AbstractSerializingTestCase<B
                     .filter(QueryBuilders.termQuery("field_A", "some-value"))
                     .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
 
-        BinarySoftClassification evaluation = new BinarySoftClassification("act", "prob", Arrays.asList(new Precision(Arrays.asList(0.7))));
+        OutlierDetection evaluation = new OutlierDetection("act", "prob", Arrays.asList(new Precision(Arrays.asList(0.7))));
 
         SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(EVALUATION_PARAMETERS, userProvidedQuery);
         assertThat(searchSourceBuilder.query(), equalTo(expectedSearchQuery));

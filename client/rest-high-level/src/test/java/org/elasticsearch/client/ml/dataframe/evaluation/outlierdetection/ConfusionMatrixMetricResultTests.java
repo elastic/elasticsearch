@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.dataframe.evaluation.softclassification;
+package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -26,24 +26,26 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class RecallMetricResultTests extends AbstractXContentTestCase<RecallMetric.Result> {
+import static org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricConfusionMatrixTests.randomConfusionMatrix;
 
-    public static RecallMetric.Result randomResult() {
-        return new RecallMetric.Result(
+public class ConfusionMatrixMetricResultTests extends AbstractXContentTestCase<ConfusionMatrixMetric.Result> {
+
+    public static ConfusionMatrixMetric.Result randomResult() {
+        return new ConfusionMatrixMetric.Result(
             Stream
-                .generate(() -> randomDouble())
+                .generate(() -> randomConfusionMatrix())
                 .limit(randomIntBetween(1, 5))
                 .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
     }
 
     @Override
-    protected RecallMetric.Result createTestInstance() {
+    protected ConfusionMatrixMetric.Result createTestInstance() {
         return randomResult();
     }
 
     @Override
-    protected RecallMetric.Result doParseInstance(XContentParser parser) throws IOException {
-        return RecallMetric.Result.fromXContent(parser);
+    protected ConfusionMatrixMetric.Result doParseInstance(XContentParser parser) throws IOException {
+        return ConfusionMatrixMetric.Result.fromXContent(parser);
     }
 
     @Override

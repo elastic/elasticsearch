@@ -26,11 +26,11 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.Multiclas
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetricResultTests;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -43,10 +43,10 @@ import java.util.function.Predicate;
 public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<EvaluateDataFrameResponse> {
 
     public static EvaluateDataFrameResponse randomResponse() {
-        String evaluationName = randomFrom(BinarySoftClassification.NAME, Classification.NAME, Regression.NAME);
+        String evaluationName = randomFrom(OutlierDetection.NAME, Classification.NAME, Regression.NAME);
         List<EvaluationMetric.Result> metrics;
         switch (evaluationName) {
-            case BinarySoftClassification.NAME:
+            case OutlierDetection.NAME:
                 metrics = randomSubsetOf(
                     Arrays.asList(
                         AucRocMetricResultTests.randomResult(),

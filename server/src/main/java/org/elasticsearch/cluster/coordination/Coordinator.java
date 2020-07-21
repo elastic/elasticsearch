@@ -79,6 +79,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -108,6 +109,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     public static final Setting<TimeValue> PUBLISH_TIMEOUT_SETTING =
         Setting.timeSetting("cluster.publish.timeout",
             TimeValue.timeValueMillis(30000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+
+    public static final Setting<String> PREFERRED_MASTER_NAME_SETTING =
+        Setting.simpleString("preferred_master_name", new Setting.Property[]{Setting.Property.Dynamic, Setting.Property.NodeScope});
+
+    private static volatile String[] preferredMasters;
+    private boolean hasSkippedOneRoundElection;
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
@@ -201,6 +208,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.clusterFormationFailureHelper = new ClusterFormationFailureHelper(settings, this::getClusterFormationState,
             transportService.getThreadPool(), joinHelper::logLastFailedJoinAttempt);
         this.nodeHealthService = nodeHealthService;
+
+        this.hasSkippedOneRoundElection = false;
+
+        preferredMasters = PREFERRED_MASTER_NAME_SETTING.get(settings).split(",");
+        clusterSettings.addSettingsUpdateConsumer(PREFERRED_MASTER_NAME_SETTING,
+            value -> {
+                if (value == null) {
+                    setPreferredMasters(null);
+                    return;
+                }
+                String[] masters = value.split(",");
+                setPreferredMasters(masters);
+            });
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -386,10 +406,51 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     return;
                 }
 
+                //  If a preferred master node participates in the election,
+                //  other non-preferred master nodes need to skip 1 round of election.
+                if (preferredMasters != null) {
+                    boolean preferredMasterInvolved = false;
+                    boolean preferLocalNode = false;
+                    for (String preferredMaster : preferredMasters) {
+                        Iterator<DiscoveryNode> iterator = getLastAcceptedState().getNodes().getMasterNodes().valuesIt();
+                        while (iterator.hasNext()) {
+                            DiscoveryNode node = iterator.next();
+                            if (node.getName().equals(preferredMaster) && nodeMayWinElection(getLastAcceptedState(), node)) {
+                                preferredMasterInvolved = true;
+                            }
+                        }
+
+                        if (getLocalNode().getName().equals(preferredMaster)) {
+                            preferLocalNode = true;
+                        }
+                    }
+
+                    if (preferredMasterInvolved) {
+                        if (preferLocalNode) {
+                            logger.info("start normal election as local node is preferred master");
+                        } else {
+                            if (!hasSkippedOneRoundElection) {
+                                logger.info("skip current election as local node is not preferred master");
+                                hasSkippedOneRoundElection = true;
+                                return;
+                            }
+                            logger.info("start normal election as local node has skipped one round of election");
+                        }
+                    }
+                }
+
                 final StartJoinRequest startJoinRequest
                     = new StartJoinRequest(getLocalNode(), Math.max(getCurrentTerm(), maxTermSeen) + 1);
                 logger.debug("starting election with {}", startJoinRequest);
                 getDiscoveredNodes().forEach(node -> joinHelper.sendStartJoinRequest(startJoinRequest, node));
+            }
+        }
+    }
+
+    public void atomicAbdicateTo(DiscoveryNode newMaster) {
+        synchronized (mutex) {
+            if (mode == Mode.LEADER) {
+                abdicateTo(newMaster);
             }
         }
     }
@@ -413,7 +474,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return nodeMayWinElection(lastAcceptedState, localNode);
     }
 
-    private static boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
+    public static boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
         return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
             || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
@@ -559,6 +620,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             method, getCurrentTerm(), mode, lastKnownLeader);
 
         mode = Mode.LEADER;
+        hasSkippedOneRoundElection = false;
+
         joinAccumulator.close(mode);
         joinAccumulator = joinHelper.new LeaderJoinAccumulator();
 
@@ -589,6 +652,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         if (mode != Mode.FOLLOWER) {
             mode = Mode.FOLLOWER;
+            hasSkippedOneRoundElection = false;
+
             joinAccumulator.close(mode);
             joinAccumulator = new JoinHelper.FollowerJoinAccumulator();
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);
@@ -1387,22 +1452,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                         boolean attemptReconfiguration = true;
                                         final ClusterState state = getLastAcceptedState(); // committed state
                                         if (localNodeMayWinElection(state) == false) {
-                                            final List<DiscoveryNode> masterCandidates = completedNodes().stream()
-                                                .filter(DiscoveryNode::isMasterNode)
-                                                .filter(node -> nodeMayWinElection(state, node))
-                                                .filter(node -> {
-                                                    // check if master candidate would be able to get an election quorum if we were to
-                                                    // abdicate to it. Assume that every node that completed the publication can provide
-                                                    // a vote in that next election and has the latest state.
-                                                    final long futureElectionTerm = state.term() + 1;
-                                                    final VoteCollection futureVoteCollection = new VoteCollection();
-                                                    completedNodes().forEach(completedNode -> futureVoteCollection.addJoinVote(
-                                                        new Join(completedNode, node, futureElectionTerm, state.term(), state.version())));
-                                                    return electionStrategy.isElectionQuorum(node, futureElectionTerm,
-                                                        state.term(), state.version(), state.getLastCommittedConfiguration(),
-                                                        state.getLastAcceptedConfiguration(), futureVoteCollection);
-                                                })
-                                                .collect(Collectors.toList());
+                                            final List<DiscoveryNode> masterCandidates = getMasterCandidates(state, completedNodes());
                                             if (masterCandidates.isEmpty() == false) {
                                                 abdicateTo(masterCandidates.get(random.nextInt(masterCandidates.size())));
                                                 attemptReconfiguration = false;
@@ -1500,4 +1550,29 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             publicationContext.sendApplyCommit(destination, applyCommit, wrapWithMutex(responseActionListener));
         }
     }
+
+    public List<DiscoveryNode> getMasterCandidates(ClusterState state, List<DiscoveryNode> completedNodes) {
+        final List<DiscoveryNode> masterCandidates = completedNodes.stream()
+            .filter(DiscoveryNode::isMasterNode)
+            .filter(node -> nodeMayWinElection(state, node))
+            .filter(node -> {
+                // check if master candidate would be able to get an election quorum if we were to
+                // abdicate to it. Assume that every node that completed the publication can provide
+                // a vote in that next election and has the latest state.
+                final long futureElectionTerm = state.term() + 1;
+                final VoteCollection futureVoteCollection = new VoteCollection();
+                completedNodes.forEach(completedNode -> futureVoteCollection.addJoinVote(
+                    new Join(completedNode, node, futureElectionTerm, state.term(), state.version())));
+                return electionStrategy.isElectionQuorum(node, futureElectionTerm,
+                    state.term(), state.version(), state.getLastCommittedConfiguration(),
+                    state.getLastAcceptedConfiguration(), futureVoteCollection);
+            })
+            .collect(Collectors.toList());
+
+        return masterCandidates;
+    }
+
+    public void setPreferredMasters(String[] preferredMasterNodes) { preferredMasters = preferredMasterNodes; }
+
+    public String[] getPreferredMasters() { return preferredMasters; }
 }

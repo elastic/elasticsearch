@@ -96,16 +96,16 @@ The following <<indices-create-index,create index API>> request uses the
 --------------------------------------------------
 PUT /elision_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "whitespace_elision" : {
-                    "tokenizer" : "whitespace",
-                    "filter" : ["elision"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "whitespace_elision": {
+          "tokenizer": "whitespace",
+          "filter": [ "elision" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -165,22 +165,22 @@ and `j'` elisions:
 --------------------------------------------------
 PUT /elision_case_sensitive_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "default" : {
-                    "tokenizer" : "whitespace",
-                    "filter" : ["elision_case_sensitive"]
-                }
-            },
-            "filter" : {
-                "elision_case_sensitive" : {
-                    "type" : "elision",
-                    "articles" : ["l", "m", "t", "qu", "n", "s", "j"],
-                    "articles_case": true
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "default": {
+          "tokenizer": "whitespace",
+          "filter": [ "elision_case_sensitive" ]
         }
+      },
+      "filter": {
+        "elision_case_sensitive": {
+          "type": "elision",
+          "articles": [ "l", "m", "t", "qu", "n", "s", "j" ],
+          "articles_case": true
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

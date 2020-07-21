@@ -9,16 +9,16 @@ For instance the query below retrieves the best tweet for each user and sorts th
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
-    },
-    "collapse" : {
-        "field" : "user" <1>
-    },
-    "sort": ["likes"], <2>
-    "from": 10 <3>
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "collapse": {
+    "field": "user"     <1>
+  },
+  "sort": [ "likes" ],  <2>
+  "from": 10            <3>
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -43,21 +43,21 @@ It is also possible to expand each collapsed top hits with the `inner_hits` opti
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "collapse": {
+    "field": "user",                    <1>
+    "inner_hits": {
+      "name": "last_tweets",            <2>
+      "size": 5,                        <3>
+      "sort": [ { "date": "asc" } ]     <4>
     },
-    "collapse" : {
-        "field" : "user", <1>
-        "inner_hits": {
-            "name": "last_tweets", <2>
-            "size": 5, <3>
-            "sort": [{ "date": "asc" }] <4>
-        },
-        "max_concurrent_group_searches": 4 <5>
-    },
-    "sort": ["likes"]
+    "max_concurrent_group_searches": 4  <5>
+  },
+  "sort": [ "likes" ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -77,27 +77,27 @@ multiple representations of the collapsed hits.
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
-    },
-    "collapse" : {
-        "field" : "user", <1>
-        "inner_hits": [
-            {
-                "name": "most_liked",  <2>
-                "size": 3,
-                "sort": ["likes"]
-            },
-            {
-                "name": "most_recent", <3>
-                "size": 3,
-                "sort": [{ "date": "asc" }]
-            }
-        ]
-    },
-    "sort": ["likes"]
+  "query": {
+    "match": {
+      "message": "elasticsearch"
+    }
+  },
+  "collapse": {
+    "field": "user",                  <1>
+      "inner_hits": [
+      {
+        "name": "most_liked",         <2>
+        "size": 3,
+        "sort": [ "likes" ]
+      },
+      {
+        "name": "most_recent",        <3>
+        "size": 3,
+        "sort": [ { "date": "asc" } ]
+      }
+    ]
+  },
+  "sort": [ "likes" ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -128,19 +128,19 @@ for each user.
 --------------------------------------------------
 GET /twitter/_search
 {
-    "query": {
-        "match": {
-            "message": "elasticsearch"
-        }
-    },
-    "collapse" : {
-        "field" : "country",
-        "inner_hits" : {
-            "name": "by_location",
-            "collapse" : {"field" : "user"},
-            "size": 3
-        }
+  "query": {
+    "match": {
+      "message": "elasticsearch"
     }
+  },
+  "collapse": {
+    "field": "country",
+    "inner_hits": {
+      "name": "by_location",
+      "collapse": { "field": "user" },
+      "size": 3
+    }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -150,69 +150,69 @@ Response:
 [source,js]
 --------------------------------------------------
 {
+  ...
+  "hits": [
+    {
+      "_index": "twitter",
+      "_type": "_doc",
+      "_id": "9",
+      "_score": ...,
+      "_source": {...},
+      "fields": { "country": [ "UK" ] },
+      "inner_hits": {
+        "by_location": {
+          "hits": {
+            ...,
+            "hits": [
+              {
+                ...
+                "fields": { "user": [ "user124" ] }
+              },
+              {
+                ...
+                "fields": { "user": [ "user589" ] }
+              },
+              {
+                ...
+                "fields": { "user": [ "user001" ] }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "_index": "twitter",
+      "_type": "_doc",
+      "_id": "1",
+      "_score": ..,
+      "_source": {...
+      },
+      "fields": { "country": [ "Canada" ] },
+      "inner_hits": {
+        "by_location": {
+          "hits": {
+            ...,
+            "hits": [
+              {
+                ...
+                "fields": { "user": [ "user444" ] }
+              },
+              {
+                ...
+                "fields": { "user": [ "user1111" ] }
+              },
+              {
+                ...
+                  "fields": { "user": [ "user999" ] }
+              }
+            ]
+          }
+        }
+      }
+    },
     ...
-    "hits": [
-        {
-            "_index": "twitter",
-            "_type": "_doc",
-            "_id": "9",
-            "_score": ...,
-            "_source": {...},
-            "fields": {"country": ["UK"]},
-            "inner_hits":{
-                "by_location": {
-                    "hits": {
-                       ...,
-                       "hits": [
-                          {
-                            ...
-                            "fields": {"user" : ["user124"]}
-                          },
-                          {
-                            ...
-                            "fields": {"user" : ["user589"]}
-                          },
-                          {
-                            ...
-                             "fields": {"user" : ["user001"]}
-                          }
-                       ]
-                    }
-                 }
-            }
-        },
-        {
-            "_index": "twitter",
-            "_type": "_doc",
-            "_id": "1",
-            "_score": ..,
-            "_source": {...},
-            "fields": {"country": ["Canada"]},
-            "inner_hits":{
-                "by_location": {
-                    "hits": {
-                       ...,
-                       "hits": [
-                          {
-                            ...
-                            "fields": {"user" : ["user444"]}
-                          },
-                          {
-                            ...
-                            "fields": {"user" : ["user1111"]}
-                          },
-                          {
-                            ...
-                             "fields": {"user" : ["user999"]}
-                          }
-                       ]
-                    }
-                 }
-            }
-
-        },
-        ....
-    ]
+  ]
 }
 --------------------------------------------------
 // NOTCONSOLE

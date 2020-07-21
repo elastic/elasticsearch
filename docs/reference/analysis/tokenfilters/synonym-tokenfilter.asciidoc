@@ -12,24 +12,24 @@ Here is an example:
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "synonym" : {
-                        "tokenizer" : "whitespace",
-                        "filter" : ["synonym"]
-                    }
-                },
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "synonyms_path" : "analysis/synonym.txt"
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "synonym": {
+            "tokenizer": "whitespace",
+            "filter": [ "synonym" ]
+          }
+        },
+        "filter": {
+          "synonym": {
+            "type": "synonym",
+            "synonyms_path": "analysis/synonym.txt"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -51,29 +51,29 @@ to note that only those synonym rules which cannot get parsed are ignored. For i
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "synonym" : {
-                        "tokenizer" : "standard",
-                        "filter" : ["my_stop", "synonym"]
-                    }
-                },
-                "filter" : {
-                    "my_stop": {
-                        "type" : "stop",
-                        "stopwords": ["bar"]
-                    },
-                    "synonym" : {
-                        "type" : "synonym",
-                        "lenient": true,
-                        "synonyms" : ["foo, bar => baz"]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "synonym": {
+            "tokenizer": "standard",
+            "filter": [ "my_stop", "synonym" ]
+          }
+        },
+        "filter": {
+          "my_stop": {
+            "type": "stop",
+            "stopwords": [ "bar" ]
+          },
+          "synonym": {
+            "type": "synonym",
+            "lenient": true,
+            "synonyms": [ "foo, bar => baz" ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -112,21 +112,21 @@ configuration file (note use of `synonyms` instead of `synonyms_path`):
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "synonyms" : [
-                            "i-pod, i pod => ipod",
-                            "universe, cosmos"
-                        ]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "filter": {
+          "synonym": {
+            "type": "synonym",
+            "synonyms": [
+              "i-pod, i pod => ipod",
+              "universe, cosmos"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -143,23 +143,23 @@ declared using `format`:
 --------------------------------------------------
 PUT /test_index
 {
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "format" : "wordnet",
-                        "synonyms" : [
-                            "s(100000001,1,'abstain',v,1,0).",
-                            "s(100000001,2,'refrain',v,1,0).",
-                            "s(100000001,3,'desist',v,1,0)."
-                        ]
-                    }
-                }
-            }
+  "settings": {
+    "index": {
+      "analysis": {
+        "filter": {
+          "synonym": {
+            "type": "synonym",
+            "format": "wordnet",
+            "synonyms": [
+              "s(100000001,1,'abstain',v,1,0).",
+              "s(100000001,2,'refrain',v,1,0).",
+              "s(100000001,3,'desist',v,1,0)."
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

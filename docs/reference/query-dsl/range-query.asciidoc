@@ -16,15 +16,15 @@ between `10` and `20`.
 ----
 GET /_search
 {
-    "query": {
-        "range" : {
-            "age" : {
-                "gte" : 10,
-                "lte" : 20,
-                "boost" : 2.0
-            }
-        }
+  "query": {
+    "range": {
+      "age": {
+        "gte": 10,
+        "lte": 20,
+        "boost": 2.0
+      }
     }
+  }
 }
 ----
 
@@ -157,14 +157,14 @@ contains a date between today and yesterday.
 ----
 GET /_search
 {
-    "query": {
-        "range" : {
-            "timestamp" : {
-                "gte" : "now-1d/d",
-                "lt" :  "now/d"
-            }
-        }
+  "query": {
+    "range": {
+      "timestamp": {
+        "gte": "now-1d/d",
+        "lt": "now/d"
+      }
     }
+  }
 }
 ----
 

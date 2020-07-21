@@ -120,9 +120,8 @@
 ---
 "When setting require_alias flag per request":
   - skip:
-      # TODO adjust after backport
-      version: " - 7.99.99"
-      reason: "require_alias flag was added in version 7.9"
+      version: " - 7.9.99"
+      reason: "require_alias flag was added in version 7.10"
 
   - do:
       indices.create:
@@ -164,9 +163,8 @@
 ---
 "When setting require_alias flag":
   - skip:
-      # TODO adjust after backport
-      version: " - 7.99.99"
-      reason: "require_alias flag was added in version 7.9"
+      version: " - 7.9.99"
+      reason: "require_alias flag was added in version 7.10"
 
   - do:
       indices.create:

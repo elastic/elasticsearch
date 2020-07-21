@@ -152,7 +152,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
@@ -663,7 +663,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
     }

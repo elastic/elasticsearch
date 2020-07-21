@@ -14,6 +14,7 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.PainlessScriptEngine;
@@ -313,6 +315,20 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
     public void testWildcardQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
+    }
+
+    public void testMatchQuery() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                ScriptKeywordMappedFieldType fieldType = build("value(source.foo.toString() + params.param)", Map.of("param", "-Suffix"));
+                QueryShardContext queryShardContext = mockContext(true, fieldType);
+                Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(queryShardContext);
+                assertThat(searcher.count(query), equalTo(1));
+            }
+        }
     }
 
     private static ScriptKeywordMappedFieldType build(String code) throws IOException {

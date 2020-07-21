@@ -293,11 +293,6 @@ public class ClusterApplierServiceTests extends ESTestCase {
             public void offMaster() {
                 isMaster.set(false);
             }
-
-            @Override
-            public String executorName() {
-                return ThreadPool.Names.SAME;
-            }
         });
 
         ClusterState state = timedClusterApplierService.state();

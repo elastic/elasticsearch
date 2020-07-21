@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class MlInitializationService implements LocalNodeMasterListener, ClusterStateListener {
+class MlInitializationService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
@@ -30,6 +29,8 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
+
+    private boolean isMaster = false;
 
     MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
                             MlAssignmentNotifier mlAssignmentNotifier) {
@@ -50,7 +51,6 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
         this.client = Objects.requireNonNull(client);
         this.mlDailyMaintenanceService = dailyMaintenanceService;
         clusterService.addListener(this);
-        clusterService.addLocalNodeMasterListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -67,19 +67,26 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
         });
     }
 
-
-    @Override
     public void onMaster() {
         mlDailyMaintenanceService.start();
     }
 
-    @Override
     public void offMaster() {
         mlDailyMaintenanceService.stop();
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        final boolean prevIsMaster = this.isMaster;
+        if (prevIsMaster != event.localNodeMaster()) {
+            this.isMaster = event.localNodeMaster();
+            if (this.isMaster) {
+                onMaster();
+            } else {
+                offMaster();
+            }
+        }
+
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // Wait until the gateway has recovered from disk.
             return;
@@ -87,7 +94,7 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
 
         // The atomic flag prevents multiple simultaneous attempts to create the
         // index if there is a flurry of cluster state updates in quick succession
-        if (event.localNodeMaster() && isIndexCreationInProgress.compareAndSet(false, true)) {
+        if (this.isMaster && isIndexCreationInProgress.compareAndSet(false, true)) {
             AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), ActionListener.wrap(
                 r -> {
                     isIndexCreationInProgress.set(false);
@@ -100,11 +107,6 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
                     logger.error("Error creating ML annotations index or aliases", e);
                 }));
         }
-    }
-
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.GENERIC;
     }
 
     /** For testing */

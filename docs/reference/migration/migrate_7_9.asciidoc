@@ -71,6 +71,36 @@ context.  For example, for the `processor_conditional` context, use
 ====
 
 [discrete]
+[[deprecate_mapping_updates_for_ingest_privileges]]
+.The `create_doc`, `create`, `index` and `write` privileges deprecated allowing access
+to the update mapping action on indices. `create_doc`, `create` and `index`
+privileges also deprecated allowing {ref}/dynamic-mapping.html[dynamic mapping updates]
+on indices, which occur when ingesting documents with unmapped fields.
+
+[%collapsible]
+====
+*Details* +
+The update mapping action on indices and data streams is not granted by the
+`create_doc`, `create`, `index` and `write` privileges in {es} 8.0.0. The action
+is however still allowed over indices (but not over data streams), on all
+releases until version 8.0.0, but a deprecation warning is hence issued.
+Moreover, the `create_doc`, `create` and `index` privileges do not grant
+the internal mapping action from {ref}/dynamic-mapping.html[dynamic mappings]
+in {es} 8.0.0. However, dynamic mapping updates are still allowed on all releases
+until version 8.0.0, but only on indices, in which case a deprecation warning is issued.
+
+*Impact* +
+Deprecation warnings are generated if mapping updates are granted only due to the
+deprecated behaviour described above.
+In most cases, the recommended alternative approach is to rely on index templates
+together with the `auto_configure` privilege, to only allow dynamic mapping updates
+according to the template mapping configuration and hence disallow explicit mapping
+update actions via the API.
+If explicit mapping updates must be allowed, the `manage` privilege must be granted.
+
+====
+
+[discrete]
 [[breaking_79_settings_changes]]
 === Settings changes
 

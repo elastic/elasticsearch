@@ -162,8 +162,12 @@ bulk request on an index or data stream that contains new fields that may
 be mapped rather than an explicit <<indices-put-mapping,put mapping>> request.
 
 `create`::
-Privilege to index documents. Also grants access to the update mapping
-action.
+Privilege to index documents, allowing overwriting any existing document, but
+not permitting updating one.
+_Deprecated:_ Also grants the permission to update the index mapping (but not
+the data stream mapping), using the update mapping action, or relying on
+{ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
+this privilege will not grant any mapping update permission.
 +
 --
 NOTE: This privilege does not restrict the index operation to the creation
@@ -174,8 +178,12 @@ privilege for an alternative.
 --
 
 `create_doc`::
-Privilege to index documents. Also grants access to the update mapping action.
-However, it does not enable a user to update existing documents.
+Privilege to index new documents, without allowing overwriting or updating
+existing ones.
+_Deprecated:_ Also grants the permission to update the index mapping (but not
+the data stream mapping), using the update mapping action, or relying on
+{ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
+this privilege will not grant any mapping update permission.
 +
 --
 [NOTE]
@@ -205,8 +213,11 @@ Privilege to delete documents.
 Privilege to delete an index.
 
 `index`::
-Privilege to index and update documents. Also grants access to the update
-mapping action.
+Privilege to index (overwriting included) and update documents.
+_Deprecated:_ Also grants the permission to update the index mapping (but not
+the data stream mapping), using the update mapping action, or relying on
+{ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
+this privilege will not grant any mapping update permission.
 
 `maintenance`::
 Permits refresh, flush, synced flush and force merge index administration operations.
@@ -252,8 +263,10 @@ privilege is primarily available for use by {kib} users.
 `write`::
 Privilege to perform all write operations to documents, which includes the
 permission to index, update, and delete documents as well as performing bulk
-operations. Also grants access to the update mapping action.
-
+operations, and allows the {ref}/dynamic-mapping.html[dynamic mapping updates]
+as a result of these.
+_Deprecated:_ Until the next major release, this also grants access to the
+update mapping action, but only on indices, not on data streams.
 
 ==== Run as privilege
 

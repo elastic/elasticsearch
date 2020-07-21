@@ -86,7 +86,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new DataStreamTimestampFieldMapper(new TimestampFieldType(), false), c -> new Builder()
+        c -> new DataStreamTimestampFieldMapper(new TimestampFieldType(), false),
+        c -> new Builder()
     );
 
     private final String path = DEFAULT_PATH;

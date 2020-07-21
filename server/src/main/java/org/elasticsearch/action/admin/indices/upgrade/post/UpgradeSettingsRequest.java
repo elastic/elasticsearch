@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -41,14 +40,7 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
 
     public UpgradeSettingsRequest(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        versions = new HashMap<>();
-        for (int i=0; i<size; i++) {
-            String index = in.readString();
-            Version upgradeVersion = Version.readVersion(in);
-            String oldestLuceneSegment = in.readString();
-            versions.put(index, new Tuple<>(upgradeVersion, oldestLuceneSegment));
-        }
+        versions = in.readMap(StreamInput::readString, i -> new Tuple<>(Version.readVersion(i), i.readString()));
     }
 
     public UpgradeSettingsRequest() {
@@ -89,11 +81,9 @@ public class UpgradeSettingsRequest extends AcknowledgedRequest<UpgradeSettingsR
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(versions.size());
-        for(Map.Entry<String, Tuple<Version, String>> entry : versions.entrySet()) {
-            out.writeString(entry.getKey());
-            Version.writeVersion(entry.getValue().v1(), out);
-            out.writeString(entry.getValue().v2());
-        }
+        out.writeMap(versions, StreamOutput::writeString, (o, v) -> {
+            Version.writeVersion(v.v1(), out);
+            out.writeString(v.v2());
+        });
     }
 }

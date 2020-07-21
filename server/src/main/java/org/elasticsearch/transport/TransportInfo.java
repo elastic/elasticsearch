@@ -43,7 +43,7 @@ public class TransportInfo implements ReportingService.Info {
     private static final boolean CNAME_IN_PUBLISH_ADDRESS =
             parseBoolean(System.getProperty("es.transport.cname_in_publish_address"), false);
 
-    private BoundTransportAddress address;
+    private final BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;
     private final boolean cnameInPublishAddressProperty;
 

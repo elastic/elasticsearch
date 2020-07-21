@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -271,11 +270,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        } else {
-            this.failedNodeIds = Collections.emptySet();
-        }
+        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -287,9 +282,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        }
+        out.writeCollection(failedNodeIds, StreamOutput::writeString);
     }
 
     /**

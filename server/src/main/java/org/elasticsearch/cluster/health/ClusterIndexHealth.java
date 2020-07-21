@@ -249,11 +249,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeByte(status.value());
-
-        out.writeVInt(shards.size());
-        for (ClusterShardHealth shardHealth : this) {
-            shardHealth.writeTo(out);
-        }
+        out.writeCollection(shards.values());
     }
 
     @Override

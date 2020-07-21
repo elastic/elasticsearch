@@ -84,7 +84,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
-    private Map<String, Condition<?>> conditions = new HashMap<>(2);
+    private final Map<String, Condition<?>> conditions = new HashMap<>(2);
     //the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
@@ -123,10 +123,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeString(rolloverTarget);
         out.writeOptionalString(newIndexName);
         out.writeBoolean(dryRun);
-        out.writeVInt(conditions.size());
-        for (Condition<?> condition : conditions.values()) {
-            out.writeNamedWriteable(condition);
-        }
+        out.writeCollection(conditions.values(), StreamOutput::writeNamedWriteable);
         createIndexRequest.writeTo(out);
     }
 

@@ -694,16 +694,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * adds it to the given exception.
      */
     public static <T extends Throwable> T readStackTrace(T throwable, StreamInput in) throws IOException {
-        final int stackTraceElements = in.readVInt();
-        StackTraceElement[] stackTrace = new StackTraceElement[stackTraceElements];
-        for (int i = 0; i < stackTraceElements; i++) {
-            final String declaringClasss = in.readString();
-            final String fileName = in.readOptionalString();
-            final String methodName = in.readString();
-            final int lineNumber = in.readVInt();
-            stackTrace[i] = new StackTraceElement(declaringClasss, methodName, fileName, lineNumber);
-        }
-        throwable.setStackTrace(stackTrace);
+        throwable.setStackTrace(in.readArray(i -> {
+            final String declaringClasss = i.readString();
+            final String fileName = i.readOptionalString();
+            final String methodName = i.readString();
+            final int lineNumber = i.readVInt();
+            return new StackTraceElement(declaringClasss, methodName, fileName, lineNumber);
+        }, StackTraceElement[]::new));
 
         int numSuppressed = in.readVInt();
         for (int i = 0; i < numSuppressed; i++) {
@@ -717,19 +714,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      */
     public static <T extends Throwable> T writeStackTraces(T throwable, StreamOutput out,
                                                            Writer<Throwable> exceptionWriter) throws IOException {
-        StackTraceElement[] stackTrace = throwable.getStackTrace();
-        out.writeVInt(stackTrace.length);
-        for (StackTraceElement element : stackTrace) {
-            out.writeString(element.getClassName());
-            out.writeOptionalString(element.getFileName());
-            out.writeString(element.getMethodName());
-            out.writeVInt(element.getLineNumber());
-        }
-        Throwable[] suppressed = throwable.getSuppressed();
-        out.writeVInt(suppressed.length);
-        for (Throwable t : suppressed) {
-            exceptionWriter.write(out, t);
-        }
+        out.writeArray((o, v) -> {
+            o.writeString(v.getClassName());
+            o.writeOptionalString(v.getFileName());
+            o.writeString(v.getMethodName());
+            o.writeVInt(v.getLineNumber());
+        }, throwable.getStackTrace());
+        out.writeArray(exceptionWriter, throwable.getSuppressed());
         return throwable;
     }
 

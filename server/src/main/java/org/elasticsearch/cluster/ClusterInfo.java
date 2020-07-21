@@ -108,32 +108,11 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             out.writeString(c.key);
             c.value.writeTo(out);
         }
-        out.writeVInt(this.mostAvailableSpaceUsage.size());
-        for (ObjectObjectCursor<String, DiskUsage> c : this.mostAvailableSpaceUsage) {
-            out.writeString(c.key);
-            c.value.writeTo(out);
-        }
-        out.writeVInt(this.shardSizes.size());
-        for (ObjectObjectCursor<String, Long> c : this.shardSizes) {
-            out.writeString(c.key);
-            if (c.value == null) {
-                out.writeLong(-1);
-            } else {
-                out.writeLong(c.value);
-            }
-        }
-        out.writeVInt(this.routingToDataPath.size());
-        for (ObjectObjectCursor<ShardRouting, String> c : this.routingToDataPath) {
-            c.key.writeTo(out);
-            out.writeString(c.value);
-        }
-
+        out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(this.shardSizes, StreamOutput::writeString, (o, v) -> out.writeLong(v == null ? -1 : v));
+        out.writeMap(this.routingToDataPath, (o, k) -> k.writeTo(o), StreamOutput::writeString);
         if (out.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            out.writeVInt(this.reservedSpace.size());
-            for (ObjectObjectCursor<NodeAndPath, ReservedSpace> c : this.reservedSpace) {
-                c.key.writeTo(out);
-                c.value.writeTo(out);
-            }
+            out.writeMap(this.reservedSpace);
         }
     }
 
@@ -241,7 +220,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents a data path on a node
      */
-    public static class NodeAndPath {
+    public static class NodeAndPath implements Writeable {
         public final String nodeId;
         public final String path;
 
@@ -268,6 +247,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             return Objects.hash(nodeId, path);
         }
 
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
             out.writeString(path);
@@ -277,7 +257,7 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
     /**
      * Represents the total amount of "reserved" space on a particular data path, together with the set of shards considered.
      */
-    public static class ReservedSpace {
+    public static class ReservedSpace implements Writeable {
 
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new ObjectHashSet<>());
 
@@ -298,7 +278,8 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
             }
         }
 
-        void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(total);
             out.writeVInt(shardIds.size());
             for (ObjectCursor<ShardId> shardIdCursor : shardIds) {

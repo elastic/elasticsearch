@@ -144,15 +144,12 @@ public final class CompressedXContent {
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         int crc32 = in.readInt();
-        byte[] compressed = new byte[in.readVInt()];
-        in.readBytes(compressed, 0, compressed.length);
-        return new CompressedXContent(compressed, crc32);
+        return new CompressedXContent(in.readByteArray(), crc32);
     }
 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(crc32);
-        out.writeVInt(bytes.length);
-        out.writeBytes(bytes);
+        out.writeByteArray(bytes);
     }
 
     @Override

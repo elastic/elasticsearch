@@ -68,8 +68,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return first.getText().compareTo(second.getText());
      };
 
-    private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
-    private boolean hasScoreDocs;
+    private final List<Suggestion<? extends Entry<? extends Option>>> suggestions;
+    private final boolean hasScoreDocs;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
@@ -82,13 +82,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public Suggest(StreamInput in) throws IOException {
-        int suggestionCount = in.readVInt();
-        suggestions = new ArrayList<>(suggestionCount);
-        for (int i = 0; i < suggestionCount; i++) {
-            suggestions.add(in.readNamedWriteable(Suggestion.class));
-        }
+        suggestions = (List) in.readNamedWriteableList(Suggestion.class);
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
@@ -128,10 +124,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(suggestions.size());
-        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
-            out.writeNamedWriteable(suggestion);
-        }
+        out.writeNamedWriteableList(suggestions);
     }
 
     @Override
@@ -338,10 +331,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVInt(size);
-            out.writeVInt(entries.size());
-            for (Entry<?> entry : entries) {
-                entry.writeTo(out);
-            }
+            out.writeList(entries);
         }
 
         @Override

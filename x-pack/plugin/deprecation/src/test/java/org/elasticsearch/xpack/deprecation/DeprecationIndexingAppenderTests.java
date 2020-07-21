@@ -70,7 +70,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
     public void testWritesMessageWhenServiceEnabled() {
         appender.setEnabled(true);
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", DeprecatedMessage.of(null, "a message"));
+        final Map<String, Object> payloadMap = getWriteRequest(DeprecatedMessage.of("a key", null, "a message"));
 
         assertThat(payloadMap, hasKey("@timestamp"));
         assertThat(payloadMap, hasEntry("key", "a key"));
@@ -87,7 +87,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
     public void testMessageIncludesOpaqueIdWhenSupplied() {
         appender.setEnabled(true);
 
-        final Map<String, Object> payloadMap = getWriteRequest("a key", DeprecatedMessage.of("an ID", "a message"));
+        final Map<String, Object> payloadMap = getWriteRequest(DeprecatedMessage.of("a key", "an ID", "a message"));
 
         assertThat(payloadMap, hasEntry("x-opaque-id", "an ID"));
     }
@@ -99,8 +99,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
         appender.setEnabled(true);
 
         final Map<String, Object> payloadMap = getWriteRequest(
-            "a key",
-            DeprecatedMessage.of(null, "a {} and {} message", "first", "second")
+            DeprecatedMessage.of("a key", null, "a {} and {} message", "first", "second")
         );
 
         assertThat(payloadMap, hasEntry("message", "a first and second message"));
@@ -109,8 +108,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
     /*
      * Wraps up the steps for extracting an index request payload from the mocks.
      */
-    private Map<String, Object> getWriteRequest(String key, ESLogMessage message) {
-        message.field("key", key);
+    private Map<String, Object> getWriteRequest(ESLogMessage message) {
         LogEvent logEvent = mock(LogEvent.class);
         when(logEvent.getMessage()).thenReturn(message);
 
@@ -126,7 +124,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
 
     private LogEvent buildEvent() {
         LogEvent logEvent = mock(LogEvent.class);
-        when(logEvent.getMessage()).thenReturn(DeprecatedMessage.of(null, "a message").field("key", "a key"));
+        when(logEvent.getMessage()).thenReturn(DeprecatedMessage.of("a key", null, "a message"));
         return logEvent;
     }
 }

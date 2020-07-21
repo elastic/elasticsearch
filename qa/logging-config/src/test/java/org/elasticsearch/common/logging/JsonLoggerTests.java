@@ -88,7 +88,7 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessage() throws IOException {
         final Logger testLogger = LogManager.getLogger("deprecation.test");
-        testLogger.log(DEPRECATION, DeprecatedMessage.of("someId","deprecated message1"));
+        testLogger.log(DEPRECATION, DeprecatedMessage.of("someKey", "someId","deprecated message1"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_deprecated.json");
@@ -173,10 +173,10 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final Logger testLogger = LogManager.getLogger("deprecation.test");
-        testLogger.log(DEPRECATION, DeprecatedMessage.of("someOtherId","deprecated message1").field("key", "a key"));
-        testLogger.log(DEPRECATION, DeprecatedMessage.of("","deprecated message2").field("key", "a key"));
+        testLogger.log(DEPRECATION, DeprecatedMessage.of("a key", "someOtherId","deprecated message1"));
+        testLogger.log(DEPRECATION, DeprecatedMessage.of("a key", "", "deprecated message2"));
         // This next message will be filtered out, because a null opaque ID has the same effect as an empty ID.
-        testLogger.log(DEPRECATION, DeprecatedMessage.of(null,"deprecated message3").field("key", "a key"));
+        testLogger.log(DEPRECATION, DeprecatedMessage.of("a key", null,"deprecated message3"));
         testLogger.log(DEPRECATION,"deprecated message4");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),

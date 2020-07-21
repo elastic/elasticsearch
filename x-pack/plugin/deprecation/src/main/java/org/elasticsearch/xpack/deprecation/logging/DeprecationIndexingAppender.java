@@ -13,6 +13,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.message.Message;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.logging.ESLogMessage;
@@ -78,14 +79,9 @@ public class DeprecationIndexingAppender extends AbstractAppender {
             final ESLogMessage esLogMessage = (ESLogMessage) message;
 
             String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
-            final String key = esLogMessage.get("key");
 
-            String messagePattern = esLogMessage.getMessagePattern();
-            Object[] arguments = esLogMessage.getArguments();
-            String formattedMessage = LoggerMessageFormat.format(messagePattern, arguments);
-
-            payload.put("key", key);
-            payload.put("message", formattedMessage);
+            payload.put("key", esLogMessage.get("key"));
+            payload.put("message", esLogMessage.get("message"));
 
             if (isNullOrEmpty(xOpaqueId) == false) {
                 payload.put("x-opaque-id", xOpaqueId);

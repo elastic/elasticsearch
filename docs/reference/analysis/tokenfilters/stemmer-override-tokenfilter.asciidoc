@@ -25,22 +25,22 @@ Here is an example:
 --------------------------------------------------
 PUT /my_index
 {
-    "settings": {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["lowercase", "custom_stems", "porter_stem"]
-                }
-            },
-            "filter" : {
-                "custom_stems" : {
-                    "type" : "stemmer_override",
-                    "rules_path" : "analysis/stemmer_override.txt"
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [ "lowercase", "custom_stems", "porter_stem" ]
         }
+      },
+      "filter": {
+        "custom_stems": {
+          "type": "stemmer_override",
+          "rules_path": "analysis/stemmer_override.txt"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -57,24 +57,24 @@ You can also define the overrides rules inline:
 --------------------------------------------------
 PUT /my_index
 {
-    "settings": {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["lowercase", "custom_stems", "porter_stem"]
-                }
-            },
-            "filter" : {
-                "custom_stems" : {
-                    "type" : "stemmer_override",
-                    "rules" : [
-                        "running => run",
-                        "stemmer => stemmer"
-                    ]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [ "lowercase", "custom_stems", "porter_stem" ]
         }
+      },
+      "filter": {
+        "custom_stems": {
+          "type": "stemmer_override",
+          "rules": [
+            "running, runs => run",
+            "stemmer => stemmer"
+          ]
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

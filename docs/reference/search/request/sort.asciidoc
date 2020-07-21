@@ -11,18 +11,18 @@ Assuming the following index mapping:
 --------------------------------------------------
 PUT /my_index
 {
-    "mappings": {
-        "properties": {
-            "post_date": { "type": "date" },
-            "user": {
-                "type": "keyword"
-            },
-            "name": {
-                "type": "keyword"
-            },
-            "age": { "type": "integer" }
-        }
+  "mappings": {
+    "properties": {
+      "post_date": { "type": "date" },
+      "user": {
+        "type": "keyword"
+      },
+      "name": {
+        "type": "keyword"
+      },
+      "age": { "type": "integer" }
     }
+  }
 }
 --------------------------------------------------
 
@@ -30,16 +30,16 @@ PUT /my_index
 --------------------------------------------------
 GET /my_index/_search
 {
-    "sort" : [
-        { "post_date" : {"order" : "asc"}},
-        "user",
-        { "name" : "desc" },
-        { "age" : "desc" },
-        "_score"
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "sort" : [
+    { "post_date" : {"order" : "asc"}},
+    "user",
+    { "name" : "desc" },
+    { "age" : "desc" },
+    "_score"
+  ],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -123,11 +123,11 @@ Consider for instance these two indices:
 --------------------------------------------------
 PUT /index_double
 {
-    "mappings": {
-        "properties": {
-            "field": { "type": "double" }
-        }
+  "mappings": {
+    "properties": {
+      "field": { "type": "double" }
     }
+  }
 }
 --------------------------------------------------
 
@@ -135,11 +135,11 @@ PUT /index_double
 --------------------------------------------------
 PUT /index_long
 {
-    "mappings": {
-        "properties": {
-            "field": { "type": "long" }
-        }
+  "mappings": {
+    "properties": {
+      "field": { "type": "long" }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -181,11 +181,11 @@ Consider for instance these two indices:
 --------------------------------------------------
 PUT /index_double
 {
-    "mappings": {
-        "properties": {
-            "field": { "type": "date" }
-        }
+  "mappings": {
+    "properties": {
+      "field": { "type": "date" }
     }
+  }
 }
 --------------------------------------------------
 
@@ -193,11 +193,11 @@ PUT /index_double
 --------------------------------------------------
 PUT /index_long
 {
-    "mappings": {
-        "properties": {
-            "field": { "type": "date_nanos" }
-        }
+  "mappings": {
+    "properties": {
+      "field": { "type": "date_nanos" }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -352,12 +352,12 @@ For example:
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        { "price" : {"missing" : "_last"} }
-    ],
-    "query" : {
-        "term" : { "product" : "chocolate" }
-    }
+  "sort" : [
+    { "price" : {"missing" : "_last"} }
+  ],
+  "query" : {
+    "term" : { "product" : "chocolate" }
+  }
 }
 --------------------------------------------------
 
@@ -376,12 +376,12 @@ example of how it can be used:
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        { "price" : {"unmapped_type" : "long"} }
-    ],
-    "query" : {
-        "term" : { "product" : "chocolate" }
-    }
+  "sort" : [
+    { "price" : {"unmapped_type" : "long"} }
+  ],
+  "query" : {
+    "term" : { "product" : "chocolate" }
+  }
 }
 --------------------------------------------------
 
@@ -398,21 +398,21 @@ Allow to sort by `_geo_distance`. Here is an example, assuming `pin.location` is
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        {
-            "_geo_distance" : {
-                "pin.location" : [-70, 40],
-                "order" : "asc",
-                "unit" : "km",
-                "mode" : "min",
-                "distance_type" : "arc",
-                "ignore_unmapped": true
-            }
-        }
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
+  "sort" : [
+    {
+      "_geo_distance" : {
+          "pin.location" : [-70, 40],
+          "order" : "asc",
+          "unit" : "km",
+          "mode" : "min",
+          "distance_type" : "arc",
+          "ignore_unmapped": true
+      }
     }
+  ],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -451,21 +451,21 @@ The following formats are supported in providing the coordinates:
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        {
-            "_geo_distance" : {
-                "pin.location" : {
-                    "lat" : 40,
-                    "lon" : -70
-                },
-                "order" : "asc",
-                "unit" : "km"
-            }
-        }
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
+  "sort" : [
+    {
+      "_geo_distance" : {
+        "pin.location" : {
+          "lat" : 40,
+          "lon" : -70
+        },
+        "order" : "asc",
+        "unit" : "km"
+      }
     }
+  ],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -477,18 +477,18 @@ Format in `lat,lon`.
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        {
-            "_geo_distance" : {
-                "pin.location" : "40,-70",
-                "order" : "asc",
-                "unit" : "km"
-            }
-        }
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
+  "sort": [
+    {
+      "_geo_distance": {
+        "pin.location": "40,-70",
+        "order": "asc",
+        "unit": "km"
+      }
     }
+  ],
+  "query": {
+    "term": { "user": "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -498,18 +498,18 @@ GET /_search
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        {
-            "_geo_distance" : {
-                "pin.location" : "drm3btev3e86",
-                "order" : "asc",
-                "unit" : "km"
-            }
-        }
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
+  "sort": [
+    {
+      "_geo_distance": {
+        "pin.location": "drm3btev3e86",
+        "order": "asc",
+        "unit": "km"
+      }
     }
+  ],
+  "query": {
+    "term": { "user": "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -522,18 +522,18 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        {
-            "_geo_distance" : {
-                "pin.location" : [-70, 40],
-                "order" : "asc",
-                "unit" : "km"
-            }
-        }
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
+  "sort": [
+    {
+      "_geo_distance": {
+        "pin.location": [ -70, 40 ],
+        "order": "asc",
+        "unit": "km"
+      }
     }
+  ],
+  "query": {
+    "term": { "user": "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -546,18 +546,18 @@ Multiple geo points can be passed as an array containing any `geo_point` format,
 --------------------------------------------------
 GET /_search
 {
-    "sort" : [
-        {
-            "_geo_distance" : {
-                "pin.location" : [[-70, 40], [-71, 42]],
-                "order" : "asc",
-                "unit" : "km"
-            }
-        }
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
+  "sort": [
+    {
+      "_geo_distance": {
+        "pin.location": [ [ -70, 40 ], [ -71, 42 ] ],
+        "order": "asc",
+        "unit": "km"
+      }
     }
+  ],
+  "query": {
+    "term": { "user": "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -575,22 +575,22 @@ Allow to sort based on custom scripts, here is an example:
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    },
-    "sort" : {
-        "_script" : {
-            "type" : "number",
-            "script" : {
-                "lang": "painless",
-                "source": "doc['field_name'].value * params.factor",
-                "params" : {
-                    "factor" : 1.1
-                }
-            },
-            "order" : "asc"
+  "query": {
+    "term": { "user": "kimchy" }
+  },
+  "sort": {
+    "_script": {
+      "type": "number",
+      "script": {
+        "lang": "painless",
+        "source": "doc['field_name'].value * params.factor",
+        "params": {
+          "factor": 1.1
         }
+      },
+      "order": "asc"
     }
+  }
 }
 --------------------------------------------------
 
@@ -604,15 +604,15 @@ When sorting on a field, scores are not computed. By setting
 --------------------------------------------------
 GET /_search
 {
-    "track_scores": true,
-    "sort" : [
-        { "post_date" : {"order" : "desc"} },
-        { "name" : "desc" },
-        { "age" : "desc" }
-    ],
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "track_scores": true,
+  "sort" : [
+    { "post_date" : {"order" : "desc"} },
+    { "name" : "desc" },
+    { "age" : "desc" }
+  ],
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 

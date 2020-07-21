@@ -12,9 +12,9 @@ include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
 ----
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "twitter", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "twitter", "alias" : "alias1" } }
+  ]
 }
 ----
 // TEST[setup:twitter]
@@ -162,9 +162,9 @@ The following request adds the `alias1` alias to the `test1` index.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "test1", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "test1", "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -178,9 +178,9 @@ The following request removes the `alias1` alias.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "remove" : { "index" : "test1", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "remove" : { "index" : "test1", "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -196,10 +196,10 @@ period of time where the alias does not point to an index:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "remove" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test1", "alias" : "alias2" } }
-    ]
+  "actions" : [
+    { "remove" : { "index" : "test1", "alias" : "alias1" } },
+    { "add" : { "index" : "test1", "alias" : "alias2" } }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -214,10 +214,10 @@ actions:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test2", "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "test1", "alias" : "alias1" } },
+    { "add" : { "index" : "test2", "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -228,9 +228,9 @@ Multiple indices can be specified for an action with the `indices` array syntax:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
-    ]
+  "actions" : [
+    { "add" : { "indices" : ["test1", "test2"], "alias" : "alias1" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -245,9 +245,9 @@ more than one index that share a common name:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "test*", "alias" : "all_test_indices" } }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test1\nPUT test2\n/]
@@ -270,10 +270,10 @@ PUT test     <1>
 PUT test_2   <2>
 POST /_aliases
 {
-    "actions" : [
-        { "add":  { "index": "test_2", "alias": "test" } },
-        { "remove_index": { "index": "test" } }  <3>
-    ]
+  "actions" : [
+    { "add":  { "index": "test_2", "alias": "test" } },
+    { "remove_index": { "index": "test" } }  <3>
+  ]
 }
 --------------------------------------------------
 
@@ -312,15 +312,15 @@ Now we can create an alias that uses a filter on field `user`:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test1",
-                 "alias" : "alias2",
-                 "filter" : { "term" : { "user" : "kimchy" } }
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test1",
+        "alias": "alias2",
+        "filter": { "term": { "user": "kimchy" } }
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -340,15 +340,15 @@ automatically modified to use value `1` for routing:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "routing" : "1"
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias1",
+        "routing": "1"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\n/]
@@ -360,16 +360,16 @@ and indexing operations:
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias2",
-                 "search_routing" : "1,2",
-                 "index_routing" : "2"
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias2",
+        "search_routing": "1,2",
+        "index_routing": "2"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\n/]
@@ -407,21 +407,21 @@ Rollover (see <<indices-rollover-index, Rollover With Write Index>>).
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "is_write_index" : true
-            }
-        },
-        {
-            "add" : {
-                 "index" : "test2",
-                 "alias" : "alias1"
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias1",
+        "is_write_index": true
+      }
+    },
+    {
+      "add": {
+        "index": "test2",
+        "alias": "alias1"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\nPUT test2\n/]
@@ -433,7 +433,7 @@ In this example, we associate the alias `alias1` to both `test` and `test2`, whe
 --------------------------------------------------
 PUT /alias1/_doc/1
 {
-    "foo": "bar"
+  "foo": "bar"
 }
 --------------------------------------------------
 // TEST[continued]
@@ -454,21 +454,21 @@ do an atomic swap. The swap is not dependent on the ordering of the actions.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        {
-            "add" : {
-                 "index" : "test",
-                 "alias" : "alias1",
-                 "is_write_index" : false
-            }
-        }, {
-            "add" : {
-                 "index" : "test2",
-                 "alias" : "alias1",
-                 "is_write_index" : true
-            }
-        }
-    ]
+  "actions": [
+    {
+      "add": {
+        "index": "test",
+        "alias": "alias1",
+        "is_write_index": false
+      }
+    }, {
+      "add": {
+        "index": "test2",
+        "alias": "alias1",
+        "is_write_index": true
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\nPUT test2\n/]

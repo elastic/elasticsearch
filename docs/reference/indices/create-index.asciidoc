@@ -83,12 +83,12 @@ associated with it, defined in the body:
 --------------------------------------------------
 PUT /twitter
 {
-    "settings" : {
-        "index" : {
-            "number_of_shards" : 3, <1>
-            "number_of_replicas" : 2 <2>
-        }
+  "settings": {
+    "index": {
+      "number_of_shards": 3,  <1>
+      "number_of_replicas": 2 <2>
     }
+  }
 }
 --------------------------------------------------
 
@@ -101,10 +101,10 @@ or more simplified
 --------------------------------------------------
 PUT /twitter
 {
-    "settings" : {
-        "number_of_shards" : 3,
-        "number_of_replicas" : 2
-    }
+  "settings": {
+    "number_of_shards": 3,
+    "number_of_replicas": 2
+  }
 }
 --------------------------------------------------
 
@@ -125,14 +125,14 @@ The create index API allows for providing a mapping definition:
 --------------------------------------------------
 PUT /test
 {
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "mappings" : {
-        "properties" : {
-            "field1" : { "type" : "text" }
-        }
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "properties": {
+      "field1": { "type": "text" }
     }
+  }
 }
 --------------------------------------------------
 
@@ -149,15 +149,15 @@ The create index API allows also to provide a set of <<indices-aliases,aliases>>
 --------------------------------------------------
 PUT /test
 {
-    "aliases" : {
-        "alias_1" : {},
-        "alias_2" : {
-            "filter" : {
-                "term" : {"user" : "kimchy" }
-            },
-            "routing" : "kimchy"
-        }
+  "aliases": {
+    "alias_1": {},
+    "alias_2": {
+      "filter": {
+        "term": { "user": "kimchy" }
+      },
+      "routing": "kimchy"
     }
+  }
 }
 --------------------------------------------------
 
@@ -171,9 +171,9 @@ what happened:
 [source,console-result]
 --------------------------------------------------
 {
-    "acknowledged": true,
-    "shards_acknowledged": true,
-    "index": "test"
+  "acknowledged": true,
+  "shards_acknowledged": true,
+  "index": "test"
 }
 --------------------------------------------------
 
@@ -196,9 +196,9 @@ the `wait_for_active_shards` value on all subsequent write operations):
 --------------------------------------------------
 PUT /test
 {
-    "settings": {
-        "index.write.wait_for_active_shards": "2"
-    }
+  "settings": {
+    "index.write.wait_for_active_shards": "2"
+  }
 }
 --------------------------------------------------
 // TEST[skip:requires two nodes]

@@ -334,16 +334,16 @@ You can also create search templates:
 ------------------------------------------
 POST /_scripts/my_template_1
 {
-    "script": {
-        "lang": "mustache",
-        "source": {
-            "query": {
-                "match": {
-                    "message": "{{query_string}}"
-                }
-            }
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "message": "{{query_string}}"
         }
+      }
     }
+  }
 }
 ------------------------------------------
 // TEST[setup:twitter]
@@ -353,16 +353,16 @@ POST /_scripts/my_template_1
 ------------------------------------------
 POST /_scripts/my_template_2
 {
-    "script": {
-        "lang": "mustache",
-        "source": {
-            "query": {
-                "term": {
-                    "{{field}}": "{{value}}"
-                }
-            }
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "term": {
+          "{{field}}": "{{value}}"
         }
+      }
     }
+  }
 }
 ------------------------------------------
 // TEST[continued]

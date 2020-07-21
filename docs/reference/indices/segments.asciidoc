@@ -193,27 +193,27 @@ The API returns the following response:
 [source,console-response]
 --------------------------------------------------
 {
-    ...
-        "_0": {
+  ...
+    "_0": {
+      ...
+      "ram_tree": [
+        {
+          "description": "postings [PerFieldPostings(format=1)]",
+          "size_in_bytes": 2696,
+          "children": [
+            {
+              "description": "format 'Lucene50_0' ...",
+              "size_in_bytes": 2608,
+              "children" :[ ... ]
+            },
             ...
-            "ram_tree": [
-                {
-                    "description": "postings [PerFieldPostings(format=1)]",
-                    "size_in_bytes": 2696,
-                    "children": [
-                        {
-                            "description": "format 'Lucene50_0' ...",
-                            "size_in_bytes": 2608,
-                            "children" :[ ... ]
-                        },
-                        ...
-                    ]
-                },
-                ...
-                ]
+          ]
+        },
+        ...
+      ]
 
-        }
-    ...
+    }
+  ...
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:Response is too verbose to be fully shown in documentation, so we just show the relevant bit and don't test the response.]

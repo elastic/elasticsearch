@@ -92,16 +92,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
 --------------------------------------------------
 PUT /twitter/_doc/1?refresh
 {
-    "user": "kimchy"
+  "user": "kimchy"
 }
 
 GET /twitter/_count?q=user:kimchy
 
 GET /twitter/_count
 {
-    "query" : {
-        "term" : { "user" : "kimchy" }
-    }
+  "query" : {
+    "term" : { "user" : "kimchy" }
+  }
 }
 --------------------------------------------------
 
@@ -111,13 +111,13 @@ index for a certain user. The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "count" : 1,
-    "_shards" : {
-        "total" : 1,
-        "successful" : 1,
-        "skipped" : 0,
-        "failed" : 0
-    }
+  "count": 1,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  }
 }
 --------------------------------------------------
 

@@ -18,13 +18,13 @@ including options for fuzzy matching.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "this is a test"
-            }
-        }
+  "query": {
+    "match": {
+      "message": {
+        "query": "this is a test"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -150,11 +150,11 @@ parameters. For example:
 ----
 GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : "this is a test"
-        }
+  "query": {
+    "match": {
+      "message": "this is a test"
     }
+  }
 }
 ----
 
@@ -175,14 +175,14 @@ Here is an example with the `operator` parameter:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "this is a test",
-                "operator" : "and"
-            }
-        }
+  "query": {
+    "match": {
+      "message": {
+        "query": "this is a test",
+        "operator": "and"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -219,14 +219,14 @@ which does not support fuzzy expansion.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "this is a testt",
-                "fuzziness": "AUTO"
-            }
-        }
+  "query": {
+    "match": {
+      "message": {
+        "query": "this is a testt",
+        "fuzziness": "AUTO"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -241,15 +241,15 @@ change that the `zero_terms_query` option can be used, which accepts
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "to be or not to be",
-                "operator" : "and",
-                "zero_terms_query": "all"
-            }
-        }
+  "query": {
+    "match": {
+      "message": {
+        "query": "to be or not to be",
+        "operator": "and",
+        "zero_terms_query": "all"
+      }
     }
+  }
 }
 --------------------------------------------------
 

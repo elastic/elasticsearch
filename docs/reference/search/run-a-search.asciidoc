@@ -261,9 +261,9 @@ GET /_all/_search
 
 GET /*/_search
 {
-    "query" : {
-        "match" : { "message" : "login" }
-    }
+  "query" : {
+    "match" : { "message" : "login" }
+  }
 }
 ----
 // TEST[continued]

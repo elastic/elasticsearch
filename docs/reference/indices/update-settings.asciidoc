@@ -10,9 +10,9 @@ Changes an <<index-modules-settings,index setting>> in real time.
 --------------------------------------------------
 PUT /twitter/_settings
 {
-    "index" : {
-        "number_of_replicas" : 2
-    }
+  "index" : {
+    "number_of_replicas" : 2
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -73,9 +73,9 @@ To revert a setting to the default value, use `null`. For example:
 --------------------------------------------------
 PUT /twitter/_settings
 {
-    "index" : {
-        "refresh_interval" : null
-    }
+  "index" : {
+    "refresh_interval" : null
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -97,9 +97,9 @@ use:
 --------------------------------------------------
 PUT /twitter/_settings
 {
-    "index" : {
-        "refresh_interval" : "-1"
-    }
+  "index" : {
+    "refresh_interval" : "-1"
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -114,9 +114,9 @@ the defaults for example):
 --------------------------------------------------
 PUT /twitter/_settings
 {
-    "index" : {
-        "refresh_interval" : "1s"
-    }
+  "index" : {
+    "refresh_interval" : "1s"
+  }
 }
 --------------------------------------------------
 // TEST[continued]

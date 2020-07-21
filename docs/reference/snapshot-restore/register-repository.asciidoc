@@ -124,11 +124,11 @@ the name `my_fs_backup`:
 -----------------------------------
 PUT /_snapshot/my_fs_backup
 {
-    "type": "fs",
-    "settings": {
-        "location": "/mount/backups/my_fs_backup_location",
-        "compress": true
-    }
+  "type": "fs",
+  "settings": {
+    "location": "/mount/backups/my_fs_backup_location",
+    "compress": true
+  }
 }
 -----------------------------------
 // TEST[skip:no access to absolute path]
@@ -140,11 +140,11 @@ in `path.repo`:
 -----------------------------------
 PUT /_snapshot/my_fs_backup
 {
-    "type": "fs",
-    "settings": {
-        "location": "my_fs_backup_location",
-        "compress": true
-    }
+  "type": "fs",
+  "settings": {
+    "location": "my_fs_backup_location",
+    "compress": true
+  }
 }
 -----------------------------------
 // TEST[continued]

@@ -26,7 +26,7 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
     protected final Script script;
 
     AbstractScriptMappedFieldType(String name, Script script, Map<String, String> meta) {
-        super(name, false, false, TextSearchInfo.NONE, meta);
+        super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         this.script = script;
     }
 

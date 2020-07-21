@@ -199,6 +199,29 @@ setup:
   - match: {hits.hits.0._source.voltage: 5.8}
 
 ---
+"match query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              day_of_week: Monday
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              day_of_week:
+                query: Monday
+                analyzer: standard
+  - match: {hits.total.value: 0}
+
+---
 "terms query":
   - do:
       search:

@@ -26,7 +26,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 buildRestTests.expectedUnconvertedCandidates = [
-  'reference/ml/anomaly-detection/transforms.asciidoc',
+  'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
   'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
   'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
   'reference/ml/anomaly-detection/apis/get-category.asciidoc',

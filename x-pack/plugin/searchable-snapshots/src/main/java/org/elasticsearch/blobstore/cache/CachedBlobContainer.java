@@ -6,6 +6,8 @@
 
 package org.elasticsearch.blobstore.cache;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.PagedBytesReference;
@@ -37,24 +39,33 @@ public class CachedBlobContainer extends FilterBlobContainer {
      */
     static class CopyOnReadInputStream extends FilterInputStream {
 
+        private final ActionListener<ReleasableBytesReference> listener;
         private final AtomicBoolean closed;
         private final ByteArray bytes;
 
+        private IOException failure;
         private long count;
         private long mark;
 
-        protected CopyOnReadInputStream(InputStream in, ByteArray byteArray) {
+        protected CopyOnReadInputStream(InputStream in, ByteArray byteArray, ActionListener<ReleasableBytesReference> listener) {
             super(in);
+            this.listener = Objects.requireNonNull(listener);
             this.bytes = Objects.requireNonNull(byteArray);
             this.closed = new AtomicBoolean(false);
         }
 
-        long getCount() {
-            return count;
+        private <T> T handleFailure(CheckedSupplier<T, IOException> supplier) throws IOException {
+            try {
+                return supplier.get();
+            } catch (IOException e) {
+                assert failure == null;
+                failure = e;
+                throw e;
+            }
         }
 
         public int read() throws IOException {
-            final int result = super.read();
+            final int result = handleFailure(super::read);
             if (result != -1) {
                 if (count < bytes.size()) {
                     bytes.set(count, (byte) result);
@@ -65,7 +76,7 @@ public class CachedBlobContainer extends FilterBlobContainer {
         }
 
         public int read(byte[] b, int off, int len) throws IOException {
-            final int result = super.read(b, off, len);
+            final int result = handleFailure(() -> super.read(b, off, len));
             if (result != -1) {
                 if (count < bytes.size()) {
                     bytes.set(count, b, off, Math.toIntExact(Math.min(bytes.size() - count, result)));
@@ -77,7 +88,7 @@ public class CachedBlobContainer extends FilterBlobContainer {
 
         @Override
         public long skip(long n) throws IOException {
-            final long skip = super.skip(n);
+            final long skip = handleFailure(() -> super.skip(n));
             if (skip > 0L) {
                 count += skip;
             }
@@ -92,12 +103,11 @@ public class CachedBlobContainer extends FilterBlobContainer {
 
         @Override
         public synchronized void reset() throws IOException {
-            super.reset();
+            handleFailure(() -> {
+                super.reset();
+                return null;
+            });
             count = mark;
-        }
-
-        protected void closeInternal(final ReleasableBytesReference releasable) {
-            releasable.close();
         }
 
         @Override
@@ -106,9 +116,13 @@ public class CachedBlobContainer extends FilterBlobContainer {
                 boolean success = false;
                 try {
                     super.close();
-                    final PagedBytesReference reference = new PagedBytesReference(bytes, Math.toIntExact(Math.min(count, bytes.size())));
-                    closeInternal(new ReleasableBytesReference(reference, bytes));
-                    success = true;
+                    if (failure == null || bytes.size() <= count) {
+                        PagedBytesReference reference = new PagedBytesReference(bytes, Math.toIntExact(Math.min(count, bytes.size())));
+                        listener.onResponse(new ReleasableBytesReference(reference, bytes));
+                        success = true;
+                    } else {
+                        listener.onFailure(failure);
+                    }
                 } finally {
                     if (success == false) {
                         bytes.close();

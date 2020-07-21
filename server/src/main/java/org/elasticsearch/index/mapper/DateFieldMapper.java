@@ -422,7 +422,7 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(resolution.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType());
         }
 
         @Override

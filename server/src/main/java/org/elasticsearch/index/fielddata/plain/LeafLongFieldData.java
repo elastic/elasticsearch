@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 /**
  * Specialization of {@link LeafNumericFieldData} for integers.
  */
-abstract class LeafLongFieldData implements LeafNumericFieldData {
+public abstract class LeafLongFieldData implements LeafNumericFieldData {
 
     private final long ramBytesUsed;
     /**
@@ -37,7 +37,7 @@ abstract class LeafLongFieldData implements LeafNumericFieldData {
      */
     private final NumericType numericType;
 
-    LeafLongFieldData(long ramBytesUsed, NumericType numericType) {
+    protected LeafLongFieldData(long ramBytesUsed, NumericType numericType) {
         this.ramBytesUsed = ramBytesUsed;
         this.numericType = numericType;
     }

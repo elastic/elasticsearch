@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -501,6 +502,29 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 return false;
             }
             return DEPRECATED_PARAMS.contains(propName);
+        }
+    }
+
+    /**
+     * TypeParser implementation that automatically handles parsing
+     */
+    public static final class TypeParser implements Mapper.TypeParser {
+
+        private final BiFunction<String, ParserContext, Builder> builderFunction;
+
+        /**
+         * Creates a new TypeParser
+         * @param builderFunction a function that produces a Builder from a name and parsercontext
+         */
+        public TypeParser(BiFunction<String, ParserContext, Builder> builderFunction) {
+            this.builderFunction = builderFunction;
+        }
+
+        @Override
+        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            Builder builder = builderFunction.apply(name, parserContext);
+            builder.parse(name, parserContext, node);
+            return builder;
         }
     }
 }

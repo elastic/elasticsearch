@@ -93,7 +93,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private final AtomicReference<RefreshAndRescheduleRunnable> refreshAndRescheduleRunnable = new AtomicReference<>();
     private volatile boolean enabled;
     private volatile TimeValue fetchTimeout;
-    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Client client;
     private final List<Consumer<ClusterInfo>> listeners = new CopyOnWriteArrayList<>();
@@ -102,7 +101,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         this.leastAvailableSpaceUsages = ImmutableOpenMap.of();
         this.mostAvailableSpaceUsages = ImmutableOpenMap.of();
         this.indicesStatsSummary = IndicesStatsSummary.EMPTY;
-        this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.client = client;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
@@ -115,7 +113,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                                   this::setEnabled);
 
         // listen for state changes (this node starts/stops being the elected master, or new nodes are added)
-        this.clusterService.addListener(this);
+        clusterService.addListener(this);
     }
 
     private void setEnabled(boolean enabled) {
@@ -134,7 +132,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() && refreshAndRescheduleRunnable.get() == null) {
             logger.trace("elected as master, scheduling cluster info update tasks");
-            executeRefresh(clusterService.state(), "became master");
+            executeRefresh(event.state(), "became master");
 
             final RefreshAndRescheduleRunnable newRunnable = new RefreshAndRescheduleRunnable();
             refreshAndRescheduleRunnable.set(newRunnable);

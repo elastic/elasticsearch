@@ -216,22 +216,15 @@ public final class DateFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
+        return new Builder(n, Resolution.MILLISECONDS, c.getDateFormatter(), ignoreMalformedByDefault);
+    });
 
-        private final Resolution resolution;
-
-        public TypeParser(Resolution resolution) {
-            this.resolution = resolution;
-        }
-
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
-            Builder builder = new Builder(name, resolution, parserContext.getDateFormatter(), ignoreMalformedByDefault);
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
+        boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
+        return new Builder(n, Resolution.NANOSECONDS, c.getDateFormatter(), ignoreMalformedByDefault);
+    });
 
     public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;

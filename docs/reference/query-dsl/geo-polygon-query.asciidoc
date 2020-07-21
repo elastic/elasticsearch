@@ -11,24 +11,24 @@ points. Here is an example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            {"lat" : 40, "lon" : -70},
-                            {"lat" : 30, "lon" : -80},
-                            {"lat" : 20, "lon" : -90}
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              { "lat": 40, "lon": -70 },
+              { "lat": 30, "lon": -80 },
+              { "lat": 20, "lon": -90 }
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -60,24 +60,24 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            [-70, 40],
-                            [-80, 30],
-                            [-90, 20]
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              [ -70, 40 ],
+              [ -80, 30 ],
+              [ -90, 20 ]
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -90,24 +90,24 @@ Format in `lat,lon`.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-               "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            "40, -70",
-                            "30, -80",
-                            "20, -90"
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              "40, -70",
+              "30, -80",
+              "20, -90"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -118,24 +118,24 @@ GET /_search
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-               "geo_polygon" : {
-                    "person.location" : {
-                        "points" : [
-                            "drn5x1g8cu2y",
-                            "30, -80",
-                            "20, -90"
-                        ]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_polygon": {
+          "person.location": {
+            "points": [
+              "drn5x1g8cu2y",
+              "30, -80",
+              "20, -90"
+            ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

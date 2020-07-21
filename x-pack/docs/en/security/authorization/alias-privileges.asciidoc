@@ -153,9 +153,9 @@ added to an index directly as part of the index creation:
 -------------------------------------------------------------------------------
 PUT /2015
 {
-    "aliases" : {
-        "current_year" : {}
-    }
+  "aliases": {
+    "current_year": {}
+  }
 }
 -------------------------------------------------------------------------------
 
@@ -165,9 +165,9 @@ or via the dedicated aliases api if the index already exists:
 -------------------------------------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "add" : { "index" : "2015", "alias" : "current_year" } }
-    ]
+  "actions" : [
+    { "add" : { "index" : "2015", "alias" : "current_year" } }
+  ]
 }
 -------------------------------------------------------------------------------
 // TEST[s/^/PUT 2015\n/]

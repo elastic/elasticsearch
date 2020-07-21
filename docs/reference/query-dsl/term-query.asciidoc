@@ -28,14 +28,14 @@ instead.
 ----
 GET /_search
 {
-    "query": {
-        "term": {
-            "user": {
-                "value": "Kimchy",
-                "boost": 1.0
-            }
-        }
+  "query": {
+    "term": {
+      "user": {
+        "value": "Kimchy",
+        "boost": 1.0
+      }
     }
+  }
 }
 ----
 
@@ -94,11 +94,11 @@ To see the difference in search results, try the following example.
 ----
 PUT my_index
 {
-    "mappings" : {
-        "properties" : {
-            "full_text" : { "type" : "text" }
-        }
+  "mappings": {
+    "properties": {
+      "full_text": { "type": "text" }
     }
+  }
 }
 ----
 

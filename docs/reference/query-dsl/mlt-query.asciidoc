@@ -19,14 +19,14 @@ fields, limiting the number of selected terms to 12.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "more_like_this" : {
-            "fields" : ["title", "description"],
-            "like" : "Once upon a time",
-            "min_term_freq" : 1,
-            "max_query_terms" : 12
-        }
+  "query": {
+    "more_like_this" : {
+      "fields" : ["title", "description"],
+      "like" : "Once upon a time",
+      "min_term_freq" : 1,
+      "max_query_terms" : 12
     }
+  }
 }
 --------------------------------------------------
 
@@ -38,24 +38,24 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "more_like_this" : {
-            "fields" : ["title", "description"],
-            "like" : [
-            {
-                "_index" : "imdb",
-                "_id" : "1"
-            },
-            {
-                "_index" : "imdb",
-                "_id" : "2"
-            },
-            "and potentially some more text here as well"
-            ],
-            "min_term_freq" : 1,
-            "max_query_terms" : 12
-        }
+  "query": {
+    "more_like_this": {
+      "fields": [ "title", "description" ],
+      "like": [
+        {
+          "_index": "imdb",
+          "_id": "1"
+        },
+        {
+          "_index": "imdb",
+          "_id": "2"
+        },
+        "and potentially some more text here as well"
+      ],
+      "min_term_freq": 1,
+      "max_query_terms": 12
     }
+  }
 }
 --------------------------------------------------
 
@@ -67,29 +67,29 @@ present in the index, the syntax is similar to <<docs-termvectors-artificial-doc
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "more_like_this" : {
-            "fields" : ["name.first", "name.last"],
-            "like" : [
-            {
-                "_index" : "marvel",
-                "doc" : {
-                    "name": {
-                        "first": "Ben",
-                        "last": "Grimm"
-                    },
-                    "_doc": "You got no idea what I'd... what I'd give to be invisible."
-                  }
+  "query": {
+    "more_like_this": {
+      "fields": [ "name.first", "name.last" ],
+      "like": [
+        {
+          "_index": "marvel",
+          "doc": {
+            "name": {
+              "first": "Ben",
+              "last": "Grimm"
             },
-            {
-                "_index" : "marvel",
-                "_id" : "2"
-            }
-            ],
-            "min_term_freq" : 1,
-            "max_query_terms" : 12
+            "_doc": "You got no idea what I'd... what I'd give to be invisible."
+          }
+        },
+        {
+          "_index": "marvel",
+          "_id": "2"
         }
+      ],
+      "min_term_freq": 1,
+      "max_query_terms": 12
     }
+  }
 }
 --------------------------------------------------
 
@@ -121,27 +121,27 @@ default, but there will be no speed up on analysis for these fields.
 --------------------------------------------------
 PUT /imdb
 {
-    "mappings": {
-        "properties": {
-            "title": {
-                "type": "text",
-                "term_vector": "yes"
-            },
-            "description": {
-                "type": "text"
-            },
-            "tags": {
-                "type": "text",
-                "fields" : {
-                    "raw": {
-                        "type" : "text",
-                        "analyzer": "keyword",
-                        "term_vector" : "yes"
-                    }
-                }
-            }
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "term_vector": "yes"
+      },
+      "description": {
+        "type": "text"
+      },
+      "tags": {
+        "type": "text",
+        "fields": {
+          "raw": {
+            "type": "text",
+            "analyzer": "keyword",
+            "term_vector": "yes"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

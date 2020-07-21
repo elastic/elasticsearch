@@ -113,30 +113,30 @@ The API returns the following response:
 [source,console-result]
 --------------------------------------------------
 {
-    "indices": ["index1", "index2", "index3", "index4", "index5"],
-    "fields": {
-        "rating": { <1>
-            "long": {
-                "searchable": true,
-                "aggregatable": false,
-                "indices": ["index1", "index2"],
-                "non_aggregatable_indices": ["index1"] <2>
-            },
-            "keyword": {
-                "searchable": false,
-                "aggregatable": true,
-                "indices": ["index3", "index4"],
-                "non_searchable_indices": ["index4"] <3>
-            }
-        },
-        "title": { <4>
-            "text": {
-                "searchable": true,
-                "aggregatable": false
+  "indices": [ "index1", "index2", "index3", "index4", "index5" ],
+  "fields": {
+    "rating": {                                   <1>
+      "long": {
+        "searchable": true,
+        "aggregatable": false,
+        "indices": [ "index1", "index2" ],
+        "non_aggregatable_indices": [ "index1" ]  <2>
+      },
+      "keyword": {
+        "searchable": false,
+        "aggregatable": true,
+        "indices": [ "index3", "index4" ],
+        "non_searchable_indices": [ "index4" ]    <3>
+      }
+    },
+    "title": {                                    <4>
+      "text": {
+        "searchable": true,
+        "aggregatable": false
 
-            }
-        }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:historically skipped]
@@ -162,40 +162,40 @@ in some indices but not all:
 [source,console-result]
 --------------------------------------------------
 {
-    "indices": ["index1", "index2", "index3"],
-    "fields": {
-        "rating": {
-            "long": {
-                "searchable": true,
-                "aggregatable": false,
-                "indices": ["index1", "index2"],
-                "non_aggregatable_indices": ["index1"]
-            },
-            "keyword": {
-                "searchable": false,
-                "aggregatable": true,
-                "indices": ["index3", "index4"],
-                "non_searchable_indices": ["index4"]
-            },
-            "unmapped": { <1>
-                "indices": ["index5"],
-                "searchable": false,
-                "aggregatable": false
-            }
-        },
-        "title": {
-            "text": {
-                "indices": ["index1", "index2", "index3", "index4"],
-                "searchable": true,
-                "aggregatable": false
-            },
-            "unmapped": { <2>
-                "indices": ["index5"]
-                "searchable": false,
-                "aggregatable": false
-            }
-        }
+  "indices": [ "index1", "index2", "index3" ],
+  "fields": {
+    "rating": {
+      "long": {
+        "searchable": true,
+        "aggregatable": false,
+        "indices": [ "index1", "index2" ],
+        "non_aggregatable_indices": [ "index1" ]
+      },
+      "keyword": {
+        "searchable": false,
+        "aggregatable": true,
+        "indices": [ "index3", "index4" ],
+        "non_searchable_indices": [ "index4" ]
+      },
+      "unmapped": {                               <1>
+        "indices": [ "index5" ],
+        "searchable": false,
+        "aggregatable": false
+      }
+    },
+    "title": {
+      "text": {
+        "indices": [ "index1", "index2", "index3", "index4" ],
+        "searchable": true,
+        "aggregatable": false
+      },
+      "unmapped": {                               <2>
+        "indices": [ "index5" ],
+        "searchable": false,
+        "aggregatable": false
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:historically skipped]

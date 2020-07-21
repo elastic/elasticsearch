@@ -16,13 +16,13 @@ that begins with `ki`.
 ----
 GET /_search
 {
-    "query": {
-        "prefix": {
-            "user": {
-                "value": "ki"
-            }
-        }
+  "query": {
+    "prefix": {
+      "user": {
+        "value": "ki"
+      }
     }
+  }
 }
 ----
 
@@ -53,9 +53,9 @@ You can simplify the `prefix` query syntax by combining the `<field>` and
 ----
 GET /_search
 {
-    "query": {
-        "prefix" : { "user" : "ki" }
-    }
+  "query": {
+    "prefix" : { "user" : "ki" }
+  }
 }
 ----
 

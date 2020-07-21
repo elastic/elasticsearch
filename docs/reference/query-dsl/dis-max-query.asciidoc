@@ -21,16 +21,16 @@ You can use the `dis_max` to search for a term in fields mapped with different
 ----
 GET /_search
 {
-    "query": {
-        "dis_max" : {
-            "queries" : [
-                { "term" : { "title" : "Quick pets" }},
-                { "term" : { "body" : "Quick pets" }}
-            ],
-            "tie_breaker" : 0.7
-        }
+  "query": {
+    "dis_max": {
+      "queries": [
+        { "term": { "title": "Quick pets" } },
+        { "term": { "body": "Quick pets" } }
+      ],
+      "tie_breaker": 0.7
     }
-}    
+  }
+}
 ----
 
 [[query-dsl-dis-max-query-top-level-params]]

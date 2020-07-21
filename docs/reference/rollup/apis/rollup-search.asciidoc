@@ -71,30 +71,30 @@ a {rollup-job} with the following configuration:
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
@@ -108,14 +108,14 @@ data:
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]
@@ -163,14 +163,14 @@ If we try to execute that search:
 --------------------------------------------------
 GET sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "avg_temperature": {
-            "avg": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "avg_temperature": {
+      "avg": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -179,19 +179,19 @@ GET sensor_rollup/_rollup_search
 [source,console-result]
 ----
 {
-    "error" : {
-        "root_cause" : [
-            {
-                "type" : "illegal_argument_exception",
-                "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
-                "stack_trace": ...
-            }
-        ],
-        "type" : "illegal_argument_exception",
-        "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
         "stack_trace": ...
-    },
-    "status": 400
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+    "stack_trace": ...
+  },
+  "status": 400
 }
 ----
 // TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
@@ -206,14 +206,14 @@ the live indices to the URI:
 --------------------------------------------------
 GET sensor-1,sensor_rollup/_rollup_search <1>
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]

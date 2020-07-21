@@ -14,16 +14,16 @@ Suppose that the query to retrieve the first page looks like this:
 --------------------------------------------------
 GET twitter/_search
 {
-    "size": 10,
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
-    },
-    "sort": [
-        {"date": "asc"},
-        {"tie_breaker_id": "asc"}      <1>
-    ]
+  "size": 10,
+  "query": {
+    "match" : {
+      "title" : "elasticsearch"
+    }
+  },
+  "sort": [
+    {"date": "asc"},
+    {"tie_breaker_id": "asc"}      <1>
+  ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -57,17 +57,17 @@ For instance we can use the `sort values` of the last document and pass it to `s
 --------------------------------------------------
 GET twitter/_search
 {
-    "size": 10,
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
-    },
-    "search_after": [1463538857, "654323"],
-    "sort": [
-        {"date": "asc"},
-        {"tie_breaker_id": "asc"}
-    ]
+  "size": 10,
+  "query": {
+    "match" : {
+      "title" : "elasticsearch"
+    }
+  },
+  "search_after": [1463538857, "654323"],
+  "sort": [
+    {"date": "asc"},
+    {"tie_breaker_id": "asc"}
+  ]
 }
 --------------------------------------------------
 // TEST[setup:twitter]

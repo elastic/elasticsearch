@@ -435,12 +435,12 @@ with `user_id` field values.
 ----
 POST /users/_doc?refresh=wait_for
 {
-    "user_id" : 12345
+  "user_id" : 12345
 }
 
 POST /users/_doc?refresh=wait_for
 {
-    "user_id" : 12346
+  "user_id" : 12346
 }
 ----
 // TEST[continued]

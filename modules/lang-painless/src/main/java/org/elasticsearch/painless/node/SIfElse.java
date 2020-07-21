@@ -65,8 +65,21 @@ public class SIfElse extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitIfElse(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitIfElse(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+
+        if (ifblockNode != null) {
+            ifblockNode.visit(userTreeVisitor, scope);
+        }
+
+        if (elseblockNode != null) {
+            elseblockNode.visit(userTreeVisitor, scope);
+        }
     }
 
     @Override

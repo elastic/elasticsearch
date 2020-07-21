@@ -7,11 +7,9 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -146,12 +144,6 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
                 out.writeOptionalString(jobId);
             }
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-        RequestBuilder(ElasticsearchClient client, DeleteExpiredDataAction action) {
-            super(client, action, new Request());
         }
     }
 

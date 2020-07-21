@@ -7,11 +7,9 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -180,13 +178,6 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
             return Arrays.equals(indices, that.indices)
                 && Objects.equals(queryProvider, that.queryProvider)
                 && Objects.equals(evaluation, that.evaluation);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 

@@ -10,8 +10,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -101,13 +99,6 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
         @Override
         public int hashCode() {
             return Objects.hash(id, force, timeout);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, DeleteDataFrameAnalyticsAction action) {
-            super(client, action, new Request());
         }
     }
 }

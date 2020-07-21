@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -169,13 +167,6 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
                     && Objects.equals(description, other.description)
                     && Objects.equals(addItems, other.addItems)
                     && Objects.equals(removeItems, other.removeItems);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, PutFilterAction.Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 }

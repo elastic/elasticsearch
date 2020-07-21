@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -208,13 +206,6 @@ public class GetInfluencersAction extends ActionType<GetInfluencersAction.Respon
                     && Objects.equals(influencerScore, other.influencerScore)
                     && Objects.equals(descending, other.descending)
                     && Objects.equals(sort, other.sort);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 

@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -76,13 +74,6 @@ public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
             out.writeString(jobId);
             out.writeString(forecastId);
             out.writeBoolean(allowNoForecasts);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        public RequestBuilder(ElasticsearchClient client, DeleteForecastAction action) {
-            super(client, action, new Request());
         }
     }
 

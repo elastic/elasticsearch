@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -185,13 +183,6 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
                     Objects.equals(timeout, other.timeout) &&
                     Objects.equals(force, other.force) &&
                     Objects.equals(allowNoJobs, other.allowNoJobs);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, CloseJobAction action) {
-            super(client, action, new Request());
         }
     }
 

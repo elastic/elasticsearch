@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -95,14 +93,6 @@ public class UpdateDataFrameAnalyticsAction extends ActionType<PutDataFrameAnaly
         @Override
         public int hashCode() {
             return Objects.hash(update);
-        }
-    }
-
-    public static class RequestBuilder
-        extends MasterNodeOperationRequestBuilder<Request, PutDataFrameAnalyticsAction.Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, UpdateDataFrameAnalyticsAction action) {
-            super(client, action, new Request());
         }
     }
 }

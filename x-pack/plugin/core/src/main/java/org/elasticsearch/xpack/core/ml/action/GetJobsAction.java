@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -92,13 +90,6 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoJobs, other.allowNoJobs);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, GetJobsAction action) {
-            super(client, action, new Request());
         }
     }
 

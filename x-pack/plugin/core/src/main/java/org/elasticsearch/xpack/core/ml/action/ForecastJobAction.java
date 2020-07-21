@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -192,13 +190,6 @@ public class ForecastJobAction extends ActionType<ForecastJobAction.Response> {
             }
             builder.endObject();
             return builder;
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, ForecastJobAction action) {
-            super(client, action, new Request());
         }
     }
 

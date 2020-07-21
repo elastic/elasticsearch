@@ -19,6 +19,10 @@ import static org.mockito.Mockito.when;
 abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
     public abstract void testDocValues() throws IOException;
 
+    public abstract void testSort() throws IOException;
+
+    public abstract void testUsedInScript() throws IOException;
+
     public abstract void testExistsQuery() throws IOException;
 
     public abstract void testExistsQueryIsExpensive() throws IOException;

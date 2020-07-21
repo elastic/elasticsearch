@@ -33,6 +33,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
     }
 
     private void assertQueryOnlyOnTextAndKeyword(String queryName, ThrowingRunnable buildQuery) {
+        // TODO use runtime type in the error message and a consistent exception type
         Exception e = expectThrows(Exception.class, buildQuery);
         assertThat(
             e.getMessage(),
@@ -41,6 +42,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
     }
 
     private void assertQueryOnlyOnTextKeywordAndWildcard(String queryName, ThrowingRunnable buildQuery) {
+        // TODO use runtime type in the error message and a consistent exception type
         Exception e = expectThrows(Exception.class, buildQuery);
         assertThat(
             e.getMessage(),

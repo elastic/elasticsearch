@@ -23,13 +23,14 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeBucketStrategy;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to {@link AggregatorSupplier}s.  DO NOT directly
@@ -39,7 +40,16 @@ import java.util.function.BiFunction;
  */
 public class ValuesSourceRegistry {
 
-    interface CompositeSupplier extends BiFunction<ValuesSourceConfig, CompositeBucketStrategy, CompositeValuesSourceBuilder> {}
+    @FunctionalInterface
+    public interface CompositeSupplier {
+        CompositeValuesSourceConfig apply(
+            ValuesSourceConfig config,
+            CompositeBucketStrategy compositeBucketStrategy,
+            String format,
+            boolean missingBucket,
+            SortOrder order
+        );
+    }
 
     public static class Builder {
         private final AggregationUsageService.Builder usageServiceBuilder;
@@ -97,6 +107,21 @@ public class ValuesSourceRegistry {
                 compositeRegistry.put(sourceName, new ArrayList<>());
             }
             compositeRegistry.get(sourceName).add(new AbstractMap.SimpleEntry<>(valuesSourceType, compositeSupplier));
+        }
+
+        /**
+         * Register a new key generation function for the
+         * {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation}.  This is a convenience version to map
+         * multiple types to the same supplier.
+         * @param sourceName the name of the {@link CompositeValuesSourceBuilder} this mapping applies to
+         * @param valuesSourceTypes the {@link ValuesSourceType}s this mapping applies to
+         * @param compositeSupplier A function returning an appropriate
+         *                          {@link org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceConfig}
+         */
+        public void registerComposite(String sourceName, List<ValuesSourceType> valuesSourceTypes, CompositeSupplier compositeSupplier) {
+            for (ValuesSourceType valuesSourceType : valuesSourceTypes) {
+                registerComposite(sourceName, valuesSourceType, compositeSupplier);
+            }
         }
 
         public void registerUsage(String aggregationName, ValuesSourceType valuesSourceType) {

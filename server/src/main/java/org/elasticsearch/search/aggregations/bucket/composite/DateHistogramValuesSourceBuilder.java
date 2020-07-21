@@ -39,13 +39,16 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalConsumer;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateIntervalWrapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongConsumer;
 
@@ -249,47 +252,55 @@ public class DateHistogramValuesSourceBuilder
         return this;
     }
 
+    public static void register(ValuesSourceRegistry.Builder builder) {
+        builder.registerComposite(
+            TYPE,
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            ((valuesSourceConfig, compositeBucketStrategy, format, missingBucket, order) -> {
+                ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+                // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
+                // here
+                Rounding rounding = compositeBucketStrategy.getRounding();
+                Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
+                RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
+                // is specified in the builder.
+                final DocValueFormat docValueFormat = format == null ? DocValueFormat.RAW : valuesSourceConfig.format();
+                final MappedFieldType fieldType = valuesSourceConfig.fieldType();
+                return new CompositeValuesSourceConfig(
+                    compositeBucketStrategy.getName(),
+                    fieldType,
+                    vs,
+                    docValueFormat,
+                    order,
+                    missingBucket,
+                    valuesSourceConfig.script() != null,
+                    (
+                        BigArrays bigArrays,
+                        IndexReader reader,
+                        int size,
+                        LongConsumer addRequestCircuitBreakerBytes,
+                        CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+                        final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
+                        return new LongValuesSource(
+                            bigArrays,
+                            compositeValuesSourceConfig.fieldType(),
+                            roundingValuesSource::longValues,
+                            roundingValuesSource::round,
+                            compositeValuesSourceConfig.format(),
+                            compositeValuesSourceConfig.missingBucket(),
+                            size,
+                            compositeValuesSourceConfig.reverseMul()
+                        );
+                    }
+                );
+            })
+        );
+    }
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
-        ValuesSource orig = config.getValuesSource();
-        if (orig instanceof ValuesSource.Numeric) {
-            ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
-            // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it here
-            Rounding.Prepared preparedRounding = rounding.prepareForUnknown();
-            RoundingValuesSource vs = new RoundingValuesSource(numeric, preparedRounding);
-            // is specified in the builder.
-            final DocValueFormat docValueFormat = format() == null ? DocValueFormat.RAW : config.format();
-            final MappedFieldType fieldType = config.fieldType();
-            return new CompositeValuesSourceConfig(
-                name,
-                fieldType,
-                vs,
-                docValueFormat,
-                order(),
-                missingBucket(),
-                config.script() != null,
-                (
-                    BigArrays bigArrays,
-                    IndexReader reader,
-                    int size,
-                    LongConsumer addRequestCircuitBreakerBytes,
-                    CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
-                    final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
-                    return new LongValuesSource(
-                        bigArrays,
-                        compositeValuesSourceConfig.fieldType(),
-                        roundingValuesSource::longValues,
-                        roundingValuesSource::round,
-                        compositeValuesSourceConfig.format(),
-                        compositeValuesSourceConfig.missingBucket(),
-                        size,
-                        compositeValuesSourceConfig.reverseMul()
-                    );
-                }
-            );
-            } else {
-            throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
-        }
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config)
+            .apply(config, new CompositeBucketStrategy(name, rounding), format(), missingBucket(), order());
     }
 }

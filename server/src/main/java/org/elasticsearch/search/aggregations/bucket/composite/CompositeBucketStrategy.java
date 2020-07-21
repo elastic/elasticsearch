@@ -33,23 +33,34 @@ public class CompositeBucketStrategy {
     }
 
     private final Strategy strategy;
+
+    private final String name;
+
+    // At most one of these should be set
     private final Rounding rounding;
     private final double interval;
 
-    public CompositeBucketStrategy() {
+    private CompositeBucketStrategy() {
+        throw new UnsupportedOperationException();
+    }
+
+    public CompositeBucketStrategy(String name) {
         this.strategy = Strategy.NONE;
+        this.name = name;
         this.rounding = null;
         this.interval = Double.NaN;
     }
 
-    public CompositeBucketStrategy(Rounding rounding) {
+    public CompositeBucketStrategy(String name, Rounding rounding) {
         this.strategy = Strategy.ROUNDING;
+        this.name = name;
         this.rounding = rounding;
         this.interval = Double.NaN;
     }
 
-    public CompositeBucketStrategy(double interval) {
+    public CompositeBucketStrategy(String name, double interval) {
         this.strategy = Strategy.INTERVAL;
+        this.name = name;
         this.interval = interval;
         this.rounding = null;
     }
@@ -62,5 +73,9 @@ public class CompositeBucketStrategy {
     public double getInterval() {
         assert strategy == Strategy.INTERVAL;
         return interval;
+    }
+
+    public String getName() {
+        return name;
     }
 }

@@ -189,44 +189,22 @@ from document 3 but filters out the `user.location` field.
 --------------------------------------------------
 GET /_mget
 {
-<<<<<<< HEAD
-    "docs" : [
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "1",
-            "_source" : false
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "2",
-            "_source" : ["field3", "field4"]
-        },
-        {
-            "_index" : "test",
-            "_type" : "_doc",
-            "_id" : "3",
-            "_source" : {
-                "include": ["user"],
-                "exclude": ["user.location"]
-            }
-        }
-    ]
-=======
   "docs": [
     {
       "_index": "test",
+      "_type": "_doc",
       "_id": "1",
       "_source": false
     },
     {
       "_index": "test",
+      "_type": "_doc",
       "_id": "2",
       "_source": [ "field3", "field4" ]
     },
     {
       "_index": "test",
+      "_type": "_doc",
       "_id": "3",
       "_source": {
         "include": [ "user" ],
@@ -234,7 +212,6 @@ GET /_mget
       }
     }
   ]
->>>>>>> 80b674fb251... [DOCS] Reformat snippets to use two-space indents (#59973)
 }
 --------------------------------------------------
 

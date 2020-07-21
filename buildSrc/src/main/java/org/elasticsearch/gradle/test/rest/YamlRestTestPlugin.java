@@ -20,19 +20,13 @@
 package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
-import org.gradle.api.tasks.bundling.Zip;
 
 /**
  * Apply this plugin to run the YAML based REST tests.
@@ -66,9 +60,7 @@ public class YamlRestTestPlugin extends AbstractRestTestPlugin {
             copyRestApiTask.sourceSetName = SOURCE_SET_NAME;
             project.getTasks().named(yamlTestSourceSet.getProcessResourcesTaskName()).configure(t -> t.dependsOn(copyRestApiTask));
         });
-        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> {
-            copyRestTestTask.sourceSetName = SOURCE_SET_NAME;
-        });
+        project.getTasks().withType(CopyRestTestsTask.class, copyRestTestTask -> { copyRestTestTask.sourceSetName = SOURCE_SET_NAME; });
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlTestSourceSet);

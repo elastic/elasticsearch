@@ -479,6 +479,17 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(mapperService.simpleMatchToFullName("*1"), equalTo(Set.of("f1", "r1")));
     }
 
+    public void testNewFieldTypeLookupRuntimeMappingsInObject() throws IOException {
+        Map<String, Object> inner = new TreeMap<>(Map.of("inner", new TreeMap<>(Map.of("type", "test_runtime"))));
+        MapperService mapperService = createIndex("test1", Settings.EMPTY, "_doc", "f1", "type=long").mapperService()
+            .forSearch(new TreeMap<>(Map.of("r1", new TreeMap<>(Map.of("type", "object", "properties", inner)))));
+        assertThat(mapperService.fieldType("f1"), notNullValue());
+        assertThat(mapperService.fieldType("f2"), nullValue());
+        assertThat(mapperService.fieldType("r1.inner"), notNullValue());
+        assertThat(mapperService.fieldType("r2"), nullValue());
+        assertThat(mapperService.simpleMatchToFullName("*1*"), equalTo(Set.of("f1", "r1.inner")));
+    }
+
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {
         ReloadableCustomAnalyzer updatedReloadableAnalyzer = (ReloadableCustomAnalyzer) updatedAnalyzer.analyzer();
         TokenFilterFactory[] newTokenFilters = updatedReloadableAnalyzer.getComponents().getTokenFilters();

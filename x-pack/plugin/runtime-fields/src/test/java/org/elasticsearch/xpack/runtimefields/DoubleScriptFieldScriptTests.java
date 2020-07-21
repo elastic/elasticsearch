@@ -115,13 +115,14 @@ public class DoubleScriptFieldScriptTests extends ScriptFieldScriptTestCase<
     @Override
     protected IntFunction<List<Double>> newInstance(DoubleScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context)
         throws IOException {
-        List<Double> results = new ArrayList<>();
-        DoubleScriptFieldScript script = leafFactory.newInstance(context, results::add);
+        DoubleScriptFieldScript script = leafFactory.newInstance(context);
         return docId -> {
-            results.clear();
-            script.setDocument(docId);
-            script.execute();
-            return results;
+            script.runForDoc(docId);
+            List<Double> list = new ArrayList<>(script.count());
+            for (int i = 0; i < script.count(); i++) {
+                list.add(script.values()[i]);
+            }
+            return list;
         };
     }
 }

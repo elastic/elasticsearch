@@ -416,28 +416,16 @@ public class NumberFieldMapper extends FieldMapper {
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
                                     boolean hasDocValues, QueryShardContext context) {
-                double l = Double.NEGATIVE_INFINITY;
-                double u = Double.POSITIVE_INFINITY;
-                if (lowerTerm != null) {
-                    l = parse(lowerTerm, false);
-                    if (includeLower == false) {
-                        l = DoublePoint.nextUp(l);
+                return doubleRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
+                    Query query = DoublePoint.newRangeQuery(field, l, u);
+                    if (hasDocValues) {
+                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
+                                NumericUtils.doubleToSortableLong(l),
+                                NumericUtils.doubleToSortableLong(u));
+                        query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
-                }
-                if (upperTerm != null) {
-                    u = parse(upperTerm, false);
-                    if (includeUpper == false) {
-                        u = DoublePoint.nextDown(u);
-                    }
-                }
-                Query query = DoublePoint.newRangeQuery(field, l, u);
-                if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
-                            NumericUtils.doubleToSortableLong(l),
-                            NumericUtils.doubleToSortableLong(u));
-                    query = new IndexOrDocValuesQuery(query, dvQuery);
-                }
-                return query;
+                    return query;
+                });
             }
 
             @Override
@@ -844,7 +832,7 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Converts an Object to a double by checking it against known types first
          */
-        private static double objectToDouble(Object value) {
+        public static double objectToDouble(Object value) {
             double doubleValue;
 
             if (value instanceof Number) {
@@ -880,6 +868,30 @@ public class NumberFieldMapper extends FieldMapper {
             // longs need special handling so we don't lose precision while parsing
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             return Numbers.toLong(stringValue, coerce);
+        }
+
+        public static Query doubleRangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            BiFunction<Double, Double, Query> builder
+        ) {
+            double l = Double.NEGATIVE_INFINITY;
+            double u = Double.POSITIVE_INFINITY;
+            if (lowerTerm != null) {
+                l = objectToDouble(lowerTerm);
+                if (includeLower == false) {
+                    l = DoublePoint.nextUp(l);
+                }
+            }
+            if (upperTerm != null) {
+                u = objectToDouble(upperTerm);
+                if (includeUpper == false) {
+                    u = DoublePoint.nextDown(u);
+                }
+            }
+            return builder.apply(l, u);
         }
 
         /**

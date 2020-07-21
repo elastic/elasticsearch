@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -16,10 +17,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.DoubleConsumer;
 
 public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript {
-    static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("double_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("double_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
         return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "double_whitelist.txt"));
@@ -32,14 +32,47 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     public interface LeafFactory {
-        DoubleScriptFieldScript newInstance(LeafReaderContext ctx, DoubleConsumer sync) throws IOException;
+        DoubleScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    private final DoubleConsumer sync;
+    private double[] values = new double[1];
+    private int count;
 
-    public DoubleScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx, DoubleConsumer sync) {
+    public DoubleScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
-        this.sync = sync;
+    }
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     */
+    public final void runForDoc(int docId) {
+        count = 0;
+        setDocument(docId);
+        execute();
+    }
+
+    /**
+     * Values from the last time {@link #runForDoc(int)} was called. This array
+     * is mutable and will change with the next call of {@link #runForDoc(int)}.
+     * It is also oversized and will contain garbage at all indices at and
+     * above {@link #count()}.
+     */
+    public final double[] values() {
+        return values;
+    }
+
+    /**
+     * The number of results produced the last time {@link #runForDoc(int)} was called.
+     */
+    public final int count() {
+        return count;
+    }
+
+    private void collectValue(double v) {
+        if (values.length < count + 1) {
+            values = ArrayUtil.grow(values, count + 1);
+        }
+        values[count++] = v;
     }
 
     public static class Value {
@@ -50,7 +83,7 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         }
 
         public void value(double v) {
-            script.sync.accept(v);
+            script.collectValue(v);
         }
     }
 }

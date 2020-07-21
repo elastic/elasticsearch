@@ -1,0 +1,203 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+              voltage_percent:
+                type: script
+                runtime_type: double
+                script:
+                  source: |
+                    for (double v : doc['voltage']) {
+                      value(v / params.max);
+                    }
+                  params:
+                    max: 5.8
+              top_voltage:
+                type: script
+                runtime_type: double
+                script:
+                  source: |
+                    for (double vp: doc['voltage_percent']) {
+                      if (vp >= params.cutoff) {
+                        value(vp);
+                      }
+                    }
+                  params:
+                    cutoff: 0.9
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: {sensor.mappings.properties.voltage_percent.type: script }
+  - match: {sensor.mappings.properties.voltage_percent.runtime_type: double }
+  - match:
+      sensor.mappings.properties.voltage_percent.script.source: |
+        for (double v : doc['voltage']) {
+          value(v / params.max);
+        }
+  - match: {sensor.mappings.properties.voltage_percent.script.params: {max: 5.8} }
+  - match: {sensor.mappings.properties.voltage_percent.script.lang: painless }
+  - match: {sensor.mappings.properties.top_voltage.type: script }
+  - match: {sensor.mappings.properties.top_voltage.runtime_type: double }
+  - match:
+      sensor.mappings.properties.top_voltage.script.source: |
+        for (double vp: doc['voltage_percent']) {
+          if (vp >= params.cutoff) {
+            value(vp);
+          }
+        }
+  - match: {sensor.mappings.properties.top_voltage.script.params: {cutoff: 0.9} }
+  - match: {sensor.mappings.properties.top_voltage.script.lang: painless }
+
+---
+"docvalue_fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields: [voltage_percent]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_percent: [0.6896551724137931] }
+  - match: {hits.hits.1.fields.voltage_percent: [0.7241379310344828] }
+  - match: {hits.hits.2.fields.voltage_percent: [0.9655172413793103] }
+  - match: {hits.hits.3.fields.voltage_percent: [0.8793103448275862] }
+  - match: {hits.hits.4.fields.voltage_percent: [1.0] }
+  - match: {hits.hits.5.fields.voltage_percent: [0.896551724137931] }
+
+---
+"terms agg":
+  - do:
+      search:
+        index: sensor
+        body:
+          aggs:
+            v10:
+              terms:
+                field: voltage_percent
+  - match: {hits.total.value: 6}
+  - match: {aggregations.v10.buckets.0.key: 0.6896551724137931}
+  - match: {aggregations.v10.buckets.0.doc_count: 1}
+  - match: {aggregations.v10.buckets.1.key: 0.7241379310344828}
+  - match: {aggregations.v10.buckets.1.doc_count: 1}
+
+---
+"exists query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            exists:
+              field: top_voltage
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 5.6}
+  - match: {hits.hits.1._source.voltage: 5.8}
+
+---
+"range query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                lt: .7
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 4.0}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                gt: 1
+  - match: {hits.total.value: 0}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                gte: 1
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            range:
+              voltage_percent:
+                gte: .7
+                lte: .8
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 4.2}
+
+---
+"term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              voltage_percent: 1.0
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"terms query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            terms:
+              voltage_percent: [0.6896551724137931, 1]
+          sort: timestamp
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 4.0}
+  - match: {hits.hits.1._source.voltage: 5.8}

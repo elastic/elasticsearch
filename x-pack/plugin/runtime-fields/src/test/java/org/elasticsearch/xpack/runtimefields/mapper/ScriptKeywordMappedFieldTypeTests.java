@@ -17,22 +17,30 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
+import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.RuntimeFieldsPainlessExtension;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -48,6 +56,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedFieldTypeTestCase {
+    @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -90,6 +99,57 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
+    public void testSort() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"d\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                ScriptKeywordMappedFieldType ft = build("for (def v : source.foo) { value(v.toString())}");
+                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
+                ifd.setSearchLookup(mockContext().lookup());
+                SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
+                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
+                assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [\"a\"]}"));
+                assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [\"b\"]}"));
+                assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [\"d\"]}"));
+            }
+        }
+    }
+
+    @Override
+    public void testUsedInScript() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aaa\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                QueryShardContext qsc = mockContext(true, build("for (def v : source.foo) { value(v.toString())}"));
+                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                    @Override
+                    public boolean needs_score() {
+                        return false;
+                    }
+
+                    @Override
+                    public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
+                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
+                            @Override
+                            public double execute(ExplanationHolder explanation) {
+                                ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
+                                return bytes.get(0).length();
+                            }
+                        };
+                    }
+                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+            }
+        }
+    }
+
+    @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
@@ -101,6 +161,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testExistsQueryIsExpensive() throws IOException {
         checkExpensiveQuery(ScriptKeywordMappedFieldType::existsQuery);
     }
@@ -151,6 +212,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         checkExpensiveQuery((ft, ctx) -> ft.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx));
     }
 
+    @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
@@ -166,6 +228,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testRangeQueryIsExpensive() throws IOException {
         checkExpensiveQuery(
             (ft, ctx) -> ft.rangeQuery(
@@ -202,6 +265,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         checkExpensiveQuery((ft, ctx) -> ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFFFF), randomInt(), null, ctx));
     }
 
+    @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -214,10 +278,12 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testTermQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx));
     }
 
+    @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -231,6 +297,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         }
     }
 
+    @Override
     public void testTermsQueryIsExpensive() throws IOException {
         checkExpensiveQuery((ft, ctx) -> ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx));
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -112,6 +113,13 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             () -> createIndex("test", Settings.EMPTY, mapping("unsupported"))
         );
         assertEquals("Failed to parse mapping: runtime_type [unsupported] not supported", exc.getMessage());
+    }
+
+    public void testDouble() throws IOException {
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("double")).mapperService();
+        FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper, instanceOf(ScriptFieldMapper.class));
+        assertEquals(Strings.toString(mapping("double")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testKeyword() throws IOException {
@@ -210,6 +218,18 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
                 }
 
                 private Object dummyScriptFactory(ScriptContext<?> context) {
+                    if (context == DoubleScriptFieldScript.CONTEXT) {
+                        return (DoubleScriptFieldScript.Factory) (params, lookup) -> ctx -> new DoubleScriptFieldScript(
+                            params,
+                            lookup,
+                            ctx
+                        ) {
+                            @Override
+                            public void execute() {
+                                new DoubleScriptFieldScript.Value(this).value(1.0);
+                            }
+                        };
+                    }
                     if (context == StringScriptFieldScript.CONTEXT) {
                         return (StringScriptFieldScript.Factory) (params, lookup) -> ctx -> new StringScriptFieldScript(
                             params,

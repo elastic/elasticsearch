@@ -55,19 +55,19 @@ we can calculate the weighted average using:
 --------------------------------------------------
 POST /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "weighted_grade": {
-            "weighted_avg": {
-                "value": {
-                    "field": "grade"
-                },
-                "weight": {
-                    "field": "weight"
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "weighted_grade": {
+      "weighted_avg": {
+        "value": {
+          "field": "grade"
+        },
+        "weight": {
+          "field": "weight"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -77,12 +77,12 @@ Which yields a response like:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "weighted_grade": {
-            "value": 70.0
-        }
+  ...
+  "aggregations": {
+    "weighted_grade": {
+      "value": 70.0
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -101,25 +101,25 @@ This example show how a single document with multiple values will be averaged wi
 --------------------------------------------------
 POST /exams/_doc?refresh
 {
-    "grade": [1, 2, 3],
-    "weight": 2
+  "grade": [1, 2, 3],
+  "weight": 2
 }
 
 POST /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "weighted_grade": {
-            "weighted_avg": {
-                "value": {
-                    "field": "grade"
-                },
-                "weight": {
-                    "field": "weight"
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "weighted_grade": {
+      "weighted_avg": {
+        "value": {
+          "field": "grade"
+        },
+        "weight": {
+          "field": "weight"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST
@@ -129,12 +129,12 @@ The three values (`1`, `2`, and `3`) will be included as independent values, all
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "weighted_grade": {
-            "value": 2.0
-        }
+  ...
+  "aggregations": {
+    "weighted_grade": {
+      "value": 2.0
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -151,19 +151,19 @@ will add one to the grade and weight in the document using a script:
 --------------------------------------------------
 POST /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "weighted_grade": {
-            "weighted_avg": {
-                "value": {
-                    "script": "doc.grade.value + 1"
-                },
-                "weight": {
-                    "script": "doc.weight.value + 1"
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "weighted_grade": {
+      "weighted_avg": {
+        "value": {
+          "script": "doc.grade.value + 1"
+        },
+        "weight": {
+          "script": "doc.weight.value + 1"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]
@@ -183,21 +183,21 @@ Both of these defaults can be overridden with the `missing` parameter:
 --------------------------------------------------
 POST /exams/_search
 {
-    "size": 0,
-    "aggs" : {
-        "weighted_grade": {
-            "weighted_avg": {
-                "value": {
-                    "field": "grade",
-                    "missing": 2
-                },
-                "weight": {
-                    "field": "weight",
-                    "missing": 3
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "weighted_grade": {
+      "weighted_avg": {
+        "value": {
+          "field": "grade",
+          "missing": 2
+        },
+        "weight": {
+          "field": "weight",
+          "missing": 3
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:exams]

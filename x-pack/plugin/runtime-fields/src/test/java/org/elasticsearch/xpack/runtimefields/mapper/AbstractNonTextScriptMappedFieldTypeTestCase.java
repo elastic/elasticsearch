@@ -1,3 +1,9 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.util.automaton.Operations;
@@ -46,9 +52,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
         Exception e = expectThrows(Exception.class, buildQuery);
         assertThat(
             e.getMessage(),
-            equalTo(
-                "Can only use " + queryName + " queries on keyword, text and wildcard fields - not on [test] which is of type [script]"
-            )
+            equalTo("Can only use " + queryName + " queries on keyword, text and wildcard fields - not on [test] which is of type [script]")
         );
     }
 }

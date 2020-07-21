@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-forecast]]
-=== Forecast jobs API
+= Forecast jobs API
 ++++
 <titleabbrev>Forecast jobs</titleabbrev>
 ++++
@@ -9,19 +9,19 @@
 Predicts the future behavior of a time series by using its historical behavior. 
 
 [[ml-forecast-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/<job_id>/_forecast`
 
 [[ml-forecast-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
 <<security-privileges>>.
 
 [[ml-forecast-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can create a forecast job based on an {anomaly-job} to extrapolate future 
 behavior. Refer to 
@@ -41,14 +41,14 @@ forecast. For more information about this property, see <<ml-put-job>>.
 ===============================
 
 [[ml-forecast-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-forecast-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `duration`::
   (Optional, <<time-units, time units>>) A period of time that indicates how far 
@@ -70,7 +70,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   below that amount.
 
 [[ml-forecast-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

@@ -29,11 +29,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -151,18 +147,10 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         doc.add(new SortedNumericDocValuesField("scaled_float2", 12));
         w.addDocument(doc);
         try (DirectoryReader reader = DirectoryReader.open(w)) {
-            IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(
-                    Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0).build()).build();
-            IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-
             // single-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f1
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float1", scalingFactor);
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index")
-                .build(indexSettings, f1, null, null, null);
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index").build(null, null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
@@ -173,7 +161,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             // multi-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f2
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float2", scalingFactor);
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index").build(indexSettings, f2, null, null, null);
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index").build(null, null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));

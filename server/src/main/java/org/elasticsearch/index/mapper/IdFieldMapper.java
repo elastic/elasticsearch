@@ -33,7 +33,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -158,22 +157,25 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
+                    name(),
                     TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                     TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
                     CoreValuesSourceType.BYTES);
             return new IndexFieldData.Builder() {
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService,
+                    MapperService mapperService
+                ) {
                     if (mapperService.isIdFieldDataEnabled() == false) {
                         throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
                             + "you can re-enable it by updating the dynamic cluster setting: "
                             + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
                     }
                     deprecationLogger.deprecatedAndMaybeLog("id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
-                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(indexSettings, fieldType, cache,
-                        breakerService, mapperService);
+                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService, mapperService);
                     return new IndexFieldData<LeafFieldData>() {
                         @Override
                         public String getFieldName() {

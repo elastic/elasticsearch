@@ -97,6 +97,8 @@ Machine Learning::
 * Trap potential cause of SIGFPE {ml-pull}1351[#1351] (issue: {ml-issue}1348[#1348])
 * Correct inference model definition for MSLE regression models {ml-pull}1375[#1375]
 * Fix cause of SIGSEGV of classification and regression {ml-pull}1379[#1379]
+* Fix restoration of change detectors after seasonality change {ml-pull}1391[#1391]
+* Fix potential SIGSEGV when forecasting {ml-pull}1402[#1402] (issue: {ml-issue}1401[#1401])
 
 Network::
 * Close channel on handshake error with old version {es-pull}56989[#56989] (issue: {es-issue}54337[#54337])

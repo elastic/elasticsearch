@@ -121,13 +121,13 @@ setup:
           sort: timestamp
           docvalue_fields: [first_letter]
   - match: {hits.total.value: 6}
-  - match: {hits.hits.0.fields.day_of_week: [T] }
-  - match: {hits.hits.1.fields.day_of_week: [F] }
-  - match: {hits.hits.2.fields.day_of_week: [S] }
-  - match: {hits.hits.3.fields.day_of_week: [S] }
-  - match: {hits.hits.4.fields.day_of_week: [M] }
-  - match: {hits.hits.5.fields.day_of_week: [T] }
-  - match: {hits.hits.6.fields.day_of_week: [W] }
+  - match: {hits.hits.0.fields.first_letter: [T] }
+  - match: {hits.hits.1.fields.first_letter: [F] }
+  - match: {hits.hits.2.fields.first_letter: [S] }
+  - match: {hits.hits.3.fields.first_letter: [S] }
+  - match: {hits.hits.4.fields.first_letter: [M] }
+  - match: {hits.hits.5.fields.first_letter: [T] }
+  - match: {hits.hits.6.fields.first_letter: [W] }
 
 ---
 "terms agg":

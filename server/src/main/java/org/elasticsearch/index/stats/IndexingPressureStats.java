@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 
@@ -105,6 +104,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String REPLICA_IN_BYTES = "replica_in_bytes";
     private static final String ALL = "all";
     private static final String ALL_IN_BYTES = "all_in_bytes";
+    private static final String COORDINATING_REJECTIONS = "coordinating_rejections";
+    private static final String PRIMARY_REJECTIONS = "primary_rejections";
+    private static final String REPLICA_REJECTIONS = "replica_rejections";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -115,9 +117,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(totalPrimaryBytes));
         builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(totalReplicaBytes));
         builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(totalReplicaBytes + totalCombinedCoordinatingAndPrimaryBytes));
-        builder.field("coordinating_rejections", coordinatingRejections);
-        builder.field("primary_rejections", primaryRejections);
-        builder.field("replica_rejections", replicaRejections);
+        builder.field(COORDINATING_REJECTIONS, coordinatingRejections);
+        builder.field(PRIMARY_REJECTIONS, primaryRejections);
+        builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.endObject();
         builder.startObject("current");
         builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(currentCombinedCoordinatingAndPrimaryBytes));

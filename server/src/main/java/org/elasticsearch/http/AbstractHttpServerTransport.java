@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.spi.RestRequestFactoryProvider;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,6 +83,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final ByteSizeValue maxContentLength;
     private final String[] bindHosts;
     private final String[] publishHosts;
+    private final ServiceLoader<RestRequestFactoryProvider> enrichingRestRequestFactories;
 
     private volatile BoundTransportAddress boundAddress;
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
@@ -113,6 +116,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = new HttpTracer(settings, clusterSettings);
+        //TODO the same can be done with a plugin but would require modifying all subclasses
+        //it is likely harder to test.. (requires meta files)
+        this.enrichingRestRequestFactories = ServiceLoader.load(RestRequestFactoryProvider.class);
     }
 
     @Override
@@ -334,8 +340,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         {
             RestRequest innerRestRequest;
             try {
-                //TODO another option would be to use a factory here, but it requires to modify all the subclasses..
+                //TODO these ideally should modify a builder
+                //
                 innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
+                for(RestRequestFactoryProvider restRequestFactoryProvider : enrichingRestRequestFactories) {
+                    innerRestRequest = restRequestFactoryProvider.getRestRequestFactory()
+                        .enrich(innerRestRequest);
+                }
+
             } catch (final RestRequest.ContentTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);

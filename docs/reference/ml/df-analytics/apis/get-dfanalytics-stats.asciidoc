@@ -58,6 +58,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 (Optional, integer) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
 
+`verbose`::
+(Optional, boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=verbose]
+
 [role="child_attributes"]
 [[ml-get-dfanalytics-stats-response-body]]
 ==== {api-response-body-title}
@@ -431,9 +435,23 @@ job is started and memory usage is reported.
 .Properties of `memory_usage`
 [%collapsible%open]
 =====
+`memory_reestimate_bytes`::::
+(long)
+This value is present when the `status` is `hard_limit` and it
+is a new estimate of how much memory the job needs.
+
 `peak_usage_bytes`::::
 (long)
 The number of bytes used at the highest peak of memory usage.
+
+`status`::::
+(string)
+The memory usage status. May have one of the following values:
++
+--
+* `ok`: usage stayed below the limit.
+* `hard_limit`: usage surpassed the configured memory limit.
+--
 
 `timestamp`::::
 (date)

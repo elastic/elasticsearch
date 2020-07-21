@@ -7,8 +7,11 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -41,11 +44,21 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
     public static final XPackUsageFeatureAction SPATIAL = new XPackUsageFeatureAction(XPackField.SPATIAL);
     public static final XPackUsageFeatureAction ANALYTICS = new XPackUsageFeatureAction(XPackField.ANALYTICS);
     public static final XPackUsageFeatureAction ENRICH = new XPackUsageFeatureAction(XPackField.ENRICH);
+    public static final XPackUsageFeatureAction SEARCHABLE_SNAPSHOTS = new XPackUsageFeatureAction(XPackField.SEARCHABLE_SNAPSHOTS);
+    public static final XPackUsageFeatureAction DATA_STREAMS = new XPackUsageFeatureAction(XPackField.DATA_STREAMS);
 
-    public static final List<XPackUsageFeatureAction> ALL = Arrays.asList(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
-        TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS
-    );
+    public static final List<XPackUsageFeatureAction> ALL;
+    static {
+        final List<XPackUsageFeatureAction> actions = new ArrayList<>();
+        actions.addAll(Arrays.asList(
+            SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, EQL, SQL, ROLLUP, INDEX_LIFECYCLE, SNAPSHOT_LIFECYCLE, CCR,
+            TRANSFORM, VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS, DATA_STREAMS
+        ));
+        if (SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOTS_FEATURE_ENABLED) {
+            actions.add(SEARCHABLE_SNAPSHOTS);
+        }
+        ALL = Collections.unmodifiableList(actions);
+    }
 
     private XPackUsageFeatureAction(String name) {
         super(BASE_NAME + name, XPackUsageFeatureResponse::new);

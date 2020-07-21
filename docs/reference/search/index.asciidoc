@@ -5,8 +5,8 @@
 --
 
 [[search-query]]
-A _search query_, or _query_, is a request for information about data in one or
-more {es} indices.
+A _search query_, or _query_, is a request for information about data in 
+{es} data streams or indices.
 
 You can think of a query as a question, written in a way {es} understands.
 Depending on your data, you can use a query to get answers to questions like:

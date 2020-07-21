@@ -20,13 +20,20 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.CatchNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
+import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -36,14 +43,16 @@ import java.util.Objects;
 public class SCatch extends AStatement {
 
     private final Class<?> baseException;
-    private final SDeclaration declarationNode;
+    private final String canonicalTypeName;
+    private final String symbol;
     private final SBlock blockNode;
 
-    public SCatch(int identifier, Location location, Class<?> baseException, SDeclaration declarationNode, SBlock blockNode) {
+    public SCatch(int identifier, Location location, Class<?> baseException, String canonicalTypeName, String symbol, SBlock blockNode) {
         super(identifier, location);
 
         this.baseException = Objects.requireNonNull(baseException);
-        this.declarationNode = Objects.requireNonNull(declarationNode);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
         this.blockNode = blockNode;
     }
 
@@ -51,8 +60,12 @@ public class SCatch extends AStatement {
         return baseException;
     }
 
-    public SDeclaration getDeclarationNode() {
-        return declarationNode;
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
     }
 
     public SBlock getBlockNode() {
@@ -60,12 +73,26 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+        return userTreeVisitor.visitCatch(this, input);
+    }
 
-        Output declarationOutput = declarationNode.analyze(classNode, scriptRoot, scope, new Input());
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        ScriptScope scriptScope = semanticScope.getScriptScope();
 
-        Class<?> type = scope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
+        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
+            throw createError(new IllegalArgumentException("invalid declaration: type [" + symbol + "] cannot be a name"));
+        }
+
+        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+
+        if (type == null) {
+            throw createError(new IllegalArgumentException("cannot resolve type [" + canonicalTypeName + "]"));
+        }
+
+        Variable variable = semanticScope.defineVariable(getLocation(), type, symbol, false);
+        semanticScope.putDecoration(this, new SemanticVariable(variable));
 
         if (baseException.isAssignableFrom(type) == false) {
             throw createError(new ClassCastException(
@@ -73,30 +100,17 @@ public class SCatch extends AStatement {
                     "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
         }
 
-        Output blockOutput = null;
-
         if (blockNode != null) {
-            Input blockInput = new Input();
-            blockInput.lastSource = input.lastSource;
-            blockInput.inLoop = input.inLoop;
-            blockInput.lastLoop = input.lastLoop;
-            blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
+            semanticScope.replicateCondition(this, blockNode, LastSource.class);
+            semanticScope.replicateCondition(this, blockNode, InLoop.class);
+            semanticScope.replicateCondition(this, blockNode, LastLoop.class);
+            blockNode.analyze(semanticScope);
 
-            output.methodEscape = blockOutput.methodEscape;
-            output.loopEscape = blockOutput.loopEscape;
-            output.allEscape = blockOutput.allEscape;
-            output.anyContinue = blockOutput.anyContinue;
-            output.anyBreak = blockOutput.anyBreak;
-            output.statementCount = blockOutput.statementCount;
+            semanticScope.setCondition(this, MethodEscape.class);
+            semanticScope.setCondition(this, LoopEscape.class);
+            semanticScope.setCondition(this, AllEscape.class);
+            semanticScope.setCondition(this, AnyContinue.class);
+            semanticScope.setCondition(this, AnyBreak.class);
         }
-
-        CatchNode catchNode = new CatchNode();
-        catchNode.setDeclarationNode((DeclarationNode)declarationOutput.statementNode);
-        catchNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        catchNode.setLocation(getLocation());
-
-        output.statementNode = catchNode;
-
-        return output;
     }
 }

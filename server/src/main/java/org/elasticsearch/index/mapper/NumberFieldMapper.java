@@ -47,7 +47,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -67,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -80,6 +80,7 @@ public class NumberFieldMapper extends FieldMapper {
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
     }
@@ -141,7 +142,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             return new NumberFieldMapper(name, fieldType, new NumberFieldType(buildFullName(context), type, indexed, hasDocValues, meta),
-                ignoreMalformed(context), coerce(context), nullValue, context.indexSettings(),
+                ignoreMalformed(context), coerce(context), nullValue,
                 multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -904,24 +905,13 @@ public class NumberFieldMapper extends FieldMapper {
         private final NumberType type;
 
         public NumberFieldType(String name, NumberType type, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, hasDocValues, meta);
+            super(name, isSearchable, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.type = Objects.requireNonNull(type);
             this.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);     // allows number fields in significant text aggs - do we need this?
-            this.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);    // allows match queries on number fields
         }
 
         public NumberFieldType(String name, NumberType type) {
             this(name, type, true, true, Collections.emptyMap());
-        }
-
-        private NumberFieldType(NumberFieldType other) {
-            super(other);
-            this.type = other.type;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new NumberFieldType(this);
         }
 
         @Override
@@ -973,6 +963,14 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Function<byte[], Number> pointReaderIfPossible() {
+            if (isSearchable()) {
+                return this::parsePoint;
+            }
+            return null;
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(type.numericType());
@@ -1002,20 +1000,6 @@ public class NumberFieldMapper extends FieldMapper {
         public Number parsePoint(byte[] value) {
             return type.parsePoint(value);
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            NumberFieldType that = (NumberFieldType) o;
-            return type == that.type;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), type);
-        }
     }
 
     private Explicit<Boolean> ignoreMalformed;
@@ -1029,10 +1013,9 @@ public class NumberFieldMapper extends FieldMapper {
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
             Number nullValue,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
         this.nullValue = nullValue;

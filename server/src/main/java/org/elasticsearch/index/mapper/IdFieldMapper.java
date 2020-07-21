@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -65,7 +64,7 @@ import java.util.Map;
  * queries.
  */
 public class IdFieldMapper extends MetadataFieldMapper {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IdFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
         "Loading the fielddata on the _id field is deprecated and will be removed in future versions. "
             + "If you require sorting or aggregating on this field you should also include the id in the "
@@ -108,8 +107,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(ParserContext context) {
-            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
-            return new IdFieldMapper(Defaults.FIELD_TYPE, indexSettings);
+            return new IdFieldMapper(Defaults.FIELD_TYPE);
         }
     }
 
@@ -118,18 +116,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final IdFieldType INSTANCE = new IdFieldType();
 
         private IdFieldType() {
-            super(NAME, true, false, Collections.emptyMap());
+            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
-            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
-        }
-
-        protected IdFieldType(IdFieldType ref) {
-            super(ref);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IdFieldType(this);
         }
 
         @Override
@@ -285,8 +273,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(FieldType fieldType, IndexSettings indexSettings) {
-        super(fieldType, new IdFieldType(), indexSettings.getSettings());
+    private IdFieldMapper(FieldType fieldType) {
+        super(fieldType, new IdFieldType());
     }
 
     @Override

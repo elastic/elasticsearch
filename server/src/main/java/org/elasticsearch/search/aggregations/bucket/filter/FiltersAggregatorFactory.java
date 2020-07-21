@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -87,10 +88,10 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
+                                        CardinalityUpperBound cardinality,
                                         Map<String, Object> metadata) throws IOException {
         return new FiltersAggregator(name, factories, keys, () -> getWeights(searchContext), keyed,
-            otherBucket ? otherBucketKey : null, searchContext, parent, metadata);
+            otherBucket ? otherBucketKey : null, searchContext, parent, cardinality, metadata);
     }
 
 

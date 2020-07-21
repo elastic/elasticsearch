@@ -38,53 +38,22 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
-
-    @Before
-    public void addModifiers() {
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddata(t.fielddata() == false);
-            return copy;
-        });
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddataMaxFrequency(t.fielddataMaxFrequency() + 1);
-            return copy;
-        });
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddataMinFrequency(t.fielddataMinFrequency() + 1);
-            return copy;
-        });
-        addModifier(t -> {
-            TextFieldType copy = t.clone();
-            copy.setFielddataMinSegmentSize(t.fielddataMinSegmentSize() + 1);
-            return copy;
-        });
-    }
-
-    @Override
-    protected TextFieldType createDefaultFieldType(String name, Map<String, String> meta) {
-        return new TextFieldType(name, true, true, meta);
-    }
+public class TextFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new TextFieldType("field");
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", null));
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new TextFieldType("field", false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termQuery("bar", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -98,7 +67,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
         assertEquals(new TermInSetQuery("field", terms),
                 ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new TextFieldType("field", false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.termsQuery(Arrays.asList("foo", "bar"), null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -120,7 +89,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
         assertEquals(new RegexpQuery(new Term("field","foo.*")),
                 ft.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new TextFieldType("field", false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.regexpQuery("foo.*", 0, 10, null, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -136,7 +105,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
         assertEquals(new FuzzyQuery(new Term("field","foo"), 2, 1, 50, true),
                 ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
 
-        MappedFieldType unsearchable = new TextFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new TextFieldType("field", false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_QSC));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
@@ -150,7 +119,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase<TextFieldType> {
 
     public void testIndexPrefixes() {
         TextFieldType ft = new TextFieldType("field");
-        ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType("field", "field._index_prefix", 2, 10, true));
+        ft.setPrefixFieldType(new TextFieldMapper.PrefixFieldType(ft, "field._index_prefix", 2, 10, true));
 
         Query q = ft.prefixQuery("goin", CONSTANT_SCORE_REWRITE, randomMockShardContext());
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field._index_prefix", "goin"))), q);

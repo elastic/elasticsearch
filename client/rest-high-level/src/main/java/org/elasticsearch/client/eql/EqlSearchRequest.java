@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,9 +39,10 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
-    private String implicitJoinKeyField = "agent.id";
-    private int fetchSize = 50;
-    private SearchAfterBuilder searchAfterBuilder;
+    private boolean isCaseSensitive = true;
+
+    private int size = 10;
+    private int fetchSize = 1000;
     private String query;
     private String tiebreakerField;
 
@@ -55,9 +55,9 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_TIMESTAMP_FIELD = "timestamp_field";
     static final String KEY_TIEBREAKER_FIELD = "tiebreaker_field";
     static final String KEY_EVENT_CATEGORY_FIELD = "event_category_field";
-    static final String KEY_IMPLICIT_JOIN_KEY_FIELD = "implicit_join_key_field";
+    static final String KEY_CASE_SENSITIVE = "case_sensitive";
     static final String KEY_SIZE = "size";
-    static final String KEY_SEARCH_AFTER = "search_after";
+    static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_QUERY = "query";
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
@@ -79,14 +79,9 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             builder.field(KEY_TIEBREAKER_FIELD, tiebreakerField());
         }
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
-        if (implicitJoinKeyField != null) {
-            builder.field(KEY_IMPLICIT_JOIN_KEY_FIELD, implicitJoinKeyField());
-        }
-        builder.field(KEY_SIZE, fetchSize());
-
-        if (searchAfterBuilder != null) {
-            builder.array(KEY_SEARCH_AFTER, searchAfterBuilder.getSortValues());
-        }
+        builder.field(KEY_SIZE, size());
+        builder.field(KEY_FETCH_SIZE, fetchSize());
+        builder.field(KEY_CASE_SENSITIVE, isCaseSensitive());
 
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
@@ -148,13 +143,24 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this;
     }
 
-    public String implicitJoinKeyField() {
-        return this.implicitJoinKeyField;
+    public boolean isCaseSensitive() {
+        return this.isCaseSensitive;
     }
 
-    public EqlSearchRequest implicitJoinKeyField(String implicitJoinKeyField) {
-        Objects.requireNonNull(implicitJoinKeyField, "implicit join key must not be null");
-        this.implicitJoinKeyField = implicitJoinKeyField;
+    public EqlSearchRequest isCaseSensitive(boolean isCaseSensitive) {
+        this.isCaseSensitive = isCaseSensitive;
+        return this;
+    }
+
+    public int size() {
+        return this.size;
+    }
+
+    public EqlSearchRequest size(int size) {
+        this.size = size;
+        if (fetchSize <= 0) {
+            throw new IllegalArgumentException("size must be greater than 0");
+        }
         return this;
     }
 
@@ -162,28 +168,11 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         return this.fetchSize;
     }
 
-    public EqlSearchRequest fetchSize(int size) {
-        this.fetchSize = size;
-        if (fetchSize <= 0) {
-            throw new IllegalArgumentException("size must be greater than 0");
+    public EqlSearchRequest fetchSize(int fetchSize) {
+        this.fetchSize = fetchSize;
+        if (fetchSize < 2) {
+            throw new IllegalArgumentException("fetch size must be greater than 1");
         }
-        return this;
-    }
-
-    public Object[] searchAfter() {
-        if (searchAfterBuilder == null) {
-            return null;
-        }
-        return searchAfterBuilder.getSortValues();
-    }
-
-    public EqlSearchRequest searchAfter(Object[] values) {
-        this.searchAfterBuilder = new SearchAfterBuilder().setSortValues(values);
-        return this;
-    }
-
-    private EqlSearchRequest setSearchAfter(SearchAfterBuilder builder) {
-        this.searchAfterBuilder = builder;
         return this;
     }
 
@@ -232,16 +221,16 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return fetchSize == that.fetchSize &&
+        return size == that.size &&
+                fetchSize == that.fetchSize &&
                 Arrays.equals(indices, that.indices) &&
                 Objects.equals(indicesOptions, that.indicesOptions) &&
                 Objects.equals(filter, that.filter) &&
                 Objects.equals(timestampField, that.timestampField) &&
                 Objects.equals(tiebreakerField, that.tiebreakerField) &&
                 Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(implicitJoinKeyField, that.implicitJoinKeyField) &&
-                Objects.equals(searchAfterBuilder, that.searchAfterBuilder) &&
                 Objects.equals(query, that.query) &&
+                Objects.equals(isCaseSensitive, that.isCaseSensitive) &&
                 Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
                 Objects.equals(keepAlive, that.keepAlive) &&
                 Objects.equals(keepOnCompletion, that.keepOnCompletion);
@@ -253,13 +242,13 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             Arrays.hashCode(indices),
             indicesOptions,
             filter,
+            size,
             fetchSize,
             timestampField,
-                tiebreakerField,
+            tiebreakerField,
             eventCategoryField,
-            implicitJoinKeyField,
-            searchAfterBuilder,
             query,
+            isCaseSensitive,
             waitForCompletionTimeout,
             keepAlive,
             keepOnCompletion);

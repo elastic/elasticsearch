@@ -20,7 +20,7 @@ authentication {security-features}. When you install these products, they apply
 basic licenses with no expiration dates. All of the subsequent steps in this
 tutorial assume that you are using a basic license. For more information, see
 {subscriptions} and
-{stack-ov}/license-management.html[License-management].
+{kibana-ref}/managing-licenses.html[License management].
 
 --
 
@@ -155,7 +155,7 @@ themselves, and run the `authenticate` API. If you want them to do more than
 that, you need to give them one or more _roles_.
 
 Each role defines a specific set of actions (such as read, create, or delete)
-that can be performed on specific secured resources (such as indices, aliases,
+that can be performed on specific secured resources (such as data streams, indices, aliases,
 documents, fields, or clusters). To help you get up and running, there are
 built-in roles.
 

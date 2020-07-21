@@ -239,4 +239,8 @@ public class FakeRestRequest extends RestRequest {
             return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address));
         }
     }
+
+    public static String requestToString(RestRequest restRequest) {
+        return "method=" + restRequest.method() + ",path=" + restRequest.rawPath();
+    }
 }

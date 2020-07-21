@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'Deprecated query plugin'

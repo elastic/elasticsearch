@@ -30,7 +30,7 @@ abstract class ApiKeyBaseRestHandler extends SecurityBaseRestHandler {
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (licenseState.isAllowed(Feature.SECURITY_API_KEY_SERVICE)) {
+        } else if (licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)) {
             return null;
         } else {
             logger.info("API Keys are not available under the current [{}] license", licenseState.getOperationMode().description());

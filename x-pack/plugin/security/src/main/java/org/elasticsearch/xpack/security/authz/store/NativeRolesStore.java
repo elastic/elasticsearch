@@ -189,9 +189,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        if (licenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
-            innerPutRole(request, role, listener);
-        } else if (role.isUsingDocumentOrFieldLevelSecurity()) {
+        if (role.isUsingDocumentOrFieldLevelSecurity() && licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
             listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
         } else {
             innerPutRole(request, role, listener);
@@ -370,30 +368,25 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
             RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true, XContentType.JSON);
-            if (licenseState.isAllowed(Feature.SECURITY_DLS_FLS)) {
-                return roleDescriptor;
-            } else {
-                final boolean dlsEnabled =
-                        Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
-                final boolean flsEnabled =
-                        Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity);
-                if (dlsEnabled || flsEnabled) {
-                    List<String> unlicensedFeatures = new ArrayList<>(2);
-                    if (flsEnabled) {
-                        unlicensedFeatures.add("fls");
-                    }
-                    if (dlsEnabled) {
-                        unlicensedFeatures.add("dls");
-                    }
-                    Map<String, Object> transientMap = new HashMap<>(2);
-                    transientMap.put("unlicensed_features", unlicensedFeatures);
-                    transientMap.put("enabled", false);
-                    return new RoleDescriptor(roleDescriptor.getName(), roleDescriptor.getClusterPrivileges(),
-                            roleDescriptor.getIndicesPrivileges(), roleDescriptor.getRunAs(), roleDescriptor.getMetadata(), transientMap);
-                } else {
-                    return roleDescriptor;
+            final boolean dlsEnabled =
+                    Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
+            final boolean flsEnabled =
+                    Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity);
+            if ((dlsEnabled || flsEnabled) && licenseState.checkFeature(Feature.SECURITY_DLS_FLS) == false) {
+                List<String> unlicensedFeatures = new ArrayList<>(2);
+                if (flsEnabled) {
+                    unlicensedFeatures.add("fls");
                 }
-
+                if (dlsEnabled) {
+                    unlicensedFeatures.add("dls");
+                }
+                Map<String, Object> transientMap = new HashMap<>(2);
+                transientMap.put("unlicensed_features", unlicensedFeatures);
+                transientMap.put("enabled", false);
+                return new RoleDescriptor(roleDescriptor.getName(), roleDescriptor.getClusterPrivileges(),
+                        roleDescriptor.getIndicesPrivileges(), roleDescriptor.getRunAs(), roleDescriptor.getMetadata(), transientMap);
+            } else {
+                return roleDescriptor;
             }
         } catch (Exception e) {
             logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);

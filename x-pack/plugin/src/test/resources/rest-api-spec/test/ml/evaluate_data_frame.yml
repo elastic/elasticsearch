@@ -841,12 +841,54 @@ setup:
               "regression": {
                 "actual_field": "regression_field_act",
                 "predicted_field": "regression_field_pred",
-                "metrics": { "mean_squared_error": {} }
+                "metrics": { "mse": {} }
               }
             }
           }
 
-  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.mse.value: 28.67749840974834 }
+  - is_false: regression.msle.value
+  - is_false: regression.r_squared.value
+  - is_false: regression.huber.value
+---
+"Test regression mean_squared_logarithmic_error":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "msle": { "offset": 6.0 } }
+              }
+            }
+          }
+
+  - match: { regression.msle.value: 0.08680568028334916 }
+  - is_false: regression.mse.value
+  - is_false: regression.r_squared.value
+  - is_false: regression.huber.value
+---
+"Test regression huber":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "regression": {
+                "actual_field": "regression_field_act",
+                "predicted_field": "regression_field_pred",
+                "metrics": { "huber": { "delta": 2.0 } }
+              }
+            }
+          }
+
+  - match: { regression.huber.value: 3.5088110471730145 }
+  - is_false: regression.msle.value
+  - is_false: regression.mse.value
   - is_false: regression.r_squared.value
 ---
 "Test regression r_squared":
@@ -864,7 +906,10 @@ setup:
             }
           }
   - match: { regression.r_squared.value: 0.8551031778603486 }
-  - is_false: regression.mean_squared_error
+  - is_false: regression.mse
+  - is_false: regression.msle.value
+  - is_false: regression.huber.value
+
 ---
 "Test regression with null metrics":
   - do:
@@ -880,8 +925,10 @@ setup:
             }
           }
 
-  - match: { regression.mean_squared_error.error: 28.67749840974834 }
+  - match: { regression.mse.value: 28.67749840974834 }
   - match: { regression.r_squared.value: 0.8551031778603486 }
+  - is_false: regression.msle.value
+  - is_false: regression.huber.value
 ---
 "Test regression given missing actual_field":
   - do:

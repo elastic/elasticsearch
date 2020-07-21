@@ -23,6 +23,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -64,6 +64,7 @@ public class IpFieldMapper extends FieldMapper {
         public static final FieldType FIELD_TYPE = new FieldType();
         static {
             FIELD_TYPE.setDimensions(1, Integer.BYTES);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
     }
@@ -101,7 +102,7 @@ public class IpFieldMapper extends FieldMapper {
         @Override
         public IpFieldMapper build(BuilderContext context) {
             return new IpFieldMapper(name, fieldType, new IpFieldType(buildFullName(context), indexed, hasDocValues, meta),
-                ignoreMalformed(context), nullValue, context.indexSettings(),
+                ignoreMalformed(context), nullValue,
                 multiFieldsBuilder.build(this, context), copyTo);
         }
 
@@ -129,7 +130,7 @@ public class IpFieldMapper extends FieldMapper {
                 } else if (propName.equals("ignore_malformed")) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
-                } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
+                } else if (TypeParsers.parseMultiField(builder::addMultiField, name, parserContext, propName, propNode)) {
                     iterator.remove();
                 }
             }
@@ -140,20 +141,11 @@ public class IpFieldMapper extends FieldMapper {
     public static final class IpFieldType extends SimpleMappedFieldType {
 
         public IpFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta) {
-            super(name, indexed, hasDocValues, meta);
+            super(name, indexed, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
         public IpFieldType(String name) {
             this(name, true, true, Collections.emptyMap());
-        }
-
-        IpFieldType(IpFieldType other) {
-            super(other);
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new IpFieldType(this);
         }
 
         @Override
@@ -339,10 +331,9 @@ public class IpFieldMapper extends FieldMapper {
             MappedFieldType mappedFieldType,
             Explicit<Boolean> ignoreMalformed,
             InetAddress nullValue,
-            Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
-        super(simpleName, fieldType, mappedFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, mappedFieldType, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.nullValue = nullValue;
     }

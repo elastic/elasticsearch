@@ -8,53 +8,28 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
+import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
-import org.elasticsearch.xpack.ml.extractor.ExtractedField;
-import org.elasticsearch.xpack.ml.extractor.MultiField;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
-import java.time.Instant;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.toList;
 
 public class AnalyticsResultProcessor {
 
@@ -75,24 +50,30 @@ public class AnalyticsResultProcessor {
     private final DataFrameAnalyticsConfig analytics;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
     private final StatsHolder statsHolder;
-    private final TrainedModelProvider trainedModelProvider;
     private final DataFrameAnalyticsAuditor auditor;
     private final StatsPersister statsPersister;
-    private final List<ExtractedField> fieldNames;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
+    private final ChunkedTrainedModelPersister chunkedTrainedModelPersister;
     private volatile String failure;
     private volatile boolean isCancelled;
 
+    private volatile String latestModelId;
+
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
-                                    DataFrameAnalyticsAuditor auditor, StatsPersister statsPersister, List<ExtractedField> fieldNames) {
+                                    DataFrameAnalyticsAuditor auditor, StatsPersister statsPersister, ExtractedFields extractedFields) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.statsHolder = Objects.requireNonNull(statsHolder);
-        this.trainedModelProvider = Objects.requireNonNull(trainedModelProvider);
         this.auditor = Objects.requireNonNull(auditor);
         this.statsPersister = Objects.requireNonNull(statsPersister);
-        this.fieldNames = Collections.unmodifiableList(Objects.requireNonNull(fieldNames));
+        this.chunkedTrainedModelPersister = new ChunkedTrainedModelPersister(
+            trainedModelProvider,
+            analytics,
+            auditor,
+            this::setAndReportFailure,
+            extractedFields
+        );
     }
 
     @Nullable
@@ -171,14 +152,17 @@ public class AnalyticsResultProcessor {
                 phaseProgress.getProgressPercent());
             statsHolder.getProgressTracker().updatePhase(phaseProgress);
         }
-        TrainedModelDefinition.Builder inferenceModelBuilder = result.getInferenceModelBuilder();
-        if (inferenceModelBuilder != null) {
-            createAndIndexInferenceModel(inferenceModelBuilder);
+        ModelSizeInfo modelSize = result.getModelSizeInfo();
+        if (modelSize != null) {
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelSize);
+        }
+        TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
+        if (trainedModelDefinitionChunk != null) {
+            chunkedTrainedModelPersister.createAndIndexInferenceModelDoc(trainedModelDefinitionChunk);
         }
         MemoryUsage memoryUsage = result.getMemoryUsage();
         if (memoryUsage != null) {
-            statsHolder.setMemoryUsage(memoryUsage);
-            statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
+            processMemoryUsage(memoryUsage);
         }
         OutlierDetectionStats outlierDetectionStats = result.getOutlierDetectionStats();
         if (outlierDetectionStats != null) {
@@ -197,120 +181,19 @@ public class AnalyticsResultProcessor {
         }
     }
 
-    private void createAndIndexInferenceModel(TrainedModelDefinition.Builder inferenceModel) {
-        TrainedModelConfig trainedModelConfig = createTrainedModelConfig(inferenceModel);
-        CountDownLatch latch = storeTrainedModel(trainedModelConfig);
-
-        try {
-            if (latch.await(30, TimeUnit.SECONDS) == false) {
-                LOGGER.error("[{}] Timed out (30s) waiting for inference model to be stored", analytics.getId());
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            setAndReportFailure(ExceptionsHelper.serverError("interrupted waiting for inference model to be stored"));
-        }
-    }
-
-    private TrainedModelConfig createTrainedModelConfig(TrainedModelDefinition.Builder inferenceModel) {
-        Instant createTime = Instant.now();
-        String modelId = analytics.getId() + "-" + createTime.toEpochMilli();
-        TrainedModelDefinition definition = inferenceModel.build();
-        String dependentVariable = getDependentVariable();
-        List<String> fieldNamesWithoutDependentVariable = fieldNames.stream()
-            .map(ExtractedField::getName)
-            .filter(f -> f.equals(dependentVariable) == false)
-            .collect(toList());
-        Map<String, String> defaultFieldMapping = fieldNames.stream()
-            .filter(ef -> ef instanceof MultiField && (ef.getName().equals(dependentVariable) == false))
-            .collect(Collectors.toMap(ExtractedField::getParentField, ExtractedField::getName));
-        return TrainedModelConfig.builder()
-            .setModelId(modelId)
-            .setCreatedBy(XPackUser.NAME)
-            .setVersion(Version.CURRENT)
-            .setCreateTime(createTime)
-            // NOTE: GET _cat/ml/trained_models relies on the creating analytics ID being in the tags
-            .setTags(Collections.singletonList(analytics.getId()))
-            .setDescription(analytics.getDescription())
-            .setMetadata(Collections.singletonMap("analytics_config",
-                XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)))
-            .setEstimatedHeapMemory(definition.ramBytesUsed())
-            .setEstimatedOperations(definition.getTrainedModel().estimatedNumOperations())
-            .setParsedDefinition(inferenceModel)
-            .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
-            .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setDefaultFieldMap(defaultFieldMapping)
-            .setInferenceConfig(buildInferenceConfig(definition.getTrainedModel().targetType()))
-            .build();
-    }
-
-    private InferenceConfig buildInferenceConfig(TargetType targetType) {
-        switch (targetType) {
-            case CLASSIFICATION:
-                assert analytics.getAnalysis() instanceof Classification;
-                Classification classification = ((Classification)analytics.getAnalysis());
-                PredictionFieldType predictionFieldType = getPredictionFieldType(classification);
-                return ClassificationConfig.builder()
-                    .setNumTopClasses(classification.getNumTopClasses())
-                    .setNumTopFeatureImportanceValues(classification.getBoostedTreeParams().getNumTopFeatureImportanceValues())
-                    .setPredictionFieldType(predictionFieldType)
-                    .build();
-            case REGRESSION:
-                assert analytics.getAnalysis() instanceof Regression;
-                Regression regression = ((Regression)analytics.getAnalysis());
-                return RegressionConfig.builder()
-                    .setNumTopFeatureImportanceValues(regression.getBoostedTreeParams().getNumTopFeatureImportanceValues())
-                    .build();
-            default:
-                throw ExceptionsHelper.serverError(
-                    "process created a model with an unsupported target type [{}]",
-                    null,
-                    targetType);
-        }
-    }
-
-    PredictionFieldType getPredictionFieldType(Classification classification) {
-        String dependentVariable = classification.getDependentVariable();
-        Optional<ExtractedField> extractedField = fieldNames.stream()
-            .filter(f -> f.getName().equals(dependentVariable))
-            .findAny();
-        PredictionFieldType predictionFieldType = Classification.getPredictionFieldType(
-            extractedField.isPresent() ? extractedField.get().getTypes() : null
-        );
-        return predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
-    }
-
-    private String getDependentVariable() {
-        if (analytics.getAnalysis() instanceof Classification) {
-            return ((Classification)analytics.getAnalysis()).getDependentVariable();
-        }
-        if (analytics.getAnalysis() instanceof Regression) {
-            return ((Regression)analytics.getAnalysis()).getDependentVariable();
-        }
-        return null;
-    }
-
-    private CountDownLatch storeTrainedModel(TrainedModelConfig trainedModelConfig) {
-        CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<Boolean> storeListener = ActionListener.wrap(
-            aBoolean -> {
-                if (aBoolean == false) {
-                    LOGGER.error("[{}] Storing trained model responded false", analytics.getId());
-                    setAndReportFailure(ExceptionsHelper.serverError("storing trained model responded false"));
-                } else {
-                    LOGGER.info("[{}] Stored trained model with id [{}]", analytics.getId(), trainedModelConfig.getModelId());
-                    auditor.info(analytics.getId(), "Stored trained model with id [" + trainedModelConfig.getModelId() + "]");
-                }
-            },
-            e -> setAndReportFailure(ExceptionsHelper.serverError("error storing trained model with id [{}]", e,
-                trainedModelConfig.getModelId()))
-        );
-        trainedModelProvider.storeTrainedModel(trainedModelConfig, new LatchedActionListener<>(storeListener, latch));
-        return latch;
-    }
-
     private void setAndReportFailure(Exception e) {
         LOGGER.error(new ParameterizedMessage("[{}] Error processing results; ", analytics.getId()), e);
         failure = "error processing results; " + e.getMessage();
         auditor.error(analytics.getId(), "Error processing results; " + e.getMessage());
+    }
+
+    private void processMemoryUsage(MemoryUsage memoryUsage) {
+        statsHolder.setMemoryUsage(memoryUsage);
+        statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
+    }
+
+    @Nullable
+    public String getLatestModelId() {
+        return latestModelId;
     }
 }

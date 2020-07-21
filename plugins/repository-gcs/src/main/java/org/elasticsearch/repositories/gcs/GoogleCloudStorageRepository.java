@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -43,7 +44,12 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     // package private for testing
     static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
-    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+
+    /**
+     * Maximum allowed object size in GCS.
+     * @see <a href="https://cloud.google.com/storage/quotas#objects">GCS documentation</a> for details.
+     */
+    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(5, ByteSizeUnit.TB);
 
     static final String TYPE = "gcs";
 
@@ -64,8 +70,9 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
-        final ClusterService clusterService) {
-        super(metadata, namedXContentRegistry, clusterService, buildBasePath(metadata));
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings) {
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildBasePath(metadata));
         this.storageService = storageService;
 
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);

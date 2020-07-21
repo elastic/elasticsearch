@@ -260,12 +260,11 @@ more than one zone.
 
 You should consider all node roles and ensure that each role is split
 redundantly across two or more zones. For instance, if you are using
-<<ingest,ingest pipelines>> or {stack-ov}/xpack-ml.html[{ml}],
-you should have ingest or {ml} nodes in two or more zones. However,
-the placement of master-eligible nodes requires a little more care because a
-resilient cluster needs at least two of the three master-eligible nodes in
-order to function. The following sections explore the options for placing
-master-eligible nodes across multiple zones.
+<<ingest,ingest pipelines>> or {ml}, you should have ingest or {ml} nodes in two
+or more zones. However, the placement of master-eligible nodes requires a little
+more care because a resilient cluster needs at least two of the three
+master-eligible nodes in order to function. The following sections explore the
+options for placing master-eligible nodes across multiple zones.
 
 [[high-availability-cluster-design-two-zones]]
 ==== Two-zone clusters

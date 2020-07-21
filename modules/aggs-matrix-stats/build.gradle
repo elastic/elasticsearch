@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
   description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
@@ -27,3 +28,5 @@ restResources {
     includeCore '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
   }
 }
+
+integTest.enabled = false

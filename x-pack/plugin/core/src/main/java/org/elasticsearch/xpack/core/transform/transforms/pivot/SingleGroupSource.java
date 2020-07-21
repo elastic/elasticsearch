@@ -16,12 +16,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -119,12 +117,6 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     public abstract Type getType();
 
     public abstract boolean supportsIncrementalBucketUpdate();
-
-    public abstract QueryBuilder getIncrementalBucketUpdateFilterQuery(
-        Set<String> changedBuckets,
-        String synchronizationField,
-        long synchronizationTimestamp
-    );
 
     public String getField() {
         return field;

@@ -7,14 +7,11 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -26,16 +23,11 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
     protected final Script script;
 
     AbstractScriptMappedFieldType(String name, Script script, Map<String, String> meta) {
-        super(name, false, false, TextSearchInfo.NONE, meta);
+        super(name, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         this.script = script;
     }
 
     protected abstract String runtimeType();
-
-    void mapperXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field("runtime_type", runtimeType());
-        builder.field("script", script, params);
-    }
 
     @Override
     public final String typeName() {

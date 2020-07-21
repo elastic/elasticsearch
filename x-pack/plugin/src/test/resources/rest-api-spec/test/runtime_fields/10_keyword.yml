@@ -92,6 +92,22 @@ setup:
   - match: {sensor.mappings.properties.prefixed_node.script.lang: painless }
 
 ---
+"get field mapping":
+  - do:
+      indices.get_field_mapping:
+        index: sensor
+        fields: day_of_week
+        include_defaults: true
+  - match:
+      sensor.mappings.day_of_week.mapping.day_of_week:
+        type: script
+        runtime_type: keyword
+        script:
+          source: |
+            value(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))
+          lang: painless
+        meta: {}
+---
 "docvalue_fields":
   - do:
       search:
@@ -197,6 +213,29 @@ setup:
               day_of_week: Monday
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.voltage: 5.8}
+
+---
+"match query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              day_of_week: Monday
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}
+
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            match:
+              day_of_week:
+                query: Monday
+                analyzer: standard
+  - match: {hits.total.value: 0}
 
 ---
 "terms query":

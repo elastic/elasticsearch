@@ -11,7 +11,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -19,7 +18,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SearchLookupAware;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.Script;
@@ -37,24 +35,19 @@ import java.io.IOException;
 public final class ScriptBinaryFieldData implements IndexFieldData<ScriptBinaryFieldData.ScriptBinaryLeafFieldData>, SearchLookupAware {
 
     public static class Builder implements IndexFieldData.Builder {
-
+        private final String name;
         private final Script script;
         private final StringScriptFieldScript.Factory scriptFactory;
 
-        public Builder(Script script, StringScriptFieldScript.Factory scriptFactory) {
+        public Builder(String name, Script script, StringScriptFieldScript.Factory scriptFactory) {
+            this.name = name;
             this.script = script;
             this.scriptFactory = scriptFactory;
         }
 
         @Override
-        public ScriptBinaryFieldData build(
-            IndexSettings indexSettings,
-            MappedFieldType fieldType,
-            IndexFieldDataCache cache,
-            CircuitBreakerService breakerService,
-            MapperService mapperService
-        ) {
-            return new ScriptBinaryFieldData(fieldType.name(), script, scriptFactory);
+        public ScriptBinaryFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new ScriptBinaryFieldData(name, script, scriptFactory);
         }
     }
 

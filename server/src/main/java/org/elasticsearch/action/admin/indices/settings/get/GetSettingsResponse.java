@@ -41,8 +41,8 @@ import java.util.Objects;
 
 public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
 
-    private ImmutableOpenMap<String, Settings> indexToSettings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> indexToDefaultSettings = ImmutableOpenMap.of();
+    private final ImmutableOpenMap<String, Settings> indexToSettings;
+    private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
 
     public GetSettingsResponse(ImmutableOpenMap<String, Settings> indexToSettings,
                                ImmutableOpenMap<String, Settings> indexToDefaultSettings) {
@@ -52,19 +52,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     public GetSettingsResponse(StreamInput in) throws IOException {
         super(in);
-
-        int settingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, Settings> settingsBuilder = ImmutableOpenMap.builder();
-        for (int i = 0; i < settingsSize; i++) {
-            settingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-        }
-        ImmutableOpenMap.Builder<String, Settings> defaultSettingsBuilder = ImmutableOpenMap.builder();
-        int defaultSettingsSize = in.readVInt();
-        for (int i = 0; i < defaultSettingsSize; i++) {
-            defaultSettingsBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
-        }
-        indexToSettings = settingsBuilder.build();
-        indexToDefaultSettings = defaultSettingsBuilder.build();
+        indexToSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToDefaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
     }
 
     /**
@@ -115,16 +104,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(indexToSettings.size());
-        for (ObjectObjectCursor<String, Settings> cursor : indexToSettings) {
-            out.writeString(cursor.key);
-            Settings.writeSettingsToStream(cursor.value, out);
-        }
-        out.writeVInt(indexToDefaultSettings.size());
-        for (ObjectObjectCursor<String, Settings> cursor : indexToDefaultSettings) {
-            out.writeString(cursor.key);
-            Settings.writeSettingsToStream(cursor.value, out);
-        }
+        out.writeMap(indexToSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
+        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
     }
 
     private static void parseSettingsField(XContentParser parser, String currentIndexName, Map<String, Settings> indexToSettings,

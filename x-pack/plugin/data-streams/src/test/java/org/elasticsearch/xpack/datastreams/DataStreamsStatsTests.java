@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIn
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -109,6 +111,15 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
         assertTrue(
             client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-000001")).actionGet().isAcknowledged()
+        );
+
+        assertBusy(
+            () -> {
+                assertNotEquals(
+                    ClusterHealthStatus.RED,
+                    client().admin().cluster().health(new ClusterHealthRequest()).actionGet().getStatus()
+                );
+            }
         );
 
         DataStreamsStatsAction.Response stats = getDataStreamsStats();

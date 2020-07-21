@@ -28,7 +28,7 @@ POST /twitter/_shrink/shrunk-twitter-index
 Before you can shrink an index:
 
 * The index must be read-only.
-* All primary and replica shards for the index must be allocated to the same node.
+* All primary and replica shards for the index must reside on the same node.
 * The index must have a `green` <<cluster-health,health status>>.
 
 To make shard allocation easier, we recommend you first remove the index's
@@ -36,7 +36,7 @@ replica shards. You can later re-add replica shards as part of the shrink
 operation.
 
 You can use the following <<indices-update-settings,update index settings API>>
-request to remove an index's replica shards, reallocate the index's remaining
+request to remove an index's replica shards, relocates the index's remaining
 shards to the same node, and make the index read-only.
 
 [source,console]

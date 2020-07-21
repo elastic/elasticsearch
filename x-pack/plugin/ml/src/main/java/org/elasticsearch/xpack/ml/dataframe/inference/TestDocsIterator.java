@@ -22,9 +22,9 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.utils.persistence.SearchAfterDocumentsIterator;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
@@ -35,15 +35,8 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
     TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields) {
         super(client, config.getDest().getIndex(), true);
         this.config = Objects.requireNonNull(config);
-        this.docValueFieldAndFormatPairs = buildDocValueFieldAndFormatPairs(extractedFields);
-    }
-
-    private static Map<String, String> buildDocValueFieldAndFormatPairs(ExtractedFields extractedFields) {
-        Map<String, String> docValueFieldAndFormatPairs = new HashMap<>();
-        for (ExtractedField docValueField : extractedFields.getDocValueFields()) {
-            docValueFieldAndFormatPairs.put(docValueField.getSearchField(), docValueField.getDocValueFormat());
-        }
-        return docValueFieldAndFormatPairs;
+        this.docValueFieldAndFormatPairs = extractedFields.getDocValueFields().stream()
+            .collect(Collectors.toMap(ExtractedField::getSearchField, ExtractedField::getDocValueFormat));
     }
 
     @Override

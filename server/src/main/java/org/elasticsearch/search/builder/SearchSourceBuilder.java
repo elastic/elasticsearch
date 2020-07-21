@@ -1337,6 +1337,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+
+        if (runtimeMappings != null && false == runtimeMappings.isEmpty()) {
+            builder.field(RUNTIME_MAPPINGS.getPreferredName(), runtimeMappings);
+        }
         return builder;
     }
 

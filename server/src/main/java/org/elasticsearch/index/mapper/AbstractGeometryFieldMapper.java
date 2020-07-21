@@ -84,7 +84,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     /**
      * Interface representing parser in geometry indexing pipeline.
      */
-    public static abstract class Parser<Parsed> {
+    public abstract static class Parser<Parsed> {
         /**
          * Parse the given xContent value to an object of type {@link Parsed}. The value can be
          * in any supported format.

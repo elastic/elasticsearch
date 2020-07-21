@@ -460,6 +460,14 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         assertMergedPipelineTreeForBWCSerialization(agg, pipelineTree);
     }
 
+    public void testMergePipelineTreeTwice() {
+        T agg = createTestInstance();
+        PipelineAggregator.PipelineTree pipelineTree = randomPipelineTree(agg);
+        agg.mergePipelineTreeForBWCSerialization(pipelineTree);
+        agg.mergePipelineTreeForBWCSerialization(randomPipelineTree(agg)); // This should be ignored
+        assertMergedPipelineTreeForBWCSerialization(agg, pipelineTree);
+    }
+
     public static PipelineAggregator.PipelineTree randomPipelineTree(InternalAggregation aggregation) {
         Map<String, PipelineTree> subTree = new HashMap<>();
         aggregation.forEachBucket(bucketAggs -> {

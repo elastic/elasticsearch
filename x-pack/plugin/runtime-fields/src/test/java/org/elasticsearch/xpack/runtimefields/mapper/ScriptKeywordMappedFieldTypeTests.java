@@ -32,7 +32,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
@@ -41,9 +40,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.ScoreScript.ExplanationHolder;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.RuntimeFieldsPainlessExtension;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -140,15 +137,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                IndexMetadata imd = IndexMetadata.builder("test")
-                    .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
-                    .build();
-                ScriptKeywordMappedFieldType ft = build("for (def v : source.foo) { value(v.toString())}");
-                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(new IndexSettings(imd, Settings.EMPTY), ft, null, null, null);
-                SearchLookup lookup = mockContext().lookup();
-                ifd.setSearchLookup(lookup);
+                QueryShardContext qsc = mockContext(true, build("for (def v : source.foo) { value(v.toString())}"));
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -157,10 +146,10 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                        return new ScoreScript(Map.of(), lookup, ctx) {
+                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) ifd.load(ctx).getScriptValues();
+                                ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
                                 return bytes.get(0).length();
                             }
                         };

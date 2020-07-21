@@ -134,7 +134,7 @@ You'll notice that when you create a user, you can assign it a role. Don't
 choose a role yet--we'll come back to that in subsequent steps.
 --
 
-. Click *Create new user* and create a `logstash_internal` user.
+. Click *Create user* and create a `logstash_internal` user.
 +
 --
 In {stack-gs}/get-started-elastic-stack.html[Getting started with the {stack}],

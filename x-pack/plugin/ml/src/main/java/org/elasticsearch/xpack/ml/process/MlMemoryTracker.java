@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
@@ -216,7 +217,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
                     e -> logger.warn("Failed to refresh job memory requirements", e)
                 );
-                threadPool.executor(executorName()).execute(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
                     () -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
@@ -333,7 +334,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(executorName()).execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
+                    mem -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
                     refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);

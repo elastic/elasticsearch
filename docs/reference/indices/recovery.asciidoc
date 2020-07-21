@@ -115,9 +115,10 @@ Reading index metadata and copying bytes from source to destination.
 Recovery has not started.
 
 `ON_DEMAND`::
-A completed recovery that will pull index files on demand as
-searches hit the shard. It's also possible that the files
-will be evicted as the underlying cache is filled.
+A completed recovery that pulls files on demand as
+searches hit the shard. The recovery statistics for the
+shard can vary up or down depending on the inner
+workings of the file cache.
 
 `START`::
 Starting the recovery process; opening the index for use.

@@ -186,9 +186,8 @@ Machine Learning::
 Mapping::
 * Add regex query support to wildcard field {es-pull}55548[#55548] (issue: {es-issue}54725[#54725])
 * Make `keyword` a family of field types {es-pull}58315[#58315] (issue: {es-issue}53175[#53175])
-* Pass SearchLookup through to fielddataBuilder {es-pull}58527[#58527]
 * Store parsed mapping settings in IndexSettings {es-pull}57492[#57492] (issue: {es-issue}57395[#57395])
-* Support null_value for wildcard field type. [ISSUE] {es-pull}55701[#55701]
+* Wildcard field - add support for custom null values {es-pull}57047[#57047]
 
 Network::
 * Make the number of transport threads equal to the number of available CPUs {es-pull}56488[#56488]
@@ -215,7 +214,6 @@ Search::
 * Add description to submit and get async search, as well as cancel tasks {es-pull}57745[#57745]
 * Add matchBoolPrefix static method in query builders {es-pull}58637[#58637] (issue: {es-issue}58388[#58388])
 * Add range query support to wildcard field {es-pull}57881[#57881] (issue: {es-issue}57816[#57816])
-* Executes incremental reduce in the search thread pool [OPEN] {es-pull}58461[#58461] (issues: {es-issue}51857[#51857], {es-issue}53411[#53411])
 * Group docIds by segment in FetchPhase to better use LRU cache {es-pull}57273[#57273]
 * Improve error handling when decoding async execution ids {es-pull}56285[#56285]
 * Specify reason whenever async search gets cancelled {es-pull}57761[#57761]
@@ -251,7 +249,6 @@ Transform::
 === Bug fixes
 
 Aggregations::
-* Bad aggregation name complains about "unknown BaseAggregationBuilder" instead of "unknown Aggregation" [ISSUE] {es-pull}28950[#28950]
 * Fix auto_date_histogram interval {es-pull}56252[#56252] (issue: {es-issue}56116[#56116])
 * Fix bug in faster interval rounding {es-pull}56433[#56433] (issue: {es-issue}56400[#56400])
 * Fix bug in parent and child aggregators when parent field not defined {es-pull}57089[#57089] (issue: {es-issue}42997[#42997])
@@ -282,6 +279,7 @@ Features/Ingest::
 
 Geo::
 * Check for degenerated lines when calculating the centroid {es-pull}58027[#58027] (issue: {es-issue}55851[#55851])
+* Fix bug in circuit-breaker check for geoshape grid aggregations {es-pull}57962[#57962] (issue: {es-issue}57847[#57847])
 
 Infra/Scripting::
 * Fix Source Return Bug in Scripting {es-pull}56831[#56831] (issue: {es-issue}52103[#52103])

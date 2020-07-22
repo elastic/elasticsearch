@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -601,7 +603,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     private void assertRecoveryStats(String indexName, boolean cacheEnabled) {
+        int shardCount = getShardCount(indexName);
         final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+        assertThat(recoveryResponse.shardRecoveryStates().get(indexName).size(), is(shardCount));
         for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
             for (RecoveryState recoveryState : recoveryStates) {
                 logger.info("Checking {}[{}]", recoveryState.getShardId(), recoveryState.getPrimary() ? "p" : "r");
@@ -731,5 +735,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         final Settings nodeSettings = internalCluster().getInstance(Environment.class, discoveryNode.getName()).settings();
         return CacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(nodeSettings);
+    }
+
+    private int getShardCount(String indexName) {
+        GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices(indexName).get();
+        Settings indexSettings = getIndexResponse.getSettings().get(indexName);
+        int shardCount = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettings);
+        int replicaCount = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(indexSettings);
+        return shardCount * (replicaCount + 1);
     }
 }

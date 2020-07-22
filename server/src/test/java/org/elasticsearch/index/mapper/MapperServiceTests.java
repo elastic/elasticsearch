@@ -20,7 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -362,8 +362,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testReloadSearchAnalyzers() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
                 .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
                 .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
@@ -404,8 +404,10 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertSame(current.getDefaultSearchQuoteAnalyzer(), updatedAnalyzers.getDefaultSearchQuoteAnalyzer());
 
         assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
-        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").searchAnalyzer()));
-        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("otherField").searchQuoteAnalyzer()));
+        assertFalse(assertSameContainedFilters(originalTokenFilters,
+            mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer()));
+        assertFalse(assertSameContainedFilters(originalTokenFilters,
+            mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()));
     }
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {

@@ -23,243 +23,185 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.AssignmentNode;
-import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations;
+import org.elasticsearch.painless.symbol.Decorations.CompoundType;
+import org.elasticsearch.painless.symbol.Decorations.Concatenate;
+import org.elasticsearch.painless.symbol.Decorations.DefOptimized;
+import org.elasticsearch.painless.symbol.Decorations.DowncastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents an assignment with the lhs and rhs as child nodes.
  */
-public final class EAssignment extends AExpression {
+public class EAssignment extends AExpression {
 
-    private AExpression lhs;
-    private AExpression rhs;
-    private final boolean pre;
-    private final boolean post;
-    private Operation operation;
+    private final AExpression leftNode;
+    private final AExpression rightNode;
+    private final boolean postIfRead;
+    private final Operation operation;
 
-    private boolean cat = false;
-    private Class<?> promote = null;
-    private Class<?> shiftDistance; // for shifts, the RHS is promoted independently
-    private PainlessCast there = null;
-    private PainlessCast back = null;
+    public EAssignment(int identifier, Location location,
+            AExpression leftNode, AExpression rightNode, boolean postIfRead, Operation operation) {
 
-    public EAssignment(Location location, AExpression lhs, AExpression rhs, boolean pre, boolean post, Operation operation) {
-        super(location);
+        super(identifier, location);
 
-        this.lhs = Objects.requireNonNull(lhs);
-        this.rhs = rhs;
-        this.pre = pre;
-        this.post = post;
+        this.leftNode = Objects.requireNonNull(leftNode);
+        this.rightNode = Objects.requireNonNull(rightNode);
+        this.postIfRead = postIfRead;
         this.operation = operation;
     }
 
+    public AExpression getLeftNode() {
+        return leftNode;
+    }
+
+    public AExpression getRightNode() {
+        return rightNode;
+    }
+
+    public boolean postIfRead() {
+        return postIfRead;
+    }
+
+    public Operation getOperation() {
+        return operation;
+    }
+
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitAssignment(this, scope);
+    }
 
-        Output leftOutput;
-        Output rightOutput;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        leftNode.visit(userTreeVisitor, scope);
+        rightNode.visit(userTreeVisitor, scope);
+    }
 
-        if (lhs instanceof AStoreable) {
-            AStoreable lhs = (AStoreable)this.lhs;
-            AStoreable.Input leftInput = new AStoreable.Input();
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        semanticScope.replicateCondition(this, leftNode, Read.class);
+        semanticScope.setCondition(leftNode, Write.class);
+        analyze(leftNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(leftNode, Decorations.ValueType.class).getValueType();
 
-            leftInput.read = input.read;
-            leftInput.write = true;
-            leftOutput = lhs.analyze(scriptRoot, scope, leftInput);
-        } else {
-            throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
-        }
-
-        if (pre && post) {
-            throw createError(new IllegalStateException("Illegal tree structure."));
-        } else if (pre || post) {
-            if (rhs != null) {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-
-            if (operation == Operation.INCR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.ADD;
-            } else if (operation == Operation.DECR) {
-                if (leftOutput.actual == double.class) {
-                    rhs = new EConstant(location, 1D);
-                } else if (leftOutput.actual == float.class) {
-                    rhs = new EConstant(location, 1F);
-                } else if (leftOutput.actual == long.class) {
-                    rhs = new EConstant(location, 1L);
-                } else {
-                    rhs = new EConstant(location, 1);
-                }
-
-                operation = Operation.SUB;
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
-        }
+        semanticScope.setCondition(rightNode, Read.class);
 
         if (operation != null) {
-            rightOutput = rhs.analyze(scriptRoot, scope, new Input());
+            analyze(rightNode, semanticScope);
+            Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+
+            Class<?> promote;
+            Class<?> shiftDistance = null;
             boolean shift = false;
 
             if (operation == Operation.MUL) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.DIV) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.REM) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.ADD) {
-                promote = AnalyzerCaster.promoteAdd(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteAdd(leftValueType, rightValueType);
             } else if (operation == Operation.SUB) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, rightOutput.actual, true);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
             } else if (operation == Operation.LSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
                 shift = true;
             } else if (operation == Operation.RSH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
                 shift = true;
             } else if (operation == Operation.USH) {
-                promote = AnalyzerCaster.promoteNumeric(leftOutput.actual, false);
-                shiftDistance = AnalyzerCaster.promoteNumeric(rightOutput.actual, false);
+                promote = AnalyzerCaster.promoteNumeric(leftValueType, false);
+                shiftDistance = AnalyzerCaster.promoteNumeric(rightValueType, false);
                 shift = true;
             } else if (operation == Operation.BWAND) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else if (operation == Operation.XOR) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else if (operation == Operation.BWOR) {
-                promote = AnalyzerCaster.promoteXor(leftOutput.actual, rightOutput.actual);
+                promote = AnalyzerCaster.promoteXor(leftValueType, rightValueType);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
 
             if (promote == null || (shift && shiftDistance == null)) {
                 throw createError(new ClassCastException("Cannot apply compound assignment " +
-                        "[" + operation.symbol + "=] to types [" + leftOutput.actual + "] and [" + rightOutput.actual + "]."));
+                        "[" + operation.symbol + "=] to types [" + leftValueType + "] and [" + rightValueType + "]."));
             }
 
-            cat = operation == Operation.ADD && promote == String.class;
+            boolean cat = operation == Operation.ADD && promote == String.class;
 
-            if (cat) {
-                if (rhs instanceof EBinary && ((EBinary)rhs).operation == Operation.ADD && rightOutput.actual == String.class) {
-                    ((EBinary)rhs).cat = true;
-                }
+            if (cat && rightNode instanceof EBinary &&
+                    ((EBinary)rightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
+                semanticScope.setCondition(rightNode, Concatenate.class);
             }
 
             if (shift) {
                 if (promote == def.class) {
                     // shifts are promoted independently, but for the def type, we need object.
-                    rhs.input.expected = promote;
+                    semanticScope.putDecoration(rightNode, new TargetType(def.class));
                 } else if (shiftDistance == long.class) {
-                    rhs.input.expected = int.class;
-                    rhs.input.explicit = true;
+                    semanticScope.putDecoration(rightNode, new TargetType(int.class));
+                    semanticScope.setCondition(rightNode, Explicit.class);
                 } else {
-                    rhs.input.expected = shiftDistance;
+                    semanticScope.putDecoration(rightNode, new TargetType(shiftDistance));
                 }
             } else {
-                rhs.input.expected = promote;
+                semanticScope.putDecoration(rightNode, new TargetType(promote));
             }
 
-            rhs.cast();
+            rightNode.cast(semanticScope);
 
-            there = AnalyzerCaster.getLegalCast(location, leftOutput.actual, promote, false, false);
-            back = AnalyzerCaster.getLegalCast(location, promote, leftOutput.actual, true, false);
+            PainlessCast upcast = AnalyzerCaster.getLegalCast(getLocation(), leftValueType, promote, false, false);
+            PainlessCast downcast = AnalyzerCaster.getLegalCast(getLocation(), promote, leftValueType, true, false);
 
+            semanticScope.putDecoration(this, new CompoundType(promote));
 
-        } else if (rhs != null) {
-            AStoreable lhs = (AStoreable)this.lhs;
-
-            // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
-            if (lhs.isDefOptimized()) {
-                rightOutput = rhs.analyze(scriptRoot, scope, new Input());
-
-                if (rightOutput.actual == void.class) {
-                    throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
-                }
-
-                rhs.input.expected = rightOutput.actual;
-                lhs.updateActual(rightOutput.actual);
-            // Otherwise, we must adapt the rhs type to the lhs type with a cast.
-            } else {
-                Input rightInput = new Input();
-                rightInput.expected = leftOutput.actual;
-                rhs.analyze(scriptRoot, scope, rightInput);
+            if (cat) {
+                semanticScope.setCondition(this, Concatenate.class);
             }
 
-            rhs.cast();
+            if (upcast != null) {
+                semanticScope.putDecoration(this, new UpcastPainlessCast(upcast));
+            }
+
+            if (downcast != null) {
+                semanticScope.putDecoration(this, new DowncastPainlessCast(downcast));
+            }
+        // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
+        } else if (semanticScope.getCondition(leftNode, DefOptimized.class)) {
+            analyze(rightNode, semanticScope);
+            Class<?> rightValueType = semanticScope.getDecoration(rightNode, ValueType.class).getValueType();
+
+            if (rightValueType == void.class) {
+                throw createError(new IllegalArgumentException(
+                        "invalid assignment: cannot assign type [" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
+            }
+
+            semanticScope.putDecoration(leftNode, new ValueType(rightValueType));
+            leftValueType = rightValueType;
+        // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
-            throw new IllegalStateException("Illegal tree structure.");
+            semanticScope.putDecoration(rightNode, new TargetType(leftValueType));
+            analyze(rightNode, semanticScope);
+            rightNode.cast(semanticScope);
         }
 
-        output.statement = true;
-        output.actual = input.read ? leftOutput.actual : void.class;
-
-        return output;
-    }
-
-    /**
-     * Handles writing byte code for variable/method chains for all given possibilities
-     * including String concatenation, compound assignment, regular assignment, and simple
-     * reads.  Includes proper duplication for chained assignments and assignments that are
-     * also read from.
-     */
-    @Override
-    AssignmentNode write(ClassNode classNode) {
-        AssignmentNode assignmentNode = new AssignmentNode();
-
-        assignmentNode.setLeftNode(lhs.write(classNode));
-        assignmentNode.setRightNode(rhs.cast(rhs.write(classNode)));
-
-        assignmentNode.setLocation(location);
-        assignmentNode.setExpressionType(output.actual);
-        assignmentNode.setCompoundType(promote);
-        assignmentNode.setPre(pre);
-        assignmentNode.setPost(post);
-        assignmentNode.setOperation(operation);
-        assignmentNode.setRead(input.read);
-        assignmentNode.setCat(cat);
-        assignmentNode.setThere(there);
-        assignmentNode.setBack(back);
-
-        return assignmentNode;
-    }
-
-    @Override
-    public String toString() {
-        List<Object> subs = new ArrayList<>();
-        subs.add(lhs);
-        if (rhs != null) {
-            // Make sure "=" is in the symbol so this is easy to read at a glance
-            subs.add(operation == null ? "=" : operation.symbol + "=");
-            subs.add(rhs);
-            return singleLineToString(subs);
-        }
-        subs.add(operation.symbol);
-        if (pre) {
-            subs.add("pre");
-        }
-        if (post) {
-            subs.add("post");
-        }
-        return singleLineToString(subs);
+        semanticScope.putDecoration(this, new ValueType(semanticScope.getCondition(this, Read.class) ? leftValueType : void.class));
     }
 }

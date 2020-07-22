@@ -20,61 +20,63 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ReturnNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a return statement.
  */
-public final class SReturn extends AStatement {
+public class SReturn extends AStatement {
 
-    private AExpression expression;
+    private final AExpression expressionNode;
 
-    public SReturn(Location location, AExpression expression) {
-        super(location);
+    public SReturn(int identifier, Location location, AExpression expressionNode) {
+        super(identifier, location);
 
-        this.expression = expression;
+        this.expressionNode = expressionNode;
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (expression == null) {
-            if (scope.getReturnType() != void.class) {
-                throw location.createError(new ClassCastException("Cannot cast from " +
-                        "[" + scope.getReturnCanonicalTypeName() + "] to " +
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitReturn(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (expressionNode != null) {
+            expressionNode.visit(userTreeVisitor, scope);
+        }
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (expressionNode == null) {
+            if (semanticScope.getReturnType() != void.class) {
+                throw getLocation().createError(new ClassCastException("Cannot cast from " +
+                        "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
             }
         } else {
-            AExpression.Input expressionInput = new AExpression.Input();
-            expressionInput.expected = scope.getReturnType();
-            expressionInput.internal = true;
-            expression.analyze(scriptRoot, scope, expressionInput);
-            expression.cast();
+            semanticScope.setCondition(expressionNode, Read.class);
+            semanticScope.putDecoration(expressionNode, new TargetType(semanticScope.getReturnType()));
+            semanticScope.setCondition(expressionNode, Internal.class);
+            AExpression.analyze(expressionNode, semanticScope);
+            expressionNode.cast(semanticScope);
         }
 
-        methodEscape = true;
-        loopEscape = true;
-        allEscape = true;
-
-        statementCount = 1;
-    }
-
-    @Override
-    ReturnNode write(ClassNode classNode) {
-        ReturnNode returnNode = new ReturnNode();
-
-        returnNode.setExpressionNode(expression == null ? null : expression.cast(expression.write(classNode)));
-
-        returnNode.setLocation(location);
-
-        return returnNode;
-    }
-
-    @Override
-    public String toString() {
-        return expression == null ? singleLineToString() : singleLineToString(expression);
+        semanticScope.setCondition(this, MethodEscape.class);
+        semanticScope.setCondition(this, LoopEscape.class);
+        semanticScope.setCondition(this, AllEscape.class);
     }
 }

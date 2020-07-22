@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -39,12 +38,10 @@ class MapperMergeValidator {
      * @param objectMappers The newly added object mappers.
      * @param fieldMappers The newly added field mappers.
      * @param fieldAliasMappers The newly added field alias mappers.
-     * @param fieldTypes Any existing field and field alias mappers, collected into a lookup structure.
      */
     public static void validateNewMappers(Collection<ObjectMapper> objectMappers,
                                           Collection<FieldMapper> fieldMappers,
-                                          Collection<FieldAliasMapper> fieldAliasMappers,
-                                          FieldTypeLookup fieldTypes) {
+                                          Collection<FieldAliasMapper> fieldAliasMappers) {
         Set<String> objectFullNames = new HashSet<>();
         for (ObjectMapper objectMapper : objectMappers) {
             String fullPath = objectMapper.fullPath();
@@ -61,8 +58,6 @@ class MapperMergeValidator {
             } else if (fieldNames.add(name) == false) {
                 throw new IllegalArgumentException("Field [" + name + "] is defined twice.");
             }
-
-            validateFieldMapper(fieldMapper, fieldTypes);
         }
 
         Set<String> fieldAliasNames = new HashSet<>();
@@ -77,24 +72,6 @@ class MapperMergeValidator {
             }
 
             validateFieldAliasMapper(name, fieldAliasMapper.path(), fieldNames, fieldAliasNames);
-        }
-    }
-
-    /**
-     * Checks that the new field mapper does not conflict with existing mappings.
-     */
-    private static void validateFieldMapper(FieldMapper fieldMapper,
-                                            FieldTypeLookup fieldTypes) {
-        MappedFieldType newFieldType = fieldMapper.fieldType();
-        MappedFieldType existingFieldType = fieldTypes.get(newFieldType.name());
-
-        if (existingFieldType != null && Objects.equals(newFieldType, existingFieldType) == false) {
-            List<String> conflicts = new ArrayList<>();
-            existingFieldType.checkCompatibility(newFieldType, conflicts);
-            if (conflicts.isEmpty() == false) {
-                throw new IllegalArgumentException("Mapper for [" + newFieldType.name() +
-                    "] conflicts with existing mapping:\n" + conflicts.toString());
-            }
         }
     }
 
@@ -131,13 +108,18 @@ class MapperMergeValidator {
      * @param fieldAliasMappers The newly added field alias mappers.
      * @param fullPathObjectMappers All object mappers, indexed by their full path.
      * @param fieldTypes All field and field alias mappers, collected into a lookup structure.
+     * @param metadataMappers the new metadata field mappers
+     * @param newMapper The newly created {@link DocumentMapper}
      */
     public static void validateFieldReferences(List<FieldMapper> fieldMappers,
                                                List<FieldAliasMapper> fieldAliasMappers,
                                                Map<String, ObjectMapper> fullPathObjectMappers,
-                                               FieldTypeLookup fieldTypes) {
+                                               FieldTypeLookup fieldTypes,
+                                               MetadataFieldMapper[] metadataMappers,
+                                               DocumentMapper newMapper) {
         validateCopyTo(fieldMappers, fullPathObjectMappers, fieldTypes);
         validateFieldAliasTargets(fieldAliasMappers, fullPathObjectMappers);
+        validateMetadataFieldMappers(metadataMappers, newMapper);
     }
 
     private static void validateCopyTo(List<FieldMapper> fieldMappers,
@@ -189,6 +171,12 @@ class MapperMergeValidator {
                     : "the target's nested scope is [" + pathScope + "].");
                 throw new IllegalArgumentException(message.toString());
             }
+        }
+    }
+
+    private static void validateMetadataFieldMappers(MetadataFieldMapper[] metadataMappers, DocumentMapper newMapper) {
+        for (MetadataFieldMapper metadataFieldMapper : metadataMappers) {
+            metadataFieldMapper.validate(newMapper.mappers());
         }
     }
 

@@ -30,7 +30,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -169,13 +169,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             generatedBlobs.put(name, (long) length);
             writeRandomBlob(container, name, length);
 
-            Map<String, BlobMetaData> blobs = container.listBlobs();
+            Map<String, BlobMetadata> blobs = container.listBlobs();
             assertThat(blobs.size(), CoreMatchers.equalTo(numberOfFooBlobs + numberOfBarBlobs));
             for (Map.Entry<String, Long> generated : generatedBlobs.entrySet()) {
-                BlobMetaData blobMetaData = blobs.get(generated.getKey());
-                assertThat(generated.getKey(), blobMetaData, CoreMatchers.notNullValue());
-                assertThat(blobMetaData.name(), CoreMatchers.equalTo(generated.getKey()));
-                assertThat(blobMetaData.length(), CoreMatchers.equalTo(generated.getValue()));
+                BlobMetadata blobMetadata = blobs.get(generated.getKey());
+                assertThat(generated.getKey(), blobMetadata, CoreMatchers.notNullValue());
+                assertThat(blobMetadata.name(), CoreMatchers.equalTo(generated.getKey()));
+                assertThat(blobMetadata.length(), CoreMatchers.equalTo(generated.getValue()));
             }
 
             assertThat(container.listBlobsByPrefix("foo-").size(), CoreMatchers.equalTo(numberOfFooBlobs));
@@ -225,8 +225,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertArrayEquals(readBlobFully(containerFoo, "test", data1.length), data1);
             assertArrayEquals(readBlobFully(containerBar, "test", data2.length), data2);
 
-            assertTrue(BlobStoreTestUtil.blobExists(containerFoo, "test"));
-            assertTrue(BlobStoreTestUtil.blobExists(containerBar, "test"));
+            assertTrue(containerFoo.blobExists("test"));
+            assertTrue(containerBar.blobExists("test"));
             containerBar.delete();
             containerFoo.delete();
         }
@@ -445,7 +445,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         for (IndexId indexId : repositoryData.actionGet().getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
-                assertFalse(BlobStoreTestUtil.blobExists(indicesBlobContainer.get(), indexId.getId())); // deleted index
+                assertFalse(indicesBlobContainer.get().blobExists(indexId.getId())); // deleted index
             }
         }
 

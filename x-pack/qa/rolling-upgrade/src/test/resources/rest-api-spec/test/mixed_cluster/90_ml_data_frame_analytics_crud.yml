@@ -93,6 +93,31 @@
   - match: { data_frame_analytics.0.state: "stopped" }
 
 ---
+"Get old classification job":
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "old_cluster_classification_job"
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "old_cluster_classification_job" }
+  - match: { data_frame_analytics.0.source.index: ["bwc_ml_classification_job_source"] }
+  - match: { data_frame_analytics.0.source.query: {"term": { "user.keyword": "Kimchy" }} }
+  - match: { data_frame_analytics.0.dest.index: "old_cluster_classification_job_results" }
+  - match: { data_frame_analytics.0.analysis.classification.dependent_variable: "foo" }
+  - match: { data_frame_analytics.0.analysis.classification.training_percent: 100.0 }
+  - is_true: data_frame_analytics.0.analysis.classification.randomize_seed
+
+---
+"Get old classification job stats":
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "old_cluster_classification_job"
+  - match: { count: 1 }
+  - match: { data_frame_analytics.0.id: "old_cluster_classification_job" }
+  - match: { data_frame_analytics.0.state: "stopped" }
+
+---
 "Put an outlier_detection job on the mixed cluster":
 
   - do:

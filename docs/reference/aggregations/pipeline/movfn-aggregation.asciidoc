@@ -15,11 +15,11 @@ A `moving_fn` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "moving_fn": {
-        "buckets_path": "the_sum",
-        "window": 10,
-        "script": "MovingFunctions.min(values)"
-    }
+  "moving_fn": {
+    "buckets_path": "the_sum",
+    "window": 10,
+    "script": "MovingFunctions.min(values)"
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -42,27 +42,27 @@ embedded like any other metric aggregation:
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{                <1>
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" } <2>
-                },
-                "the_movfn": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum", <3>
-                        "window": 10,
-                        "script": "MovingFunctions.unweightedAvg(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {                  <1>
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }   <2>
+        },
+        "the_movfn": {
+          "moving_fn": {
+            "buckets_path": "the_sum",  <3>
+            "window": 10,
+            "script": "MovingFunctions.unweightedAvg(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -143,27 +143,27 @@ For example, this script will simply return the first value from the window, or 
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "return values.length > 0 ? values[0] : Double.NaN"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "return values.length > 0 ? values[0] : Double.NaN"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -213,27 +213,27 @@ is only calculated over the real values. If the window is empty, or all values a
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_max": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.max(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_max": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.max(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -255,27 +255,27 @@ is only calculated over the real values. If the window is empty, or all values a
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_min": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.min(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_min": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.min(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -297,27 +297,27 @@ the sum is only calculated over the real values.  If the window is empty, or all
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_sum": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.sum(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_sum": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.sum(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -341,27 +341,27 @@ This function accepts a collection of doubles and average, then returns the stan
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_moving_sum": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.stdDev(values, MovingFunctions.unweightedAvg(values))"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_moving_sum": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.stdDev(values, MovingFunctions.unweightedAvg(values))"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -392,27 +392,27 @@ values.
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.unweightedAvg(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.unweightedAvg(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -437,27 +437,27 @@ If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.linearWeightedAvg(values)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.linearWeightedAvg(values)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -488,27 +488,27 @@ values.
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.ewma(values, 0.3)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.ewma(values, 0.3)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -545,27 +545,27 @@ values.
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "MovingFunctions.holt(values, 0.3, 0.1)"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "MovingFunctions.holt(values, 0.3, 0.1)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -610,27 +610,27 @@ values.
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_sum":{
-                    "sum":{ "field": "price" }
-                },
-                "the_movavg": {
-                    "moving_fn": {
-                        "buckets_path": "the_sum",
-                        "window": 10,
-                        "script": "if (values.length > 5*2) {MovingFunctions.holtWinters(values, 0.3, 0.1, 0.1, 5, false)}"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_sum": {
+          "sum": { "field": "price" }
+        },
+        "the_movavg": {
+          "moving_fn": {
+            "buckets_path": "the_sum",
+            "window": 10,
+            "script": "if (values.length > 5*2) {MovingFunctions.holtWinters(values, 0.3, 0.1, 0.1, 5, false)}"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

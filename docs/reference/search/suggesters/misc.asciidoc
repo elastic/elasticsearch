@@ -78,6 +78,8 @@ In the response, the suggester names will be changed to respectively `term#my-fi
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
+// TESTRESPONSE[s/"score": 0.8333333/"score": $body.suggest.term#my-first-suggester.2.options.0.score/]
+// TESTRESPONSE[s/"score": 0.030227963/"score": $body.suggest.phrase#my-second-suggester.0.options.0.score/]
 
 <1> The name `my-first-suggester` now contains the `term` prefix.
 <2> The name `my-second-suggester` now contains the `phrase` prefix.

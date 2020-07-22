@@ -1,5 +1,8 @@
 [[analysis-edgengram-tokenizer]]
 === Edge n-gram tokenizer
+++++
+<titleabbrev>Edge n-gram</titleabbrev>
+++++
 
 The `edge_ngram` tokenizer first breaks text down into words whenever it
 encounters one of a list of specified characters, then it emits

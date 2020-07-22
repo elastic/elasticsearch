@@ -69,7 +69,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                 STARTED,
                 randomBoolean() ? null : randomAlphaOfLength(100),
                 randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
-                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0.0, 0.0, 0.0),
+                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 0, 8, 9, 0, 11, 12, 0.0, 0.0, 0.0),
                 new TransformCheckpointingInfo(
                     new TransformCheckpointStats(0, null, null, 10, 100),
                     new TransformCheckpointStats(0, null, null, 100, 1000),
@@ -83,6 +83,34 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                 stats.writeTo(output);
                 try (StreamInput in = output.bytes().streamInput()) {
                     in.setVersion(Version.V_7_3_0);
+                    TransformStats statsFromOld = new TransformStats(in);
+                    assertThat(statsFromOld, equalTo(stats));
+                }
+            }
+        }
+    }
+
+    public void testBwcWith76() throws IOException {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            TransformStats stats = new TransformStats(
+                "bwc-id",
+                STARTED,
+                randomBoolean() ? null : randomAlphaOfLength(100),
+                randomBoolean() ? null : NodeAttributeTests.randomNodeAttributes(),
+                new TransformIndexerStats(1, 2, 3, 4, 5, 6, 0, 8, 9, 0, 11, 12, 13.0, 14.0, 15.0),
+                new TransformCheckpointingInfo(
+                    new TransformCheckpointStats(0, null, null, 10, 100),
+                    new TransformCheckpointStats(0, null, null, 100, 1000),
+                    // changesLastDetectedAt aren't serialized back
+                    100,
+                    null
+                )
+            );
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                output.setVersion(Version.V_7_6_0);
+                stats.writeTo(output);
+                try (StreamInput in = output.bytes().streamInput()) {
+                    in.setVersion(Version.V_7_6_0);
                     TransformStats statsFromOld = new TransformStats(in);
                     assertThat(statsFromOld, equalTo(stats));
                 }

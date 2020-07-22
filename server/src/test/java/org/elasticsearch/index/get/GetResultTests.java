@@ -29,6 +29,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
@@ -38,6 +44,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -192,7 +199,7 @@ public class GetResultTests extends ESTestCase {
             RandomObjects.randomSource(random()), getResult.getFields(), null));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getId(),
             getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(),
-                getResult.isExists(), getResult.internalSourceRef(), randomDocumentFields(XContentType.JSON).v1(), null));
+                getResult.isExists(), getResult.internalSourceRef(), randomDocumentFields(XContentType.JSON, randomBoolean()).v1(), null));
         return randomFrom(mutations).get();
     }
 
@@ -204,8 +211,8 @@ public class GetResultTests extends ESTestCase {
         final long primaryTerm;
         final boolean exists;
         BytesReference source = null;
-        Map<String, DocumentField> fields = null;
-        Map<String, DocumentField> expectedFields = null;
+        Map<String, DocumentField> docFields = null;
+        Map<String, DocumentField> expectedDocFields = null;
         Map<String, DocumentField> metaFields = null;
         Map<String, DocumentField> expectedMetaFields = null;
         if (frequently()) {
@@ -217,14 +224,13 @@ public class GetResultTests extends ESTestCase {
                 source = RandomObjects.randomSource(random());
             }
             if (randomBoolean()) {
-                Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(xContentType);
-                fields = new HashMap<>();
-                metaFields = new HashMap<>();
-                GetResult.splitFieldsByMetadata(tuple.v1(), fields, metaFields);
+                Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(xContentType, false);
+                docFields = tuple.v1();
+                expectedDocFields = tuple.v2();
 
-                expectedFields = new HashMap<>();
-                expectedMetaFields = new HashMap<>();
-                GetResult.splitFieldsByMetadata(tuple.v2(), expectedFields, expectedMetaFields);
+                tuple = randomDocumentFields(xContentType, true);
+                metaFields = tuple.v1();
+                expectedMetaFields = tuple.v2();
             }
         } else {
             seqNo = UNASSIGNED_SEQ_NO;
@@ -232,18 +238,25 @@ public class GetResultTests extends ESTestCase {
             version = -1;
             exists = false;
         }
-        GetResult getResult = new GetResult(index, id, seqNo, primaryTerm, version, exists, source, fields, metaFields);
+        GetResult getResult = new GetResult(index, id, seqNo, primaryTerm, version, exists, source, docFields, metaFields);
         GetResult expectedGetResult = new GetResult(index, id, seqNo, primaryTerm, version, exists, source,
-            expectedFields, expectedMetaFields);
+            expectedDocFields, expectedMetaFields);
         return Tuple.tuple(getResult, expectedGetResult);
     }
 
-    public static Tuple<Map<String, DocumentField>,Map<String, DocumentField>> randomDocumentFields(XContentType xContentType) {
-        int numFields = randomIntBetween(2, 10);
+    public static Tuple<Map<String, DocumentField>,Map<String, DocumentField>> randomDocumentFields(
+                XContentType xContentType, boolean isMetaFields) {
+        int numFields = isMetaFields? randomIntBetween(1, 3) : randomIntBetween(2, 10);
         Map<String, DocumentField> fields = new HashMap<>(numFields);
         Map<String, DocumentField> expectedFields = new HashMap<>(numFields);
+        // As we are using this to construct a GetResult object that already contains
+        // index, type, id, version, seqNo, and source fields, we need to exclude them from random fields
+        Predicate<String> excludeMetaFieldFilter = field ->
+            field.equals(TypeFieldMapper.NAME) || field.equals(IndexFieldMapper.NAME) ||
+            field.equals(IdFieldMapper.NAME) || field.equals(VersionFieldMapper.NAME) ||
+            field.equals(SourceFieldMapper.NAME) || field.equals(SeqNoFieldMapper.NAME) ;
         while (fields.size() < numFields) {
-            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType);
+            Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType, isMetaFields, excludeMetaFieldFilter);
             DocumentField getField = tuple.v1();
             DocumentField expectedGetField = tuple.v2();
             if (fields.putIfAbsent(getField.getName(), getField) == null) {

@@ -48,9 +48,9 @@ public final class RemoteConnectionInfo {
                 String mode = (String) args[1];
                 ModeInfo modeInfo;
                 if (mode.equals(ProxyModeInfo.NAME)) {
-                    modeInfo = new ProxyModeInfo((String) args[4], (int) args[5], (int) args[6]);
+                    modeInfo = new ProxyModeInfo((String) args[4], (String) args[5], (int) args[6], (int) args[7]);
                 } else if (mode.equals(SniffModeInfo.NAME)) {
-                    modeInfo = new SniffModeInfo((List<String>) args[7], (int) args[8], (int) args[9]);
+                    modeInfo = new SniffModeInfo((List<String>) args[8], (int) args[9], (int) args[10]);
                 } else {
                     throw new IllegalArgumentException("mode cannot be " + mode);
                 }
@@ -66,9 +66,10 @@ public final class RemoteConnectionInfo {
         PARSER.declareString(constructorArg(), new ParseField(INITIAL_CONNECT_TIMEOUT));
         PARSER.declareBoolean(constructorArg(), new ParseField(SKIP_UNAVAILABLE));
 
-        PARSER.declareString(optionalConstructorArg(), new ParseField(ProxyModeInfo.ADDRESS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.MAX_SOCKET_CONNECTIONS));
-        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.NUM_SOCKETS_CONNECTED));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ProxyModeInfo.PROXY_ADDRESS));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ProxyModeInfo.SERVER_NAME));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.MAX_PROXY_SOCKET_CONNECTIONS));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(ProxyModeInfo.NUM_PROXY_SOCKETS_CONNECTED));
 
         PARSER.declareStringArray(optionalConstructorArg(), new ParseField(SniffModeInfo.SEEDS));
         PARSER.declareInt(optionalConstructorArg(), new ParseField(SniffModeInfo.MAX_CONNECTIONS_PER_CLUSTER));

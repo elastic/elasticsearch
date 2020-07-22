@@ -59,7 +59,6 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .put("thread_pool.write.size", 1)

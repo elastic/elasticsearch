@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +45,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testSparseVectorWith8xIndex() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), version)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
             .build();
 
         IndexService indexService = createIndex("index", settings);
@@ -69,7 +69,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
     public void testSparseVectorWith7xIndex() throws Exception {
         Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), version)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), version)
             .build();
 
         IndexService indexService = createIndex("index", settings);

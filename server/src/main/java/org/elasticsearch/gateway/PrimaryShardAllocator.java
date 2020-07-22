@@ -21,7 +21,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -95,8 +95,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage
         // on cluster restart if we allocate a boat load of shards
-        final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(unassignedShard.index());
-        final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(unassignedShard.id());
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(unassignedShard.index());
+        final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(unassignedShard.id());
         final boolean snapshotRestore = unassignedShard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT;
 
         assert inSyncAllocationIds.isEmpty() == false;

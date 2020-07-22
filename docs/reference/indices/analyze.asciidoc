@@ -44,7 +44,7 @@ the `analyzer` or `<field>` parameter overrides this value.
 If no analyzer or field are specified,
 the analyze API uses the default analyzer for the index.
 
-If no index is specified 
+If no index is specified
 or the index does not have a default analyzer,
 the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 --
@@ -56,11 +56,9 @@ the analyze API uses the <<analysis-standard-analyzer,standard analyzer>>.
 `analyzer`::
 +
 --
-(Optional, string or <<analysis-custom-analyzer,custom analyzer object>>)
-Analyzer used to analyze for the provided `text`.
-
-See <<analysis-analyzers>> for a list of built-in analyzers.
-You can also provide a <<analysis-custom-analyzer,custom analyzer>>.
+(Optional, string)
+The name of the analyzer that should be applied to the provided `text`. This could be a
+<<analysis-analyzers, built-in analyzer>>, or an analyzer that's been configured in the index.
 
 If this parameter is not specified,
 the analyze API uses the analyzer defined in the field's mapping.
@@ -186,8 +184,6 @@ GET /_analyze
   "text" : "this is a <b>test</b>"
 }
 --------------------------------------------------
-
-deprecated[5.0.0, Use `filter`/`char_filter` instead of `filters`/`char_filters` and `token_filters` has been removed]
 
 Custom tokenizers, token filters, and character filters can be specified in the request body as follows:
 

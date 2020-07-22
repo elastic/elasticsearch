@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.DefaultConverter.TO_NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -159,7 +160,7 @@ public final class SqlDataTypeConverter {
         }
         // extend the default converter with DATE and TIME
         if (from == DATE || from == TIME) {
-            if (to == KEYWORD || to == TEXT) {
+            if (to == KEYWORD || to == TEXT || to == CONSTANT_KEYWORD) {
                 return conversionToString(from);
             }
             if (to == LONG) {

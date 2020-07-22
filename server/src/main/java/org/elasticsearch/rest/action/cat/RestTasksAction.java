@@ -144,7 +144,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.addCell(taskInfo.getStartTime());
         table.addCell(FORMATTER.format(Instant.ofEpochMilli(taskInfo.getStartTime())));
         table.addCell(taskInfo.getRunningTimeNanos());
-        table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()).toString());
+        table.addCell(TimeValue.timeValueNanos(taskInfo.getRunningTimeNanos()));
 
         // Node information. Note that the node may be null because it has left the cluster between when we got this response and now.
         table.addCell(fullId ? nodeId : Strings.substring(nodeId, 0, 4));

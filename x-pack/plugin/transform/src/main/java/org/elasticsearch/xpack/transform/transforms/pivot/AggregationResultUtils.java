@@ -16,6 +16,7 @@ import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
@@ -52,6 +53,7 @@ public final class AggregationResultUtils {
         tempMap.put(GeoBounds.class.getName(), new GeoBoundsAggExtractor());
         tempMap.put(Percentiles.class.getName(), new PercentilesAggExtractor());
         tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
+        tempMap.put(MultiBucketsAggregation.class.getName(), new MultiBucketsAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -81,10 +83,10 @@ public final class AggregationResultUtils {
             // - update documents
             IDGenerator idGen = new IDGenerator();
 
-            groups.getGroups().keySet().forEach(destinationFieldName -> {
+            groups.getGroups().forEach((destinationFieldName, singleGroupSource) -> {
                 Object value = bucket.getKey().get(destinationFieldName);
                 idGen.add(destinationFieldName, value);
-                updateDocument(document, destinationFieldName, value);
+                updateDocument(document, destinationFieldName, singleGroupSource.transformBucketKey(value));
             });
 
             List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());
@@ -120,6 +122,8 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
         } else if (aggregation instanceof SingleBucketAggregation) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(SingleBucketAggregation.class.getName());
+        } else if (aggregation instanceof MultiBucketsAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(MultiBucketsAggregation.class.getName());
         } else {
             // Execution should never reach this point!
             // Creating transforms with unsupported aggregations shall not be possible
@@ -205,11 +209,16 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             Percentiles aggregation = (Percentiles) agg;
-
             HashMap<String, Double> percentiles = new HashMap<>();
 
             for (Percentile p : aggregation) {
-                percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+                // in case of sparse data percentiles might not have data, in this case it returns NaN,
+                // we need to guard the output and set null in this case
+                if (Numbers.isValidDouble(p.getValue()) == false) {
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), null);
+                } else {
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+                }
             }
 
             return percentiles;
@@ -237,6 +246,35 @@ public final class AggregationResultUtils {
                 );
             }
 
+            return nested;
+        }
+    }
+
+    static class MultiBucketsAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            MultiBucketsAggregation aggregation = (MultiBucketsAggregation) agg;
+
+            HashMap<String, Object> nested = new HashMap<>();
+
+            for (MultiBucketsAggregation.Bucket bucket : aggregation.getBuckets()) {
+                if (bucket.getAggregations().iterator().hasNext() == false) {
+                    nested.put(bucket.getKeyAsString(), bucket.getDocCount());
+                } else {
+                    HashMap<String, Object> nestedBucketObject = new HashMap<>();
+                    for (Aggregation subAgg : bucket.getAggregations()) {
+                        nestedBucketObject.put(
+                            subAgg.getName(),
+                            getExtractor(subAgg).value(
+                                subAgg,
+                                fieldTypeMap,
+                                lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()
+                            )
+                        );
+                    }
+                    nested.put(bucket.getKeyAsString(), nestedBucketObject);
+                }
+            }
             return nested;
         }
     }

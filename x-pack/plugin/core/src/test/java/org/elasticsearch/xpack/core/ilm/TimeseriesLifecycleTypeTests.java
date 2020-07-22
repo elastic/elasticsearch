@@ -45,6 +45,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
     private static final UnfollowAction TEST_UNFOLLOW_ACTION  = new UnfollowAction();
+    private static final SearchableSnapshotAction TEST_SEARCHABLE_SNAPSHOT_ACTION = new SearchableSnapshotAction("repo");
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -595,6 +596,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 return TEST_PRIORITY_ACTION;
             case UnfollowAction.NAME:
                 return TEST_UNFOLLOW_ACTION;
+            case SearchableSnapshotAction.NAME:
+                return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             default:
                 throw new IllegalArgumentException("unsupported timeseries phase action [" + actionName + "]");
         }

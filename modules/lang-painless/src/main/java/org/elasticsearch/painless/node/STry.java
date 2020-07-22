@@ -20,87 +20,108 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.TryNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.AllEscape;
+import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
+import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
+import org.elasticsearch.painless.symbol.Decorations.InLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastLoop;
+import org.elasticsearch.painless.symbol.Decorations.LastSource;
+import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.singleton;
+import java.util.Objects;
 
 /**
  * Represents the try block as part of a try-catch block.
  */
-public final class STry extends AStatement {
+public class STry extends AStatement {
 
-    private final SBlock block;
-    private final List<SCatch> catches;
+    private final SBlock blockNode;
+    private final List<SCatch> catchNodes;
 
-    public STry(Location location, SBlock block, List<SCatch> catches) {
-        super(location);
+    public STry(int identifier, Location location, SBlock blockNode, List<SCatch> catchNodes) {
+        super(identifier, location);
 
-        this.block = block;
-        this.catches = Collections.unmodifiableList(catches);
+        this.blockNode = blockNode;
+        this.catchNodes = Collections.unmodifiableList(Objects.requireNonNull(catchNodes));
+    }
+
+    public SBlock getBlockNode() {
+        return blockNode;
+    }
+
+    public List<SCatch> getCatchNodes() {
+        return catchNodes;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (block == null) {
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitTry(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
+        }
+
+        for (SCatch catchNode : catchNodes) {
+            catchNode.visit(userTreeVisitor, scope);
+        }
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (blockNode == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
 
-        block.lastSource = lastSource;
-        block.inLoop = inLoop;
-        block.lastLoop = lastLoop;
+        semanticScope.replicateCondition(this, blockNode, LastSource.class);
+        semanticScope.replicateCondition(this, blockNode, InLoop.class);
+        semanticScope.replicateCondition(this, blockNode, LastLoop.class);
+        blockNode.analyze(semanticScope.newLocalScope());
 
-        block.analyze(scriptRoot, scope.newLocalScope());
+        boolean methodEscape = semanticScope.getCondition(blockNode, MethodEscape.class);
+        boolean loopEscape = semanticScope.getCondition(blockNode, LoopEscape.class);
+        boolean allEscape = semanticScope.getCondition(blockNode, AllEscape.class);
+        boolean anyContinue = semanticScope.getCondition(blockNode, AnyContinue.class);
+        boolean anyBreak = semanticScope.getCondition(blockNode, AnyBreak.class);
 
-        methodEscape = block.methodEscape;
-        loopEscape = block.loopEscape;
-        allEscape = block.allEscape;
-        anyContinue = block.anyContinue;
-        anyBreak = block.anyBreak;
+        for (SCatch catc : catchNodes) {
+            semanticScope.replicateCondition(this, catc, LastSource.class);
+            semanticScope.replicateCondition(this, catc, InLoop.class);
+            semanticScope.replicateCondition(this, catc, LastLoop.class);
+            catc.analyze(semanticScope.newLocalScope());
 
-        int statementCount = 0;
-
-        for (SCatch catc : catches) {
-            catc.lastSource = lastSource;
-            catc.inLoop = inLoop;
-            catc.lastLoop = lastLoop;
-
-            catc.analyze(scriptRoot, scope.newLocalScope());
-
-            methodEscape &= catc.methodEscape;
-            loopEscape &= catc.loopEscape;
-            allEscape &= catc.allEscape;
-            anyContinue |= catc.anyContinue;
-            anyBreak |= catc.anyBreak;
-
-            statementCount = Math.max(statementCount, catc.statementCount);
+            methodEscape &= semanticScope.getCondition(catc, MethodEscape.class);
+            loopEscape &= semanticScope.getCondition(catc, LoopEscape.class);
+            allEscape &= semanticScope.getCondition(catc, AllEscape.class);
+            anyContinue |= semanticScope.getCondition(catc, AnyContinue.class);
+            anyBreak |= semanticScope.getCondition(catc, AnyBreak.class);
         }
 
-        this.statementCount = block.statementCount + statementCount;
-    }
-
-    @Override
-    TryNode write(ClassNode classNode) {
-        TryNode tryNode = new TryNode();
-
-        for (SCatch catc : catches) {
-            tryNode.addCatchNode(catc.write(classNode));
+        if (methodEscape) {
+            semanticScope.setCondition(this, MethodEscape.class);
         }
 
-        tryNode.setBlockNode(block.write(classNode));
+        if (loopEscape) {
+            semanticScope.setCondition(this, LoopEscape.class);
+        }
 
-        tryNode.setLocation(location);
+        if (allEscape) {
+            semanticScope.setCondition(this, AllEscape.class);
+        }
 
-        return tryNode;
-    }
+        if (anyContinue) {
+            semanticScope.setCondition(this, AnyContinue.class);
+        }
 
-    @Override
-    public String toString() {
-        return multilineToString(singleton(block), catches);
+        if (anyBreak) {
+            semanticScope.setCondition(this, AnyBreak.class);
+        }
     }
 }

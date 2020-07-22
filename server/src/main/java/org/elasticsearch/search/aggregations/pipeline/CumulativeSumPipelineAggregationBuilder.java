@@ -19,24 +19,18 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
 public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<CumulativeSumPipelineAggregationBuilder> {
@@ -44,8 +38,21 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
 
     private String format;
 
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<CumulativeSumPipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+        NAME, false, (args, name) -> new CumulativeSumPipelineAggregationBuilder(name, (List<String>) args[0]));
+
+    static {
+        PARSER.declareStringArray(constructorArg(), BUCKETS_PATH_FIELD);
+        PARSER.declareString(CumulativeSumPipelineAggregationBuilder::format, FORMAT);
+    };
+
     public CumulativeSumPipelineAggregationBuilder(String name, String bucketsPath) {
         super(name, NAME, new String[] { bucketsPath });
+    }
+
+    CumulativeSumPipelineAggregationBuilder(String name, List<String> bucketsPath) {
+        super(name, NAME, bucketsPath.toArray(new String[0]));
     }
 
     /**
@@ -88,19 +95,16 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
-        return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter(), metaData);
+    protected PipelineAggregator createInternal(Map<String, Object> metadata) {
+        return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter(), metadata);
     }
 
     @Override
-    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> aggFactories,
-            Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
+    protected void validate(ValidationContext context) {
         if (bucketsPaths.length != 1) {
-            throw new IllegalStateException(BUCKETS_PATH.getPreferredName()
-                    + " must contain a single entry for aggregation [" + name + "]");
+            context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
-        
-        validateSequentiallyOrderedParentAggs(parent, NAME, name);
+        context.validateParentAggSequentiallyOrdered(NAME, name);
     }
 
     @Override
@@ -109,56 +113,6 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
             builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
         }
         return builder;
-    }
-
-    public static CumulativeSumPipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser)
-            throws IOException {
-        XContentParser.Token token;
-        String currentFieldName = null;
-        String[] bucketsPaths = null;
-        String format = null;
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
-                    format = parser.text();
-                } else if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
-                    bucketsPaths = new String[] { parser.text() };
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
-                    List<String> paths = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String path = parser.text();
-                        paths.add(path);
-                    }
-                    bucketsPaths = paths.toArray(new String[paths.size()]);
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + pipelineAggregatorName + "]: [" + currentFieldName + "].");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " in [" + pipelineAggregatorName + "].");
-            }
-        }
-
-        if (bucketsPaths == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for derivative aggregation [" + pipelineAggregatorName + "]");
-        }
-
-        CumulativeSumPipelineAggregationBuilder factory =
-                new CumulativeSumPipelineAggregationBuilder(pipelineAggregatorName, bucketsPaths[0]);
-        if (format != null) {
-            factory.format(format);
-        }
-        return factory;
     }
 
     @Override

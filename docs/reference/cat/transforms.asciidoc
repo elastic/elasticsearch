@@ -1,0 +1,195 @@
+[[cat-transforms]]
+=== cat {transforms} API
+++++
+<titleabbrev>cat transforms</titleabbrev>
+++++
+
+Returns configuration and usage information about {transforms}.
+
+[[cat-transforms-api-request]]
+==== {api-request-title}
+
+`GET /_cat/transforms/<transform_id>` +
+
+`GET /_cat/transforms/_all` +
+
+`GET /_cat/transforms/*` +
+
+`GET /_cat/transforms`
+
+[[cat-transforms-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_transform`
+cluster privileges to use this API. The built-in `transform_user` role has these
+privileges. For more information, see <<security-privileges>> and
+<<built-in-roles>>.
+
+//[[cat-transforms-api-desc]]
+//==== {api-description-title}
+
+[[cat-transforms-api-path-params]]
+==== {api-path-parms-title}
+
+`<transform_id>`::
+(Optional, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+
+[[cat-transforms-api-query-params]]
+==== {api-query-parms-title}
+
+`allow_no_match`::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+`from`::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+If you do not specify which columns to include, the API returns the default
+columns. If you explicitly specify one or more columns, it returns only the
+specified columns.
++
+Valid columns are:
+
+`changes_last_detection_time`, `cldt`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-changes-last-detected-at]
+
+`checkpoint_duration_time_exp_avg`, `cdtea`, `checkpointTimeExpAvg`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-checkpoint-duration-ms]
+
+`create_time`, `ct`, `createTime`:::
+(Default)
+The time the {transform} was created.
+
+`description`, `d`:::
+(Default)
+The description of the {transform}.
+
+`dest_index`, `di`, `destIndex`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-index]
+
+`documents_indexed`, `doci`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-indexed]
+
+`docs_per_second`, `dps`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+
+`documents_processed`, `docp`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-processed]
+
+`frequency`, `f`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
+
+`id`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+
+`index_failure`, `if`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-failures]
+
+`index_time`, `itime`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-time-ms]
+
+`index_total`, `it`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-total]
+
+`indexed_documents_exp_avg`, `idea`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-indexed]
+
+`max_page_search_size`, `mpsz`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+
+`pages_processed`, `pp`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pages-processed]
+
+`pipeline`, `p`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
+
+`processed_documents_exp_avg`, `pdea`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=exponential-avg-documents-processed]
+
+`processing_time`, `pt`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=processing-time-ms]
+
+`reason`, `r`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform-reason]
+
+`search_failure`, `sf`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-failures]
+
+`search_time`, `stime`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-time-ms]
+
+`search_total`, `st`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-total]
+
+`source_index`, `si`, `sourceIndex`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transforms]
+
+`state`, `s`:::
+(Default)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
+
+`transform_type`, `tt`:::
+(Default)
+Indicates the type of {transform}: `batch` or `continuous`.
+
+`trigger_count`, `tc`:::
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=trigger-count]
+
+`version`, `v`:::
+(Default)
+The version of {es} that existed on the node when the {transform} was
+created.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+`size`::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+[[cat-transforms-api-examples]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET /_cat/transforms?v&format=json
+--------------------------------------------------
+// TEST[skip:kibana sample data]
+
+[source,console-result]
+----
+[
+  {
+    "id" : "ecommerce_transform",
+    "create_time" : "2020-03-20T20:31:25.077Z",
+    "version" : "7.7.0",
+    "source_index" : "kibana_sample_data_ecommerce",
+    "dest_index" : "kibana_sample_data_ecommerce_transform",
+    "pipeline" : null,
+    "description" : "Maximum priced ecommerce data by customer_id in Asia",
+    "transform_type" : "continuous",
+    "frequency" : "5m",
+    "max_page_search_size" : "500",
+    "state" : "STARTED"
+  }
+]
+----
+// TESTRESPONSE[skip:kibana sample data]

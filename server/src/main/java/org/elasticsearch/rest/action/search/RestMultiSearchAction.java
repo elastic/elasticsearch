@@ -94,7 +94,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        int preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
+        Integer preFilterShardSize = null;
+        if (restRequest.hasParam("pre_filter_shard_size")) {
+            preFilterShardSize = restRequest.paramAsInt("pre_filter_shard_size", SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE);
+        }
 
         final Integer maxConcurrentShardRequests;
         if (restRequest.hasParam("max_concurrent_shard_requests")) {
@@ -111,10 +114,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();
-        preFilterShardSize = Math.max(1, preFilterShardSize / (requests.size()+1));
         for (SearchRequest request : requests) {
             // preserve if it's set on the request
-            request.setPreFilterShardSize(Math.min(preFilterShardSize, request.getPreFilterShardSize()));
+            if (preFilterShardSize != null && request.getPreFilterShardSize() == null) {
+                request.setPreFilterShardSize(preFilterShardSize);
+            }
             if (maxConcurrentShardRequests != null) {
                 request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
             }

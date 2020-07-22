@@ -37,12 +37,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -55,24 +54,20 @@ import java.util.Objects;
 
 
 public final class IpRangeAggregationBuilder
-        extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, IpRangeAggregationBuilder> {
+        extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
-    private static final ObjectParser<IpRangeAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, IpRangeAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(IpRangeAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareBytesFields(PARSER, false, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
 
         PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
             for (Range range : ranges) agg.addRange(range);
         }, (p, c) -> IpRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
-    }
-
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new IpRangeAggregationBuilder(aggregationName), null);
     }
 
     private static Range parseRange(XContentParser parser) throws IOException {
@@ -216,22 +211,26 @@ public final class IpRangeAggregationBuilder
         }
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        BinaryRangeAggregatorFactory.registerAggregators(builder);
+    }
+
     private boolean keyed = false;
     private List<Range> ranges = new ArrayList<>();
 
     public IpRangeAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.BYTES, ValueType.IP);
+        super(name);
     }
 
-    protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected IpRangeAggregationBuilder(IpRangeAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.ranges =  new ArrayList<>(clone.ranges);
         this.keyed = clone.keyed;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new IpRangeAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new IpRangeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     @Override
@@ -337,12 +336,17 @@ public final class IpRangeAggregationBuilder
     }
 
     public IpRangeAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.BYTES, ValueType.IP);
+        super(in);
         final int numRanges = in.readVInt();
         for (int i = 0; i < numRanges; ++i) {
             addRange(new Range(in));
         }
         keyed = in.readBoolean();
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.IP;
     }
 
     @Override
@@ -364,10 +368,14 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.Bytes> innerBuild(
-        QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.Bytes> config,
-        AggregatorFactory parent, Builder subFactoriesBuilder)
-                    throws IOException {
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(
+                QueryShardContext queryShardContext, ValuesSourceConfig config,
+                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
@@ -376,7 +384,7 @@ public final class IpRangeAggregationBuilder
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
         return new BinaryRangeAggregatorFactory(name, config, ranges,
-                keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
+                keyed, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

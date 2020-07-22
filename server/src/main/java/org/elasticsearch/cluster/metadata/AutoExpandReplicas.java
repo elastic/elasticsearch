@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 
-import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.isIndexVerifiedBeforeClosed;
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 
 /**
  * This class acts as a functional wrapper around the {@code index.auto_expand_replicas} setting.
@@ -46,7 +46,7 @@ public final class AutoExpandReplicas {
 
     private static final AutoExpandReplicas FALSE_INSTANCE = new AutoExpandReplicas(0, 0, false);
 
-    public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "false",
+    public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false",
         AutoExpandReplicas::parse, Property.Dynamic, Property.IndexScope);
 
     private static AutoExpandReplicas parse(String value) {
@@ -57,14 +57,14 @@ public final class AutoExpandReplicas {
         }
         final int dash = value.indexOf('-');
         if (-1 == dash) {
-            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+            throw new IllegalArgumentException("failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS +
                 "] from value: [" + value + "] at index " + dash);
         }
         final String sMin = value.substring(0, dash);
         try {
             min = Integer.parseInt(sMin);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+            throw new IllegalArgumentException("failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS +
                 "] from value: [" + value + "] at index "  + dash, e);
         }
         String sMax = value.substring(dash + 1);
@@ -74,7 +74,7 @@ public final class AutoExpandReplicas {
             try {
                 max = Integer.parseInt(sMax);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("failed to parse [" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+                throw new IllegalArgumentException("failed to parse [" + IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS +
                     "] from value: [" + value + "] at index "  + dash, e);
             }
         }
@@ -87,7 +87,7 @@ public final class AutoExpandReplicas {
 
     private AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
         if (minReplicas > maxReplicas) {
-            throw new IllegalArgumentException("[" + IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS +
+            throw new IllegalArgumentException("[" + IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS +
                 "] minReplicas must be =< maxReplicas but wasn't " + minReplicas + " > "  + maxReplicas);
         }
         this.minReplicas = minReplicas;
@@ -103,13 +103,13 @@ public final class AutoExpandReplicas {
         return Math.min(maxReplicas, numDataNodes-1);
     }
 
-    private OptionalInt getDesiredNumberOfReplicas(IndexMetaData indexMetaData, RoutingAllocation allocation) {
+    private OptionalInt getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         if (enabled) {
             int numMatchingDataNodes = 0;
             // Only start using new logic once all nodes are migrated to 7.6.0, avoiding disruption during an upgrade
             if (allocation.nodes().getMinNodeVersion().onOrAfter(Version.V_7_6_0)) {
                 for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
-                    Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetaData, cursor.value, allocation);
+                    Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, cursor.value, allocation);
                     if (decision.type() != Decision.Type.NO) {
                         numMatchingDataNodes ++;
                     }
@@ -145,15 +145,15 @@ public final class AutoExpandReplicas {
      * The map has the desired number of replicas as key and the indices to update as value, as this allows the result
      * of this method to be directly applied to RoutingTable.Builder#updateNumberOfReplicas.
      */
-    public static Map<Integer, List<String>> getAutoExpandReplicaChanges(MetaData metaData, RoutingAllocation allocation) {
+    public static Map<Integer, List<String>> getAutoExpandReplicaChanges(Metadata metadata, RoutingAllocation allocation) {
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
 
-        for (final IndexMetaData indexMetaData : metaData) {
-            if (indexMetaData.getState() == IndexMetaData.State.OPEN || isIndexVerifiedBeforeClosed(indexMetaData)) {
-                AutoExpandReplicas autoExpandReplicas = SETTING.get(indexMetaData.getSettings());
-                autoExpandReplicas.getDesiredNumberOfReplicas(indexMetaData, allocation).ifPresent(numberOfReplicas -> {
-                    if (numberOfReplicas != indexMetaData.getNumberOfReplicas()) {
-                        nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetaData.getIndex().getName());
+        for (final IndexMetadata indexMetadata : metadata) {
+            if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
+                AutoExpandReplicas autoExpandReplicas = SETTING.get(indexMetadata.getSettings());
+                autoExpandReplicas.getDesiredNumberOfReplicas(indexMetadata, allocation).ifPresent(numberOfReplicas -> {
+                    if (numberOfReplicas != indexMetadata.getNumberOfReplicas()) {
+                        nrReplicasChanged.computeIfAbsent(numberOfReplicas, ArrayList::new).add(indexMetadata.getIndex().getName());
                     }
                 });
             }

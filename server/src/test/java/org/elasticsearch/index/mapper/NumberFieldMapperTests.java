@@ -20,9 +20,10 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,16 +42,22 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
-public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase<NumberFieldMapper.Builder> {
 
     @Override
     protected void setTypeList() {
         TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long", "float", "double", "half_float"));
         WHOLE_TYPES = new HashSet<>(Arrays.asList("byte", "short", "integer", "long"));
+    }
+
+    @Override
+    protected Set<String> unsupportedProperties() {
+        return Set.of("analyzer", "similarity");
     }
 
     @Override
@@ -250,7 +259,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
                 IndexableField[] fields = doc.rootDoc().getFields("field");
                 assertEquals(0, fields.length);
-                assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
+                assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
             }
         }
     }
@@ -453,6 +462,33 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         parseRequest(NumberType.LONG, createIndexRequest("-9223372036854775808.9"));
     }
 
+    public void testLongIndexingOutOfRange() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject().startObject("_doc")
+            .startObject("properties")
+            .startObject("number")
+            .field("type", "long")
+            .field("ignore_malformed", true)
+            .endObject().endObject()
+            .endObject().endObject());
+        createIndex("test57287");
+        client().admin().indices().preparePutMapping("test57287").setSource(mapping, XContentType.JSON).get();
+        String doc = "{\"number\" : 9223372036854775808}";
+        IndexResponse response = client().index(new IndexRequest("test57287").source(doc, XContentType.JSON)).get();
+        assertTrue(response.status() == RestStatus.CREATED);
+    }
+
+    public void testDeprecatedSimilarityParameter() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("field")
+            .field("type", "long")
+            .field("similarity", "bm25")
+            .endObject().endObject().endObject().endObject());
+
+        parser.parse("type", new CompressedXContent(mapping));
+        assertWarnings("The [similarity] parameter has no effect on field [field] and will be removed in 8.0");
+    }
+
     private void parseRequest(NumberType type, BytesReference content) throws IOException {
         createDocumentMapper(type).parse(new SourceToParse("test", "1", content, XContentType.JSON));
     }
@@ -482,5 +518,10 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         } else {
             return BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject());
         }
+    }
+
+    @Override
+    protected NumberFieldMapper.Builder newBuilder() {
+        return new NumberFieldMapper.Builder("number", NumberType.LONG);
     }
 }

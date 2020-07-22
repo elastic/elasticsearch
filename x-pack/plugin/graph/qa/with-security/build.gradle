@@ -1,14 +1,16 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(":x-pack:plugin:core")
+  testImplementation project(":x-pack:plugin:core")
 }
 
 // bring in graph rest test suite
 restResources {
   restApi {
+    includeCore '_common', 'cluster', 'indices', 'index'
     includeXpack 'graph'
   }
   restTests {

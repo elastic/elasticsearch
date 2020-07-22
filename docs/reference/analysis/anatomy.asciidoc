@@ -10,6 +10,7 @@ blocks into analyzers suitable for different languages and types of text.
 Elasticsearch also exposes the individual building blocks so that they can be
 combined to define new <<analysis-custom-analyzer,`custom`>> analyzers.
 
+[[analyzer-anatomy-character-filters]]
 ==== Character filters
 
 A _character filter_ receives the original text as a stream of characters and
@@ -21,6 +22,7 @@ elements like `<b>` from the stream.
 An analyzer may have *zero or more* <<analysis-charfilters,character filters>>,
 which are applied in order.
 
+[[analyzer-anatomy-tokenizer]]
 ==== Tokenizer
 
 A _tokenizer_  receives a stream of characters, breaks it up into individual
@@ -35,6 +37,7 @@ the term represents.
 
 An analyzer must have *exactly one* <<analysis-tokenizers,tokenizer>>.
 
+[[analyzer-anatomy-token-filters]]
 ==== Token filters
 
 A _token filter_ receives the token stream and may add, remove, or change

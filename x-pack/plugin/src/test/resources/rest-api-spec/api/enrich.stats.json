@@ -1,7 +1,8 @@
 {
   "enrich.stats": {
     "documentation": {
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-stats-api.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-stats-api.html",
+      "description": "Gets enrich coordinator statistics and information about enrich policies that are currently executing."
     },
     "stability" : "stable",
     "url": {

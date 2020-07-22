@@ -75,49 +75,49 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<An
         String jobId = config.getId();
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
-                true, false, true, true, state != null, config.getAnalysis().persistsState());
+                false, true, true, state != null, config.getAnalysis().persistsState());
 
         // The extra 2 are for the checksum and the control field
         int numberOfFields = analyticsProcessConfig.cols() + 2;
 
-        createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes);
+        createNativeProcess(jobId, analyticsProcessConfig, filesToDelete, processPipes, executorService);
 
         NativeAnalyticsProcess analyticsProcess =
             new NativeAnalyticsProcess(
-                jobId, nativeController, processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfFields, filesToDelete,
+                jobId, nativeController, processPipes, numberOfFields, filesToDelete,
                 onProcessCrash, processConnectTimeout, analyticsProcessConfig, namedXContentRegistry);
 
         try {
             startProcess(config, executorService, processPipes, analyticsProcess);
             return analyticsProcess;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to data frame analytics process for job " + jobId;
+            LOGGER.error(msg);
             try {
                 IOUtils.close(analyticsProcess);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close data frame analytics process", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
     private void startProcess(DataFrameAnalyticsConfig config, ExecutorService executorService, ProcessPipes processPipes,
-                                                NativeAnalyticsProcess process) {
+                                                NativeAnalyticsProcess process) throws IOException {
         if (config.getAnalysis().persistsState()) {
             IndexingStateProcessor stateProcessor = new IndexingStateProcessor(config.getId(), resultsPersisterService, auditor);
-            process.start(executorService, stateProcessor, processPipes.getPersistStream().get());
+            process.start(executorService, stateProcessor);
         } else {
             process.start(executorService);
         }
     }
 
     private void createNativeProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, List<Path> filesToDelete,
-                                     ProcessPipes processPipes) {
+                                     ProcessPipes processPipes, ExecutorService executorService) {
         AnalyticsBuilder analyticsBuilder =
             new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {
             analyticsBuilder.build();
-            processPipes.connectStreams(processConnectTimeout);
         } catch (IOException e) {
             String msg = "Failed to launch data frame analytics process for job " + jobId;
             LOGGER.error(msg);

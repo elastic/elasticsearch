@@ -20,53 +20,45 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationBlockNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
-
 /**
  * Represents a series of declarations.
  */
-public final class SDeclBlock extends AStatement {
+public class SDeclBlock extends AStatement {
 
-    private final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarationNodes;
 
-    public SDeclBlock(Location location, List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(int identifier, Location location, List<SDeclaration> declarationNodes) {
+        super(identifier, location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.declarationNodes = Collections.unmodifiableList(declarationNodes);
+    }
+
+    public List<SDeclaration> getDeclarationNodes() {
+        return declarationNodes;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        for (SDeclaration declaration : declarations) {
-            declaration.analyze(scriptRoot, scope);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclBlock(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (SDeclaration declarationNode : declarationNodes) {
+            declarationNode.visit(userTreeVisitor, scope);
         }
-
-        statementCount = declarations.size();
     }
 
     @Override
-    DeclarationBlockNode write(ClassNode classNode) {
-        DeclarationBlockNode declarationBlockNode = new DeclarationBlockNode();
-
-        for (SDeclaration declaration : declarations) {
-            declarationBlockNode.addDeclarationNode(declaration.write(classNode));
+    void analyze(SemanticScope semanticScope) {
+        for (SDeclaration declaration : declarationNodes) {
+            declaration.analyze(semanticScope);
         }
-
-        declarationBlockNode.setLocation(location);
-
-        return declarationBlockNode;
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), declarations);
     }
 }

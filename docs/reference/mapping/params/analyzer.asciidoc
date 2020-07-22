@@ -1,81 +1,23 @@
 [[analyzer]]
 === `analyzer`
 
-The values of <<text,`text`>> fields are passed through an
-<<analysis,analyzer>> to convert the string into a stream of _tokens_ or
-_terms_.  For instance, the string `"The quick Brown Foxes."` may, depending
-on which analyzer is used,  be analyzed to the tokens: `quick`, `brown`,
-`fox`.  These are the actual terms that are indexed for the field, which makes
-it possible to search efficiently for individual words _within_  big blobs of
-text.
+[IMPORTANT]
+====
+Only <<text,`text`>> fields support the `analyzer` mapping parameter.
+====
 
-This analysis process needs to happen not just at index time, but also at
-query time: the query string needs to be passed through the same (or a
-similar) analyzer so that the terms that it tries to find are in the same
-format as those that exist in the index.
+The `analyzer` parameter specifies the <<analyzer-anatomy,analyzer>> used for
+<<analysis,text analysis>> when indexing or searching a `text` field.
 
-Elasticsearch ships with a number of <<analysis-analyzers,pre-defined analyzers>>,
-which can be used without further configuration.  It also ships with many
-<<analysis-charfilters,character filters>>, <<analysis-tokenizers,tokenizers>>,
-and <<analysis-tokenfilters>> which can be combined to configure
-custom analyzers per index.
+Unless overridden with the <<search-analyzer,`search_analyzer`>> mapping
+parameter, this analyzer is used for both <<analysis-index-search-time,index and
+search analysis>>. See <<specify-analyzer>>.
 
-Analyzers can be specified per-query, per-field or per-index. At index time,
-Elasticsearch will look for an analyzer in this order:
-
-* The `analyzer` defined in the field mapping.
-* An analyzer named `default` in the index settings.
-* The <<analysis-standard-analyzer,`standard`>> analyzer.
-
-At query time, there are a few more layers:
-
-* The `analyzer` defined in a <<full-text-queries,full-text query>>.
-* The `search_analyzer` defined in the field mapping.
-* The `analyzer` defined in the field mapping.
-* An analyzer named `default_search` in the index settings.
-* An analyzer named `default` in the index settings.
-* The <<analysis-standard-analyzer,`standard`>> analyzer.
-
-The easiest way to specify an analyzer for a particular field is to define it
-in the field mapping, as follows:
-
-[source,console]
---------------------------------------------------
-PUT /my_index
-{
-  "mappings": {
-    "properties": {
-      "text": { <1>
-        "type": "text",
-        "fields": {
-          "english": { <2>
-            "type":     "text",
-            "analyzer": "english"
-          }
-        }
-      }
-    }
-  }
-}
-
-GET my_index/_analyze <3>
-{
-  "field": "text",
-  "text": "The quick Brown Foxes."
-}
-
-GET my_index/_analyze <4>
-{
-  "field": "text.english",
-  "text": "The quick Brown Foxes."
-}
---------------------------------------------------
-
-<1> The `text` field uses the default `standard` analyzer`.
-<2> The `text.english` <<multi-fields,multi-field>> uses the `english` analyzer, which removes stop words and applies stemming.
-<3> This returns the tokens: [ `the`, `quick`, `brown`, `foxes` ].
-<4> This returns the tokens: [ `quick`, `brown`, `fox` ].
-
+[TIP]
+====
+We recommend testing analyzers before using them in production. See
+<<test-analyzer>>.
+====
 
 [[search-quote-analyzer]]
 ==== `search_quote_analyzer`

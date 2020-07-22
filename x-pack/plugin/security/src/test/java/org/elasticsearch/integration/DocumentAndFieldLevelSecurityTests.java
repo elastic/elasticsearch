@@ -12,7 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -326,7 +326,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field1");
@@ -336,7 +336,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field2");
@@ -346,7 +346,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field1");
@@ -356,7 +356,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
                     Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user4", USERS_PASSWD)))
                     .admin().indices().prepareGetFieldMappings("test").setFields("*").get();
 
-            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>> mappings =
+            Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mappings =
                     getFieldMappingsResponse.mappings();
             assertEquals(1, mappings.size());
             assertExpectedFields(mappings.get("test"), "field1", "field2");
@@ -405,7 +405,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertExpectedFields(ImmutableOpenMap<String, MappingMetaData> mappings,
+    private static void assertExpectedFields(ImmutableOpenMap<String, MappingMetadata> mappings,
                                              String... fields) {
         Map<String, Object> sourceAsMap = mappings.get("test").getSourceAsMap();
         assertEquals(1, sourceAsMap.size());
@@ -418,8 +418,8 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
 
     private static void assertExpectedFields(FieldCapabilitiesResponse fieldCapabilitiesResponse, String... expectedFields) {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
-        Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
-        for (String field : builtInMetaDataFields) {
+        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
+        for (String field : builtInMetadataFields) {
             Map<String, FieldCapabilities> remove = responseMap.remove(field);
             assertNotNull(" expected field [" + field + "] not found", remove);
         }
@@ -430,17 +430,17 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
-    private static void assertExpectedFields(Map<String, GetFieldMappingsResponse.FieldMappingMetaData> actual,
+    private static void assertExpectedFields(Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
                                             String... expectedFields) {
-        Set<String> builtInMetaDataFields = IndicesModule.getBuiltInMetaDataFields();
-        Map<String, GetFieldMappingsResponse.FieldMappingMetaData> fields = new HashMap<>(actual);
-        for (String field : builtInMetaDataFields) {
-            GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
-            assertNotNull(" expected field [" + field + "] not found", fieldMappingMetaData);
+        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
+        Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
+        for (String field : builtInMetadataFields) {
+            GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
+            assertNotNull(" expected field [" + field + "] not found", fieldMappingMetadata);
         }
         for (String field : expectedFields) {
-            GetFieldMappingsResponse.FieldMappingMetaData fieldMappingMetaData = fields.remove(field);
-            assertNotNull("expected field [" + field + "] not found", fieldMappingMetaData);
+            GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
+            assertNotNull("expected field [" + field + "] not found", fieldMappingMetadata);
         }
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }

@@ -28,9 +28,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -89,23 +91,25 @@ public class JobResultsPersister {
         this.auditor = auditor;
     }
 
-    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
-        return new Builder(jobId, resultsPersisterService, shouldRetry);
+    public Builder bulkPersisterBuilder(String jobId) {
+        return new Builder(jobId);
     }
 
     public class Builder {
         private BulkRequest bulkRequest;
         private final String jobId;
         private final String indexName;
-        private final Supplier<Boolean> shouldRetry;
-        private final ResultsPersisterService resultsPersisterService;
+        private Supplier<Boolean> shouldRetry = () -> true;
 
-        private Builder(String jobId, ResultsPersisterService resultsPersisterService, Supplier<Boolean> shouldRetry) {
+        private Builder(String jobId) {
+            this.bulkRequest = new BulkRequest();
             this.jobId = Objects.requireNonNull(jobId);
-            indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-            bulkRequest = new BulkRequest();
-            this.shouldRetry = shouldRetry;
-            this.resultsPersisterService = resultsPersisterService;
+            this.indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+        }
+
+        public Builder shouldRetry(Supplier<Boolean> shouldRetry) {
+            this.shouldRetry = Objects.requireNonNull(shouldRetry);
+            return this;
         }
 
         /**
@@ -194,6 +198,13 @@ public class JobResultsPersister {
             return this;
         }
 
+        public Builder persistCategorizerStats(CategorizerStats categorizerStats) {
+            logger.trace("[{}] ES BULK ACTION: index categorizer stats to index [{}] with ID [{}]",
+                jobId, indexName, categorizerStats.getId());
+            indexResult(categorizerStats.getId(), categorizerStats, "categorizer stats");
+            return this;
+        }
+
         public Builder persistForecast(Forecast forecast) {
             logger.trace("[{}] ES BULK ACTION: index forecast to index [{}] with ID [{}]", jobId, indexName, forecast.getId());
             indexResult(forecast.getId(), forecast, Forecast.RESULT_TYPE_VALUE);
@@ -234,6 +245,10 @@ public class JobResultsPersister {
             resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, (msg) -> {
                 auditor.warning(jobId, "Bulk indexing of results failed " + msg);
             });
+            bulkRequest = new BulkRequest();
+        }
+
+        public void clearBulkRequest() {
             bulkRequest = new BulkRequest();
         }
 
@@ -378,6 +393,21 @@ public class JobResultsPersister {
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            client.admin().indices().refresh(refreshRequest).actionGet();
+        }
+    }
+
+    /**
+     * Makes annotations searchable as they are considered part of a job's results
+     * to fulfil the contract that job results are searchable immediately after a
+     * close or flush.
+     */
+    public void commitAnnotationWrites() {
+        // We refresh using the read alias in order to ensure all indices will
+        // be refreshed even if a rollover occurs in between.
+        RefreshRequest refreshRequest = new RefreshRequest(AnnotationIndex.READ_ALIAS_NAME);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();

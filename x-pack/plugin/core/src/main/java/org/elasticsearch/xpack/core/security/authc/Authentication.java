@@ -27,6 +27,8 @@ import java.util.Objects;
 // That interface can be removed
 public class Authentication implements ToXContentObject {
 
+    public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
+
     private final User user;
     private final RealmRef authenticatedBy;
     private final RealmRef lookedUpBy;
@@ -77,6 +79,10 @@ public class Authentication implements ToXContentObject {
         return lookedUpBy;
     }
 
+    /**
+     * Get the realm where the effective user comes from.
+     * The effective user is the es-security-runas-user if present or the authenticated user.
+     */
     public RealmRef getSourceRealm() {
         return lookedUpBy == null ? authenticatedBy : lookedUpBy;
     }

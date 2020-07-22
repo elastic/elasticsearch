@@ -24,22 +24,25 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
@@ -71,9 +74,9 @@ public class MockRepository extends FsRepository {
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService) {
+                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
             return Collections.singletonMap("mock", (metadata) ->
-                new MockRepository(metadata, env, namedXContentRegistry, clusterService));
+                new MockRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings));
         }
 
         @Override
@@ -102,9 +105,11 @@ public class MockRepository extends FsRepository {
 
     private final Environment env;
 
-    private volatile boolean blockOnControlFiles;
+    private volatile boolean blockOnAnyFiles;
 
     private volatile boolean blockOnDataFiles;
+
+    private volatile boolean blockOnDeleteIndexN;
 
     /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
      *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
@@ -115,14 +120,15 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blocked = false;
 
-    public MockRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
-        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService);
+    public MockRepository(RepositoryMetadata metadata, Environment environment,
+                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                          RecoverySettings recoverySettings) {
+        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, recoverySettings);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
-        blockOnControlFiles = metadata.settings().getAsBoolean("block_on_control", false);
+        blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = metadata.settings().getAsBoolean("block_on_data", false);
         blockAndFailOnWriteSnapFile = metadata.settings().getAsBoolean("block_on_snap", false);
         randomPrefix = metadata.settings().get("random", "default");
@@ -132,17 +138,17 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    public RepositoryMetaData getMetadata() {
+    public RepositoryMetadata getMetadata() {
         return overrideSettings(super.getMetadata(), env);
     }
 
-    private static RepositoryMetaData overrideSettings(RepositoryMetaData metadata, Environment environment) {
+    private static RepositoryMetadata overrideSettings(RepositoryMetadata metadata, Environment environment) {
         // TODO: use another method of testing not being able to read the test file written by the master...
         // this is super duper hacky
         if (metadata.settings().getAsBoolean("localize_location", false)) {
             Path location = PathUtils.get(metadata.settings().get("location"));
             location = location.resolve(Integer.toString(environment.hashCode()));
-            return new RepositoryMetaData(metadata.name(), metadata.type(),
+            return new RepositoryMetadata(metadata.name(), metadata.type(),
                 Settings.builder().put(metadata.settings()).put("location", location.toAbsolutePath()).build());
         } else {
             return metadata;
@@ -168,14 +174,19 @@ public class MockRepository extends FsRepository {
         blocked = false;
         // Clean blocking flags, so we wouldn't try to block again
         blockOnDataFiles = false;
-        blockOnControlFiles = false;
+        blockOnAnyFiles = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
+        blockOnDeleteIndexN = false;
         this.notifyAll();
     }
 
     public void blockOnDataFiles(boolean blocked) {
         blockOnDataFiles = blocked;
+    }
+
+    public void setBlockOnAnyFiles(boolean blocked) {
+        blockOnAnyFiles = blocked;
     }
 
     public void setBlockAndFailOnWriteSnapFiles(boolean blocked) {
@@ -186,6 +197,10 @@ public class MockRepository extends FsRepository {
         blockOnWriteIndexFile = blocked;
     }
 
+    public void setBlockOnDeleteIndexFile() {
+        blockOnDeleteIndexN = true;
+    }
+
     public boolean blocked() {
         return blocked;
     }
@@ -194,8 +209,8 @@ public class MockRepository extends FsRepository {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnControlFiles || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile) {
+            while (blockOnDataFiles || blockOnAnyFiles || blockOnWriteIndexFile ||
+                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -230,7 +245,7 @@ public class MockRepository extends FsRepository {
             return new MockBlobContainer(super.blobContainer(path));
         }
 
-        private class MockBlobContainer extends BlobContainerWrapper {
+        private class MockBlobContainer extends FilterBlobContainer {
             private MessageDigest digest;
 
             private boolean shouldFail(String blobName, double probability) {
@@ -272,7 +287,7 @@ public class MockRepository extends FsRepository {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
-                    } else if (blockOnControlFiles) {
+                    } else if (blockOnAnyFiles) {
                         blockExecutionAndMaybeWait(blobName);
                     } else if (blobName.startsWith("snap-") && blockAndFailOnWriteSnapFile) {
                         blockExecutionAndFail(blobName);
@@ -307,6 +322,11 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
+            protected BlobContainer wrapChild(BlobContainer child) {
+                return new MockBlobContainer(child);
+            }
+
+            @Override
             public InputStream readBlob(String name) throws IOException {
                 maybeIOExceptionOrBlock(name);
                 return super.readBlob(name);
@@ -318,10 +338,10 @@ public class MockRepository extends FsRepository {
                 for (BlobContainer child : children().values()) {
                     deleteResult = deleteResult.add(child.delete());
                 }
-                final Map<String, BlobMetaData> blobs = listBlobs();
+                final Map<String, BlobMetadata> blobs = listBlobs();
                 long deleteBlobCount = blobs.size();
                 long deleteByteCount = 0L;
-                for (String blob : blobs.values().stream().map(BlobMetaData::name).collect(Collectors.toList())) {
+                for (String blob : blobs.values().stream().map(BlobMetadata::name).collect(Collectors.toList())) {
                     maybeIOExceptionOrBlock(blob);
                     deleteBlobsIgnoringIfNotExists(Collections.singletonList(blob));
                     deleteByteCount += blobs.get(blob).length();
@@ -332,7 +352,16 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public Map<String, BlobMetaData> listBlobs() throws IOException {
+            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+                if (blockOnDeleteIndexN && blobNames.stream().anyMatch(
+                    name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
+                    blockExecutionAndMaybeWait("index-{N}");
+                }
+                super.deleteBlobsIgnoringIfNotExists(blobNames);
+            }
+
+            @Override
+            public Map<String, BlobMetadata> listBlobs() throws IOException {
                 maybeIOExceptionOrBlock("");
                 return super.listBlobs();
             }
@@ -347,7 +376,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+            public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {
                 maybeIOExceptionOrBlock(blobNamePrefix);
                 return super.listBlobsByPrefix(blobNamePrefix);
             }

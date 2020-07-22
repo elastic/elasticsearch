@@ -93,7 +93,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             query = new TermsQueryBuilder(fieldName, values);
         } else {
             // right now the mock service returns us a list of strings
-            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : STRING_FIELD_NAME, randomTermsLookup());
+            query = new TermsQueryBuilder(randomBoolean() ? randomAlphaOfLengthBetween(1,10) : TEXT_FIELD_NAME, randomTermsLookup());
         }
         return query;
     }
@@ -261,7 +261,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
 
     @Override
     public void testMustRewrite() throws IOException {
-        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        TermsQueryBuilder termsQueryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
                 () -> termsQueryBuilder.toQuery(createShardContext()));
         assertEquals("query must be rewritten first", e.getMessage());
@@ -272,7 +272,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         if (nonNullTerms.isEmpty()) {
             expected = new MatchNoneQueryBuilder();
         } else {
-            expected = new TermsQueryBuilder(STRING_FIELD_NAME, nonNullTerms);
+            expected = new TermsQueryBuilder(TEXT_FIELD_NAME, nonNullTerms);
         }
         assertEquals(expected, rewriteAndFetch(termsQueryBuilder, createShardContext()));
     }
@@ -282,12 +282,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         QueryShardContext context = createShardContext();
         QueryShardException e = expectThrows(QueryShardException.class,
                 () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
+                + "[mapped_geo_point]", e.getMessage());
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {
-        QueryBuilder builder = new TermsQueryBuilder(STRING_FIELD_NAME, randomTermsLookup());
+        QueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
         QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createShardContext());
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.writeTo(new BytesStreamOutput(10)));
         assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
@@ -322,22 +322,22 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
-    
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }      
-    
+    }
+
     public void testRewriteIndexQueryToNotMatchNone() throws IOException {
         // At least one name is good
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", getIndex().getName());
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
-    }      
-    
+    }
+
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);

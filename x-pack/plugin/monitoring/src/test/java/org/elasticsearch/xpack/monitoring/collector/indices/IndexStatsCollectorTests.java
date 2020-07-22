@@ -13,10 +13,11 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -45,7 +46,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
         // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
@@ -53,23 +54,23 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
+            verify(licenseState).checkFeature(Feature.MONITORING);
         }
     }
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).isMonitoringAllowed();
+        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollect() throws Exception {
@@ -100,7 +101,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final int indices = existingIndices + createdIndices + deletedIndices;
 
         final Map<String, IndexStats> indicesStats = new HashMap<>(indices);
-        final Map<String, IndexMetaData> indicesMetaData = new HashMap<>(indices);
+        final Map<String, IndexMetadata> indicesMetadata = new HashMap<>(indices);
         final Map<String, IndexRoutingTable> indicesRoutingTable = new HashMap<>(indices);
 
         for (int i = 0; i < indices; i++) {
@@ -108,15 +109,15 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             final IndexStats indexStats = mock(IndexStats.class);
             when(indexStats.getIndex()).thenReturn(index);
 
-            final IndexMetaData indexMetaData = mock(IndexMetaData.class);
+            final IndexMetadata indexMetadata = mock(IndexMetadata.class);
             final IndexRoutingTable indexRoutingTable = mock(IndexRoutingTable.class);
 
             if (i < (createdIndices + existingIndices)) {
                 when(indicesStatsResponse.getIndex(index)).thenReturn(indexStats);
             }
             if (i >= createdIndices) {
-                indicesMetaData.put(index, indexMetaData);
-                when(metaData.index(index)).thenReturn(indexMetaData);
+                indicesMetadata.put(index, indexMetadata);
+                when(metadata.index(index)).thenReturn(indexMetadata);
 
                 indicesRoutingTable.put(index, indexRoutingTable);
                 when(routingTable.index(index)).thenReturn(indexRoutingTable);
@@ -127,8 +128,8 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             }
         }
 
-        final String[] indexNames = indicesMetaData.keySet().toArray(new String[0]);
-        when(metaData.getConcreteAllIndices()).thenReturn(indexNames);
+        final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
+        when(metadata.getConcreteAllIndices()).thenReturn(indexNames);
 
         final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
                 spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
@@ -152,9 +153,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         verify(indicesAdminClient).prepareStats();
 
         verify(indicesStatsResponse, times(existingIndices + deletedIndices)).getIndex(anyString());
-        verify(metaData, times(existingIndices)).index(anyString());
+        verify(metadata, times(existingIndices)).index(anyString());
         verify(routingTable, times(existingIndices)).index(anyString());
-        verify(metaData).clusterUUID();
+        verify(metadata).clusterUUID();
 
         assertEquals(1 + existingIndices, results.size());
 
@@ -178,7 +179,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 final String index = indexStatsDocument.getIndexStats().getIndex();
 
                 assertThat(indexStatsDocument.getIndexStats(), is(indicesStats.get(index)));
-                assertThat(indexStatsDocument.getIndexMetaData(), is(indicesMetaData.get(index)));
+                assertThat(indexStatsDocument.getIndexMetadata(), is(indicesMetadata.get(index)));
                 assertThat(indexStatsDocument.getIndexRoutingTable(), is(indicesRoutingTable.get(index)));
             }
         }

@@ -21,129 +21,70 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.CastNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
-
-import java.util.Objects;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.PartialCanonicalTypeName;
+import org.elasticsearch.painless.symbol.Decorations.StaticType;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * The superclass for all E* (expression) and P* (postfix) nodes.
  */
 public abstract class AExpression extends ANode {
 
-    public static class Input {
-
-        /**
-         * Set to false when an expression will not be read from such as
-         * a basic assignment.  Note this variable is always set by the parent
-         * as input.
-         */
-        boolean read = true;
-
-        /**
-         * Set to the expected type this node needs to be.  Note this variable
-         * is always set by the parent as input and should never be read from.
-         */
-        Class<?> expected = null;
-
-        /**
-         * Set by {@link EExplicit} if a cast made on an expression node should be
-         * explicit.
-         */
-        boolean explicit = false;
-
-        /**
-         * Set to true if a cast is allowed to boxed/unboxed.  This is used
-         * for method arguments because casting may be required.
-         */
-        boolean internal = false;
-    }
-
-    public static class Output {
-
-        /**
-         * Set to true when an expression can be considered a stand alone
-         * statement.  Used to prevent extraneous bytecode. This is always
-         * set by the node as output.
-         */
-        boolean statement = false;
-
-        /**
-         * Set to the actual type this node is.  Note this variable is always
-         * set by the node as output and should only be read from outside of the
-         * node itself.  <b>Also, actual can always be read after a cast is
-         * called on this node to get the type of the node after the cast.</b>
-         */
-        Class<?> actual = null;
-    }
-
-    /**
-     * Prefix is the predecessor to this node in a variable chain.
-     * This is used to analyze and write variable chains in a
-     * more natural order since the parent node of a variable
-     * chain will want the data from the final postfix to be
-     * analyzed.
-     */
-    AExpression prefix;
-
-    // TODO: remove placeholders once analysis and write are combined into build
-    // This are used to support the transition from a mutable to immutable state.
-    // Currently, the IR tree is built during the user tree "write" phase, so
-    // these are stored on the node to set during the "semantic" phase and then
-    // use during the "write" phase.
-    Input input = null;
-    Output output = null;
-    PainlessCast cast = null;
-
     /**
      * Standard constructor with location used for error tracking.
      */
-    AExpression(Location location) {
-        super(location);
-
-        prefix = null;
-    }
-
-    /**
-     * This constructor is used by variable/method chains when postfixes are specified.
-     */
-    AExpression(Location location, AExpression prefix) {
-        super(location);
-
-        this.prefix = Objects.requireNonNull(prefix);
+    AExpression(int identifier, Location location) {
+        super(identifier, location);
     }
 
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
+    void analyze(SemanticScope semanticScope) {
         throw new UnsupportedOperationException();
     }
 
     /**
-     * Writes ASM based on the data collected during the analysis phase.
+     * Checks for errors and collects data for the writing phase. Adds additional, common
+     * error checking for conditions related to static types and partially constructed static types.
      */
-    abstract ExpressionNode write(ClassNode classNode);
+    static void analyze(AExpression expression, SemanticScope semanticScope) {
+        expression.analyze(semanticScope);
 
-    void cast() {
-        cast = AnalyzerCaster.getLegalCast(location, output.actual, input.expected, input.explicit, input.internal);
-    }
-
-    ExpressionNode cast(ExpressionNode expressionNode) {
-        if (cast == null) {
-            return expressionNode;
+        if (semanticScope.hasDecoration(expression, PartialCanonicalTypeName.class)) {
+            throw expression.createError(new IllegalArgumentException("cannot resolve symbol " +
+                    "[" + semanticScope.getDecoration(expression, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
         }
 
-        CastNode castNode = new CastNode();
-        castNode.setLocation(location);
-        castNode.setExpressionType(cast.targetType);
-        castNode.setCast(cast);
-        castNode.setChildNode(expressionNode);
+        if (semanticScope.hasDecoration(expression, StaticType.class)) {
+            throw expression.createError(new IllegalArgumentException("value required: instead found unexpected type " +
+                    "[" + semanticScope.getDecoration(expression, StaticType.class).getStaticCanonicalTypeName() + "]"));
+        }
 
-        return castNode;
+        if (semanticScope.hasDecoration(expression, ValueType.class) == false) {
+            throw expression.createError(new IllegalStateException("value required: instead found no value"));
+        }
+    }
+
+    // TODO: move this somewhere more appropriate
+    public PainlessCast cast(SemanticScope semanticScope) {
+        Class<?> valueType = semanticScope.getDecoration(this, ValueType.class).getValueType();
+        Class<?> targetType = semanticScope.getDecoration(this, TargetType.class).getTargetType();
+        boolean isExplicitCast = semanticScope.getCondition(this, Explicit.class);
+        boolean isInternalCast = semanticScope.getCondition(this, Internal.class);
+
+        PainlessCast painlessCast = AnalyzerCaster.getLegalCast(getLocation(), valueType, targetType, isExplicitCast, isInternalCast);
+
+        if (painlessCast != null) {
+            semanticScope.putDecoration(this, new ExpressionPainlessCast(painlessCast));
+        }
+
+        return painlessCast;
     }
 }

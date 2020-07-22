@@ -1,5 +1,8 @@
 [[analysis-pattern-analyzer]]
-=== Pattern Analyzer
+=== Pattern analyzer
+++++
+<titleabbrev>Pattern</titleabbrev>
+++++
 
 The `pattern` analyzer uses a regular expression to split the text into terms.
 The regular expression should match the *token separators*  not the tokens

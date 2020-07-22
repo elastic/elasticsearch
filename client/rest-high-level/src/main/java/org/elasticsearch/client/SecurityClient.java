@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.security.AuthenticateRequest;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheResponse;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
@@ -511,6 +513,38 @@ public final class SecurityClient {
     }
 
     /**
+     * Clears the privileges cache for a set of privileges.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the privileges for which the cache should be cleared.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the clear privileges cache call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClearPrivilegesCacheResponse clearPrivilegesCache(ClearPrivilegesCacheRequest request,
+                                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearPrivilegesCache, options,
+            ClearPrivilegesCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the privileges cache for a set of privileges asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the privileges for which the cache should be cleared.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable clearPrivilegesCacheAsync(ClearPrivilegesCacheRequest request, RequestOptions options,
+                                                 ActionListener<ClearPrivilegesCacheResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearPrivilegesCache, options,
+            ClearPrivilegesCacheResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Synchronously retrieve the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html">
      * the docs</a> for more.
@@ -765,7 +799,7 @@ public final class SecurityClient {
      */
     public InvalidateTokenResponse invalidateToken(InvalidateTokenRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
-            InvalidateTokenResponse::fromXContent, emptySet());
+            InvalidateTokenResponse::fromXContent, singleton(404));
     }
 
     /**
@@ -780,7 +814,7 @@ public final class SecurityClient {
     public Cancellable invalidateTokenAsync(InvalidateTokenRequest request, RequestOptions options,
                                             ActionListener<InvalidateTokenResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
-            InvalidateTokenResponse::fromXContent, listener, emptySet());
+            InvalidateTokenResponse::fromXContent, listener, singleton(404));
     }
 
     /**
@@ -1013,7 +1047,7 @@ public final class SecurityClient {
      * authenticated TLS session, and it is validated by the PKI realms with {@code delegation.enabled} toggled to {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
      * docs</a> for more details.
-     * 
+     *
      * @param request the request containing the certificate chain
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the delegate-pki-authentication API key call
@@ -1031,7 +1065,7 @@ public final class SecurityClient {
      * {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
      * docs</a> for more details.
-     * 
+     *
      * @param request the request containing the certificate chain
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

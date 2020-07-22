@@ -1,7 +1,8 @@
 {
   "watcher.ack_watch":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html",
+      "description":"Acknowledges a watch, manually throttling the execution of the watch's actions."
     },
     "stability":"stable",
     "url":{

@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.client.NoOpClient;
@@ -42,17 +42,19 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
     }
 
     public void testMasterTimeout() {
+        IndexMetadata indexMetadata = getIndexMetadata();
         checkMasterTimeout(TimeValue.timeValueSeconds(30),
-            ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
+            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true).build()).build(), indexMetadata);
         checkMasterTimeout(TimeValue.timeValueSeconds(10),
             ClusterState.builder(ClusterName.DEFAULT)
-                .metaData(MetaData.builder()
+                .metadata(Metadata.builder()
                     .persistentSettings(Settings.builder().put(LIFECYCLE_STEP_MASTER_TIMEOUT, "10s").build())
+                    .put(indexMetadata, true)
                     .build())
-                .build());
+                .build(), indexMetadata);
     }
 
-    private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState) {
+    private void checkMasterTimeout(TimeValue timeValue, ClusterState currentClusterState, IndexMetadata indexMetadata) {
         AtomicBoolean timeoutChecked = new AtomicBoolean();
         client = new NoOpClient(pool) {
             @Override
@@ -65,7 +67,7 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
                 }
             }
         };
-        createRandomInstance().performAction(getIndexMetaData(), currentClusterState, null, new AsyncActionStep.Listener() {
+        createRandomInstance().performAction(indexMetadata, currentClusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
 
@@ -79,7 +81,7 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
         assertTrue(timeoutChecked.get());
     }
 
-    protected abstract IndexMetaData getIndexMetaData();
+    protected abstract IndexMetadata getIndexMetadata();
 
     public static ClusterState emptyClusterState() {
         return ClusterState.builder(ClusterName.DEFAULT).build();

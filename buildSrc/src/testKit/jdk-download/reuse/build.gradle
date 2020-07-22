@@ -7,5 +7,6 @@ jdks {
     vendor = fakeJdkVendor
     version = fakeJdkVersion
     platform = "linux"
+    architecture = "x64"
   }
 }

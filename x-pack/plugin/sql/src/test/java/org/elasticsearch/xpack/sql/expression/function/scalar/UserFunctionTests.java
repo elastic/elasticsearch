@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
-import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -29,7 +29,7 @@ public class UserFunctionTests extends ESTestCase {
         SqlParser parser = new SqlParser();
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-basic.json", true));
         Analyzer analyzer = new Analyzer(
-                new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+                new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
                                   Protocol.PAGE_TIMEOUT, null,
                                   randomFrom(Mode.values()), randomAlphaOfLength(10),
                                   null, randomAlphaOfLengthBetween(1, 15),

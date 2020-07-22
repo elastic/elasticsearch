@@ -62,8 +62,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
+import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -492,8 +492,8 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testCheckValid_GivenNegativeQueryDelay() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> conf.setQueryDelay(TimeValue.timeValueMillis(-10)));
-        assertEquals("query_delay cannot be less than 0. Value = -10", e.getMessage());
+                () -> conf.setQueryDelay(TimeValue.timeValueMillis(-1)));
+        assertEquals("query_delay cannot be less than 0. Value = -1", e.getMessage());
     }
 
     public void testCheckValid_GivenZeroFrequency() {

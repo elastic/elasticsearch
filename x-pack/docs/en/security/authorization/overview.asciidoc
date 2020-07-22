@@ -34,7 +34,7 @@ see <<security-privileges>>.
 _Permissions_::
 A set of one or more privileges against a secured resource. Permissions can
 easily be described in words, here are few examples:
- * `read` privilege on the `products` index
+ * `read` privilege on the `products` data stream or index
  * `manage` privilege on the cluster
  * `run_as` privilege on `john` user
  * `read` privilege on documents that match query X

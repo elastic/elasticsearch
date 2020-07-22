@@ -139,4 +139,12 @@ public interface CircuitBreaker {
      * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
      */
     Durability getDurability();
+
+    /**
+     * sets the new limit and overhead values for the circuit breaker.
+     * The resulting write should be readable by other threads.
+     * @param limit the desired limit
+     * @param overhead the desired overhead constant
+     */
+    void setLimitAndOverhead(long limit, double overhead);
 }

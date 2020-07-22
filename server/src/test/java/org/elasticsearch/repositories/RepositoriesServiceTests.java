@@ -24,9 +24,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -41,16 +42,16 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.mockito.Mockito.mock;
 
@@ -124,15 +125,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         private boolean isClosed;
         private boolean isStarted;
 
-        private final RepositoryMetaData metaData;
+        private final RepositoryMetadata metadata;
 
-        private TestRepository(RepositoryMetaData metaData) {
-            this.metaData = metaData;
+        private TestRepository(RepositoryMetadata metadata) {
+            this.metadata = metadata;
         }
 
         @Override
-        public RepositoryMetaData getMetadata() {
-            return metaData;
+        public RepositoryMetadata getMetadata() {
+            return metadata;
         }
 
         @Override
@@ -141,12 +142,12 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public MetaData getSnapshotGlobalMetaData(SnapshotId snapshotId) {
+        public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
             return null;
         }
 
         @Override
-        public IndexMetaData getSnapshotIndexMetaData(SnapshotId snapshotId, IndexId index) throws IOException {
+        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) {
             return null;
         }
 
@@ -156,16 +157,16 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
-                                     int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                     boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                     Version repositoryMetaVersion, ActionListener<SnapshotInfo> listener) {
+        public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
+                                     SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
+                                     Function<ClusterState, ClusterState> stateTransformer,
+                                     ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version repositoryMetaVersion,
-                                   ActionListener<Void> listener) {
+        public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
+                                    ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 
@@ -201,8 +202,8 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                                  IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                                  Map<String, Object> userMetadata, ActionListener<String> listener) {
+                                  IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
+                                  Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
 
         }
 
@@ -219,6 +220,11 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void updateState(final ClusterState state) {
+        }
+
+        @Override
+        public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+                                                 Consumer<Exception> onFailure) {
         }
 
         @Override

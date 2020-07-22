@@ -23,7 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,17 +35,41 @@ import java.io.OutputStream;
  */
 public final class ReleasableBytesReference implements Releasable, BytesReference {
 
+    public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
-    private final Releasable releasable;
+    private final AbstractRefCounted refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
         this.delegate = delegate;
-        this.releasable = releasable;
+        this.refCounted = new RefCountedReleasable(releasable);
+    }
+
+    private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+        this.delegate = delegate;
+        this.refCounted = refCounted;
+        refCounted.incRef();
+    }
+
+    public static ReleasableBytesReference wrap(BytesReference reference) {
+        return new ReleasableBytesReference(reference, NO_OP);
+    }
+
+    public int refCount() {
+        return refCounted.refCount();
+    }
+
+    public ReleasableBytesReference retain() {
+        refCounted.incRef();
+        return this;
+    }
+
+    public ReleasableBytesReference retainedSlice(int from, int length) {
+        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
     }
 
     @Override
     public void close() {
-        Releasables.close(releasable);
+        refCounted.decRef();
     }
 
     @Override
@@ -126,5 +150,20 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
     @Override
     public int hashCode() {
         return delegate.hashCode();
+    }
+
+    private static final class RefCountedReleasable extends AbstractRefCounted {
+
+        private final Releasable releasable;
+
+        RefCountedReleasable(Releasable releasable) {
+            super("bytes-reference");
+            this.releasable = releasable;
+        }
+
+        @Override
+        protected void closeInternal() {
+            releasable.close();
+        }
     }
 }

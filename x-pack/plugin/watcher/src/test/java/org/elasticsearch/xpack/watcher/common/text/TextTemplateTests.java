@@ -225,6 +225,32 @@ public class TextTemplateTests extends ESTestCase {
         assertEquals("[1:2] [script] unknown field [type]", ex.getMessage());
     }
 
+    public void testMustacheTemplateRequiresCompilation() {
+        final TextTemplate inlineTemplateRequiresCompilation = createTextTemplate(ScriptType.INLINE, "{{foo.bar}}");
+        assertThat(inlineTemplateRequiresCompilation.mayRequireCompilation(), is(true));
+
+        final TextTemplate inlineTemplateNoRequiresCompilation = createTextTemplate(ScriptType.INLINE, "script without mustache");
+        assertThat(inlineTemplateNoRequiresCompilation.mayRequireCompilation(), is(false));
+
+        final TextTemplate storedScriptTemplate = createTextTemplate(ScriptType.STORED, "stored_script_id");
+        assertThat(storedScriptTemplate.mayRequireCompilation(), is(true));
+    }
+
+    private TextTemplate createTextTemplate(ScriptType type, String idOrCode) {
+        final TextTemplate template;
+        if (randomBoolean()) {
+            if (type == ScriptType.STORED) {
+                template = new TextTemplate(new Script(type, null, idOrCode, null, Collections.emptyMap()));
+            } else {
+                template = new TextTemplate(new Script(type, lang, idOrCode, Collections.emptyMap(), Collections.emptyMap()));
+            }
+        } else {
+            template = new TextTemplate(idOrCode, null, type,  null);
+        }
+
+        return template;
+    }
+
     public void testNullObject() throws Exception {
         assertThat(engine.render(null ,new HashMap<>()), is(nullValue()));
     }

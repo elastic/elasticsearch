@@ -143,12 +143,12 @@ public final class MethodWriter extends GeneratorAdapter {
         visitLineNumber(location.getOffset() + 1, label);
     }
 
-    public void writeLoopCounter(int slot, int count, Location location) {
+    public void writeLoopCounter(int slot, Location location) {
         assert slot != -1;
         writeDebugInfo(location);
         final Label end = new Label();
 
-        iinc(slot, -count);
+        iinc(slot, -1);
         visitVarInsn(Opcodes.ILOAD, slot);
         push(0);
         ifICmp(GeneratorAdapter.GT, end);

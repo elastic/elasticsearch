@@ -22,7 +22,6 @@ package org.elasticsearch.search.query;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -112,9 +111,9 @@ public class QueryPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
         final Runnable cancellation;
         if (context.lowLevelCancellation()) {
-            SearchShardTask task = context.getTask();
             cancellation = context.searcher().addQueryCancellation(() -> {
-                if (task.isCancelled()) {
+                SearchShardTask task = context.getTask();
+                if (task != null && task.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
             });
@@ -282,9 +281,9 @@ public class QueryPhase implements SearchPhase {
             }
 
             if (searchContext.lowLevelCancellation()) {
-                SearchShardTask task = searchContext.getTask();
                 searcher.addQueryCancellation(() -> {
-                    if (task.isCancelled()) {
+                    SearchShardTask task = searchContext.getTask();
+                    if (task != null && task.isCancelled()) {
                         throw new TaskCancelledException("cancelled");
                     }
                 });
@@ -419,6 +418,7 @@ public class QueryPhase implements SearchPhase {
 
     private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
                                             Query query, boolean hasFilterCollector) throws IOException {
+        if ((searchContext.from() + searchContext.size()) <= 0) return null;
         if (searchContext.searchAfter() != null) return null; //TODO: handle sort optimization with search after
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;
@@ -439,7 +439,7 @@ public class QueryPhase implements SearchPhase {
         final MappedFieldType fieldType = searchContext.mapperService().fieldType(fieldName);
         if (fieldType == null) return null; // for unmapped fields, default behaviour depending on "unmapped_type" flag
         if ((fieldType.typeName().equals("long") == false) && (fieldType instanceof DateFieldType == false)) return null;
-        if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
+        if (fieldType.isSearchable() == false) return null;
         if (fieldType.hasDocValues() == false) return null;
 
 
@@ -579,7 +579,7 @@ public class QueryPhase implements SearchPhase {
      * Returns true if more than 50% of data in the index have the same value
      * The evaluation is approximation based on finding the median value and estimating its count
      */
-    static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
+    private static boolean indexFieldHasDuplicateData(IndexReader reader, String field) throws IOException {
         long docsNoDupl = 0; // number of docs in segments with NO duplicate data that would benefit optimization
         long docsDupl = 0; // number of docs in segments with duplicate data that would NOT benefit optimization
         for (LeafReaderContext lrc : reader.leaves()) {
@@ -590,30 +590,33 @@ public class QueryPhase implements SearchPhase {
                 continue;
             }
             assert(pointValues.size() == docCount); // TODO: modify the code to handle multiple values
-
             int duplDocCount = docCount/2; // expected doc count of duplicate data
-            long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
-            long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
-            boolean hasDuplicateData = true;
-            while ((minValue < maxValue) && hasDuplicateData) {
-                long midValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
-                long countLeft = estimatePointCount(pointValues, minValue, midValue);
-                long countRight = estimatePointCount(pointValues, midValue + 1, maxValue);
-                if ((countLeft >= countRight) && (countLeft > duplDocCount) ) {
-                    maxValue = midValue;
-                } else if ((countRight > countLeft) && (countRight > duplDocCount)) {
-                    minValue = midValue + 1;
-                } else {
-                    hasDuplicateData = false;
-                }
-            }
-            if (hasDuplicateData) {
+            if (pointsHaveDuplicateData(pointValues, duplDocCount)) {
                 docsDupl += docCount;
             } else {
                 docsNoDupl += docCount;
             }
         }
         return (docsDupl > docsNoDupl);
+    }
+
+    static boolean pointsHaveDuplicateData(PointValues pointValues, int duplDocCount) throws IOException {
+        long minValue = LongPoint.decodeDimension(pointValues.getMinPackedValue(), 0);
+        long maxValue = LongPoint.decodeDimension(pointValues.getMaxPackedValue(), 0);
+        boolean hasDuplicateData = true;
+        while ((minValue < maxValue) && hasDuplicateData) {
+            long midValue = Math.floorDiv(minValue, 2) + Math.floorDiv(maxValue, 2); // to avoid overflow first divide each value by 2
+            long countLeft = estimatePointCount(pointValues, minValue, midValue);
+            long countRight = estimatePointCount(pointValues, midValue + 1, maxValue);
+            if ((countLeft >= countRight) && (countLeft > duplDocCount) ) {
+                maxValue = midValue;
+            } else if ((countRight > countLeft) && (countRight > duplDocCount)) {
+                minValue = midValue + 1;
+            } else {
+                hasDuplicateData = false;
+            }
+        }
+        return hasDuplicateData;
     }
 
 

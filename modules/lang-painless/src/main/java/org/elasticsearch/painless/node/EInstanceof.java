@@ -20,11 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.InstanceofNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.InstanceType;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -33,69 +34,58 @@ import java.util.Objects;
  * <p>
  * Unlike java's, this works for primitive types too.
  */
-public final class EInstanceof extends AExpression {
-    private AExpression expression;
-    private final String type;
+public class EInstanceof extends AExpression {
 
-    private Class<?> resolvedType;
-    private Class<?> expressionType;
-    private boolean primitiveExpression;
+    private final AExpression expressionNode;
+    private final String canonicalTypeName;
 
-    public EInstanceof(Location location, AExpression expression, String type) {
-        super(location);
-        this.expression = Objects.requireNonNull(expression);
-        this.type = Objects.requireNonNull(type);
+    public EInstanceof(int identifier, Location location, AExpression expression, String canonicalTypeName) {
+        super(identifier, location);
+
+        this.expressionNode = Objects.requireNonNull(expression);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+    }
+
+    public AExpression getExpressionNode() {
+        return expressionNode;
+    }
+
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitInstanceof(this, scope);
+    }
 
-        // ensure the specified type is part of the definition
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        expressionNode.visit(userTreeVisitor, scope);
+    }
 
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
         }
 
-        // map to wrapped type for primitive types
-        resolvedType = clazz.isPrimitive() ? PainlessLookupUtility.typeToBoxedType(clazz) :
-                PainlessLookupUtility.typeToJavaType(clazz);
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
+        }
 
-        // analyze and cast the expression
-        Output expressionOutput = expression.analyze(scriptRoot, scope, new Input());
-        expression.input.expected = expressionOutput.actual;
-        expression.cast();
+        Class<?> instanceType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
 
-        // record if the expression returns a primitive
-        primitiveExpression = expressionOutput.actual.isPrimitive();
-        // map to wrapped type for primitive types
-        expressionType = expressionOutput.actual.isPrimitive() ?
-            PainlessLookupUtility.typeToBoxedType(expressionOutput.actual) : PainlessLookupUtility.typeToJavaType(clazz);
+        if (instanceType == null) {
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
+        }
 
-        output.actual = boolean.class;
+        semanticScope.setCondition(expressionNode, Read.class);
+        analyze(expressionNode, semanticScope);
 
-        return output;
-    }
-
-    @Override
-    InstanceofNode write(ClassNode classNode) {
-        InstanceofNode instanceofNode = new InstanceofNode();
-
-        instanceofNode.setChildNode(expression.cast(expression.write(classNode)));
-
-        instanceofNode.setLocation(location);
-        instanceofNode.setExpressionType(output.actual);
-        instanceofNode.setInstanceType(expressionType);
-        instanceofNode.setResolvedType(resolvedType);
-        instanceofNode.setPrimitiveResult(primitiveExpression);
-
-        return instanceofNode;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(expression, type);
+        semanticScope.putDecoration(this, new ValueType(boolean.class));
+        semanticScope.putDecoration(this, new InstanceType(instanceType));
     }
 }

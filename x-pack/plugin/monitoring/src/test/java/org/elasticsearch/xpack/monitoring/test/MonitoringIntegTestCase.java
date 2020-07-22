@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.monitoring.test;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -164,7 +164,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
-        for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
+        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
             if (Regex.simpleMatch(name, template.getName())) {
                 found =  true;
             }

@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -87,6 +89,16 @@ public class UserSerializationTests extends ESTestCase {
         assertThat(readFrom.authenticatedUser(), is(XPackUser.INSTANCE));
     }
 
+    public void testAsyncSearchUserReadAndWrite() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+
+        InternalUserSerializationHelper.writeTo(AsyncSearchUser.INSTANCE, output);
+        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
+
+        assertThat(readFrom, is(sameInstance(AsyncSearchUser.INSTANCE)));
+        assertThat(readFrom.authenticatedUser(), is(AsyncSearchUser.INSTANCE));
+    }
+
     public void testFakeInternalUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeBoolean(true);
@@ -113,5 +125,12 @@ public class UserSerializationTests extends ESTestCase {
         readFrom = User.readFrom(output.bytes().streamInput());
 
         assertEquals(kibanaUser, readFrom);
+
+        final KibanaSystemUser kibanaSystemUser = new KibanaSystemUser(true);
+        output = new BytesStreamOutput();
+        User.writeTo(kibanaSystemUser, output);
+        readFrom = User.readFrom(output.bytes().streamInput());
+
+        assertEquals(kibanaSystemUser, readFrom);
     }
 }

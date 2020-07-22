@@ -21,92 +21,110 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConditionalNode;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Explicit;
+import org.elasticsearch.painless.symbol.Decorations.Internal;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
 /**
  * Represents a conditional expression.
  */
-public final class EConditional extends AExpression {
+public class EConditional extends AExpression {
 
-    private AExpression condition;
-    private AExpression left;
-    private AExpression right;
+    private final AExpression conditionNode;
+    private final AExpression trueNode;
+    private final AExpression falseNode;
 
-    public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
-        super(location);
+    public EConditional(int identifier, Location location, AExpression conditionNode, AExpression trueNode, AExpression falseNode) {
+        super(identifier, location);
 
-        this.condition = Objects.requireNonNull(condition);
-        this.left = Objects.requireNonNull(left);
-        this.right = Objects.requireNonNull(right);
+        this.conditionNode = Objects.requireNonNull(conditionNode);
+        this.trueNode = Objects.requireNonNull(trueNode);
+        this.falseNode = Objects.requireNonNull(falseNode);
+    }
+
+    public AExpression getConditionNode() {
+        return conditionNode;
+    }
+
+    public AExpression getTrueNode() {
+        return trueNode;
+    }
+
+    public AExpression getFalseNode() {
+        return falseNode;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitConditional(this, scope);
+    }
 
-        Input conditionInput = new Input();
-        conditionInput.expected = boolean.class;
-        condition.analyze(scriptRoot, scope, conditionInput);
-        condition.cast();
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+        trueNode.visit(userTreeVisitor, scope);
+        falseNode.visit(userTreeVisitor, scope);
+    }
 
-        Input leftInput = new Input();
-        leftInput.expected = input.expected;
-        leftInput.explicit = input.explicit;
-        leftInput.internal = input.internal;
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to conditional operation [?:]"));
+        }
 
-        Input rightInput = new Input();
-        rightInput.expected = input.expected;
-        rightInput.explicit = input.explicit;
-        rightInput.internal = input.internal;
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException("not a statement: result not used from conditional operation [?:]"));
+        }
 
-        output.actual = input.expected;
+        semanticScope.setCondition(conditionNode, Read.class);
+        semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
+        analyze(conditionNode, semanticScope);
+        conditionNode.cast(semanticScope);
 
-        Output leftOutput = left.analyze(scriptRoot, scope, leftInput);
-        Output rightOutput = right.analyze(scriptRoot, scope, rightInput);
+        semanticScope.setCondition(trueNode, Read.class);
+        semanticScope.copyDecoration(this, trueNode, TargetType.class);
+        semanticScope.replicateCondition(this, trueNode, Explicit.class);
+        semanticScope.replicateCondition(this, trueNode, Internal.class);
+        analyze(trueNode, semanticScope);
+        Class<?> leftValueType = semanticScope.getDecoration(trueNode, ValueType.class).getValueType();
 
-        if (input.expected == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftOutput.actual, rightOutput.actual);
+        semanticScope.setCondition(falseNode, Read.class);
+        semanticScope.copyDecoration(this, falseNode, TargetType.class);
+        semanticScope.replicateCondition(this, falseNode, Explicit.class);
+        semanticScope.replicateCondition(this, falseNode, Internal.class);
+        analyze(falseNode, semanticScope);
+        Class<?> rightValueType = semanticScope.getDecoration(falseNode, ValueType.class).getValueType();
+
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
+        Class<?> valueType;
+
+        if (targetType == null) {
+            Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
 
             if (promote == null) {
                 throw createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftOutput.actual) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightOutput.actual) + "]"));
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
+                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
             }
 
-            left.input.expected = promote;
-            right.input.expected = promote;
-            output.actual = promote;
+            semanticScope.putDecoration(trueNode, new TargetType(promote));
+            semanticScope.putDecoration(falseNode, new TargetType(promote));
+            valueType = promote;
+        } else {
+            valueType = targetType.getTargetType();
         }
 
-        left.cast();
-        right.cast();
+        trueNode.cast(semanticScope);
+        falseNode.cast(semanticScope);
 
-        return output;
-    }
-
-    @Override
-    ConditionalNode write(ClassNode classNode) {
-        ConditionalNode conditionalNode = new ConditionalNode();
-
-        conditionalNode.setLeftNode(left.cast(left.write(classNode)));
-        conditionalNode.setRightNode(right.cast(right.write(classNode)));
-        conditionalNode.setConditionNode(condition.cast(condition.write(classNode)));
-
-        conditionalNode.setLocation(location);
-        conditionalNode.setExpressionType(output.actual);
-
-        return conditionalNode;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(condition, left, right);
+        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

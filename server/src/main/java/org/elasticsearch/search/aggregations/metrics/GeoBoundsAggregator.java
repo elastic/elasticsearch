@@ -30,12 +30,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 final class GeoBoundsAggregator extends MetricsAggregator {
@@ -51,11 +50,17 @@ final class GeoBoundsAggregator extends MetricsAggregator {
     DoubleArray negLefts;
     DoubleArray negRights;
 
-    GeoBoundsAggregator(String name, SearchContext aggregationContext, Aggregator parent,
-            ValuesSource.GeoPoint valuesSource, boolean wrapLongitude, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-        super(name, aggregationContext, parent, pipelineAggregators, metaData);
-        this.valuesSource = valuesSource;
+    GeoBoundsAggregator(
+        String name,
+        SearchContext aggregationContext,
+        Aggregator parent,
+        ValuesSourceConfig valuesSourceConfig,
+        boolean wrapLongitude,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, aggregationContext, parent, metadata);
+        // TODO: stop expecting nulls here
+        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource() : null;
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -153,15 +158,13 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         double posRight = posRights.get(owningBucketOrdinal);
         double negLeft = negLefts.get(owningBucketOrdinal);
         double negRight = negRights.get(owningBucketOrdinal);
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude,
-            pipelineAggregators(), metaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude,
-            pipelineAggregators(), metaData());
+            Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metadata());
     }
 
     @Override

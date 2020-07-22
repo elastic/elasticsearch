@@ -27,17 +27,17 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 public final class MultiValuesSourceParseHelper {
 
-    public static <VS extends ValuesSource, T> void declareCommon(
-        AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<VS, ?>, T> objectParser, boolean formattable,
-        ValueType targetValueType) {
+    public static <T> void declareCommon(
+            AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
+            ValueType expectedValueType) {
 
-        objectParser.declareField(MultiValuesSourceAggregationBuilder::valueType, p -> {
-            ValueType valueType = ValueType.resolveForScript(p.text());
-            if (targetValueType != null && valueType.isNotA(targetValueType)) {
+        objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
+            ValueType valueType = ValueType.lenientParse(p.text());
+            if (expectedValueType != null && valueType.isNotA(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                        + valueType + "]. It can only work on value of type ["
-                        + targetValueType + "]");
+                        + valueType + "].  It can only work on value off type ["
+                        + expectedValueType + "]");
             }
             return valueType;
         }, ValueType.VALUE_TYPE, ObjectParser.ValueType.STRING);
@@ -49,11 +49,11 @@ public final class MultiValuesSourceParseHelper {
     }
 
     public static <VS extends ValuesSource, T> void declareField(String fieldName,
-        AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<VS, ?>, T> objectParser,
-        boolean scriptable, boolean timezoneAware) {
+        AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser,
+        boolean scriptable, boolean timezoneAware, boolean filterable) {
 
         objectParser.declareField((o, fieldConfig) -> o.field(fieldName, fieldConfig.build()),
-            (p, c) -> MultiValuesSourceFieldConfig.PARSER.apply(scriptable, timezoneAware).parse(p, null),
+            (p, c) -> MultiValuesSourceFieldConfig.parserBuilder(scriptable, timezoneAware, filterable).parse(p, null),
             new ParseField(fieldName), ObjectParser.ValueType.OBJECT);
     }
 }

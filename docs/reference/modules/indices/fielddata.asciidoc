@@ -1,5 +1,5 @@
 [[modules-fielddata]]
-=== Fielddata
+=== Field data cache settings
 
 The field data cache is used mainly when sorting on or computing aggregations
 on a field. It loads all the field values to memory in order to provide fast

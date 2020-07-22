@@ -10,6 +10,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -67,8 +68,7 @@ public class ExtractedFieldsDetectorFactory {
         ActionListener<Map<String, Long>> fieldCardinalitiesHandler = ActionListener.wrap(
             fieldCardinalities -> {
                 ExtractedFieldsDetector detector =
-                    new ExtractedFieldsDetector(
-                        index, config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
+                    new ExtractedFieldsDetector(config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
                 listener.onResponse(detector);
             },
             listener::onFailure
@@ -78,7 +78,7 @@ public class ExtractedFieldsDetectorFactory {
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
             fieldCapabilitiesResponse -> {
                 fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
-                getCardinalitiesForFieldsWithConstraints(index, config, fieldCardinalitiesHandler);
+                getCardinalitiesForFieldsWithConstraints(index, config, fieldCapabilitiesResponse, fieldCardinalitiesHandler);
             },
             listener::onFailure
         );
@@ -96,7 +96,9 @@ public class ExtractedFieldsDetectorFactory {
         getDocValueFieldsLimit(index, docValueFieldsLimitListener);
     }
 
-    private void getCardinalitiesForFieldsWithConstraints(String[] index, DataFrameAnalyticsConfig config,
+    private void getCardinalitiesForFieldsWithConstraints(String[] index,
+                                                          DataFrameAnalyticsConfig config,
+                                                          FieldCapabilitiesResponse fieldCapabilitiesResponse,
                                                           ActionListener<Map<String, Long>> listener) {
         List<FieldCardinalityConstraint> fieldCardinalityConstraints = config.getAnalysis().getFieldCardinalityConstraints();
         if (fieldCardinalityConstraints.isEmpty()) {
@@ -111,6 +113,16 @@ public class ExtractedFieldsDetectorFactory {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
         for (FieldCardinalityConstraint constraint : fieldCardinalityConstraints) {
+            Map<String, FieldCapabilities> fieldCapsPerType = fieldCapabilitiesResponse.getField(constraint.getField());
+            if (fieldCapsPerType == null) {
+                throw ExceptionsHelper.badRequestException("no mappings could be found for field [{}]", constraint.getField());
+            }
+            for (FieldCapabilities fieldCaps : fieldCapsPerType.values()) {
+                if (fieldCaps.isAggregatable() == false) {
+                    throw ExceptionsHelper.badRequestException("field [{}] of type [{}] is non-aggregatable",
+                        fieldCaps.getName(), fieldCaps.getType());
+                }
+            }
             searchSourceBuilder.aggregation(
                 AggregationBuilders.cardinality(constraint.getField())
                     .field(constraint.getField())

@@ -10,7 +10,7 @@ Reloads the keystore on nodes in the cluster.
 ==== {api-request-title}
 
 `POST _nodes/reload_secure_settings` +
-`POST _nodes/<nodes/reload_secure_settings`
+`POST _nodes/<node_id>/reload_secure_settings`
 
 [[cluster-nodes-reload-secure-settings-api-desc]]
 ==== {api-description-title}
@@ -32,11 +32,11 @@ the node-specific {es} keystore password.
 [[cluster-nodes-reload-secure-settings-path-params]]
 ==== {api-path-parms-title}
 
-`<nodes>`::
+`<node_id>`::
     (Optional, string) The names of particular nodes in the cluster to target.
     For example, `nodeId1,nodeId2`. For node selection options, see
     <<cluster-nodes>>.
-    
+
 NOTE: {es} requires consistent secure settings across the cluster nodes, but
 this consistency is not enforced. Hence, reloading specific nodes is not
 standard. It is justifiable only when retrying failed reload operations.
@@ -44,16 +44,25 @@ standard. It is justifiable only when retrying failed reload operations.
 [[cluster-nodes-reload-secure-settings-api-request-body]]
 ==== {api-request-body-title}
 
-`reload_secure_settings`::
+`secure_settings_password`::
   (Optional, string) The password for the {es} keystore.
 
 [[cluster-nodes-reload-secure-settings-api-example]]
 ==== {api-examples-title}
 
+The following examples assume a common password for the {es} keystore on every
+node of the cluster:
+
 [source,console]
 --------------------------------------------------
 POST _nodes/reload_secure_settings
+{
+  "secure_settings_password":"s3cr3t"
+}
 POST _nodes/nodeId1,nodeId2/reload_secure_settings
+{
+  "secure_settings_password":"s3cr3t"
+}
 --------------------------------------------------
 // TEST[setup:node]
 // TEST[s/nodeId1,nodeId2/*/]
@@ -81,27 +90,3 @@ that was thrown during the reload process, if any.
 --------------------------------------------------
 // TESTRESPONSE[s/"my_cluster"/$body.cluster_name/]
 // TESTRESPONSE[s/"pQHNt5rXTTWNvUgOrdynKg"/\$node_name/]
-
-The following example uses a common password for the {es} keystore on every
-node of the cluster:
-
-[source,js]
---------------------------------------------------
-POST _nodes/reload_secure_settings
-{
-  "reload_secure_settings": "s3cr3t"
-}
---------------------------------------------------
-// NOTCONSOLE
-
-The following example uses a password for the {es} keystore on the local node:
-
-[source,js]
---------------------------------------------------
-POST _nodes/_local/reload_secure_settings
-{
-  "reload_secure_settings": "s3cr3t"
-}
---------------------------------------------------
-// NOTCONSOLE
-

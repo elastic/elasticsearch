@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
@@ -42,7 +42,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -68,8 +68,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private static final DeprecationLogger deprecationLogger
-        = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
 
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
@@ -97,7 +96,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
     protected void masterOperation(Task task, PutRollupJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
 
-        if (!licenseState.isRollupAllowed()) {
+        if (!licenseState.checkFeature(XPackLicenseState.Feature.ROLLUP)) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
             return;
         }
@@ -134,8 +133,9 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
-            deprecationLogger.deprecated("Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
-                + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
+            deprecationLogger.deprecate("deprecated_timezone",
+                "Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
+                    + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
         }
     }
 
@@ -213,7 +213,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         final String indexName = job.getConfig().getRollupIndex();
 
         CheckedConsumer<GetMappingsResponse, Exception> getMappingResponseHandler = getMappingResponse -> {
-            MappingMetaData mappings = getMappingResponse.getMappings().get(indexName);
+            MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
             Object m = mappings.getSourceAsMap().get("_meta");
             if (m == null) {
                 String msg = "Rollup data cannot be added to existing indices that contain non-rollup data (expected " +
@@ -291,7 +291,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         persistentTasksService.waitForPersistentTaskCondition(job.getConfig().getId(), Objects::nonNull, job.getConfig().getTimeout(),
                 new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                     @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<RollupJob> task) {
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<RollupJob> task) {
                         listener.onResponse(new AcknowledgedResponse(true));
                     }
 

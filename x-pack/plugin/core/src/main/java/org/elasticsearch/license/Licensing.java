@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -39,8 +39,8 @@ public class Licensing implements ActionPlugin {
     // are also carried out in XPackClientPlugin.java
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, LicensesMetaData.TYPE, LicensesMetaData::new));
-        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetaData.TYPE, LicensesMetaData::readDiffFrom));
+        entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, LicensesMetadata.TYPE, LicensesMetadata::new));
+        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetadata.TYPE, LicensesMetadata::readDiffFrom));
         return entries;
     }
 
@@ -49,8 +49,8 @@ public class Licensing implements ActionPlugin {
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
         // Metadata
-        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(LicensesMetaData.TYPE),
-                LicensesMetaData::fromXContent));
+        entries.add(new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(LicensesMetadata.TYPE),
+                LicensesMetadata::fromXContent));
         return entries;
     }
 
@@ -66,7 +66,8 @@ public class Licensing implements ActionPlugin {
                 new ActionHandler<>(PostStartTrialAction.INSTANCE, TransportPostStartTrialAction.class),
                 new ActionHandler<>(GetTrialStatusAction.INSTANCE, TransportGetTrialStatusAction.class),
                 new ActionHandler<>(PostStartBasicAction.INSTANCE, TransportPostStartBasicAction.class),
-                new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class));
+                new ActionHandler<>(GetBasicStatusAction.INSTANCE, TransportGetBasicStatusAction.class),
+                new ActionHandler<>(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
     }
 
     @Override
@@ -81,6 +82,7 @@ public class Licensing implements ActionPlugin {
         handlers.add(new RestGetBasicStatus());
         handlers.add(new RestPostStartTrialLicense());
         handlers.add(new RestPostStartBasicLicense());
+        handlers.add(new RestGetFeatureUsageAction());
         return handlers;
     }
 

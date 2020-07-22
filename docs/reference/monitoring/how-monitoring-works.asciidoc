@@ -6,8 +6,8 @@
 <titleabbrev>How it works</titleabbrev>
 ++++
 
-Each {es} node, {ls} node, {kib} instance, and Beat is considered unique in the
-cluster based on its persistent UUID, which is written to the
+Each {es} node, {ls} node, {kib} instance, and Beat instance is considered
+unique in the cluster based on its persistent UUID, which is written to the
 <<path-settings,`path.data`>> directory when the node or instance starts.
 
 Monitoring documents are just ordinary JSON documents built by monitoring each
@@ -22,7 +22,7 @@ To learn how to collect monitoring data, see:
 * <<collecting-monitoring-data>>
 * <<configuring-metricbeat>>
 * {kibana-ref}/xpack-monitoring.html[Monitoring {kib}]
-* {logstash-ref}/monitoring-logstash.html[Monitoring {ls}]
+* {logstash-ref}/configuring-logstash.html[Monitoring {ls}]
 * Monitoring Beats:
 ** {auditbeat-ref}/monitoring.html[{auditbeat}]
 ** {filebeat-ref}/monitoring.html[{filebeat}]

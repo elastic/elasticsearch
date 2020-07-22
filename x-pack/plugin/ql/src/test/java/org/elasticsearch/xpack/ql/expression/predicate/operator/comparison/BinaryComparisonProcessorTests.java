@@ -13,6 +13,13 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
+import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
+import static org.elasticsearch.xpack.ql.TestUtils.lessThanOrEqualOf;
+import static org.elasticsearch.xpack.ql.TestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
@@ -40,54 +47,54 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
     }
 
     public void testEq() {
-        assertEquals(true, new Equals(EMPTY, l(4), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(false, new Equals(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, equalsOf(l(4), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(false, equalsOf(l(3), l(4)).makePipe().asProcessor().process(null));
     }
 
     public void testNullEq() {
-        assertEquals(true, new NullEquals(EMPTY, l(4), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(false, new NullEquals(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(true, new NullEquals(EMPTY, NULL, NULL).makePipe().asProcessor().process(null));
-        assertEquals(false, new NullEquals(EMPTY, l(4), NULL).makePipe().asProcessor().process(null));
-        assertEquals(false, new NullEquals(EMPTY, NULL, l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, nullEqualsOf(l(4), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(false, nullEqualsOf(l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, nullEqualsOf(NULL, NULL).makePipe().asProcessor().process(null));
+        assertEquals(false, nullEqualsOf(l(4), NULL).makePipe().asProcessor().process(null));
+        assertEquals(false, nullEqualsOf(NULL, l(4)).makePipe().asProcessor().process(null));
     }
 
     public void testNEq() {
-        assertEquals(false, new NotEquals(EMPTY, l(4), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(true, new NotEquals(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(false, notEqualsOf(l(4), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, notEqualsOf(l(3), l(4)).makePipe().asProcessor().process(null));
     }
 
     public void testGt() {
-        assertEquals(true, new GreaterThan(EMPTY, l(4), l(3)).makePipe().asProcessor().process(null));
-        assertEquals(false, new GreaterThan(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(false, new GreaterThan(EMPTY, l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(true, greaterThanOf(l(4), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(false, greaterThanOf(l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(false, greaterThanOf(l(3), l(3)).makePipe().asProcessor().process(null));
     }
 
     public void testGte() {
-        assertEquals(true, new GreaterThanOrEqual(EMPTY, l(4), l(3)).makePipe().asProcessor().process(null));
-        assertEquals(false, new GreaterThanOrEqual(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(true, new GreaterThanOrEqual(EMPTY, l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(true, greaterThanOrEqualOf(l(4), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(false, greaterThanOrEqualOf(l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, greaterThanOrEqualOf(l(3), l(3)).makePipe().asProcessor().process(null));
     }
 
     public void testLt() {
-        assertEquals(false, new LessThan(EMPTY, l(4), l(3)).makePipe().asProcessor().process(null));
-        assertEquals(true, new LessThan(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(false, new LessThan(EMPTY, l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(false, lessThanOf(l(4), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(true, lessThanOf(l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(false, lessThanOf(l(3), l(3)).makePipe().asProcessor().process(null));
     }
 
     public void testLte() {
-        assertEquals(false, new LessThanOrEqual(EMPTY, l(4), l(3)).makePipe().asProcessor().process(null));
-        assertEquals(true, new LessThanOrEqual(EMPTY, l(3), l(4)).makePipe().asProcessor().process(null));
-        assertEquals(true, new LessThanOrEqual(EMPTY, l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(false, lessThanOrEqualOf(l(4), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(true, lessThanOrEqualOf(l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, lessThanOrEqualOf(l(3), l(3)).makePipe().asProcessor().process(null));
     }
     
     public void testHandleNull() {
-        assertNull(new Equals(EMPTY, NULL, l(3)).makePipe().asProcessor().process(null));
-        assertNull(new NotEquals(EMPTY, NULL, l(3)).makePipe().asProcessor().process(null));
-        assertNull(new GreaterThan(EMPTY, NULL, l(3)).makePipe().asProcessor().process(null));
-        assertNull(new GreaterThanOrEqual(EMPTY, NULL, l(3)).makePipe().asProcessor().process(null));
-        assertNull(new LessThan(EMPTY, NULL, l(3)).makePipe().asProcessor().process(null));
-        assertNull(new LessThanOrEqual(EMPTY, NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(equalsOf(NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(notEqualsOf(NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(greaterThanOf(NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(greaterThanOrEqualOf(NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(lessThanOf(NULL, l(3)).makePipe().asProcessor().process(null));
+        assertNull(lessThanOrEqualOf(NULL, l(3)).makePipe().asProcessor().process(null));
     }
     
     private static Literal l(Object value) {

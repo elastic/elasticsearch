@@ -10,7 +10,7 @@ allprojects {
     jcenter()
   }
   dependencies {
-    testCompile "junit:junit:4.12"
+    testImplementation "junit:junit:4.12"
   }
 
   ext.licenseFile = file("$buildDir/dummy/license")
@@ -28,9 +28,7 @@ allprojects {
 }
 
 project(':empty_test_task') {
-  task emptyTest(type: Test) {
-
-  }
+  tasks.register("emptyTest", Test)
 }
 
 project(':all_classes_in_tasks') {

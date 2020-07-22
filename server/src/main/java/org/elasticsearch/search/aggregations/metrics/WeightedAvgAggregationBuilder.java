@@ -25,24 +25,27 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<Numeric, WeightedAvgAggregationBuilder> {
+public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationBuilder.LeafOnly<WeightedAvgAggregationBuilder> {
     public static final String NAME = "weighted_avg";
     public static final ParseField VALUE_FIELD = new ParseField("value");
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
@@ -51,16 +54,20 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
             ObjectParser.fromBuilder(NAME, WeightedAvgAggregationBuilder::new);
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
-        MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false);
-        MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false);
+        MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false, false);
+        MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false, false);
+    }
+
+    public static void registerUsage(ValuesSourceRegistry.Builder builder) {
+        builder.registerUsage(NAME, CoreValuesSourceType.NUMERIC);
     }
 
     public WeightedAvgAggregationBuilder(String name) {
-        super(name, ValueType.NUMERIC);
+        super(name);
     }
 
-    public WeightedAvgAggregationBuilder(WeightedAvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    public WeightedAvgAggregationBuilder(WeightedAvgAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
     }
 
     public WeightedAvgAggregationBuilder value(MultiValuesSourceFieldConfig valueConfig) {
@@ -79,12 +86,17 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
      * Read from a stream.
      */
     public WeightedAvgAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValueType.NUMERIC);
+        super(in);
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new WeightedAvgAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new WeightedAvgAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.NUMERIC;
     }
 
     @Override
@@ -93,12 +105,18 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext,
-                                                                     Map<String, ValuesSourceConfig<Numeric>> configs,
-                                                                     DocValueFormat format,
-                                                                     AggregatorFactory parent,
-                                                                     Builder subFactoriesBuilder) throws IOException {
-        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metaData);
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
+    protected MultiValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                            Map<String, ValuesSourceConfig> configs,
+                                                            Map<String, QueryBuilder> filters,
+                                                            DocValueFormat format,
+                                                            AggregatorFactory parent,
+                                                            Builder subFactoriesBuilder) throws IOException {
+        return new WeightedAvgAggregatorFactory(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

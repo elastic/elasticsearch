@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
  */
 public final class GrokPatternCreator {
 
+    private static final Logger logger = LogManager.getLogger(GrokPatternCreator.class);
     private static final Map<Character, Boolean> PUNCTUATION_OR_SPACE_NEEDS_ESCAPING;
     static {
         HashMap<Character, Boolean> punctuationOrSpaceNeedsEscaping = new HashMap<>();
@@ -498,7 +501,7 @@ public final class GrokPatternCreator {
             grok = new Grok(grokPatternDefinitions,
                 "(?m)%{DATA:" + PREFACE + "}" + Objects.requireNonNull(preBreak) +
                     "%{" + grokPatternName + ":" + VALUE + "}" + Objects.requireNonNull(postBreak) + "%{GREEDYDATA:" + EPILOGUE + "}",
-                TimeoutChecker.watchdog);
+                TimeoutChecker.watchdog, logger::warn);
         }
 
         @Override
@@ -592,7 +595,7 @@ public final class GrokPatternCreator {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
             Grok grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}\\b" +
-                fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog);
+                fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog, logger::warn);
             Collection<String> values = new ArrayList<>();
             for (String snippet : snippets) {
                 Map<String, Object> captures = grok.captures(snippet);
@@ -666,7 +669,7 @@ public final class GrokPatternCreator {
         private FullMatchGrokPatternCandidate(String grokPattern, String timeField, Map<String, String> grokPatternDefinitions) {
             this.grokPattern = grokPattern;
             this.timeField = timeField;
-            grok = new Grok(grokPatternDefinitions, grokPattern, TimeoutChecker.watchdog);
+            grok = new Grok(grokPatternDefinitions, grokPattern, TimeoutChecker.watchdog, logger::warn);
         }
 
         public String getTimeField() {

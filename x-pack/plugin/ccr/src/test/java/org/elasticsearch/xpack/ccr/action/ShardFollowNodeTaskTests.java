@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -79,6 +80,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private Queue<Long> followerGlobalCheckpoints;
     private Queue<Long> maxSeqNos;
     private Queue<Integer> responseSizes;
+    private Queue<ActionListener<BulkShardOperationsResponse>> pendingBulkShardRequests;
 
     public void testCoordinateReads() {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
@@ -599,6 +601,55 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }
 
+    public void testHandlePartialResponses() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 10;
+        params.maxOutstandingReadRequests = 2;
+        params.maxOutstandingWriteRequests = 1;
+        params.maxWriteBufferCount = 3;
+
+        ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 99, -1);
+
+        task.coordinateReads();
+        assertThat(shardChangesRequests.size(), equalTo(2));
+        assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
+        assertThat(shardChangesRequests.get(0)[1], equalTo(10L));
+        assertThat(shardChangesRequests.get(1)[0], equalTo(10L));
+        assertThat(shardChangesRequests.get(1)[1], equalTo(10L));
+
+        task.innerHandleReadResponse(0L, 9L, generateShardChangesResponse(0L, 5L, 0L, 0L, 1L, 99L));
+        assertThat(pendingBulkShardRequests, hasSize(1));
+        assertThat("continue the partial request", shardChangesRequests, hasSize(3));
+        assertThat(shardChangesRequests.get(2)[0], equalTo(6L));
+        assertThat(shardChangesRequests.get(2)[1], equalTo(4L));
+        assertThat(pendingBulkShardRequests, hasSize(1));
+        task.innerHandleReadResponse(10, 19L, generateShardChangesResponse(10L, 17L, 0L, 0L, 1L, 99L));
+        assertThat("do not continue partial reads as the buffer is full", shardChangesRequests, hasSize(3));
+        task.innerHandleReadResponse(6L, 9L, generateShardChangesResponse(6L, 8L, 0L, 0L, 1L, 99L));
+        assertThat("do not continue partial reads as the buffer is full", shardChangesRequests, hasSize(3));
+        pendingBulkShardRequests.remove().onResponse(new BulkShardOperationsResponse());
+        assertThat(pendingBulkShardRequests, hasSize(1));
+
+        assertThat("continue two partial requests as the buffer is empty after sending", shardChangesRequests, hasSize(5));
+        assertThat(shardChangesRequests.get(3)[0], equalTo(9L));
+        assertThat(shardChangesRequests.get(3)[1], equalTo(1L));
+        assertThat(shardChangesRequests.get(4)[0], equalTo(18L));
+        assertThat(shardChangesRequests.get(4)[1], equalTo(2L));
+
+        task.innerHandleReadResponse(18L, 19L, generateShardChangesResponse(18L, 19L, 0L, 0L, 1L, 99L));
+        assertThat("start new range as the buffer has empty slots", shardChangesRequests, hasSize(6));
+        assertThat(shardChangesRequests.get(5)[0], equalTo(20L));
+        assertThat(shardChangesRequests.get(5)[1], equalTo(10L));
+
+        task.innerHandleReadResponse(9L, 9L, generateShardChangesResponse(9L, 9L, 0L, 0L, 1L, 99L));
+        assertThat("do not start new range as the buffer is full", shardChangesRequests, hasSize(6));
+        pendingBulkShardRequests.remove().onResponse(new BulkShardOperationsResponse());
+        assertThat("start new range as the buffer is empty after sending", shardChangesRequests, hasSize(7));
+        assertThat(shardChangesRequests.get(6)[0], equalTo(30L));
+        assertThat(shardChangesRequests.get(6)[1], equalTo(10L));
+    }
+
     public void testMappingUpdate() {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 64;
@@ -996,7 +1047,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
 
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 0L, 1L, 64L);
         // Also invokes coordinatesWrites()
-        task.innerHandleReadResponse(0L, 64L, response);
+        task.innerHandleReadResponse(0L, 63L, response);
 
         assertThat(bulkShardOperationRequests.size(), equalTo(64));
     }
@@ -1122,6 +1173,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         followerGlobalCheckpoints = new LinkedList<>();
         maxSeqNos = new LinkedList<>();
         responseSizes = new LinkedList<>();
+        pendingBulkShardRequests = new LinkedList<>();
         return new ShardFollowNodeTask(
                 1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), followTask, scheduler, System::nanoTime) {
 
@@ -1185,6 +1237,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                     response.setGlobalCheckpoint(followerGlobalCheckpoint);
                     response.setMaxSeqNo(followerGlobalCheckpoint);
                     handler.accept(response);
+                } else {
+                    pendingBulkShardRequests.add(ActionListener.wrap(handler::accept, errorHandler));
                 }
             }
 

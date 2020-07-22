@@ -121,7 +121,7 @@ PUT /test/_doc/3?refresh
 [[rank-feature-query-ex-query]]
 ===== Example query
 
-The following query searches for `2016` and boosts relevance scores based or
+The following query searches for `2016` and boosts relevance scores based on
 `pagerank`, `url_length`, and the `sports` topic.
 
 [source,console]

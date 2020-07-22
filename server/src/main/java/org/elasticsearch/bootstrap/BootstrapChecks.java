@@ -226,12 +226,22 @@ final class BootstrapChecks {
             final long initialHeapSize = getInitialHeapSize();
             final long maxHeapSize = getMaxHeapSize();
             if (initialHeapSize != 0 && maxHeapSize != 0 && initialHeapSize != maxHeapSize) {
-                final String message = String.format(
+                final String message;
+                if (isMemoryLocked()) {
+                    message = String.format(
                         Locale.ROOT,
                         "initial heap size [%d] not equal to maximum heap size [%d]; " +
-                                "this can cause resize pauses and prevents mlockall from locking the entire heap",
+                            "this can cause resize pauses and prevents memory locking from locking the entire heap",
                         getInitialHeapSize(),
                         getMaxHeapSize());
+                } else {
+                    message = String.format(
+                        Locale.ROOT,
+                        "initial heap size [%d] not equal to maximum heap size [%d]; " +
+                            "this can cause resize pauses",
+                        getInitialHeapSize(),
+                        getMaxHeapSize());
+                }
                 return BootstrapCheckResult.failure(message);
             } else {
                 return BootstrapCheckResult.success();
@@ -246,6 +256,10 @@ final class BootstrapChecks {
         // visible for testing
         long getMaxHeapSize() {
             return JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        }
+
+        boolean isMemoryLocked() {
+            return Natives.isMemoryLocked();
         }
 
     }

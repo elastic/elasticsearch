@@ -272,7 +272,7 @@ public final class GrokPatternCreator {
             this.grokPatternName = grokPatternName;
             this.fieldName = fieldName;
             this.grok = new Grok(Grok.getBuiltinPatterns(), "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
-                    postBreak + "%{GREEDYDATA:" + EPILOGUE + "}");
+                    postBreak + "%{GREEDYDATA:" + EPILOGUE + "}", logger::warn);
         }
     }
 }

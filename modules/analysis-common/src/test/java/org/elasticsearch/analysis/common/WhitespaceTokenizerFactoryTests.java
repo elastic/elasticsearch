@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -39,7 +39,7 @@ import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStre
 public class WhitespaceTokenizerFactoryTests extends ESTestCase {
 
     public void testSimpleWhiteSpaceTokenizer() throws IOException {
-        final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), indexSettings);
         WhitespaceTokenizer tokenizer = (WhitespaceTokenizer) new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen",
                 Settings.EMPTY).create();
@@ -51,7 +51,7 @@ public class WhitespaceTokenizerFactoryTests extends ESTestCase {
     }
 
     public void testMaxTokenLength() throws IOException {
-        final Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(new Index("test", "_na_"), indexSettings);
         final Settings settings = Settings.builder().put(WhitespaceTokenizerFactory.MAX_TOKEN_LENGTH, 2).build();
         WhitespaceTokenizer tokenizer = (WhitespaceTokenizer) new WhitespaceTokenizerFactory(indexProperties, null, "whitespace_maxlen",

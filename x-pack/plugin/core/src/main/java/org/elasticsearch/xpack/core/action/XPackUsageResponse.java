@@ -11,24 +11,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class XPackUsageResponse extends ActionResponse {
 
-    private List<XPackFeatureSet.Usage> usages;
+    private final List<XPackFeatureSet.Usage> usages;
 
-    public XPackUsageResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        usages = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            usages.add(in.readNamedWriteable(XPackFeatureSet.Usage.class));
-        }
+    public XPackUsageResponse(final List<XPackFeatureSet.Usage> usages) {
+        this.usages = Objects.requireNonNull(usages);
     }
 
-    public XPackUsageResponse(List<XPackFeatureSet.Usage> usages) {
-        this.usages = usages;
+    public XPackUsageResponse(final StreamInput in) throws IOException {
+        usages = in.readNamedWriteableList(XPackFeatureSet.Usage.class);
     }
 
     public List<XPackFeatureSet.Usage> getUsages() {
@@ -36,11 +32,17 @@ public class XPackUsageResponse extends ActionResponse {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(usages.size());
-        for (XPackFeatureSet.Usage usage : usages) {
-            out.writeNamedWriteable(usage);
-        }
+    public void writeTo(final StreamOutput out) throws IOException {
+        // we can only write the usages with version the coordinating node is compatible with otherwise it will not know the named writeable
+        final List<XPackFeatureSet.Usage> usagesToWrite = usages
+            .stream()
+            .filter(usage -> out.getVersion().onOrAfter(usage.getMinimalSupportedVersion()))
+            .collect(Collectors.toUnmodifiableList());
+        writeTo(out, usagesToWrite);
     }
 
+    private static void writeTo(final StreamOutput out, final List<XPackFeatureSet.Usage> usages) throws IOException {
+        out.writeNamedWriteableList(usages);
     }
+
+}

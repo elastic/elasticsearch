@@ -74,12 +74,12 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
             throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear();
-        nodesInfoRequest.ingest(true);
+        nodesInfoRequest.clear()
+            .addMetric(NodesInfoRequest.Metric.INGEST.metricName());
         client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
             Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
             for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
+                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
             }
             ingestService.putPipeline(ingestInfos, request, listener);
         }, listener::onFailure));

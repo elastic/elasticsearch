@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -18,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 
@@ -48,24 +51,24 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
         if (requestInfo.getRequest() instanceof IndicesAliasesRequest) {
             final IndicesAliasesRequest request = (IndicesAliasesRequest) requestInfo.getRequest();
             final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
-            if (frozenLicenseState.isAuthAllowed()) {
-                if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
-                    IndicesAccessControl indicesAccessControl =
-                        threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                    for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
-                        if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
-                            for (String index : aliasAction.indices()) {
-                                IndicesAccessControl.IndexAccessControl indexAccessControl =
-                                    indicesAccessControl.getIndexPermissions(index);
-                                if (indexAccessControl != null) {
-                                    final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                                    final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                                    if (fls || dls) {
-                                        listener.onFailure(new ElasticsearchSecurityException("Alias requests are not allowed for " +
-                                            "users who have field or document level security enabled on one of the indices",
-                                            RestStatus.BAD_REQUEST));
-                                        return;
-                                    }
+            final AuditTrail auditTrail = auditTrailService.get();
+            if (frozenLicenseState.isSecurityEnabled()) {
+                var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+                IndicesAccessControl indicesAccessControl =
+                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                for (IndicesAliasesRequest.AliasActions aliasAction : request.getAliasActions()) {
+                    if (aliasAction.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) {
+                        for (String index : aliasAction.indices()) {
+                            IndicesAccessControl.IndexAccessControl indexAccessControl =
+                                indicesAccessControl.getIndexPermissions(index);
+                            if (indexAccessControl != null) {
+                                final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                                final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                                if ((fls || dls) && licenseChecker.get()) {
+                                    listener.onFailure(new ElasticsearchSecurityException("Alias requests are not allowed for " +
+                                        "users who have field or document level security enabled on one of the indices",
+                                        RestStatus.BAD_REQUEST));
+                                    return;
                                 }
                             }
                         }
@@ -89,7 +92,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                         // do not audit success again
                         listener.onResponse(null);
                     } else {
-                        auditTrailService.accessDenied(AuditUtil.extractRequestId(threadContext), requestInfo.getAuthentication(),
+                        auditTrail.accessDenied(AuditUtil.extractRequestId(threadContext), requestInfo.getAuthentication(),
                             requestInfo.getAction(), request, authorizationInfo);
                         listener.onFailure(Exceptions.authorizationError("Adding an alias is not allowed when the alias " +
                             "has more permissions than any of the indices"));

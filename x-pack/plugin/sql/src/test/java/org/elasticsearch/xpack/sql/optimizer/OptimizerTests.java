@@ -35,10 +35,9 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equal
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
@@ -128,6 +127,13 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
+import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
+import static org.elasticsearch.xpack.ql.TestUtils.lessThanOrEqualOf;
+import static org.elasticsearch.xpack.ql.TestUtils.notEqualsOf;
+import static org.elasticsearch.xpack.ql.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
@@ -211,7 +217,7 @@ public class OptimizerTests extends ESTestCase {
         // b
         Alias b = new Alias(EMPTY, "b", L(10));
         // WHERE a < 10
-        LogicalPlan p = new Filter(EMPTY, FROM(), new LessThan(EMPTY, a, L(10)));
+        LogicalPlan p = new Filter(EMPTY, FROM(), lessThanOf(a, L(10)));
         // SELECT
         p = new Project(EMPTY, p, Arrays.asList(a, b));
         // ORDER BY
@@ -367,9 +373,9 @@ public class OptimizerTests extends ESTestCase {
         // arithmetic
         assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute(), NULL)));
         // comparison
-        assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), NULL)));
+        assertNullLiteral(rule.rule(greaterThanOf(getFieldAttribute(), NULL)));
         // regex
-        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, "123")));
+        assertNullLiteral(rule.rule(new RLike(EMPTY, NULL, new RLikePattern("123"))));
     }
 
     public void testNullFoldingOnCast() {
@@ -580,10 +586,10 @@ public class OptimizerTests extends ESTestCase {
         // END
 
         Case c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, getFieldAttribute(), ONE), literal("foo1")),
-                new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), literal("bar1")),
-                new IfConditional(EMPTY, new Equals(EMPTY, TWO, ONE), literal("bar2")),
-                new IfConditional(EMPTY, new GreaterThan(EMPTY, getFieldAttribute(), ONE), literal("foo2")), literal("default")));
+                new IfConditional(EMPTY, equalsOf(getFieldAttribute(), ONE), literal("foo1")),
+                new IfConditional(EMPTY, equalsOf(ONE, TWO), literal("bar1")),
+                new IfConditional(EMPTY, equalsOf(TWO, ONE), literal("bar2")),
+                new IfConditional(EMPTY, greaterThanOf(getFieldAttribute(), ONE), literal("foo2")), literal("default")));
         assertFalse(c.foldable());
         Expression e = new SimplifyCase().rule(c);
         assertEquals(Case.class, e.getClass());
@@ -606,8 +612,8 @@ public class OptimizerTests extends ESTestCase {
         // 'foo2'
 
         Case c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo1")),
-                new IfConditional(EMPTY, new Equals(EMPTY, ONE, ONE), literal("foo2")), literal("default")));
+                new IfConditional(EMPTY, equalsOf(ONE, TWO), literal("foo1")),
+                new IfConditional(EMPTY, equalsOf(ONE, ONE), literal("foo2")), literal("default")));
         assertFalse(c.foldable());
 
         SimplifyCase rule = new SimplifyCase();
@@ -631,7 +637,7 @@ public class OptimizerTests extends ESTestCase {
         // myField (non-foldable)
 
         Case c = new Case(EMPTY, Arrays.asList(
-                new IfConditional(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo1")),
+                new IfConditional(EMPTY, equalsOf(ONE, TWO), literal("foo1")),
                 getFieldAttribute("myField")));
         assertFalse(c.foldable());
 
@@ -646,7 +652,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionTrue_FoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, ONE), literal("foo"), literal("bar"));
+        Iif iif = new Iif(EMPTY, equalsOf(ONE, ONE), literal("foo"), literal("bar"));
         assertTrue(iif.foldable());
 
         Expression e = rule.rule(iif);
@@ -660,7 +666,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionTrue_NonFoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, ONE), getFieldAttribute("myField"), literal("bar"));
+        Iif iif = new Iif(EMPTY, equalsOf(ONE, ONE), getFieldAttribute("myField"), literal("bar"));
         assertFalse(iif.foldable());
 
         Expression e = rule.rule(iif);
@@ -675,7 +681,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionFalse_FoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo"), literal("bar"));
+        Iif iif = new Iif(EMPTY, equalsOf(ONE, TWO), literal("foo"), literal("bar"));
         assertTrue(iif.foldable());
 
         Expression e = rule.rule(iif);
@@ -689,7 +695,7 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSimplifyIif_ConditionFalse_NonFoldableResult() {
         SimplifyCase rule = new SimplifyCase();
-        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, TWO), literal("foo"), getFieldAttribute("myField"));
+        Iif iif = new Iif(EMPTY, equalsOf(ONE, TWO), literal("foo"), getFieldAttribute("myField"));
         assertFalse(iif.foldable());
 
         Expression e = rule.rule(iif);
@@ -710,15 +716,15 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testBinaryComparisonSimplification() {
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(new Equals(EMPTY, FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(new NullEquals(EMPTY, FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(new NullEquals(EMPTY, NULL, NULL)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(new NotEquals(EMPTY, FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(new GreaterThanOrEqual(EMPTY, FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(new LessThanOrEqual(EMPTY, FIVE, FIVE)));
+        assertEquals(TRUE, new BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE)));
+        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(FIVE, FIVE)));
+        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(NULL, NULL)));
+        assertEquals(FALSE, new BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE)));
+        assertEquals(TRUE, new BinaryComparisonSimplification().rule(greaterThanOrEqualOf(FIVE, FIVE)));
+        assertEquals(TRUE, new BinaryComparisonSimplification().rule(lessThanOrEqualOf(FIVE, FIVE)));
 
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(new GreaterThan(EMPTY, FIVE, FIVE)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(new LessThan(EMPTY, FIVE, FIVE)));
+        assertEquals(FALSE, new BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE)));
+        assertEquals(FALSE, new BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE)));
     }
 
     public void testNullEqualsWithNullLiteralBecomesIsNull() {
@@ -727,12 +733,12 @@ public class OptimizerTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
         Source source = new Source(1, 10, "IS_NULL(a)");
 
-        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL)));
+        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL, randomZone())));
         assertEquals(IsNull.class, e.getClass());
         IsNull isNull = (IsNull) e;
         assertEquals(source, isNull.source());
 
-        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa)));
+        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa, randomZone())));
         assertEquals(IsNull.class, e.getClass());
         isNull = (IsNull) e;
         assertEquals(source, isNull.source());
@@ -763,10 +769,10 @@ public class OptimizerTests extends ESTestCase {
     public void testCombineUnbalancedComparisonsMixedWithEqualsIntoRange() {
         FieldAttribute fa = getFieldAttribute();
         IsNotNull isn = new IsNotNull(EMPTY, fa);
-        GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, ONE);
+        GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, ONE);
 
-        Equals eq = new Equals(EMPTY, fa, L(10));
-        LessThan lt = new LessThan(EMPTY, fa, FIVE);
+        Equals eq = equalsOf(fa, L(10));
+        LessThan lt = lessThanOf(fa, FIVE);
 
         And and = new And(EMPTY, new And(EMPTY, isn, gte), new And(EMPTY, lt, eq));
 
@@ -996,8 +1002,8 @@ public class OptimizerTests extends ESTestCase {
         Alias bAlias = new Alias(EMPTY, "bAlias", b);
         
         Project p = new Project(EMPTY, FROM(), Arrays.asList(aAlias, bAlias));
-        Filter f = new Filter(EMPTY, p,
-                new And(EMPTY, new GreaterThan(EMPTY, aAlias.toAttribute(), L(1)), new GreaterThan(EMPTY, bAlias.toAttribute(), L(2))));
+        Filter f = new Filter(EMPTY, p, new And(EMPTY, greaterThanOf(aAlias.toAttribute(), L(1)),
+            greaterThanOf(bAlias.toAttribute(), L(2))));
         
         ReplaceReferenceAttributeWithSource rule = new ReplaceReferenceAttributeWithSource();
         Expression condition = f.condition();

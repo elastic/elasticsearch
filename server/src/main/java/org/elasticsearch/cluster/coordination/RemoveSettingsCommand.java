@@ -24,7 +24,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -67,7 +67,7 @@ public class RemoveSettingsCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
-        final Settings oldPersistentSettings = oldClusterState.metaData().persistentSettings();
+        final Settings oldPersistentSettings = oldClusterState.metadata().persistentSettings();
         terminal.println(Terminal.Verbosity.VERBOSE, "persistent settings: " + oldPersistentSettings);
         final Settings.Builder newPersistentSettingsBuilder = Settings.builder().put(oldPersistentSettings);
         for (String settingToRemove : settingsToRemove) {
@@ -88,7 +88,7 @@ public class RemoveSettingsCommand extends ElasticsearchNodeCommand {
             }
         }
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
-            .metaData(MetaData.builder(oldClusterState.metaData()).persistentSettings(newPersistentSettingsBuilder.build()).build())
+            .metadata(Metadata.builder(oldClusterState.metadata()).persistentSettings(newPersistentSettingsBuilder.build()).build())
             .build();
         terminal.println(Terminal.Verbosity.VERBOSE,
             "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]");

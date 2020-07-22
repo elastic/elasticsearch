@@ -1,5 +1,8 @@
 [[analysis-pattern-tokenizer]]
-=== Pattern Tokenizer
+=== Pattern tokenizer
+++++
+<titleabbrev>Pattern</titleabbrev>
+++++
 
 The `pattern` tokenizer uses a regular expression to either split text into
 terms whenever it matches a word separator, or to capture matching text as

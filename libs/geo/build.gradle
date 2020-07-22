@@ -18,16 +18,15 @@
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  testCompile(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
   }
 }
 
-forbiddenApisMain {
+tasks.named('forbiddenApisMain').configure {
   // geo does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
   replaceSignatureFiles 'jdk-signatures'

@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -64,9 +63,8 @@ public class InternalStringStats extends InternalAggregation {
     public InternalStringStats(String name, long count, long totalLength, int minLength, int maxLength,
                                Map<String, Long> charOccurences, boolean showDistribution,
                                DocValueFormat formatter,
-                               List<PipelineAggregator> pipelineAggregators,
-                               Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                               Map<String, Object> metadata) {
+        super(name, metadata);
         this.format = formatter;
         this.showDistribution = showDistribution;
         this.count = count;
@@ -213,7 +211,7 @@ public class InternalStringStats extends InternalAggregation {
         }
 
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs,
-            showDistribution, format, pipelineAggregators(), getMetaData());
+            showDistribution, format, getMetadata());
     }
 
     @Override

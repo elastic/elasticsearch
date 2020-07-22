@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,8 +64,8 @@ import static java.util.Collections.emptyList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
-    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params) {
-        super(params);
+    protected LogicalPlanBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
+        super(params, zoneId);
     }
 
     @Override
@@ -104,8 +105,12 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (limitClause != null) {
             Token limit = limitClause.limit;
             if (limit != null && limitClause.INTEGER_VALUE() != null) {
-                plan = new Limit(source(limitClause), new Literal(source(limitClause),
-                        Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
+                if (plan instanceof Limit) {
+                    throw new ParsingException(source(limitClause),
+                        "TOP and LIMIT are not allowed in the same query - use one or the other");
+                } else {
+                    plan = limit(plan, source(limitClause), limit);
+                }
             }
         }
 
@@ -154,6 +159,13 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.setQuantifier() != null && ctx.setQuantifier().DISTINCT() != null) {
             query = new Distinct(source(ctx.setQuantifier()), query);
         }
+
+        // TOP
+        SqlBaseParser.TopClauseContext topClauseContext = ctx.topClause();
+        if (topClauseContext != null && topClauseContext.top != null && topClauseContext.INTEGER_VALUE() != null) {
+            query = limit(query, source(topClauseContext), topClauseContext.top);
+        }
+
         return query;
     }
 
@@ -241,5 +253,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         String alias = visitQualifiedName(ctx.qualifiedName());
         TableIdentifier tableIdentifier = visitTableIdentifier(ctx.tableIdentifier());
         return new UnresolvedRelation(source(ctx), tableIdentifier, alias, ctx.FROZEN() != null);
+    }
+
+    private Limit limit(LogicalPlan plan, Source source, Token limit) {
+        return new Limit(source, new Literal(source, Integer.parseInt(limit.getText()), DataTypes.INTEGER), plan);
     }
 }

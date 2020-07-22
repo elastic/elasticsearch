@@ -22,6 +22,7 @@ ES_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${ES_JAVA_OPTS}"
 
 exec \
   "$JAVA" \
+  "$XSHARE" \
   $ES_JAVA_OPTS \
   -Des.path.home="$ES_HOME" \
   -Des.path.conf="$ES_PATH_CONF" \

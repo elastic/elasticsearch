@@ -70,6 +70,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
             indicesWithTokens.add(securityMainIndex.aliasName());
         }
         if (indicesWithTokens.isEmpty()) {
+            markComplete();
             return;
         }
         DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(indicesWithTokens.toArray(new String[0]));

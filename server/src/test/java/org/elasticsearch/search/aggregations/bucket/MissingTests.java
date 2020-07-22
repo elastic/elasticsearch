@@ -26,7 +26,7 @@ public class MissingTests extends BaseAggregationTestCase<MissingAggregationBuil
 
     @Override
     protected final MissingAggregationBuilder createTestAggregatorBuilder() {
-        MissingAggregationBuilder factory = new MissingAggregationBuilder(randomAlphaOfLengthBetween(3, 10), null);
+        MissingAggregationBuilder factory = new MissingAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         String field = randomNumericField();
         randomFieldOrScript(factory, field);
         return factory;

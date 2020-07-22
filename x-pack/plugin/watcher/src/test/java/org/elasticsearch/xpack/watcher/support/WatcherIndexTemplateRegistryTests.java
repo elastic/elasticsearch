@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -45,6 +44,7 @@ import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -133,12 +133,12 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         assertThat(req.settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy"));
     }
 
-    public void testThatNonExistingTemplatesAreAddedEvenWithILMDisabled() {
+    public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         registry = new WatcherIndexTemplateRegistry(Settings.builder()
-            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
+            .put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
             clusterService, threadPool, client, xContentRegistry);
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
@@ -187,7 +187,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         registry = new WatcherIndexTemplateRegistry(Settings.builder()
-            .put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), false).build(),
+            .put(Watcher.USE_ILM_INDEX_MANAGEMENT.getKey(), false).build(),
             clusterService, threadPool, client, xContentRegistry);
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
@@ -306,9 +306,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
                                             Map<String, Integer> existingTemplates,
                                             Map<String, LifecyclePolicy> existingPolicies,
                                             DiscoveryNodes nodes) {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetaData> indexTemplates = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> indexTemplates = ImmutableOpenMap.builder();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
-            final IndexTemplateMetaData mockTemplate = mock(IndexTemplateMetaData.class);
+            final IndexTemplateMetadata mockTemplate = mock(IndexTemplateMetadata.class);
             when(mockTemplate.version()).thenReturn(template.getValue());
             when(mockTemplate.getVersion()).thenReturn(template.getValue());
             indexTemplates.put(template.getKey(), mockTemplate);
@@ -319,7 +319,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
         return ClusterState.builder(new ClusterName("test"))
-            .metaData(MetaData.builder()
+            .metadata(Metadata.builder()
                 .templates(indexTemplates.build())
                 .transientSettings(nodeSettings)
                 .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
@@ -349,14 +349,14 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(Map<String, Integer> existingTemplates) {
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
-            metaDataBuilder.put(IndexTemplateMetaData.builder(template.getKey())
+            metadataBuilder.put(IndexTemplateMetadata.builder(template.getKey())
                     .version(template.getValue())
                     .patterns(Arrays.asList(generateRandomStringArray(10, 100, false, false))));
         }
 
-        return ClusterState.builder(new ClusterName("foo")).metaData(metaDataBuilder.build()).build();
+        return ClusterState.builder(new ClusterName("foo")).metadata(metadataBuilder.build()).build();
     }
 
     private static class TestPutIndexTemplateResponse extends AcknowledgedResponse {

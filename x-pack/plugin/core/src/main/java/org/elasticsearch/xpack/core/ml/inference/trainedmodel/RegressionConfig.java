@@ -9,48 +9,42 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
-public class RegressionConfig implements InferenceConfig {
+public class RegressionConfig implements LenientlyParsedInferenceConfig, StrictlyParsedInferenceConfig  {
 
     public static final ParseField NAME = new ParseField("regression");
     private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
     public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
-    private static final String DEFAULT_RESULTS_FIELD = "predicted_value";
+    public static final String DEFAULT_RESULTS_FIELD = "predicted_value";
 
     public static RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
 
-    public static RegressionConfig fromMap(Map<String, Object> map) {
-        Map<String, Object> options = new HashMap<>(map);
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
-        Integer featureImportance = (Integer)options.remove(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName());
-        if (options.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
-        }
-        return new RegressionConfig(resultsField, featureImportance);
+    private static final ObjectParser<RegressionConfig.Builder, Void> LENIENT_PARSER = createParser(true);
+    private static final ObjectParser<RegressionConfig.Builder, Void> STRICT_PARSER = createParser(false);
+
+    private static ObjectParser<RegressionConfig.Builder, Void> createParser(boolean lenient) {
+        ObjectParser<RegressionConfig.Builder, Void> parser = new ObjectParser<>(
+            NAME.getPreferredName(),
+            lenient,
+            RegressionConfig.Builder::new);
+        parser.declareString(RegressionConfig.Builder::setResultsField, RESULTS_FIELD);
+        parser.declareInt(RegressionConfig.Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
+        return parser;
     }
 
-    private static final ConstructingObjectParser<RegressionConfig, Void> PARSER =
-            new ConstructingObjectParser<>(NAME.getPreferredName(), args -> new RegressionConfig((String) args[0], (Integer)args[1]));
-
-    static {
-        PARSER.declareString(optionalConstructorArg(), RESULTS_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), NUM_TOP_FEATURE_IMPORTANCE_VALUES);
+    public static RegressionConfig fromXContentStrict(XContentParser parser) {
+        return STRICT_PARSER.apply(parser, null).build();
     }
 
-    public static RegressionConfig fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static RegressionConfig fromXContentLenient(XContentParser parser) {
+        return LENIENT_PARSER.apply(parser, null).build();
     }
 
     private final String resultsField;
@@ -113,9 +107,7 @@ public class RegressionConfig implements InferenceConfig {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
-        if (numTopFeatureImportanceValues > 0) {
-            builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
-        }
+        builder.field(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), numTopFeatureImportanceValues);
         builder.endObject();
         return builder;
     }
@@ -141,7 +133,36 @@ public class RegressionConfig implements InferenceConfig {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return numTopFeatureImportanceValues > 0 ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
+        return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String resultsField;
+        private Integer numTopFeatureImportanceValues;
+
+        Builder() {}
+
+        Builder(RegressionConfig config) {
+            this.resultsField = config.resultsField;
+            this.numTopFeatureImportanceValues = config.numTopFeatureImportanceValues;
+        }
+
+        public Builder setResultsField(String resultsField) {
+            this.resultsField = resultsField;
+            return this;
+        }
+
+        public Builder setNumTopFeatureImportanceValues(Integer numTopFeatureImportanceValues) {
+            this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
+            return this;
+        }
+
+        public RegressionConfig build() {
+            return new RegressionConfig(resultsField, numTopFeatureImportanceValues);
+        }
+    }
 }

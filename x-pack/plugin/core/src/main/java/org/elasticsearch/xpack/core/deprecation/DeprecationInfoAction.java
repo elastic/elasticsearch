@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -160,8 +160,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
          *
          * @param state The cluster state
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
-         * @param indices The list of index expressions to evaluate using `indexNameExpressionResolver`
-         * @param indicesOptions The options to use when resolving and filtering which indices to check
+         * @param request The originating request containing the index expressions to evaluate
          * @param datafeeds The ml datafeed configurations
          * @param nodeDeprecationResponse The response containing the deprecation issues found on each node
          * @param indexSettingsChecks The list of index-level checks that will be run across all specified
@@ -173,10 +172,9 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         public static DeprecationInfoAction.Response from(ClusterState state,
                                                           NamedXContentRegistry xContentRegistry,
                                                           IndexNameExpressionResolver indexNameExpressionResolver,
-                                                          String[] indices, IndicesOptions indicesOptions,
-                                                          List<DatafeedConfig> datafeeds,
+                                                          Request request, List<DatafeedConfig> datafeeds,
                                                           NodesDeprecationCheckResponse nodeDeprecationResponse,
-                                                          List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks,
+                                                          List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
                                                           List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
                                                           List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>>
                                                               mlSettingsCheck) {
@@ -188,13 +186,13 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 mlSettingsIssues.addAll(filterChecks(mlSettingsCheck, (c) -> c.apply(config, xContentRegistry)));
             }
 
-            String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, indices);
+            String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
 
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
-                IndexMetaData indexMetaData = state.getMetaData().index(concreteIndex);
+                IndexMetadata indexMetadata = state.getMetadata().index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks,
-                    c -> c.apply(indexMetaData));
+                    c -> c.apply(indexMetadata));
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }
@@ -242,6 +240,11 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         @Override
         public IndicesOptions indicesOptions() {
             return INDICES_OPTIONS;
+        }
+
+        @Override
+        public boolean includeDataStreams() {
+            return true;
         }
 
         @Override

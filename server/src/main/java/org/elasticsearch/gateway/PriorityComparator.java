@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
@@ -57,11 +57,11 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
     }
 
     private static int priority(Settings settings) {
-        return IndexMetaData.INDEX_PRIORITY_SETTING.get(settings);
+        return IndexMetadata.INDEX_PRIORITY_SETTING.get(settings);
     }
 
     private static long timeCreated(Settings settings) {
-        return settings.getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1L);
+        return settings.getAsLong(IndexMetadata.SETTING_CREATION_DATE, -1L);
     }
 
     protected abstract Settings getIndexSettings(Index index);
@@ -73,8 +73,8 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
         return new PriorityComparator() {
             @Override
             protected Settings getIndexSettings(Index index) {
-                IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(index);
-                return indexMetaData.getSettings();
+                IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(index);
+                return indexMetadata.getSettings();
             }
         };
     }

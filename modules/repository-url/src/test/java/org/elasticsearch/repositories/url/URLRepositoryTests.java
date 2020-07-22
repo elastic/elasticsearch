@@ -19,11 +19,13 @@
 
 package org.elasticsearch.repositories.url;
 
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
@@ -38,9 +40,10 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 public class URLRepositoryTests extends ESTestCase {
 
-    private URLRepository createRepository(Settings baseSettings, RepositoryMetaData repositoryMetaData) {
-        return new URLRepository(repositoryMetaData, TestEnvironment.newEnvironment(baseSettings),
-            new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService()) {
+    private URLRepository createRepository(Settings baseSettings, RepositoryMetadata repositoryMetadata) {
+        return new URLRepository(repositoryMetadata, TestEnvironment.newEnvironment(baseSettings),
+            new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             @Override
             protected void assertSnapshotOrGenericThread() {
                 // eliminate thread name check as we create repo manually on test/main threads
@@ -55,8 +58,8 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.ALLOWED_URLS_SETTING.getKey(), repoPath)
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
-        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("url", URLRepository.TYPE, baseSettings);
+        final URLRepository repository = createRepository(baseSettings, repositoryMetadata);
         repository.start();
 
         assertThat("blob store has to be lazy initialized", repository.getBlobStore(), is(nullValue()));
@@ -70,8 +73,8 @@ public class URLRepositoryTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .build();
-        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("url", URLRepository.TYPE, baseSettings);
+        final URLRepository repository = createRepository(baseSettings, repositoryMetadata);
         repository.start();
         try {
             repository.blobContainer();
@@ -92,8 +95,8 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), repoPath)
             .put(URLRepository.SUPPORTED_PROTOCOLS_SETTING.getKey(), "http,https")
             .build();
-        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("url", URLRepository.TYPE, baseSettings);
+        final URLRepository repository = createRepository(baseSettings, repositoryMetadata);
         repository.start();
         try {
             repository.blobContainer();
@@ -109,8 +112,8 @@ public class URLRepositoryTests extends ESTestCase {
             .put(URLRepository.ALLOWED_URLS_SETTING.getKey(), "file:/tmp/")
             .put(URLRepository.REPOSITORIES_URL_SETTING.getKey(), "file:/var/" )
             .build();
-        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("url", URLRepository.TYPE, baseSettings);
-        final URLRepository repository = createRepository(baseSettings, repositoryMetaData);
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("url", URLRepository.TYPE, baseSettings);
+        final URLRepository repository = createRepository(baseSettings, repositoryMetadata);
         repository.start();
         try {
             repository.blobContainer();

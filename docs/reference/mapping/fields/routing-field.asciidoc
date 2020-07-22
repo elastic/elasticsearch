@@ -43,6 +43,9 @@ GET my_index/_search
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
 
+NOTE: Data streams do not support custom routing. Instead, target the
+appropriate backing index for the stream.
+
 ==== Searching with custom routing
 
 Custom routing can reduce the impact of searches.  Instead of having to fan
@@ -92,7 +95,7 @@ PUT my_index2/_doc/1 <2>
 ------------------------------
 // TEST[catch:bad_request]
 
-<1> Routing is required for `_doc` documents.
+<1> Routing is required for all documents.
 <2> This index request throws a `routing_missing_exception`.
 
 ==== Unique IDs with custom routing

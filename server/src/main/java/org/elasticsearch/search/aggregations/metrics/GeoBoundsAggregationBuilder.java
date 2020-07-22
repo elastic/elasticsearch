@@ -23,63 +23,68 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoBoundsAggregationBuilder> {
+public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
 
-    private static final ObjectParser<GeoBoundsAggregationBuilder, Void> PARSER;
+    public static final ObjectParser<GeoBoundsAggregationBuilder, String> PARSER =
+            ObjectParser.fromBuilder(NAME, GeoBoundsAggregationBuilder::new);
     static {
-        PARSER = new ObjectParser<>(GeoBoundsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
         PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new GeoBoundsAggregationBuilder(aggregationName), null);
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        GeoBoundsAggregatorFactory.registerAggregators(builder);
     }
 
     private boolean wrapLongitude = true;
 
     public GeoBoundsAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(name);
     }
 
-    protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected GeoBoundsAggregationBuilder(GeoBoundsAggregationBuilder clone,
+                                          AggregatorFactories.Builder factoriesBuilder,
+                                          Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.wrapLongitude = clone.wrapLongitude;
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public GeoBoundsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        super(in);
         wrapLongitude = in.readBoolean();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(wrapLongitude);
+    }
+
+    @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.GEOPOINT;
     }
 
     /**
@@ -98,9 +103,15 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected GeoBoundsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<ValuesSource.GeoPoint> config,
-                                                    AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, queryShardContext, parent, subFactoriesBuilder, metaData);
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
+    protected GeoBoundsAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config,
+                                                    AggregatorFactory parent,
+                                                    AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new GeoBoundsAggregatorFactory(name, config, wrapLongitude, queryShardContext, parent, subFactoriesBuilder, metadata);
     }
 
     @Override

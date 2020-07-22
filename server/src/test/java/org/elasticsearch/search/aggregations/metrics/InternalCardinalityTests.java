@@ -20,18 +20,12 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
-
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
-import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
-import org.elasticsearch.search.aggregations.metrics.ParsedCardinality;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
 
@@ -61,20 +55,14 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected InternalCardinality createTestInstance(String name,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalCardinality createTestInstance(String name, Map<String, Object> metadata) {
         HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(p,
                 new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()), 1);
         algos.add(hllpp);
         for (int i = 0; i < 100; i++) {
             hllpp.collect(0, BitMixer.mix64(randomIntBetween(1, 100)));
         }
-        return new InternalCardinality(name, hllpp, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Reader<InternalCardinality> instanceReader() {
-        return InternalCardinality::new;
+        return new InternalCardinality(name, hllpp, metadata);
     }
 
     @Override
@@ -103,8 +91,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     protected InternalCardinality mutateInstance(InternalCardinality instance) {
         String name = instance.getName();
         HyperLogLogPlusPlus state = instance.getState();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -121,16 +108,16 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             state = newState;
             break;
         case 2:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalCardinality(name, state, pipelineAggregators, metaData);
+        return new InternalCardinality(name, state, metadata);
     }
 }

@@ -121,7 +121,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
 
     public ClusterShardHealth(final StreamInput in) throws IOException {
         shardId = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
+        status = ClusterHealthStatus.readFrom(in);
         activeShards = in.readVInt();
         relocatingShards = in.readVInt();
         initializingShards = in.readVInt();

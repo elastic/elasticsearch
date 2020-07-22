@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.eql.session.Results.Type;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 
 import java.util.List;
@@ -14,9 +15,11 @@ import java.util.Objects;
 public class EmptyExecutable implements Executable {
 
     private final List<Attribute> output;
+    private final Type resultType;
 
-    public EmptyExecutable(List<Attribute> output) {
+    public EmptyExecutable(List<Attribute> output, Type resultType) {
         this.output = output;
+        this.resultType = resultType;
     }
 
     @Override
@@ -25,13 +28,13 @@ public class EmptyExecutable implements Executable {
     }
 
     @Override
-    public void execute(EqlSession session, ActionListener<Results> listener) {
-        listener.onResponse(Results.EMPTY);
+    public void execute(EqlSession session, ActionListener<Payload> listener) {
+        listener.onResponse(new EmptyPayload(resultType));
     }
 
     @Override
     public int hashCode() {
-        return output.hashCode();
+        return Objects.hash(output, resultType);
     }
 
     @Override
@@ -45,7 +48,8 @@ public class EmptyExecutable implements Executable {
         }
 
         EmptyExecutable other = (EmptyExecutable) obj;
-        return Objects.equals(output, other.output);
+        return Objects.equals(resultType, other.resultType)
+                && Objects.equals(output, other.output);
     }
 
     @Override

@@ -1,3 +1,3 @@
-running => run
+running, runs => run
 
 stemmer => stemmer

@@ -28,11 +28,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -65,12 +63,6 @@ public class Accuracy implements EvaluationMetric {
     public static final ParseField NAME = new ParseField("accuracy");
 
     static final String OVERALL_ACCURACY_AGG_NAME = "classification_overall_accuracy";
-
-    private static final String PAINLESS_TEMPLATE = "doc[''{0}''].value == doc[''{1}''].value";
-
-    private static Script buildScript(Object...args) {
-        return new Script(new MessageFormat(PAINLESS_TEMPLATE, Locale.ROOT).format(args));
-    }
 
     private static final ObjectParser<Accuracy, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Accuracy::new);
 
@@ -112,7 +104,8 @@ public class Accuracy implements EvaluationMetric {
         List<AggregationBuilder> aggs = new ArrayList<>();
         List<PipelineAggregationBuilder> pipelineAggs = new ArrayList<>();
         if (overallAccuracy.get() == null) {
-            aggs.add(AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(buildScript(actualField, predictedField)));
+            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
+            aggs.add(AggregationBuilders.avg(OVERALL_ACCURACY_AGG_NAME).script(script));
         }
         if (result.get() == null) {
             Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> matrixAggs =

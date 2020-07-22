@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -114,12 +114,13 @@ public class ForceMergeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
-        Settings readOnlySettings = Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true).build();
+        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
         Settings bestCompressionSettings = Settings.builder()
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();
 
         final boolean codecChange = codec != null && codec.equals(CodecService.BEST_COMPRESSION_CODEC);
 
+        StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
 
         StepKey closeKey = new StepKey(phase, NAME, CloseIndexStep.NAME);
@@ -130,6 +131,8 @@ public class ForceMergeAction implements LifecycleAction {
         StepKey forceMergeKey = new StepKey(phase, NAME, ForceMergeStep.NAME);
         StepKey countKey = new StepKey(phase, NAME, SegmentCountStep.NAME);
 
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
+            readOnlyKey);
         UpdateSettingsStep readOnlyStep =
             new UpdateSettingsStep(readOnlyKey, codecChange ? closeKey : forceMergeKey, client, readOnlySettings);
 
@@ -144,6 +147,7 @@ public class ForceMergeAction implements LifecycleAction {
         SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
 
         List<Step> mergeSteps = new ArrayList<>();
+        mergeSteps.add(checkNotWriteIndexStep);
         mergeSteps.add(readOnlyStep);
 
         if (codecChange) {

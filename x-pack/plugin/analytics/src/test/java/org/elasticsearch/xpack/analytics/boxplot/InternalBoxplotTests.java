@@ -10,14 +10,14 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,23 +26,22 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBoxplot> {
+
     @Override
-    protected InternalBoxplot createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                 Map<String, Object> metaData) {
+    protected SearchPlugin registerPlugin() {
+        return new AnalyticsPlugin();
+    }
+
+    @Override
+    protected InternalBoxplot createTestInstance(String name, Map<String, Object> metadata) {
         int numValues = frequently() ? randomInt(100) : 0;
-        double[] values = new double[numValues];
         TDigestState state = new TDigestState(100);
         for (int i = 0; i < numValues; ++i) {
             state.add(randomDouble());
         }
         DocValueFormat formatter = randomNumericDocValueFormat();
 
-        return new InternalBoxplot(name, state, formatter, pipelineAggregators, metaData);
-    }
-
-    @Override
-    protected Writeable.Reader<InternalBoxplot> instanceReader() {
-        return InternalBoxplot::new;
+        return new InternalBoxplot(name, state, formatter, metadata);
     }
 
     @Override
@@ -74,8 +73,7 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
             throw new IllegalStateException(ex);
         }
         DocValueFormat formatter = instance.format();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
             case 0:
                 name += randomAlphaOfLength(5);
@@ -84,17 +82,17 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
                 state.add(randomDouble());
                 break;
             case 2:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(instance.getMetaData());
+                    metadata = new HashMap<>(instance.getMetadata());
                 }
-                metaData.put(randomAlphaOfLength(15), randomInt());
+                metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalBoxplot(name, state, formatter, pipelineAggregators, metaData);
+        return new InternalBoxplot(name, state, formatter, metadata);
     }
 
     @Override

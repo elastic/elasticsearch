@@ -71,7 +71,17 @@ public final class QueryBuilders {
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
     }
-
+    
+    /**
+     * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static MatchBoolPrefixQueryBuilder matchBoolPrefixQuery(String name, Object text) {
+        return new MatchBoolPrefixQueryBuilder(name, text);
+    }
+    
     /**
      * Creates a text query with type "PHRASE" for the provided field name and text.
      *
@@ -239,7 +249,7 @@ public final class QueryBuilders {
      * which matches any single character. Note this query can be slow, as it
      * needs to iterate over many terms. In order to prevent extremely slow WildcardQueries,
      * a Wildcard term should not start with one of the wildcards {@code *} or
-     * {@code ?}.
+     * {@code ?}. (The wildcard field type however, is optimised for leading wildcards)
      *
      * @param name  The field name
      * @param query The wildcard query string

@@ -43,7 +43,12 @@ Example for the ["Create Index"](https://www.elastic.co/guide/en/elasticsearch/r
 The specification contains:
 
 * The _name_ of the API (`indices.create`), which usually corresponds to the client calls
-* Link to the documentation at the <http://elastic.co> website
+* Link to the documentation at the <http://elastic.co> website.
+
+  **IMPORANT:** This should be a _live_ link. Several downstream ES clients use
+  this link to generate their documentation. Using a broken link or linking to
+  yet-to-be-created doc pages can break the [Elastic docs
+  build](https://github.com/elastic/docs#building-documentation).
 * `stability` indicating the state of the API, has to be declared explicitly or YAML tests will fail
     * `experimental` highly likely to break in the near future (minor/patch), no bwc guarantees.
     Possibly removed in the future.

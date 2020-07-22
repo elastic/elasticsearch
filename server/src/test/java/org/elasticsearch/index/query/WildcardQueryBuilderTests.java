@@ -27,6 +27,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -57,8 +58,8 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     private static WildcardQueryBuilder randomWildcardQuery() {
-        String fieldName = randomFrom(STRING_FIELD_NAME,
-            STRING_ALIAS_FIELD_NAME,
+        String fieldName = randomFrom(TEXT_FIELD_NAME,
+            TEXT_ALIAS_FIELD_NAME,
             randomAlphaOfLengthBetween(1, 10));
         String text = randomAlphaOfLengthBetween(1, 10);
 
@@ -69,13 +70,15 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     protected void doAssertLuceneQuery(WildcardQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
 
-        if (expectedFieldName.equals(STRING_FIELD_NAME)) {
+        if (expectedFieldName.equals(TEXT_FIELD_NAME)) {
             assertThat(query, instanceOf(WildcardQuery.class));
             WildcardQuery wildcardQuery = (WildcardQuery) query;
 
             assertThat(wildcardQuery.getField(), equalTo(expectedFieldName));
             assertThat(wildcardQuery.getTerm().field(), equalTo(expectedFieldName));
-            assertThat(wildcardQuery.getTerm().text(), equalTo(queryBuilder.value()));
+            // wildcard queries get normalized
+            String text = wildcardQuery.getTerm().text().toLowerCase(Locale.ROOT);
+            assertThat(text, equalTo(text));
         } else {
             Query expected = new MatchNoDocsQuery("unknown field [" + expectedFieldName + "]");
             assertEquals(expected, query);
@@ -95,7 +98,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     public void testEmptyValue() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(STRING_FIELD_NAME, "");
+        WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(TEXT_FIELD_NAME, "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
     }
 
@@ -138,14 +141,14 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         builder.doToQuery(createShardContext());
         assertWarnings(QueryShardContext.TYPES_DEPRECATION_MESSAGE);
     }
-    
+
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
-    }   
-    
+    }
+
     public void testRewriteIndexQueryNotMatchNone() throws IOException {
         String fullIndexName = getIndex().getName();
         String firstHalfOfIndexName = fullIndexName.substring(0,fullIndexName.length()/2);

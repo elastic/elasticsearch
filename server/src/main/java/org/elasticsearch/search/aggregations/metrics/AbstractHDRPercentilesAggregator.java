@@ -26,19 +26,15 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.HistogramValue;
-import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
@@ -56,8 +52,8 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
 
     AbstractHDRPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
             double[] keys, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.format = formatter;
@@ -78,18 +74,8 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        if (valuesSource instanceof ValuesSource.Histogram) {
-            final HistogramValues values = ((ValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
-            return collectHistogramValues(values, bigArrays, sub);
-        } else {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric)valuesSource).doubleValues(ctx);
-            return collectNumeric(values, bigArrays, sub);
-        }
 
-    }
-
-    private LeafBucketCollector collectNumeric(final SortedNumericDoubleValues values,
-                                               final BigArrays bigArrays, final LeafBucketCollector sub) {
+        final SortedNumericDoubleValues values = ((ValuesSource.Numeric)valuesSource).doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -102,22 +88,7 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
                 }
             }
         };
-    }
 
-    private LeafBucketCollector collectHistogramValues(final HistogramValues values,
-                                                       final BigArrays bigArrays, final LeafBucketCollector sub) {
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                DoubleHistogram state = getExistingOrNewHistogram(bigArrays, bucket);
-                if (values.advanceExact(doc)) {
-                    final HistogramValue sketch = values.histogram();
-                    while (sketch.next()) {
-                        state.recordValueWithCount(sketch.value(), sketch.count());
-                    }
-                }
-            }
-        };
     }
 
     private DoubleHistogram getExistingOrNewHistogram(final BigArrays bigArrays, long bucket) {
@@ -125,12 +96,13 @@ abstract class AbstractHDRPercentilesAggregator extends NumericMetricsAggregator
         DoubleHistogram state = states.get(bucket);
         if (state == null) {
             state = new DoubleHistogram(numberOfSignificantValueDigits);
-            // Set the histogram to autosize so it can resize itself as
-            // the data range increases. Resize operations should be
-            // rare as the histogram buckets are exponential (on the top
-            // level). In the future we could expose the range as an
-            // option on the request so the histogram can be fixed at
-            // initialisation and doesn't need resizing.
+            /* Set the histogram to autosize so it can resize itself as
+               the data range increases. Resize operations should be
+               rare as the histogram buckets are exponential (on the top
+               level). In the future we could expose the range as an
+               option on the request so the histogram can be fixed at
+               initialisation and doesn't need resizing.
+             */
             state.setAutoResize(true);
             states.set(bucket, state);
         }

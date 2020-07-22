@@ -84,12 +84,13 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
 
         // Initialize test candidate RestController
         CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY,
+                Collections.emptyList(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
         RestController restController = new RestController(Collections.emptySet(),
-                null, null, circuitBreakerService, usageService, randomBoolean());
+                null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {

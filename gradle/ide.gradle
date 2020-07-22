@@ -1,0 +1,131 @@
+import org.elasticsearch.gradle.info.BuildParams
+import org.jetbrains.gradle.ext.Remote
+import org.jetbrains.gradle.ext.JUnit
+
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+  }
+  dependencies {
+    classpath "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7"
+  }
+}
+
+allprojects {
+  apply plugin: 'idea'
+
+  tasks.named('idea') {
+    doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see CONTRIBUTING.md.") }
+  }
+}
+
+// Applying this stuff, particularly the idea-ext plugin, has a cost so avoid it unless we're running in the IDE
+if (System.getProperty('idea.active') == 'true') {
+  apply plugin: org.jetbrains.gradle.ext.IdeaExtPlugin
+
+  tasks.register('configureIdeaGradleJvm') {
+    group = 'ide'
+    description = 'Configures the appropriate JVM for Gradle'
+
+    doLast {
+      modifyXml('.idea/gradle.xml') { xml ->
+        def gradleSettings = xml.component.find { it.'@name' == 'GradleSettings' }.option[0].GradleProjectSettings
+        // Remove configured JVM option to force IntelliJ to use the project JDK for Gradle
+        gradleSettings.option.findAll { it.'@name' == 'gradleJvm' }.each { it.parent().remove(it) }
+      }
+    }
+  }
+
+  tasks.register('buildDependencyArtifacts') {
+    group = 'ide'
+    description = 'Builds artifacts needed as dependency for IDE modules'
+    dependsOn ':client:rest-high-level:shadowJar'
+  }
+
+  idea {
+    project {
+      vcs = 'Git'
+      jdkName = BuildParams.minimumCompilerVersion.majorVersion
+
+      settings {
+        delegateActions {
+          delegateBuildRunToGradle = false
+          testRunner = 'choose_per_test'
+        }
+        taskTriggers {
+          afterSync tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
+        }
+        codeStyle {
+          java {
+            classCountToUseImportOnDemand = 999
+          }
+        }
+        encodings {
+          encoding = 'UTF-8'
+        }
+        compiler {
+          parallelCompilation = true
+          javac {
+            generateDeprecationWarnings = false
+          }
+        }
+        runConfigurations {
+          defaults(JUnit) {
+            vmParameters = '-ea -Djava.locale.providers=SPI,COMPAT'
+          }
+        }
+        copyright {
+          useDefault = 'Apache'
+          scopes = ['x-pack': 'Elastic']
+          profiles {
+            Apache {
+              keyword = 'Licensed to Elasticsearch under one or more contributor'
+              notice = '''\
+               Licensed to Elasticsearch under one or more contributor
+               license agreements. See the NOTICE file distributed with
+               this work for additional information regarding copyright
+               ownership. Elasticsearch licenses this file to you under
+               the Apache License, Version 2.0 (the "License"); you may
+               not use this file except in compliance with the License.
+               You may obtain a copy of the License at
+
+                   http://www.apache.org/licenses/LICENSE-2.0
+
+               Unless required by applicable law or agreed to in writing,
+               software distributed under the License is distributed on an
+               "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+               KIND, either express or implied.  See the License for the
+               specific language governing permissions and limitations
+               under the License.'''.stripIndent()
+            }
+            Elastic {
+              keyword = 'Licensed under the Elastic License'
+              notice = '''\
+               Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+               or more contributor license agreements. Licensed under the Elastic License;
+               you may not use this file except in compliance with the Elastic License.'''.stripIndent()
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Parses a given XML file, applies a set of changes, and writes those changes back to the original file.
+ *
+ * @param path Path to existing XML file
+ * @param action Action to perform on parsed XML document
+ */
+void modifyXml(Object path, Action<? super Node> action) {
+  File xmlFile = project.file(path)
+  Node xml = new XmlParser().parse(xmlFile)
+  action.execute(xml)
+
+  xmlFile.withPrintWriter { writer ->
+    new XmlNodePrinter(writer).print(xml)
+  }
+}

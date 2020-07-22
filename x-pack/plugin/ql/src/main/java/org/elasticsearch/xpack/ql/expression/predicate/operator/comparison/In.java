@@ -95,7 +95,7 @@ public class In extends ScalarFunction {
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldAndConvertListOfValues(list, value.dataType())));
 
         return new ScriptTemplate(
-            formatTemplate(format("{sql}.","in({}, {})", leftScript.template())),
+            formatTemplate(format("{ql}.","in({}, {})", leftScript.template())),
             paramsBuilder()
                 .script(leftScript.params())
                 .variable(values)
@@ -129,7 +129,7 @@ public class In extends ScalarFunction {
 
         for (Expression ex : list) {
             if (ex.foldable() == false) {
-                return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
+                return new TypeResolution(format(null, "Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
                     Expressions.name(ex),
                     sourceText()));
             }

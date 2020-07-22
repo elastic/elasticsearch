@@ -24,8 +24,10 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
@@ -41,7 +43,7 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
 
     protected abstract T expectedResult(String input);
 
-    protected Class<?> expectedResultType(){
+    protected Class<?> expectedResultType() {
         return String.class;  // most results types are Strings
     }
 
@@ -52,6 +54,19 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(expectedResult(fieldValue)));
+
+        int numItems = randomIntBetween(1, 10);
+        List<String> fieldValueList = new ArrayList<>();
+        List<T> expectedList = new ArrayList<>();
+        for (int i = 0; i < numItems; i++) {
+            String randomString = RandomDocumentPicks.randomString(random());
+            fieldValueList.add(modifyInput(randomString));
+            expectedList.add(expectedResult(randomString));
+        }
+        String multiValueFieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValueList);
+        Processor multiValueProcessor = newProcessor(multiValueFieldName, randomBoolean(), multiValueFieldName);
+        multiValueProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(multiValueFieldName, List.class), equalTo(expectedList));
     }
 
     public void testFieldNotFound() throws Exception {
@@ -94,6 +109,14 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("field [" + fieldName +
             "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+
+        List<Integer> fieldValueList = new ArrayList<>();
+        int randomValue = randomInt();
+        fieldValueList.add(randomValue);
+        ingestDocument.setFieldValue(fieldName, fieldValueList);
+        Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("value [" + randomValue + "] of type [java.lang.Integer] in list field [" + fieldName +
+            "] cannot be cast to [java.lang.String]"));
     }
 
     public void testNonStringValueWithIgnoreMissing() throws Exception {
@@ -104,6 +127,14 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("field [" + fieldName +
             "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+
+        List<Integer> fieldValueList = new ArrayList<>();
+        int randomValue = randomInt();
+        fieldValueList.add(randomValue);
+        ingestDocument.setFieldValue(fieldName, fieldValueList);
+        Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("value [" + randomValue + "] of type [java.lang.Integer] in list field [" + fieldName +
+            "] cannot be cast to [java.lang.String]"));
     }
 
     public void testTargetField() throws Exception {

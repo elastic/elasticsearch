@@ -52,7 +52,7 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isEqlAllowed();
+        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.EQL);
         if (enabled) {
             EqlStatsRequest eqlRequest = new EqlStatsRequest();
             eqlRequest.includeStats(true);

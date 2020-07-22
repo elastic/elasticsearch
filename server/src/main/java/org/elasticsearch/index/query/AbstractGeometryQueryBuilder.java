@@ -337,11 +337,9 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** list of content types this shape query is compatible with */
-    protected abstract List validContentTypes();
+    protected abstract List<String> validContentTypes();
     /** builds the appropriate lucene shape query */
     protected abstract Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType);
-    /** returns expected content type for this query */
-    protected abstract String queryFieldType();
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
     /** creates a new ShapeQueryBuilder from the provided field name and shape builder */
@@ -365,7 +363,9 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "failed to find " + queryFieldType() + " field [" + fieldName + "]");
+                throw new QueryShardException(context, "failed to find "
+                    + String.join(" or ", validContentTypes())
+                    + " field [" + fieldName + "]");
             }
         }
 

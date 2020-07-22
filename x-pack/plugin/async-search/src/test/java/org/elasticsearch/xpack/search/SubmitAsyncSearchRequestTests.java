@@ -10,12 +10,16 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.elasticsearch.xpack.core.transform.action.AbstractWireSerializingTransformTestCase;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,9 +39,9 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest = new SubmitAsyncSearchRequest();
         }
         if (randomBoolean()) {
-            searchRequest.setWaitForCompletion(TimeValue.parseTimeValue(randomPositiveTimeValue(), "wait_for_completion"));
+            searchRequest.setWaitForCompletionTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "wait_for_completion"));
         }
-        searchRequest.setCleanOnCompletion(randomBoolean());
+        searchRequest.setKeepOnCompletion(randomBoolean());
         if (randomBoolean()) {
             searchRequest.setKeepAlive(TimeValue.parseTimeValue(randomPositiveTimeValue(), "keep_alive"));
         }
@@ -108,5 +112,22 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         assertNotNull(exc);
         assertThat(exc.validationErrors().size(), equalTo(1));
         assertThat(exc.validationErrors().get(0), containsString("suggest"));
+    }
+
+    public void testValidatePreFilterShardSize() {
+        SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
+        req.getSearchRequest().setPreFilterShardSize(randomIntBetween(2, Integer.MAX_VALUE));
+        ActionRequestValidationException exc = req.validate();
+        assertNotNull(exc);
+        assertThat(exc.validationErrors().size(), equalTo(1));
+        assertThat(exc.validationErrors().get(0), containsString("[pre_filter_shard_size]"));
+    }
+
+    public void testTaskDescription() {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(
+            new SearchSourceBuilder().query(new MatchAllQueryBuilder()), "index");
+        Task task = request.createTask(1, "type", "action", null, Collections.emptyMap());
+        assertEquals("waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[5d], request=indices[index], " +
+            "search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]", task.getDescription());
     }
 }

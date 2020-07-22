@@ -99,6 +99,30 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         }
     }
 
+    public Double getLambda() {
+        return lambda;
+    }
+
+    public Double getGamma() {
+        return gamma;
+    }
+
+    public Double getEta() {
+        return eta;
+    }
+
+    public Integer getMaxTrees() {
+        return maxTrees;
+    }
+
+    public Double getFeatureBagFraction() {
+        return featureBagFraction;
+    }
+
+    public Integer getNumTopFeatureImportanceValues() {
+        return numTopFeatureImportanceValues;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalDouble(lambda);

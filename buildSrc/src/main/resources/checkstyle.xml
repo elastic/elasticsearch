@@ -24,11 +24,9 @@
     characters then it'll need to scroll. This fails the build if it sees
     such snippets.
   -->
-  <module name="RegexpMultiline">
+  <module name="org.elasticsearch.gradle.checkstyle.SnippetLengthCheck">
     <property name="id" value="SnippetLength"/>
-    <property name="format" value="^( *)\/\/\s*tag(.+)\s*\n(.*\n)*\1.{77,}\n(.*\n)*\1\/\/\s*end\2\s*$"/>
-    <property name="fileExtensions" value="java"/>
-    <property name="message" value="Code snippets longer than 76 characters get cut off when rendered in the docs"/>
+    <property name="max" value="76"/>
   </module>
 
   <module name="TreeWalker">

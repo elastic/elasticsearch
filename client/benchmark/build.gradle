@@ -32,14 +32,14 @@ mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
 test.enabled = false
 
 dependencies {
-  compile 'org.apache.commons:commons-math3:3.2'
+  api 'org.apache.commons:commons-math3:3.2'
 
-  compile project(':server')
-  compile project(':client:rest')
+  api project(':server')
+  api project(':client:rest')
   // bottleneck should be the client, not Elasticsearch
-  compile project(path: ':client:client-benchmark-noop-api-plugin')
+  api project(path: ':client:client-benchmark-noop-api-plugin')
 }
 
 // No licenses for our benchmark deps (we don't ship benchmarks)
-dependencyLicenses.enabled = false
+tasks.named("dependencyLicenses").configure { it.enabled = false }
 dependenciesInfo.enabled = false

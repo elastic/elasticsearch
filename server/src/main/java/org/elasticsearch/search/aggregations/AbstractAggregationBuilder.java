@@ -34,7 +34,7 @@ import java.util.Objects;
 public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationBuilder<AB>>
     extends AggregationBuilder {
 
-    protected Map<String, Object> metaData;
+    protected Map<String, Object> metadata;
 
     /**
      * Constructs a new aggregation builder.
@@ -47,9 +47,9 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     protected AbstractAggregationBuilder(AbstractAggregationBuilder<AB> clone,
                                          AggregatorFactories.Builder factoriesBuilder,
-                                         Map<String, Object> metaData) {
+                                         Map<String, Object> metadata) {
         super(clone, factoriesBuilder);
-        this.metaData = metaData;
+        this.metadata = metadata;
     }
 
     /**
@@ -58,14 +58,14 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     protected AbstractAggregationBuilder(StreamInput in) throws IOException {
         super(in.readString());
         factoriesBuilder = new AggregatorFactories.Builder(in);
-        metaData = in.readMap();
+        metadata = in.readMap();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         factoriesBuilder.writeTo(out);
-        out.writeMap(metaData);
+        out.writeMap(metadata);
         doWriteTo(out);
     }
 
@@ -115,17 +115,17 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @SuppressWarnings("unchecked")
     @Override
-    public AB setMetaData(Map<String, Object> metaData) {
-        if (metaData == null) {
-            throw new IllegalArgumentException("[metaData] must not be null: [" + name + "]");
+    public AB setMetadata(Map<String, Object> metadata) {
+        if (metadata == null) {
+            throw new IllegalArgumentException("[metadata] must not be null: [" + name + "]");
         }
-        this.metaData = metaData;
+        this.metadata = metadata;
         return (AB) this;
     }
 
     @Override
-    public Map<String, Object> getMetaData() {
-        return metaData == null ? Collections.emptyMap() : Collections.unmodifiableMap(metaData);
+    public Map<String, Object> getMetadata() {
+        return metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
     }
 
     @Override
@@ -137,6 +137,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     @Override
     public final AggregatorFactory build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException {
         AggregatorFactory factory = doBuild(queryShardContext, parent, factoriesBuilder);
+        queryShardContext.getUsageService().incAggregationUsage(getType(), factory.getStatsSubtype());
         return factory;
     }
 
@@ -147,8 +148,8 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
 
-        if (this.metaData != null) {
-            builder.field("meta", this.metaData);
+        if (this.metadata != null) {
+            builder.field("meta", this.metadata);
         }
         builder.field(getType());
         internalXContent(builder, params);
@@ -164,7 +165,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public int hashCode() {
-        return Objects.hash(factoriesBuilder, metaData, name);
+        return Objects.hash(factoriesBuilder, metadata, name);
     }
 
     @Override
@@ -174,7 +175,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         AbstractAggregationBuilder<AB> other = (AbstractAggregationBuilder<AB>) obj;
 
         return Objects.equals(name, other.name)
-            && Objects.equals(metaData, other.metaData)
+            && Objects.equals(metadata, other.metadata)
             && Objects.equals(factoriesBuilder, other.factoriesBuilder);
     }
 }

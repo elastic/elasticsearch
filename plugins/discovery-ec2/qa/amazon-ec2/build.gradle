@@ -27,9 +27,16 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testCompile project(path: ':plugins:discovery-ec2', configuration: 'runtime')
+  testImplementation project(':plugins:discovery-ec2')
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'cluster', 'nodes'
+  }
 }
 
 final int ec2NumberOfNodes = 3
@@ -73,7 +80,7 @@ integTest.enabled = false
 
   testClusters."integTest${action}" {
     numberOfNodes = ec2NumberOfNodes
-    plugin file(project(':plugins:discovery-ec2').bundlePlugin.archiveFile)
+    plugin project(':plugins:discovery-ec2').bundlePlugin.archiveFile
 
     setting 'discovery.seed_providers', 'ec2'
     setting 'network.host', '_ec2_'

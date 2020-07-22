@@ -30,15 +30,15 @@ sequenceParams
     ;
 
 sequence
-    : SEQUENCE  (by=joinKeys sequenceParams? | sequenceParams by=joinKeys?)?
+    : SEQUENCE (by=joinKeys sequenceParams? | sequenceParams disallowed=joinKeys?)?
       sequenceTerm sequenceTerm+
-      (UNTIL sequenceTerm)?
+      (UNTIL until=sequenceTerm)?
     ;
 
 join
     : JOIN (by=joinKeys)?
       joinTerm joinTerm+
-      (UNTIL joinTerm)?
+      (UNTIL until=joinTerm)?
     ;
 
 pipe
@@ -59,10 +59,14 @@ sequenceTerm
    ;
 
 subquery
-    : LB eventQuery RB
+    : LB eventFilter RB
     ;
 
 eventQuery
+    : eventFilter
+    ;
+    
+eventFilter
     : (ANY | event=identifier) WHERE expression
     ;
 

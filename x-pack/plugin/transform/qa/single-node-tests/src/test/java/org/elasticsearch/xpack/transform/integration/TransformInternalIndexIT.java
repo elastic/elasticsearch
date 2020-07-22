@@ -126,7 +126,8 @@ public class TransformInternalIndexIT extends ESRestTestCase {
 
     private class TestRestHighLevelClient extends RestHighLevelClient {
         TestRestHighLevelClient() {
-            super(client(), restClient -> {}, new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+            super(client(), restClient -> {},
+                new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         }
     }
 }

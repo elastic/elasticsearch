@@ -34,6 +34,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
 
     /**
+     * This must match the code defined in the api::CFieldDataCategorizer C++ class.
+     */
+    private static final String CATEGORIZATION_STOP_ON_WARN_MESSAGE_CODE = "c";
+
+    /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
      */
     private static final String FLUSH_MESSAGE_CODE = "f";
@@ -41,12 +46,12 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
      */
-    private static final String FORECAST_MESSAGE_CODE = "p";
+    private static final String INTERIM_MESSAGE_CODE = "i";
 
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
      */
-    private static final String INTERIM_MESSAGE_CODE = "i";
+    private static final String FORECAST_MESSAGE_CODE = "p";
 
     /**
      * This must match the code defined in the api::CAnomalyJob C++ class.
@@ -158,6 +163,9 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         if (params.getTmpStorage() != null) {
             builder.field("tmp_storage", params.getTmpStorage());
         }
+        if (params.getMaxModelMemory() != null) {
+            builder.field("max_model_memory", params.getMaxModelMemory());
+        }
         builder.endObject();
 
         writeMessage(FORECAST_MESSAGE_CODE + Strings.toString(builder));
@@ -185,6 +193,10 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         configWriter.append(UPDATE_MESSAGE_CODE).append("[modelPlotConfig]\n");
         new ModelPlotConfigWriter(modelPlotConfig, configWriter).write();
         writeMessage(configWriter.toString());
+    }
+
+    public void writeCategorizationStopOnWarnMessage(boolean isStopOnWarn) throws IOException {
+        writeMessage(CATEGORIZATION_STOP_ON_WARN_MESSAGE_CODE + isStopOnWarn);
     }
 
     public void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException {

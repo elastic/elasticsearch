@@ -57,6 +57,7 @@ import org.mockito.Mockito;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +98,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(realms.asList()).thenReturn(List.of(realm));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
 
-        final AuditTrailService auditTrail = mock(AuditTrailService.class);
+        final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Map.of());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 

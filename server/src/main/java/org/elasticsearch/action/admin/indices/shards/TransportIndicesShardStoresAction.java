@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -111,7 +111,7 @@ public class TransportIndicesShardStoresAction
             if (indexShardRoutingTables == null) {
                 continue;
             }
-            final String customDataPath = IndexMetaData.INDEX_DATA_PATH_SETTING.get(state.metaData().index(index).getSettings());
+            final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(state.metadata().index(index).getSettings());
             for (IndexShardRoutingTable routing : indexShardRoutingTables) {
                 final int shardId = routing.shardId().id();
                 ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing);

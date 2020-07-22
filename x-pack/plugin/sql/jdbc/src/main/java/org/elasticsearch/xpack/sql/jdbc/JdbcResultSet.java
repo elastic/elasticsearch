@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -259,11 +261,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private Long dateTimeAsMillis(int columnIndex) throws SQLException {
         Object val = column(columnIndex);
         EsType type = columnType(columnIndex);
-        
+
         if (val == null) {
             return null;
         }
-        
+
         try {
             // TODO: the B6 appendix of the jdbc spec does mention CHAR, VARCHAR, LONGVARCHAR, DATE, TIMESTAMP as supported
             // jdbc types that should be handled by getDate and getTime methods. From all of those we support VARCHAR and
@@ -300,7 +302,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         }
 
         try {
-
             return JdbcDateUtils.asDate(val.toString());
         } catch (Exception e) {
             throw new SQLException(
@@ -525,7 +526,11 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     @Deprecated
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        BigDecimal bd = getBigDecimal(columnIndex);
+        // The API doesn't allow for specifying a rounding behavior, although BigDecimals did have a way of controlling rounding, even
+        // before the API got deprecated => default to fail if scaling can't return an exactly equal value, since this behavior was
+        // expected by (old) callers as well.
+        return bd == null ? null : bd.setScale(scale);
     }
 
     @Override
@@ -546,8 +551,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     @Deprecated
+    @SuppressForbidden(reason="implementing deprecated method")
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel), scale);
     }
 
     @Override
@@ -594,12 +600,12 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return convert(columnIndex, BigDecimal.class);
     }
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
-        throw new SQLFeatureNotSupportedException("BigDecimal not supported");
+        return getBigDecimal(column(columnLabel));
     }
 
     @Override

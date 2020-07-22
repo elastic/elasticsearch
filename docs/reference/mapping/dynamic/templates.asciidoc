@@ -4,18 +4,18 @@
 Dynamic templates allow you to define custom mappings that can be applied to
 dynamically added fields based on:
 
-* the <<dynamic-mapping,datatype>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
+* the <<dynamic-mapping,data type>> detected by Elasticsearch, with <<match-mapping-type,`match_mapping_type`>>.
 * the name of the field, with <<match-unmatch,`match` and `unmatch`>> or <<match-pattern,`match_pattern`>>.
 * the full dotted path to the field, with <<path-match-unmatch,`path_match` and `path_unmatch`>>.
 
-The original field name `{name}` and the detected datatype
-`{dynamic_type`} <<template-variables,template variables>> can be used in
+The original field name `{name}` and the detected data type
+`{dynamic_type}` <<template-variables,template variables>> can be used in
 the mapping specification as placeholders.
 
 IMPORTANT: Dynamic field mappings are only added when a field contains a
 concrete value -- not `null` or an empty array. This means that if the
-`null_value` option  is used in a `dynamic_template`, it will only be applied
-after the first document  with a concrete value for the field has been
+`null_value` option is used in a `dynamic_template`, it will only be applied
+after the first document with a concrete value for the field has been
 indexed.
 
 Dynamic templates are specified as an array of named objects:
@@ -37,19 +37,20 @@ Dynamic templates are specified as an array of named objects:
 <2> The match conditions can include any of : `match_mapping_type`, `match`, `match_pattern`, `unmatch`, `path_match`, `path_unmatch`.
 <3> The mapping that the matched field should use.
 
-If a provided mapping contains an invalid mapping snippet then that results in
-a validation error. Validation always occurs when applying the dynamic template
-at index time or in most cases when updating the dynamic template.
+If a provided mapping contains an invalid mapping snippet, a validation error
+is returned. Validation occurs when applying the dynamic template at index time, 
+and, in most cases, when the dynamic template is updated. Providing an invalid mapping 
+snippet may cause the update or validation of a dynamic template to fail under certain conditions:
 
-Whether updating the dynamic template fails when supplying an invalid mapping snippet depends on the following:
-* If no `match_mapping_type` has been specified then if the template is valid with one predefined mapping type then
-  the mapping snippet is considered valid. However if at index time a field that matches with the template is indexed
-  as a different type then an validation error will occur at index time instead. For example configuring a dynamic
-  template with no `match_mapping_type` is considered valid as string type, but at index time a field that matches with
-  the dynamic template is indexed as a long, then at index time a validation error may still occur.
-* If the `{{name}}` placeholder is used in the mapping snippet then the validation is skipped when updating
-  the dynamic template. This is because the field name is unknown at that time. The validation will then occur
-  when applying the template at index time.
+* If no `match_mapping_type` has been specified but the template is valid for at least one predefined mapping type, 
+  the mapping snippet is considered valid. However, a validation error is returned at index time if a field matching 
+  the template is indexed as a different type. For example, configuring a dynamic template with no `match_mapping_type` 
+  is considered valid as string type, but if a field matching the dynamic template is indexed as a long, a validation 
+  error is returned at index time.
+
+* If the `{{name}}` placeholder is used in the mapping snippet, validation is skipped when updating the dynamic 
+  template. This is because the field name is unknown at that time. Instead, validation occurs when the template is applied
+  at index time.
 
 Templates are processed in order -- the first matching template wins. When
 putting new dynamic templates through the <<indices-put-mapping, put mapping>> API,
@@ -59,22 +60,22 @@ reordered or deleted after they were initially added.
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
-The `match_mapping_type` is the datatype detected by the json parser. Since
-JSON doesn't allow to distinguish a `long` from an `integer` or a `double` from
-a `float`, it will always choose the wider datatype, i.e. `long` for integers
+The `match_mapping_type` is the data type detected by the JSON parser. Since
+JSON doesn't distinguish a `long` from an `integer` or a `double` from
+a `float`, it will always choose the wider data type, i.e. `long` for integers
 and `double` for floating-point numbers.
 
-The following datatypes may be automatically detected:
+The following data types may be automatically detected:
 
  - `boolean` when `true` or `false` are encountered.
- - `date` when <<date-detection,date detection>> is enabled and a string is
-   found that matches any of the configured date formats.
+ - `date` when <<date-detection,date detection>> is enabled and a string matching
+   any of the configured date formats is found.
  - `double` for numbers with a decimal part.
  - `long` for numbers without a decimal part.
  - `object` for objects, also called hashes.
  - `string` for character strings.
 
-`*` may also be used in order to match all datatypes.
+`*` may also be used in order to match all data types.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we

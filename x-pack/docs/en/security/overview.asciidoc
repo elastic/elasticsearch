@@ -45,7 +45,7 @@ See <<setting-up-authentication>> and <<authorization>>.
 
 The {security-features} also enable you to restrict the nodes and clients that
 can connect to the cluster based on <<ip-filtering,IP filters>>. You can
-whitelist and blacklist specific IP addresses, subnets, or DNS domains to
+block and allow specific IP addresses, subnets, or DNS domains to
 control network-level access to a cluster.
 
 [float]

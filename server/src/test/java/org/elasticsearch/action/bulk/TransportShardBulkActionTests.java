@@ -37,12 +37,13 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.bulk.stats.ShardBulkStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -92,8 +93,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         .put("index.version.created", Version.CURRENT.id)
         .build();
 
-    private IndexMetaData indexMetaData() throws IOException {
-        return IndexMetaData.builder("index")
+    private IndexMetadata indexMetadata() throws IOException {
+        return IndexMetadata.builder("index")
             .putMapping("{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" +
                     "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}")
             .settings(idxSettings)
@@ -477,7 +478,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testUpdateRequestWithFailure() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -525,7 +526,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
 
     public void testUpdateRequestWithConflictFailure() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -571,7 +572,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testUpdateRequestWithSuccess() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -618,7 +619,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testUpdateWithDelete() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
@@ -756,7 +757,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testRetries() throws Exception {
-        IndexSettings indexSettings = new IndexSettings(indexMetaData(), Settings.EMPTY);
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         UpdateRequest writeRequest = new UpdateRequest("index", "id")
             .doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         // the beating will continue until success has come.
@@ -787,6 +788,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         when(shard.indexSettings()).thenReturn(indexSettings);
         when(shard.shardId()).thenReturn(shardId);
         when(shard.mapperService()).thenReturn(mock(MapperService.class));
+        when(shard.getBulkOperationListener()).thenReturn(mock(ShardBulkStats.class));
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
         when(updateHelper.prepare(any(), eq(shard), any())).thenReturn(

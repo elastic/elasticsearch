@@ -62,13 +62,12 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     private final String masterNodeId;
     private final String localNodeId;
     private final Version minNonClientNodeVersion;
-    private final Version maxNonClientNodeVersion;
     private final Version maxNodeVersion;
     private final Version minNodeVersion;
 
     private DiscoveryNodes(ImmutableOpenMap<String, DiscoveryNode> nodes, ImmutableOpenMap<String, DiscoveryNode> dataNodes,
                            ImmutableOpenMap<String, DiscoveryNode> masterNodes, ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-                           String masterNodeId, String localNodeId, Version minNonClientNodeVersion, Version maxNonClientNodeVersion,
+                           String masterNodeId, String localNodeId, Version minNonClientNodeVersion,
                            Version maxNodeVersion, Version minNodeVersion) {
         this.nodes = nodes;
         this.dataNodes = dataNodes;
@@ -77,7 +76,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         this.masterNodeId = masterNodeId;
         this.localNodeId = localNodeId;
         this.minNonClientNodeVersion = minNonClientNodeVersion;
-        this.maxNonClientNodeVersion = maxNonClientNodeVersion;
         this.minNodeVersion = minNodeVersion;
         this.maxNodeVersion = maxNodeVersion;
     }
@@ -270,17 +268,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns the version of the node with the youngest version in the cluster that is not a client node.
-     *
-     * If there are no non-client nodes, Version.CURRENT will be returned.
-     *
-     * @return the youngest version in the cluster
-     */
-    public Version getLargestNonClientNodeVersion() {
-        return maxNonClientNodeVersion;
-    }
-
-    /**
      * Returns the version of the node with the oldest version in the cluster.
      *
      * @return the oldest version in the cluster
@@ -414,10 +401,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
             return resolvedNodesIds.toArray(String.class);
         }
-    }
-
-    public DiscoveryNodes newNode(DiscoveryNode node) {
-        return new Builder(this).add(node).build();
     }
 
     /**
@@ -718,8 +701,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             return new DiscoveryNodes(
                 nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), ingestNodesBuilder.build(),
                 masterNodeId, localNodeId, minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,
-                maxNonClientNodeVersion == null ? Version.CURRENT : maxNonClientNodeVersion,
-                maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
+                    maxNodeVersion == null ? Version.CURRENT : maxNodeVersion,
                 minNodeVersion == null ? Version.CURRENT : minNodeVersion
             );
         }

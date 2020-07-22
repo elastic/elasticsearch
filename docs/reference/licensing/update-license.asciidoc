@@ -21,7 +21,7 @@ Updates the license for your {es} cluster.
 If {es} {security-features} are enabled, you need `manage` cluster privileges to
 install the license.
 
-If {es} {security-features} are enabled and you are installing a gold or platinum
+If {es} {security-features} are enabled and you are installing a gold or higher
 license, you must enable TLS on the transport networking layer before you
 install the license. See <<configuring-tls>>.
 
@@ -93,7 +93,7 @@ On Windows, use the following command:
 
 [source,shell]
 ------------------------------------------------------------
-Invoke-WebRequest -uri http://<host>:<port>/_xpack/license -Credential elastic -Method Put -ContentType "application/json" -InFile .\license.json
+Invoke-WebRequest -uri http://<host>:<port>/_license -Credential elastic -Method Put -ContentType "application/json" -InFile .\license.json
 ------------------------------------------------------------
 
 In these examples,

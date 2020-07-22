@@ -1,0 +1,118 @@
+////
+This is a template for query DSL reference documentation.
+
+To document a new query type, copy this file, remove comments like this, and
+replace "sample" with the appropriate query name.
+
+Ensure the new query docs are linked and included in
+docs/reference/query-dsl.asciidoc
+////
+
+[[query-dsl-sample-query]]
+=== Sample query
+++++
+<titleabbrev>Sample</titleabbrev>
+++++
+
+////
+INTRO
+Include a brief, 1-2 sentence description.
+////
+
+Does a cool thing. For example, it matches `x` to `y`.
+
+[[sample-query-ex-request]]
+==== Example request
+////
+Basic example of a search request consisting of only this query.
+
+Guidelines
+***************************************
+* Don't include the index name in the request path.
+* Don't include common parameters, such as `boost`.
+* For clarity, use the long version of the request body. You can include a
+  short request example in the 'Notes' section.
+* Ensure // TEST[skip:...] comments are removed.
+***************************************
+////
+
+[source,console]
+----
+GET _search
+{
+  "query": {
+    "sample": {
+      "foo": "baz",
+      "bar": true
+    }
+  }
+}
+----
+// TEST[skip: REMOVE THIS COMMENT.]
+
+[[sample-query-params]]
+==== Parameters
+
+////
+Documents each parameter for the query.
+
+Guidelines
+***************************************
+* Use a definition list.
+* End each definition with a period.
+* Include whether the parameter is Optional or Required and the data type.
+* Include default values as the last sentence of the first paragraph.
+* Include a range of valid values, if applicable.
+* If the parameter requires a specific delimiter for multiple values, say so.
+* If the parameter supports wildcards, ditto.
+* For large or nested objects, consider linking to a separate definition list.
+***************************************
+////
+
+`foo`::
+(Required, string)
+A cool thing.
+
+`bar`::
+(Optional, string)
+If `true`, does a cool thing.
+Defaults to `false`.
+
+
+[[sample-query-notes]]
+==== Notes
+////
+Contains extra information about the query, including:
+* Additional examples for parameters or short request bodies.
+* Tips or advice for using the query.
+
+Guidelines
+***************************************
+* For longer sections, consider using the `[%collapsible] macro.
+* Ensure // TEST[skip:...] comments are removed.
+***************************************
+////
+
+===== Avoid using the `sample` query for `text` fields
+
+By default, {es} changes the values of `text` fields during analysis. For
+example, ...
+
+===== Using the `sample` query on time-series data
+
+You can use the `sample` query to perform searches on time-series data.
+For example:
+
+[source,console]
+----
+GET my_time_series_index/_search
+{
+  "query": {
+    "sample": {
+      "foo": "baz",
+      "bar": false
+    }
+  }
+}
+----
+// TEST[skip: REMOVE THIS COMMENT.]

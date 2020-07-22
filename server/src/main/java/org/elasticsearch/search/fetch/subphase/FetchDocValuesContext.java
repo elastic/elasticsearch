@@ -27,8 +27,12 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,7 +47,7 @@ public class FetchDocValuesContext {
      */
     public static final class FieldAndFormat implements Writeable {
 
-        private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("script",
+        private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("docvalues_field",
                 a -> new FieldAndFormat((String) a[0], (String) a[1]));
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
@@ -106,7 +110,27 @@ public class FetchDocValuesContext {
 
     private final List<FieldAndFormat> fields;
 
-    public FetchDocValuesContext(List<FieldAndFormat> fields) {
+    public static FetchDocValuesContext create(MapperService mapperService,
+                                               List<FieldAndFormat> fieldPatterns) {
+        List<FieldAndFormat> fields = new ArrayList<>();
+        for (FieldAndFormat field : fieldPatterns) {
+            Collection<String> fieldNames = mapperService.simpleMatchToFullName(field.field);
+            for (String fieldName: fieldNames) {
+                fields.add(new FieldAndFormat(fieldName, field.format));
+            }
+        }
+        int maxAllowedDocvalueFields = mapperService.getIndexSettings().getMaxDocvalueFields();
+        if (fields.size() > maxAllowedDocvalueFields) {
+            throw new IllegalArgumentException(
+                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
+                    + "] but was [" + fields.size() + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+        }
+
+        return new FetchDocValuesContext(fields);
+    }
+
+    FetchDocValuesContext(List<FieldAndFormat> fields) {
         this.fields = fields;
     }
 

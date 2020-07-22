@@ -10,12 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -74,15 +74,15 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             configMigrator, clusterService);
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,
-                        new PersistentTasksCustomMetaData(0L, Collections.emptyMap())))
+                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
+                        new PersistentTasksCustomMetadata(0L, Collections.emptyMap())))
                 .build();
 
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask("job_id", "_node_id", null, tasksBuilder);
-        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(metaData)
+                .metadata(metadata)
                 // set local node master
                 .nodes(DiscoveryNodes.builder()
                         .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT))
@@ -95,7 +95,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(metaData)
+                .metadata(metadata)
                 .nodes(DiscoveryNodes.builder()
                         .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT)))
                 .build();
@@ -108,15 +108,15 @@ public class MlAssignmentNotifierTests extends ESTestCase {
             configMigrator, clusterService);
 
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE,
-                        new PersistentTasksCustomMetaData(0L, Collections.emptyMap())))
+                .metadata(Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE,
+                        new PersistentTasksCustomMetadata(0L, Collections.emptyMap())))
                 .build();
 
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(metaData)
+                .metadata(metadata)
                 // set local node master
                 .nodes(DiscoveryNodes.builder()
                         .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
@@ -129,7 +129,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(metaData)
+                .metadata(metadata)
                 .nodes(DiscoveryNodes.builder()
                         .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT)))
                 .build();
@@ -142,15 +142,15 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         MlAssignmentNotifier notifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
             configMigrator, clusterService);
 
-        PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
+        PersistentTasksCustomMetadata.Builder tasksBuilder =  PersistentTasksCustomMetadata.builder();
         addJobTask("job_id", null, null, tasksBuilder);
-        MetaData metaData = MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()).build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasksBuilder.build()).build();
         ClusterState previous = ClusterState.builder(new ClusterName("_name"))
-                .metaData(metaData)
+                .metadata(metadata)
                 .build();
 
         ClusterState newState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(metaData)
+                .metadata(metadata)
                 // set local node master
                 .nodes(DiscoveryNodes.builder()
                         .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
@@ -164,7 +164,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
 
         // no longer master
         newState = ClusterState.builder(new ClusterName("_name"))
-                .metaData(metaData)
+                .metadata(metadata)
                 .nodes(DiscoveryNodes.builder()
                         .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT)))
                 .build();

@@ -52,21 +52,20 @@ public class ExtractedFieldsDetector {
      * Fields to ignore. These are mostly internal meta fields.
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY);
+        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY,
+        "_data_stream_timestamp");
 
-    private final String[] index;
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
-    private final Map<String, Long> fieldCardinalities;
+    private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
 
-    ExtractedFieldsDetector(String[] index, DataFrameAnalyticsConfig config, int docValueFieldsLimit,
-                            FieldCapabilitiesResponse fieldCapabilitiesResponse, Map<String, Long> fieldCardinalities) {
-        this.index = Objects.requireNonNull(index);
+    ExtractedFieldsDetector(DataFrameAnalyticsConfig config, int docValueFieldsLimit, FieldCapabilitiesResponse fieldCapabilitiesResponse,
+                            Map<String, Long> cardinalitiesForFieldsWithConstraints) {
         this.config = Objects.requireNonNull(config);
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
-        this.fieldCardinalities = Objects.requireNonNull(fieldCardinalities);
+        this.cardinalitiesForFieldsWithConstraints = Objects.requireNonNull(cardinalitiesForFieldsWithConstraints);
     }
 
     public Tuple<ExtractedFields, List<FieldSelection>> detect() {
@@ -94,12 +93,6 @@ public class ExtractedFieldsDetector {
             removeFieldsWithIncompatibleTypes(fields, fieldSelection);
         }
         includeAndExcludeFields(fields, fieldSelection);
-
-        if (fields.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("No compatible fields could be detected in index {}. Supported types are {}.",
-                Arrays.toString(index),
-                getSupportedTypes());
-        }
 
         return fields;
     }
@@ -248,7 +241,11 @@ public class ExtractedFieldsDetector {
                 }
             } else {
                 fieldsIterator.remove();
-                addExcludedField(field, "field not in includes list", fieldSelection);
+                if (hasCompatibleType(field)) {
+                    addExcludedField(field, "field not in includes list", fieldSelection);
+                } else {
+                    addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
+                }
             }
         }
     }
@@ -286,12 +283,13 @@ public class ExtractedFieldsDetector {
 
     private void checkFieldsWithCardinalityLimit() {
         for (FieldCardinalityConstraint constraint : config.getAnalysis().getFieldCardinalityConstraints()) {
-            constraint.check(fieldCardinalities.get(constraint.getField()));
+            constraint.check(cardinalitiesForFieldsWithConstraints.get(constraint.getField()));
         }
     }
 
     private ExtractedFields detectExtractedFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
-        ExtractedFields extractedFields = ExtractedFields.build(fields, Collections.emptySet(), fieldCapabilitiesResponse);
+        ExtractedFields extractedFields = ExtractedFields.build(fields, Collections.emptySet(), fieldCapabilitiesResponse,
+            cardinalitiesForFieldsWithConstraints);
         boolean preferSource = extractedFields.getDocValueFields().size() > docValueFieldsLimit;
         extractedFields = deduplicateMultiFields(extractedFields, preferSource, fieldSelection);
         if (preferSource) {
@@ -321,7 +319,7 @@ public class ExtractedFieldsDetector {
                     chooseMultiFieldOrParent(preferSource, requiredFields, parent, multiField, fieldSelection));
             }
         }
-        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()));
+        return new ExtractedFields(new ArrayList<>(nameOrParentToField.values()), cardinalitiesForFieldsWithConstraints);
     }
 
     private ExtractedField chooseMultiFieldOrParent(boolean preferSource, Set<String> requiredFields, ExtractedField parent,
@@ -372,7 +370,7 @@ public class ExtractedFieldsDetector {
         for (ExtractedField field : extractedFields.getAllFields()) {
             adjusted.add(field.supportsFromSource() ? field.newFromSource() : field);
         }
-        return new ExtractedFields(adjusted);
+        return new ExtractedFields(adjusted, cardinalitiesForFieldsWithConstraints);
     }
 
     private ExtractedFields fetchBooleanFieldsAsIntegers(ExtractedFields extractedFields) {
@@ -389,7 +387,7 @@ public class ExtractedFieldsDetector {
                 adjusted.add(field);
             }
         }
-        return new ExtractedFields(adjusted);
+        return new ExtractedFields(adjusted, cardinalitiesForFieldsWithConstraints);
     }
 
     private void addIncludedFields(ExtractedFields extractedFields, Set<FieldSelection> fieldSelection) {

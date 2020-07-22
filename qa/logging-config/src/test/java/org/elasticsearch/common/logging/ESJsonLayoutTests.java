@@ -50,7 +50,7 @@ public class ESJsonLayoutTests extends ESTestCase {
                 "\"node.name\": \"%node_name\", " +
                 "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
-                "%notEmpty{, %CustomMapFields{} }" +
+                "%notEmpty{, %CustomMapFields }" +
                 "%exceptionAsJson }" + System.lineSeparator()));
     }
 
@@ -71,7 +71,7 @@ public class ESJsonLayoutTests extends ESTestCase {
                 "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
-                "%notEmpty{, %CustomMapFields{message} }" +
+                "%notEmpty{, %CustomMapFields }" +
                 "%exceptionAsJson }" + System.lineSeparator()));
     }
 }

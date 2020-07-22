@@ -16,8 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
   classname 'org.elasticsearch.plugin.mapper.MapperSizePlugin'
+}
+
+restResources {
+  restApi {
+    includeCore '_common', 'indices', 'index', 'get'
+  }
 }

@@ -1,5 +1,8 @@
 [[analysis-uaxurlemail-tokenizer]]
-=== UAX URL Email  Tokenizer
+=== UAX URL email tokenizer
+++++
+<titleabbrev>UAX URL email</titleabbrev>
+++++
 
 The `uax_url_email` tokenizer is like the <<analysis-standard-tokenizer,`standard` tokenizer>> except that it
 recognises URLs and email addresses as single tokens.

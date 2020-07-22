@@ -28,12 +28,11 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            settings,
             null
         );
-        assertThat(featureSet.enabled(), is(enabled));
+        assertThat(featureSet.enabled(), is(true));
 
-        LogstashUsageTransportAction usageAction = newUsageAction(settings, false);
+        LogstashUsageTransportAction usageAction = newUsageAction(false);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -41,7 +40,7 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
         XPackFeatureSet.Usage serializedUsage = new LogstashFeatureSetUsage(out.bytes().streamInput());
-        assertThat(serializedUsage.enabled(), is(enabled));
+        assertThat(serializedUsage.enabled(), is(true));
     }
 
     public void testEnabledDefault() throws Exception {
@@ -49,7 +48,6 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            settings,
             null
         );
         assertThat(featureSet.enabled(), is(true));
@@ -60,14 +58,13 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         LogstashInfoTransportAction featureSet = new LogstashInfoTransportAction(
             mock(TransportService.class),
             mock(ActionFilters.class),
-            Settings.EMPTY,
             licenseState
         );
         boolean available = randomBoolean();
-        when(licenseState.isLogstashAllowed()).thenReturn(available);
+        when(licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
 
-        var usageAction = newUsageAction(Settings.EMPTY, available);
+        var usageAction = newUsageAction(available);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, null, future);
         XPackFeatureSet.Usage usage = future.get().getUsage();
@@ -79,17 +76,9 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
         assertThat(serializedUsage.available(), is(available));
     }
 
-    private LogstashUsageTransportAction newUsageAction(Settings settings, boolean available) {
+    private LogstashUsageTransportAction newUsageAction(boolean available) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isLogstashAllowed()).thenReturn(available);
-        return new LogstashUsageTransportAction(
-            mock(TransportService.class),
-            null,
-            null,
-            mock(ActionFilters.class),
-            null,
-            settings,
-            licenseState
-        );
+        when(licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH)).thenReturn(available);
+        return new LogstashUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null, licenseState);
     }
 }

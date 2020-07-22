@@ -38,6 +38,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -53,6 +54,7 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -97,12 +99,22 @@ public class RestNodesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().jvm(true).os(true).process(true).http(true);
+                nodesInfoRequest.clear().addMetrics(
+                        NodesInfoRequest.Metric.JVM.metricName(),
+                        NodesInfoRequest.Metric.OS.metricName(),
+                        NodesInfoRequest.Metric.PROCESS.metricName(),
+                        NodesInfoRequest.Metric.HTTP.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true).process(true).script(true);
+                        nodesStatsRequest.clear().indices(true).addMetrics(
+                            NodesStatsRequest.Metric.JVM.metricName(),
+                            NodesStatsRequest.Metric.OS.metricName(),
+                            NodesStatsRequest.Metric.FS.metricName(),
+                            NodesStatsRequest.Metric.PROCESS.metricName(),
+                            NodesStatsRequest.Metric.SCRIPT.metricName()
+                        );
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -243,6 +255,15 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
         table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
 
+        table.addCell("bulk.total_operations",
+            "alias:bto,bulkTotalOperations;default:false;text-align:right;desc:number of bulk shard ops");
+        table.addCell("bulk.total_time", "alias:btti,bulkTotalTime;default:false;text-align:right;desc:time spend in shard bulk");
+        table.addCell("bulk.total_size_in_bytes",
+            "alias:btsi,bulkTotalSizeInBytes;default:false;text-align:right;desc:total size in bytes of shard bulk");
+        table.addCell("bulk.avg_time", "alias:bati,bulkAvgTime;default:false;text-align:right;desc:average time spend in shard bulk");
+        table.addCell("bulk.avg_size_in_bytes",
+            "alias:basi,bulkAvgSizeInBytes;default:false;text-align:right;desc:average size in bytes of shard bulk");
+
         table.endHeaders();
         return table;
     }
@@ -258,7 +279,7 @@ public class RestNodesAction extends AbstractCatAction {
             NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
-            JvmInfo jvmInfo = info == null ? null : info.getJvm();
+            JvmInfo jvmInfo = info == null ? null : info.getInfo(JvmInfo.class);
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
             FsInfo fsInfo = stats == null ? null : stats.getFs();
             OsStats osStats = stats == null ? null : stats.getOs();
@@ -268,10 +289,10 @@ public class RestNodesAction extends AbstractCatAction {
             table.startRow();
 
             table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
-            table.addCell(info == null ? null : info.getProcess().getId());
+            table.addCell(info == null ? null : info.getInfo(ProcessInfo.class).getId());
             table.addCell(node.getHostAddress());
             table.addCell(node.getAddress().address().getPort());
-            final HttpInfo httpInfo = info == null ? null : info.getHttp();
+            final HttpInfo httpInfo = info == null ? null : info.getInfo(HttpInfo.class);
             if (httpInfo != null) {
                 TransportAddress transportAddress = httpInfo.getAddress().publishAddress();
                 table.addCell(NetworkAddress.format(transportAddress.address()));
@@ -416,6 +437,13 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getSuggestCount());
+
+            BulkStats bulkStats = indicesStats == null ? null : indicesStats.getBulk();
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalOperations());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getTotalSizeInBytes());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgTime());
+            table.addCell(bulkStats == null ? null : bulkStats.getAvgSizeInBytes());
 
             table.endRow();
         }

@@ -23,7 +23,7 @@ Creates and updates role mappings.
 [[security-api-put-role-mapping-desc]]
 ==== {api-description-title}
 
-Role mappings define which roles are assigned to each user. Each mapping has 
+Role mappings define which roles are assigned to each user. Each mapping has
 _rules_ that identify users and a list of _roles_ that are granted to those users.
 
 The role mapping APIs are generally the preferred way to manage role mappings
@@ -37,6 +37,31 @@ roles API>> or <<roles-management-file,roles files>>.
 
 For more information, see <<mapping-roles>>.
 
+[[_role_templates]]
+===== Role templates
+
+The most common use for role mappings is to create a mapping from a known value
+on the user to a fixed role name. For example, all users in the
+`cn=admin,dc=example,dc=com` LDAP group should be given the `superuser` role in
+{es}. The `roles` field is used for this purpose.
+
+For more complex needs, it is possible to use Mustache templates to dynamically
+determine the names of the roles that should be granted to the user. The
+`role_templates` field is used for this purpose.
+
+NOTE: To use role templates successfully, the relevant scripting feature must be
+enabled. Otherwise, all attempts to create a role mapping with role templates
+fail. See <<allowed-script-types-setting>>.
+
+All of the <<role-mapping-resources,user fields>> that are available in the
+role mapping `rules` are also available in the role templates. Thus it is possible
+to assign a user to a role that reflects their `username`, their `groups`, or the
+name of the `realm` to which they authenticated.
+
+By default a template is evaluated to produce a single string that is the name
+of the role which should be assigned to the user. If the `format` of the template
+is set to `"json"` then the template is expected to produce a JSON string or an
+array of JSON strings for the role names.
 
 [[security-api-put-role-mapping-path-params]]
 ==== {api-path-parms-title}
@@ -77,31 +102,7 @@ _Exactly one of `roles` or `role_templates` must be specified_.
 `rules`::
 (Required, object) The rules that determine which users should be matched by the
 mapping. A rule is a logical condition that is expressed by using a JSON DSL.
-See  <<role-mapping-resources>>. 
-
-==== Role Templates
-
-The most common use for role mappings is to create a mapping from a known value
-on the user to a fixed role name.
-For example, all users in the `cn=admin,dc=example,dc=com` LDAP group should be
-given the `superuser` role in {es}.
-The `roles` field is used for this purpose.
-
-For more complex needs it is possible to use Mustache templates to dynamically
-determine the names of the roles that should be granted to the user.
-The `role_templates` field is used for this purpose.
-
-All of the <<role-mapping-resources,user fields>> that are available in the
-role mapping `rules` are also available in the role templates. Thus it is possible
-to assign a user to a role that reflects their `username`, their `groups` or the
-name of the `realm` to which they authenticated.
-
-By default a template is evaluated to produce a single string that is the name
-of the role which should be assigned to the user. If the `format` of the template
-is set to `"json"` then the template is expected to produce a JSON string, or an
-array of JSON strings for the role name(s).
-
-The Examples section below demonstrates the use of templated role names.
+See  <<role-mapping-resources>>.
 
 [[security-api-put-role-mapping-example]]
 ==== {api-examples-title}
@@ -339,4 +340,3 @@ POST /_security/role_mapping/mapping9
 <1> Because it is not possible to specify both `roles` and `role_templates` in
     the same role mapping, we can apply a "fixed name" role by using a template
     that has no substitutions.
-

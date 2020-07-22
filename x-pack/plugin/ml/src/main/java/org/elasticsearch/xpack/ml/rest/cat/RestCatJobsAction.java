@@ -6,10 +6,11 @@
 package org.elasticsearch.xpack.ml.rest.cat;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestRequest;
@@ -46,7 +47,7 @@ public class RestCatJobsAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(RestRequest restRequest, NodeClient client) {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         if (Strings.isNullOrEmpty(jobId)) {
-            jobId = MetaData.ALL;
+            jobId = Metadata.ALL;
         }
         GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
         request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),
@@ -209,6 +210,10 @@ public class RestCatJobsAction extends AbstractCatAction {
             TableColumnAttributeBuilder.builder("count of dead categories", false)
                 .setAliases("mdcc", "modelDeadCategoryCount")
                 .build());
+        table.addCell("model.failed_category_count",
+            TableColumnAttributeBuilder.builder("count of failed categories", false)
+                .setAliases("mfcc", "modelFailedCategoryCount")
+                .build());
         table.addCell("model.log_time",
             TableColumnAttributeBuilder.builder("when the model stats were gathered", false)
                 .setAliases("mlt", "modelLogTime")
@@ -363,6 +368,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getFrequentCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getRareCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getDeadCategoryCount());
+            table.addCell(modelSizeStats == null ? null : modelSizeStats.getFailedCategoryCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getLogTime());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTimestamp());
 

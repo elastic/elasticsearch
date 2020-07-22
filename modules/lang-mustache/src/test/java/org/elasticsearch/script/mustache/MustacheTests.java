@@ -43,8 +43,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 
 public class MustacheTests extends ESTestCase {
@@ -384,7 +384,7 @@ public class MustacheTests extends ESTestCase {
     }
 
     private TemplateScript.Factory compile(String script) {
-        assertThat("cannot compile null or empty script", script, not(isEmptyOrNullString()));
+        assertThat("cannot compile null or empty script", script, not(emptyOrNullString()));
         return engine.compile(null, script, TemplateScript.CONTEXT, Collections.emptyMap());
     }
 }

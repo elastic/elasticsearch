@@ -38,7 +38,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.DisruptedLinks;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -96,7 +95,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     @Override
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         if (scheme instanceof NetworkDisruption &&
-                ((NetworkDisruption) scheme).getNetworkLinkDisruptionType() instanceof NetworkDisruption.NetworkUnresponsive) {
+                ((NetworkDisruption) scheme).getNetworkLinkDisruptionType() == NetworkDisruption.UNRESPONSIVE) {
             // the network unresponsive disruption may leave operations in flight
             // this is because this disruption scheme swallows requests by design
             // as such, these operations will never be marked as finished
@@ -122,7 +121,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         return nodes;
     }
 
-    static final Settings DEFAULT_SETTINGS = Settings.builder()
+    public static final Settings DEFAULT_SETTINGS = Settings.builder()
             .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "5s") // for hitting simulated network failures quickly
             .put(LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), 1) // for hitting simulated network failures quickly
             .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "5s") // for hitting simulated network failures quickly
@@ -202,10 +201,10 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         final NetworkLinkDisruptionType disruptionType;
         switch (randomInt(2)) {
             case 0:
-                disruptionType = new NetworkDisruption.NetworkUnresponsive();
+                disruptionType = NetworkDisruption.UNRESPONSIVE;
                 break;
             case 1:
-                disruptionType = new NetworkDisconnect();
+                disruptionType = NetworkDisruption.DISCONNECT;
                 break;
             case 2:
                 disruptionType = NetworkDisruption.NetworkDelay.random(random());
@@ -226,9 +225,9 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     NetworkDisruption addRandomDisruptionType(TwoPartitions partitions) {
         final NetworkLinkDisruptionType disruptionType;
         if (randomBoolean()) {
-            disruptionType = new NetworkDisruption.NetworkUnresponsive();
+            disruptionType = NetworkDisruption.UNRESPONSIVE;
         } else {
-            disruptionType = new NetworkDisconnect();
+            disruptionType = NetworkDisruption.DISCONNECT;
         }
         NetworkDisruption partition = new NetworkDisruption(partitions, disruptionType);
 

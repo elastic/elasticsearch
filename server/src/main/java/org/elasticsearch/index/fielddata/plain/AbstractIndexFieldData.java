@@ -24,29 +24,38 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 
-public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
+public abstract class AbstractIndexFieldData<FD extends LeafFieldData> implements IndexFieldData<FD> {
 
     private final String fieldName;
+    private ValuesSourceType valuesSourceType;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
-        super(indexSettings);
+    public AbstractIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        IndexFieldDataCache cache
+    ) {
         this.fieldName = fieldName;
+        this.valuesSourceType = valuesSourceType;
         this.cache = cache;
     }
 
     @Override
     public String getFieldName() {
         return this.fieldName;
+    }
+
+    @Override
+    public ValuesSourceType getValuesSourceType() {
+        return valuesSourceType;
     }
 
     @Override

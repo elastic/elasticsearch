@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
 
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecutor {
 
-    public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue) {
+    public MockSinglePrioritizingExecutor(String name, DeterministicTaskQueue deterministicTaskQueue, ThreadPool threadPool) {
         super(name, 0, 1, 0L, TimeUnit.MILLISECONDS,
             r -> new Thread() {
                 @Override
@@ -51,7 +52,7 @@ public class MockSinglePrioritizingExecutor extends PrioritizedEsThreadPoolExecu
                     });
                 }
             },
-            deterministicTaskQueue.getThreadPool().getThreadContext(), deterministicTaskQueue.getThreadPool().scheduler());
+            threadPool.getThreadContext(), threadPool.scheduler());
     }
 
     @Override

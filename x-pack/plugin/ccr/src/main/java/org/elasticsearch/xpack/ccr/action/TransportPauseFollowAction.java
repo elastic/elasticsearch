@@ -13,13 +13,13 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,7 +61,7 @@ public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseF
     @Override
     protected void masterOperation(Task task, PauseFollowAction.Request request,
                                    ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        final IndexMetaData followerIMD = state.metaData().index(request.getFollowIndex());
+        final IndexMetadata followerIMD = state.metadata().index(request.getFollowIndex());
         if (followerIMD == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
             return;
@@ -70,19 +70,19 @@ public class TransportPauseFollowAction extends TransportMasterNodeAction<PauseF
             listener.onFailure(new IllegalArgumentException("index [" + request.getFollowIndex() + "] is not a follower index"));
             return;
         }
-        PersistentTasksCustomMetaData persistentTasksMetaData = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        if (persistentTasksMetaData == null) {
+        PersistentTasksCustomMetadata persistentTasksMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        if (persistentTasksMetadata == null) {
             listener.onFailure(new IllegalArgumentException("no shard follow tasks found"));
             return;
         }
 
-        List<String> shardFollowTaskIds = persistentTasksMetaData.tasks().stream()
+        List<String> shardFollowTaskIds = persistentTasksMetadata.tasks().stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndexName().equals(request.getFollowIndex());
             })
-            .map(PersistentTasksCustomMetaData.PersistentTask::getId)
+            .map(PersistentTasksCustomMetadata.PersistentTask::getId)
             .collect(Collectors.toList());
 
         if (shardFollowTaskIds.isEmpty()) {

@@ -1021,12 +1021,34 @@ public class RequestConvertersTests extends ESTestCase {
     public void testSearch() throws Exception {
         String searchEndpoint = randomFrom("_" + randomAlphaOfLength(5));
         String[] indices = randomIndicesNames(0, 5);
+        Map<String, String> expectedParams = new HashMap<>();
+        SearchRequest searchRequest = createTestSearchRequest(indices, expectedParams);
+
+        Request request = RequestConverters.search(searchRequest, searchEndpoint);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add(searchEndpoint);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(searchRequest.source(), request.getEntity());
+    }
+
+    public static SearchRequest createTestSearchRequest(String[] indices, Map<String, String> expectedParams) {
         SearchRequest searchRequest = new SearchRequest(indices);
 
-        Map<String, String> expectedParams = new HashMap<>();
         setRandomSearchParams(searchRequest, expectedParams);
         setRandomIndicesOptions(searchRequest::indicesOptions, searchRequest::indicesOptions, expectedParams);
 
+        SearchSourceBuilder searchSourceBuilder = createTestSearchSourceBuilder();
+        searchRequest.source(searchSourceBuilder);
+        return searchRequest;
+    }
+
+    public static SearchSourceBuilder createTestSearchSourceBuilder() {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         // rarely skip setting the search source completely
         if (frequently()) {
@@ -1055,7 +1077,8 @@ public class RequestConvertersTests extends ESTestCase {
                     searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
                 }
                 if (randomBoolean()) {
-                    searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
+                    searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10))
+                            .userValueTypeHint(ValueType.STRING)
                             .field(randomAlphaOfLengthBetween(3, 10)));
                 }
                 if (randomBoolean()) {
@@ -1070,21 +1093,10 @@ public class RequestConvertersTests extends ESTestCase {
                     searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
                 }
             }
-            searchRequest.source(searchSourceBuilder);
         }
-
-        Request request = RequestConverters.search(searchRequest, searchEndpoint);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            endpoint.add(index);
-        }
-        endpoint.add(searchEndpoint);
-        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
-        assertToXContentBody(searchSourceBuilder, request.getEntity());
+        return searchSourceBuilder;
     }
+
 
     public void testSearchNullIndicesAndTypes() {
         expectThrows(NullPointerException.class, () -> new SearchRequest((String[]) null));
@@ -1184,8 +1196,8 @@ public class RequestConvertersTests extends ESTestCase {
             IndicesOptions msearchDefault = new MultiSearchRequest().indicesOptions();
             searchRequest.indicesOptions(IndicesOptions.fromOptions(randomlyGenerated.ignoreUnavailable(),
                     randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(), randomlyGenerated.expandWildcardsClosed(),
-                    msearchDefault.allowAliasesToMultipleIndices(), msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(),
-                msearchDefault.ignoreThrottled()));
+                    msearchDefault.expandWildcardsHidden(), msearchDefault.allowAliasesToMultipleIndices(),
+                    msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled()));
             multiSearchRequest.add(searchRequest);
         }
 
@@ -1481,7 +1493,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(mtvRequest, request.getEntity());
     }
 
-    public void testFieldCaps() {
+    public void testFieldCaps() throws IOException {
         // Create a random request.
         String[] indices = randomIndicesNames(0, 5);
         String[] fields = generateRandomStringArray(5, 10, false, false);
@@ -1517,6 +1529,48 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         assertNull(request.getEntity());
+    }
+
+    public void testFieldCapsWithIndexFilter() throws IOException {
+        // Create a random request.
+        String[] indices = randomIndicesNames(0, 5);
+        String[] fields = generateRandomStringArray(5, 10, false, false);
+
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest()
+            .indices(indices)
+            .fields(fields)
+            .indexFilter(QueryBuilders.matchAllQuery());
+
+        Map<String, String> indicesOptionsParams = new HashMap<>();
+        setRandomIndicesOptions(fieldCapabilitiesRequest::indicesOptions, fieldCapabilitiesRequest::indicesOptions, indicesOptionsParams);
+
+        Request request = RequestConverters.fieldCaps(fieldCapabilitiesRequest);
+
+        // Verify that the resulting REST request looks as expected.
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String joinedIndices = String.join(",", indices);
+        if (!joinedIndices.isEmpty()) {
+            endpoint.add(joinedIndices);
+        }
+        endpoint.add("_field_caps");
+
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(5, request.getParameters().size());
+
+        // Note that we don't check the field param value explicitly, as field names are
+        // passed through
+        // a hash set before being added to the request, and can appear in a
+        // non-deterministic order.
+        assertThat(request.getParameters(), hasKey("fields"));
+        String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+        assertEquals(new HashSet<>(Arrays.asList(fields)), new HashSet<>(Arrays.asList(requestFields)));
+
+        for (Map.Entry<String, String> param : indicesOptionsParams.entrySet()) {
+            assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
+        }
+
+        assertNotNull(request.getEntity());
+        assertToXContentBody(fieldCapabilitiesRequest, request.getEntity());
     }
 
     public void testRankEval() throws Exception {
@@ -1857,9 +1911,19 @@ public class RequestConvertersTests extends ESTestCase {
             searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
         }
         expectedParams.put("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        if (randomBoolean()) {
+            searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        expectedParams.put("max_concurrent_shard_requests", Integer.toString(searchRequest.getMaxConcurrentShardRequests()));
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(randomIntBetween(2, Integer.MAX_VALUE));
+        }
+        if (searchRequest.getPreFilterShardSize() != null) {
+            expectedParams.put("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
+        }
     }
 
-    static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
+    public static void setRandomIndicesOptions(Consumer<IndicesOptions> setter, Supplier<IndicesOptions> getter,
                                         Map<String, String> expectedParams) {
 
         if (randomBoolean()) {

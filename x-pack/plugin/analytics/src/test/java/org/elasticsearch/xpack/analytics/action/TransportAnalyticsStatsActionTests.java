@@ -9,7 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -22,6 +22,7 @@ import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.analytics.AnalyticsUsage;
+import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.io.IOException;
@@ -50,7 +51,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
 
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
 
         return new TransportAnalyticsStatsAction(transportService, clusterService, threadPool,
@@ -58,20 +59,19 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     }
 
     public void test() throws IOException {
-        AnalyticsUsage.Item item = randomFrom(AnalyticsUsage.Item.values()); 
-        AnalyticsUsage realUsage = new AnalyticsUsage();
-        AnalyticsUsage emptyUsage = new AnalyticsUsage();
-        ContextParser<Void, Void> parser = realUsage.track(item, (p, c) -> c);
-        ObjectPath unused = run(realUsage, emptyUsage);
-        assertThat(unused.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
-        assertThat(unused.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
-        int count = between(1, 10000);
-        for (int i = 0; i < count; i++) {
-            assertNull(parser.parse(null, null));
+        for (AnalyticsStatsAction.Item item : AnalyticsStatsAction.Item.values()) {
+            AnalyticsUsage realUsage = new AnalyticsUsage();
+            AnalyticsUsage emptyUsage = new AnalyticsUsage();
+            ContextParser<Void, Void> parser = realUsage.track(item, (p, c) -> c);
+            ObjectPath unused = run(realUsage, emptyUsage);
+            assertThat(unused.evaluate("stats." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
+            int count = between(1, 10000);
+            for (int i = 0; i < count; i++) {
+                assertNull(parser.parse(null, null));
+            }
+            ObjectPath used = run(realUsage, emptyUsage);
+            assertThat(item.name(), used.evaluate("stats." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(count));
         }
-        ObjectPath used = run(realUsage, emptyUsage);
-        assertThat(used.evaluate("stats.0." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(count));
-        assertThat(used.evaluate("stats.1." + item.name().toLowerCase(Locale.ROOT) + "_usage"), equalTo(0));
     }
 
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {
@@ -82,11 +82,9 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
                 new ClusterName("cluster_name"), nodeResponses, emptyList());
 
+        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(true, true, response);
         try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-
+            usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         }
     }

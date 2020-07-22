@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySet
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetaDataResolver;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapMetadataResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
@@ -90,11 +90,11 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final int gcLdapsPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING);
 
         defaultADAuthenticator = new DefaultADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
-                metaDataResolver, domainDN, threadPool);
+                metadataResolver, domainDN, threadPool);
         downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
-                metaDataResolver, domainDN, sslService, threadPool, ldapPort, ldapsPort, gcLdapPort, gcLdapsPort);
+                metadataResolver, domainDN, sslService, threadPool, ldapPort, ldapsPort, gcLdapPort, gcLdapsPort);
         upnADAuthenticator = new UpnADAuthenticator(config, timeout, ignoreReferralErrors, logger, groupResolver,
-                metaDataResolver, domainDN, threadPool);
+                metadataResolver, domainDN, threadPool);
 
     }
 
@@ -136,7 +136,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                 listener.onResponse(null);
             } else {
                 final String dn = entry.getDN();
-                listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metaDataResolver, timeout, null));
+                listener.onResponse(new LdapSession(logger, config, connectionPool, dn, groupResolver, metadataResolver, timeout, null));
             }
         }, listener::onFailure));
     }
@@ -166,7 +166,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                     listener.onResponse(null);
                                 } else {
                                     listener.onResponse(new LdapSession(logger, config, connection, entry.getDN(), groupResolver,
-                                            metaDataResolver, timeout, null));
+                                            metadataResolver, timeout, null));
                                 }
                             }, e -> {
                                 IOUtils.closeWhileHandlingException(connection);
@@ -217,7 +217,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final boolean ignoreReferralErrors;
         final Logger logger;
         final GroupsResolver groupsResolver;
-        final LdapMetaDataResolver metaDataResolver;
+        final LdapMetadataResolver metadataResolver;
         final String userSearchDN;
         final LdapSearchScope userSearchScope;
         final String userSearchFilter;
@@ -226,14 +226,14 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final ThreadPool threadPool;
 
         ADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors, Logger logger, GroupsResolver groupsResolver,
-                        LdapMetaDataResolver metaDataResolver, String domainDN, Setting.AffixSetting<String> userSearchFilterSetting,
+                        LdapMetadataResolver metadataResolver, String domainDN, Setting.AffixSetting<String> userSearchFilterSetting,
                         String defaultUserSearchFilter, ThreadPool threadPool) {
             this.realm = realm;
             this.timeout = timeout;
             this.ignoreReferralErrors = ignoreReferralErrors;
             this.logger = logger;
             this.groupsResolver = groupsResolver;
-            this.metaDataResolver = metaDataResolver;
+            this.metadataResolver = metadataResolver;
             this.bindDN = getBindDN(realm);
             this.bindPassword = realm.getSetting(PoolingSessionFactorySettings.SECURE_BIND_PASSWORD,
                     () -> realm.getSetting(PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD));
@@ -261,7 +261,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                             "search for user [" + username + "] by principal name yielded no results"));
                                 } else {
                                     listener.onResponse(new LdapSession(logger, realm, connection, entry.getDN(), groupsResolver,
-                                            metaDataResolver, timeout, null));
+                                            metadataResolver, timeout, null));
                                 }
                             }, e -> {
                                 listener.onFailure(e);
@@ -292,7 +292,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                                     "search for user [" + username + "] by principal name yielded no results"));
                         } else {
                             listener.onResponse(
-                                    new LdapSession(logger, realm, pool, entry.getDN(), groupsResolver, metaDataResolver, timeout, null));
+                                    new LdapSession(logger, realm, pool, entry.getDN(), groupsResolver, metadataResolver, timeout, null));
                         }
                     }, e -> {
                         listener.onFailure(e);
@@ -324,9 +324,9 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         final String domainName;
 
         DefaultADAuthenticator(RealmConfig realm, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
-                               GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN,
+                               GroupsResolver groupsResolver, LdapMetadataResolver metadataResolver, String domainDN,
                                ThreadPool threadPool) {
-            super(realm, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
+            super(realm, timeout, ignoreReferralErrors, logger, groupsResolver, metadataResolver, domainDN,
                     ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_FILTER_SETTING,
                     "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={0}@" + domainName(realm) + ")))", threadPool);
             domainName = domainName(realm);
@@ -372,10 +372,10 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
         private final int gcLdapsPort;
 
         DownLevelADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
-                                 GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN,
+                                 GroupsResolver groupsResolver, LdapMetadataResolver metadataResolver, String domainDN,
                                  SSLService sslService, ThreadPool threadPool,
                                  int ldapPort, int ldapsPort, int gcLdapPort, int gcLdapsPort) {
-            super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
+            super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metadataResolver, domainDN,
                     ActiveDirectorySessionFactorySettings.AD_DOWN_LEVEL_USER_SEARCH_FILTER_SETTING, DOWN_LEVEL_FILTER, threadPool);
             this.domainDN = domainDN;
             this.sslService = sslService;
@@ -515,17 +515,17 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
      * UPN suffixes that are different than the actual domain name.
      */
     static class UpnADAuthenticator extends ADAuthenticator {
-
         static final String UPN_USER_FILTER = "(&(objectClass=user)(userPrincipalName={1}))";
+        private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
         UpnADAuthenticator(RealmConfig config, TimeValue timeout, boolean ignoreReferralErrors, Logger logger,
-                           GroupsResolver groupsResolver, LdapMetaDataResolver metaDataResolver, String domainDN, ThreadPool threadPool) {
-            super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metaDataResolver, domainDN,
+                           GroupsResolver groupsResolver, LdapMetadataResolver metadataResolver, String domainDN, ThreadPool threadPool) {
+            super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metadataResolver, domainDN,
                     ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER, threadPool);
             if (userSearchFilter.contains("{0}")) {
-                new DeprecationLogger(logger).deprecated("The use of the account name variable {0} in the setting ["
-                        + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING) +
-                        "] has been deprecated and will be removed in a future version!");
+                deprecationLogger.deprecate("ldap_settings", "The use of the account name variable {0} in the setting ["
+                    + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
+                    + "] has been deprecated and will be removed in a future version!");
             }
         }
 

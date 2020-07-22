@@ -20,12 +20,13 @@ package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.tool.Boilerplate;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -39,6 +40,8 @@ import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +55,7 @@ public class CopyRestTestsTask extends DefaultTask {
     final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
     final ListProperty<String> includeXpack = getProject().getObjects().listProperty(String.class);
 
+    String sourceSetName;
     Configuration coreConfig;
     Configuration xpackConfig;
 
@@ -76,6 +80,11 @@ public class CopyRestTestsTask extends DefaultTask {
     @Input
     public ListProperty<String> getIncludeXpack() {
         return includeXpack;
+    }
+
+    @Input
+    String getSourceSetName() {
+        return sourceSetName;
     }
 
     @SkipWhenEmpty
@@ -103,7 +112,12 @@ public class CopyRestTestsTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(getTestSourceSet().getOutput().getResourcesDir(), REST_TEST_PREFIX);
+        return new File(
+            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+                .getOutput()
+                .getResourcesDir(),
+            REST_TEST_PREFIX
+        );
     }
 
     @TaskAction
@@ -114,7 +128,7 @@ public class CopyRestTestsTask extends DefaultTask {
             if (BuildParams.isInternal()) {
                 getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", project.getPath());
                 project.copy(c -> {
-                    c.from(coreConfig.getSingleFile());
+                    c.from(coreConfig.getAsFileTree());
                     c.into(getOutputDir());
                     c.include(corePatternSet.getIncludes());
                 });
@@ -127,7 +141,8 @@ public class CopyRestTestsTask extends DefaultTask {
                 );
                 project.copy(c -> {
                     c.from(project.zipTree(coreConfig.getSingleFile()));
-                    c.into(getTestSourceSet().getOutput().getResourcesDir()); // this ends up as the same dir as outputDir
+                    // this ends up as the same dir as outputDir
+                    c.into(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()));
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
@@ -138,14 +153,17 @@ public class CopyRestTestsTask extends DefaultTask {
         if (includeXpack.get().isEmpty() == false) {
             getLogger().debug("X-pack rest tests for project [{}] will be copied to the test resources.", project.getPath());
             project.copy(c -> {
-                c.from(xpackConfig.getSingleFile());
+                c.from(xpackConfig.getAsFileTree());
                 c.into(getOutputDir());
                 c.include(xpackPatternSet.getIncludes());
             });
         }
     }
 
-    private SourceSet getTestSourceSet() {
-        return Boilerplate.getJavaSourceSets(getProject()).findByName("test");
+    private Optional<SourceSet> getSourceSet() {
+        Project project = getProject();
+        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+            ? Optional.empty()
+            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
     }
 }

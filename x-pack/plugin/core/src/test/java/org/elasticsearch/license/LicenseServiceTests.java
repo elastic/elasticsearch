@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -127,7 +127,7 @@ public class LicenseServiceTests extends ESTestCase {
             .build();
 
         final ClusterState clusterState = Mockito.mock(ClusterState.class);
-        Mockito.when(clusterState.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
+        Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
 
         final ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);

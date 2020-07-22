@@ -73,13 +73,11 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
-        "default":[
-          "open",
-          "closed"
-        ],
+        "default": "all",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       },
       "flat_settings":{

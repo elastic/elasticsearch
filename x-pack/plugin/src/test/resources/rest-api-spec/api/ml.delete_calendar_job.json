@@ -1,7 +1,8 @@
 {
   "ml.delete_calendar_job":{
     "documentation":{
-      "url":null
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-job.html",
+      "description":"Deletes anomaly detection jobs from a calendar."
     },
     "stability":"stable",
     "url":{

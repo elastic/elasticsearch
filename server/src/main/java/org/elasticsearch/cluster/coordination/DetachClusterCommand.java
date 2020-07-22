@@ -21,7 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import joptsimple.OptionSet;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
@@ -55,7 +55,7 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final ClusterState oldClusterState = loadTermAndClusterState(persistedClusterStateService, env).v2();
         final ClusterState newClusterState = ClusterState.builder(oldClusterState)
-            .metaData(updateMetaData(oldClusterState.metaData())).build();
+            .metadata(updateMetadata(oldClusterState.metadata())).build();
         terminal.println(Terminal.Verbosity.VERBOSE,
             "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]");
 
@@ -69,14 +69,14 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
     }
 
     // package-private for tests
-    static MetaData updateMetaData(MetaData oldMetaData) {
-        final CoordinationMetaData coordinationMetaData = CoordinationMetaData.builder()
-                .lastAcceptedConfiguration(CoordinationMetaData.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
-                .lastCommittedConfiguration(CoordinationMetaData.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
+    static Metadata updateMetadata(Metadata oldMetadata) {
+        final CoordinationMetadata coordinationMetadata = CoordinationMetadata.builder()
+                .lastAcceptedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
+                .lastCommittedConfiguration(CoordinationMetadata.VotingConfiguration.MUST_JOIN_ELECTED_MASTER)
                 .term(0)
                 .build();
-        return MetaData.builder(oldMetaData)
-                .coordinationMetaData(coordinationMetaData)
+        return Metadata.builder(oldMetadata)
+                .coordinationMetadata(coordinationMetadata)
                 .clusterUUIDCommitted(false)
                 .build();
     }

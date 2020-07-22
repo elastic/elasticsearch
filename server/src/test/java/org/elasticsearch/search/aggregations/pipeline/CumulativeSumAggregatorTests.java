@@ -38,8 +38,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.TestAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -52,10 +50,7 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -291,34 +286,6 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             }
         });
     }
-    
-    /**
-     * The validation should verify the parent aggregation is allowed.
-     */
-    public void testValidate() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
-
-        final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "valid");
-        builder.validate(PipelineAggregationHelperTests.getRandomSequentiallyOrderedParentAgg(), Collections.emptySet(), aggBuilders);
-    }
-
-    /**
-     * The validation should throw an IllegalArgumentException, since parent
-     * aggregation is not a type of HistogramAggregatorFactory,
-     * DateHistogramAggregatorFactory or AutoDateHistogramAggregatorFactory.
-     */
-    public void testValidateException() throws IOException {
-        final Set<PipelineAggregationBuilder> aggBuilders = new HashSet<>();
-        aggBuilders.add(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
-        TestAggregatorFactory parentFactory = TestAggregatorFactory.createInstance();
-
-        final CumulativeSumPipelineAggregationBuilder builder = new CumulativeSumPipelineAggregationBuilder("name", "invalid_agg>metric");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
-                () -> builder.validate(parentFactory, Collections.emptySet(), aggBuilders));
-        assertEquals("cumulative_sum aggregation [name] must have a histogram, date_histogram or auto_date_histogram as parent",
-                ex.getMessage());
-    }
 
     private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify) throws IOException {
         executeTestCase(query, aggBuilder, verify, indexWriter -> {
@@ -350,14 +317,9 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                DateFieldMapper.Builder builder = new DateFieldMapper.Builder("_name");
-                DateFieldMapper.DateFieldType fieldType = builder.fieldType();
-                fieldType.setHasDocValues(true);
-                fieldType.setName(HISTO_FIELD);
-
-                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
-                valueFieldType.setHasDocValues(true);
-                valueFieldType.setName("value_field");
+                DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(HISTO_FIELD);
+                MappedFieldType valueFieldType
+                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
                 histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[]{fieldType, valueFieldType});

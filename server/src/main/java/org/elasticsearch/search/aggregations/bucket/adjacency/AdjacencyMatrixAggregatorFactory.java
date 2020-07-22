@@ -27,8 +27,8 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -43,28 +43,26 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
 
     public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator,
                                             QueryShardContext queryShardContext, AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metaData);
+                                            AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+        super(name, queryShardContext, parent, subFactories, metadata);
         IndexSearcher contextSearcher = queryShardContext.searcher();
         this.separator = separator;
         weights = new Weight[filters.size()];
         keys = new String[filters.size()];
         for (int i = 0; i < filters.size(); ++i) {
             KeyedFilter keyedFilter = filters.get(i);
-            this.keys[i] = keyedFilter.key();
+            keys[i] = keyedFilter.key();
             Query filter = keyedFilter.filter().toQuery(queryShardContext);
-            this.weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            weights[i] = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
     }
 
     @Override
     public Aggregator createInternal(SearchContext searchContext,
                                         Aggregator parent,
-                                        boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-        return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent,
-                pipelineAggregators, metaData);
+                                        CardinalityUpperBound cardinality,
+                                        Map<String, Object> metadata) throws IOException {
+        return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, searchContext, parent, metadata);
     }
 
 }

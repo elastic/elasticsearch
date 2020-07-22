@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -102,15 +101,5 @@ final class CompressibleBytesOutputStream extends StreamOutput {
     @Override
     public void reset() throws IOException {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Version getVersion() {
-        return stream.getVersion();
-    }
-
-    @Override
-    public void setVersion(Version version) {
-        stream.setVersion(version);
     }
 }

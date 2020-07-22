@@ -45,7 +45,7 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
 
     @Override
     public String processScript(String script) {
-        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".isNotNull(" + script + ")");
+        return Scripts.formatTemplate(Scripts.QL_SCRIPTS + ".isNotNull(" + script + ")");
     }
 
     @Override

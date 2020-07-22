@@ -21,7 +21,7 @@ package org.elasticsearch.repositories.url;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -80,9 +81,10 @@ public class URLRepository extends BlobStoreRepository {
     /**
      * Constructs a read-only URL-based repository
      */
-    public URLRepository(RepositoryMetaData metadata, Environment environment,
-                         NamedXContentRegistry namedXContentRegistry, ClusterService clusterService) {
-        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
+    public URLRepository(RepositoryMetadata metadata, Environment environment,
+                         NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                         RecoverySettings recoverySettings) {
+        super(metadata, namedXContentRegistry, clusterService, recoverySettings, BlobPath.cleanPath());
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) ==  false) {
             throw new RepositoryException(metadata.name(), "missing url");

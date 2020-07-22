@@ -54,15 +54,7 @@ public class ApplicationPrivilegeTests extends ESTestCase {
                 + "  }\n"
                 + "}";
         final ApplicationPrivilege privilege = ApplicationPrivilege.fromXContent(XContentType.JSON.xContent().createParser(
-            new NamedXContentRegistry(Collections.emptyList()), new DeprecationHandler() {
-                @Override
-                public void usedDeprecatedName(String usedName, String modernName) {
-                }
-
-                @Override
-                public void usedDeprecatedField(String usedName, String replacedWith) {
-                }
-            }, json));
+            new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json));
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("description", "Read access to myapp");
         final ApplicationPrivilege expectedPrivilege =

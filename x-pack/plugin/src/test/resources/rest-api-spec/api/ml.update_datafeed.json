@@ -1,7 +1,8 @@
 {
   "ml.update_datafeed":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html",
+      "description":"Updates certain properties of a datafeed."
     },
     "stability":"stable",
     "url":{
@@ -24,7 +25,7 @@
       "description":"The datafeed update settings",
       "required":true
     },
-    "params": {
+    "params":{
       "ignore_unavailable":{
         "type":"boolean",
         "description":"Ignore unavailable indexes (default: false)"

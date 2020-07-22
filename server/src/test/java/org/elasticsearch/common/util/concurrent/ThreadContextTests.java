@@ -19,7 +19,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,12 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ThreadContextTests extends ESTestCase {
@@ -207,12 +204,12 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("foo", "bar");
         }
 
-        final String value = DeprecationLogger.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, DeprecationLogger::extractWarningValueFromWarningHeader);
+        final String value = HeaderWarning.formatWarning("qux");
+        threadContext.addResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
-            final String duplicateValue = DeprecationLogger.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, DeprecationLogger::extractWarningValueFromWarningHeader);
+            final String duplicateValue = HeaderWarning.formatWarning("qux");
+            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");
@@ -258,7 +255,6 @@ public class ThreadContextTests extends ESTestCase {
             threadContext.addResponseHeader("Warning", "123456");
         }
         threadContext.addResponseHeader("Warning", "234567");
-        threadContext.disallowSystemIndexAccess();
 
         BytesStreamOutput out = new BytesStreamOutput();
         threadContext.writeTo(out);
@@ -267,9 +263,8 @@ public class ThreadContextTests extends ESTestCase {
             assertNull(threadContext.getTransient("ctx.foo"));
             assertTrue(threadContext.getResponseHeaders().isEmpty());
             assertEquals("1", threadContext.getHeader("default"));
-            assertTrue(threadContext.isSystemIndexAccessAllowed());
 
-            threadContext.readFrom(out.bytes().streamInput());
+            threadContext.readHeaders(out.bytes().streamInput());
             assertEquals("bar", threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("ctx.foo"));
 
@@ -280,57 +275,10 @@ public class ThreadContextTests extends ESTestCase {
             assertThat(warnings, hasSize(2));
             assertThat(warnings, hasItem(equalTo("123456")));
             assertThat(warnings, hasItem(equalTo("234567")));
-
-            assertFalse(threadContext.isSystemIndexAccessAllowed());
         }
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
-        assertFalse(threadContext.isSystemIndexAccessAllowed());
-    }
-
-    public void testSerializeWithAllowedSystemIndexPatterns() throws IOException {
-        Settings build = Settings.builder().put("request.headers.default", "1").build();
-        ThreadContext threadContext = new ThreadContext(build);
-        threadContext.putHeader("foo", "bar");
-        threadContext.putTransient("ctx.foo", 1);
-        threadContext.addResponseHeader("Warning", "123456");
-        if (rarely()) {
-            threadContext.addResponseHeader("Warning", "123456");
-        }
-        threadContext.addResponseHeader("Warning", "234567");
-        final List<String> allowed = randomList(1, 8, () -> randomAlphaOfLengthBetween(2, 8));
-        threadContext.allowSystemIndexAccess(allowed);
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        threadContext.writeTo(out);
-        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            assertNull(threadContext.getHeader("foo"));
-            assertNull(threadContext.getTransient("ctx.foo"));
-            assertTrue(threadContext.getResponseHeaders().isEmpty());
-            assertEquals("1", threadContext.getHeader("default"));
-            assertTrue(threadContext.isSystemIndexAccessAllowed());
-
-            threadContext.readFrom(out.bytes().streamInput());
-            assertEquals("bar", threadContext.getHeader("foo"));
-            assertNull(threadContext.getTransient("ctx.foo"));
-
-            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-            final List<String> warnings = responseHeaders.get("Warning");
-
-            assertThat(responseHeaders.keySet(), hasSize(1));
-            assertThat(warnings, hasSize(2));
-            assertThat(warnings, hasItem(equalTo("123456")));
-            assertThat(warnings, hasItem(equalTo("234567")));
-
-            assertTrue(threadContext.isSystemIndexAccessAllowed());
-            assertThat(threadContext.allowedSystemIndexPatterns(), equalTo(allowed));
-        }
-        assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
-        assertEquals("1", threadContext.getHeader("default"));
-        assertTrue(threadContext.isSystemIndexAccessAllowed());
-        assertThat(threadContext.allowedSystemIndexPatterns(), equalTo(allowed));
     }
 
     public void testSerializeInDifferentContext() throws IOException {
@@ -345,19 +293,17 @@ public class ThreadContextTests extends ESTestCase {
                 threadContext.addResponseHeader("Warning", "123456");
             }
             threadContext.addResponseHeader("Warning", "234567");
-            threadContext.disallowSystemIndexAccess();
 
             assertEquals("bar", threadContext.getHeader("foo"));
             assertNotNull(threadContext.getTransient("ctx.foo"));
             assertEquals("1", threadContext.getHeader("default"));
             assertThat(threadContext.getResponseHeaders().keySet(), hasSize(1));
-            assertFalse(threadContext.isSystemIndexAccessAllowed());
             threadContext.writeTo(out);
         }
         {
             Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
             ThreadContext otherThreadContext = new ThreadContext(otherSettings);
-            otherThreadContext.readFrom(out.bytes().streamInput());
+            otherThreadContext.readHeaders(out.bytes().streamInput());
 
             assertEquals("bar", otherThreadContext.getHeader("foo"));
             assertNull(otherThreadContext.getTransient("ctx.foo"));
@@ -370,53 +316,6 @@ public class ThreadContextTests extends ESTestCase {
             assertThat(warnings, hasSize(2));
             assertThat(warnings, hasItem(equalTo("123456")));
             assertThat(warnings, hasItem(equalTo("234567")));
-
-            assertFalse(otherThreadContext.isSystemIndexAccessAllowed());
-        }
-    }
-
-    public void testSerializeInDifferentContextWithAllowedSystemIndices() throws IOException {
-        final List<String> allowed = randomList(1, 8, () -> randomAlphaOfLengthBetween(2, 8));
-        BytesStreamOutput out = new BytesStreamOutput();
-        {
-            Settings build = Settings.builder().put("request.headers.default", "1").build();
-            ThreadContext threadContext = new ThreadContext(build);
-            threadContext.putHeader("foo", "bar");
-            threadContext.putTransient("ctx.foo", 1);
-            threadContext.addResponseHeader("Warning", "123456");
-            if (rarely()) {
-                threadContext.addResponseHeader("Warning", "123456");
-            }
-            threadContext.addResponseHeader("Warning", "234567");
-            threadContext.allowSystemIndexAccess(allowed);
-
-            assertEquals("bar", threadContext.getHeader("foo"));
-            assertNotNull(threadContext.getTransient("ctx.foo"));
-            assertEquals("1", threadContext.getHeader("default"));
-            assertThat(threadContext.getResponseHeaders().keySet(), hasSize(1));
-            assertTrue(threadContext.isSystemIndexAccessAllowed());
-            assertThat(threadContext.allowedSystemIndexPatterns(), equalTo(allowed));
-            threadContext.writeTo(out);
-        }
-        {
-            Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
-            ThreadContext otherThreadContext = new ThreadContext(otherSettings);
-            otherThreadContext.readFrom(out.bytes().streamInput());
-
-            assertEquals("bar", otherThreadContext.getHeader("foo"));
-            assertNull(otherThreadContext.getTransient("ctx.foo"));
-            assertEquals("1", otherThreadContext.getHeader("default"));
-
-            final Map<String, List<String>> responseHeaders = otherThreadContext.getResponseHeaders();
-            final List<String> warnings = responseHeaders.get("Warning");
-
-            assertThat(responseHeaders.keySet(), hasSize(1));
-            assertThat(warnings, hasSize(2));
-            assertThat(warnings, hasItem(equalTo("123456")));
-            assertThat(warnings, hasItem(equalTo("234567")));
-
-            assertTrue(otherThreadContext.isSystemIndexAccessAllowed());
-            assertThat(otherThreadContext.allowedSystemIndexPatterns(), equalTo(allowed));
         }
     }
 
@@ -435,7 +334,7 @@ public class ThreadContextTests extends ESTestCase {
         {
             Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
             ThreadContext otherhreadContext = new ThreadContext(otherSettings);
-            otherhreadContext.readFrom(out.bytes().streamInput());
+            otherhreadContext.readHeaders(out.bytes().streamInput());
 
             assertEquals("bar", otherhreadContext.getHeader("foo"));
             assertNull(otherhreadContext.getTransient("ctx.foo"));
@@ -713,31 +612,6 @@ public class ThreadContextTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom")));
         assertEquals("value for key [foo] already present", e.getMessage());
-    }
-
-    public void testSystemIndexAccessAllowed() {
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        assertTrue(threadContext.isSystemIndexAccessAllowed());
-        assertThat(threadContext.allowedSystemIndexPatterns(), empty());
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            assertTrue(threadContext.isSystemIndexAccessAllowed());
-            threadContext.disallowSystemIndexAccess();
-            assertFalse(threadContext.isSystemIndexAccessAllowed());
-            assertThat(threadContext.allowedSystemIndexPatterns(), nullValue());
-        }
-        assertTrue(threadContext.isSystemIndexAccessAllowed());
-        assertThat(threadContext.allowedSystemIndexPatterns(), empty());
-
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.disallowSystemIndexAccess();
-            final List<String> allowed = randomList(1, 8, () -> randomAlphaOfLengthBetween(2, 8));
-            threadContext.allowSystemIndexAccess(allowed);
-            assertTrue(threadContext.isSystemIndexAccessAllowed());
-            assertThat(threadContext.allowedSystemIndexPatterns(), not(sameInstance(allowed)));
-            assertThat(threadContext.allowedSystemIndexPatterns(), equalTo(allowed));
-        }
-        assertTrue(threadContext.isSystemIndexAccessAllowed());
-        assertThat(threadContext.allowedSystemIndexPatterns(), empty());
     }
 
     /**

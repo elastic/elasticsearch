@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.utils;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
@@ -24,8 +23,7 @@ import static java.util.Map.entry;
 
 public final class DomainSplitFunction {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(DomainSplitFunction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DomainSplitFunction.class);
 
     private static final int MAX_DOMAIN_PART_LENGTH = 63;
 
@@ -157,7 +155,7 @@ public final class DomainSplitFunction {
     public static List<String> domainSplit(String host, Map<String, Object> params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.deprecatedAndMaybeLog("domainSplit",
+            deprecationLogger.deprecate("domainSplit",
                 "Method [domainSplit] taking params is deprecated. Remove the params argument.");
             return null;
         });

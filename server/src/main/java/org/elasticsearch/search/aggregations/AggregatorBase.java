@@ -19,12 +19,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Base implementation for concrete aggregators.
@@ -47,13 +49,12 @@ public abstract class AggregatorBase extends Aggregator {
     protected final String name;
     protected final Aggregator parent;
     protected final SearchContext context;
-    private final Map<String, Object> metaData;
+    private final Map<String, Object> metadata;
 
     protected final Aggregator[] subAggregators;
     protected BucketCollector collectableSubAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
-    private final List<PipelineAggregator> pipelineAggregators;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
 
@@ -64,18 +65,18 @@ public abstract class AggregatorBase extends Aggregator {
      * @param factories             The factories for all the sub-aggregators under this aggregator
      * @param context               The aggregation context
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
-     * @param metaData              The metaData associated with this aggregator
+     * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
+     * @param metadata              The metadata associated with this aggregator
      */
     protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+            CardinalityUpperBound subAggregatorCardinality, Map<String, Object> metadata) throws IOException {
         this.name = name;
-        this.pipelineAggregators = pipelineAggregators;
-        this.metaData = metaData;
+        this.metadata = metadata;
         this.parent = parent;
         this.context = context;
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
-        this.subAggregators = factories.createSubAggregators(context, this);
+        this.subAggregators = factories.createSubAggregators(context, this, subAggregatorCardinality);
         context.addReleasable(this, Lifetime.PHASE);
         final SearchShardTarget shardTarget = context.shardTarget();
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
@@ -106,6 +107,26 @@ public abstract class AggregatorBase extends Aggregator {
             }
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
+    }
+
+    /**
+     * Returns a converter for point values if it's safe to use the indexed data instead of
+     * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
+     * top level, and the underlying field is indexed, and the index is sorted in the right order.
+     *
+     * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
+     * be used in this case.
+     *
+     * @param config The config for the values source metric.
+     */
+    public final Function<byte[], Number> pointReaderIfAvailable(ValuesSourceConfig config) {
+        if (context.query() != null && context.query().getClass() != MatchAllDocsQuery.class) {
+            return null;
+        }
+        if (parent != null) {
+            return null;
+        }
+        return config.getPointReaderOrNull();
     }
 
     /**
@@ -148,12 +169,8 @@ public abstract class AggregatorBase extends Aggregator {
         return ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    public Map<String, Object> metaData() {
-        return this.metaData;
-    }
-
-    public List<PipelineAggregator> pipelineAggregators() {
-        return this.pipelineAggregators;
+    public Map<String, Object> metadata() {
+        return this.metadata;
     }
 
     /**
@@ -266,7 +283,7 @@ public abstract class AggregatorBase extends Aggregator {
         for (Aggregator aggregator : subAggregators) {
             aggs.add(aggregator.buildEmptyAggregation());
         }
-        return new InternalAggregations(aggs);
+        return InternalAggregations.from(aggs);
     }
 
     @Override

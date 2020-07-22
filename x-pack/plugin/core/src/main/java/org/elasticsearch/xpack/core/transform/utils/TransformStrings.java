@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.core.transform.utils;
 
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 
 import java.util.regex.Pattern;
 
@@ -28,7 +28,7 @@ public final class TransformStrings {
     }
 
     public static boolean isValidId(String id) {
-        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && !MetaData.ALL.equals(id);
+        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && !Metadata.ALL.equals(id);
     }
 
     /**

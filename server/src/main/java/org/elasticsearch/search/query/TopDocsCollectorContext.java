@@ -99,6 +99,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
     }
 
     static class EmptyTopDocsCollectorContext extends TopDocsCollectorContext {
+        private final Sort sort;
         private final Collector collector;
         private final Supplier<TotalHits> hitCountSupplier;
 
@@ -109,9 +110,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
          * @param trackTotalHitsUpTo True if the total number of hits should be tracked
          * @param hasFilterCollector True if the collector chain contains a filter
          */
-        private EmptyTopDocsCollectorContext(IndexReader reader, Query query,
-                                             int trackTotalHitsUpTo, boolean hasFilterCollector) throws IOException {
+        private EmptyTopDocsCollectorContext(IndexReader reader,
+                                             Query query,
+                                             @Nullable SortAndFormats sortAndFormats,
+                                             int trackTotalHitsUpTo,
+                                             boolean hasFilterCollector) throws IOException {
             super(REASON_SEARCH_COUNT, 0);
+            this.sort = sortAndFormats == null ? null : sortAndFormats.sort;
             if (trackTotalHitsUpTo == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 this.collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 0, false);
                 // for bwc hit count is set to 0, it will be converted to -1 by the coordinating node
@@ -147,7 +152,13 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         @Override
         void postProcess(QuerySearchResult result) {
             final TotalHits totalHitCount = hitCountSupplier.get();
-            result.topDocs(new TopDocsAndMaxScore(new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS), Float.NaN), null);
+            final TopDocs topDocs;
+            if (sort != null) {
+                topDocs = new TopFieldDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS, sort.getSort());
+            } else {
+                topDocs = new TopDocs(totalHitCount, Lucene.EMPTY_SCORE_DOCS);
+            }
+            result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), null);
         }
     }
 
@@ -421,7 +432,8 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             // no matter what the value of from is
-            return new EmptyTopDocsCollectorContext(reader, query, searchContext.trackTotalHitsUpTo(), hasFilterCollector);
+            return new EmptyTopDocsCollectorContext(reader, query, searchContext.sort(),
+                searchContext.trackTotalHitsUpTo(), hasFilterCollector);
         } else if (searchContext.scrollContext() != null) {
             // we can disable the tracking of total hits after the initial scroll query
             // since the total hits is preserved in the scroll context.

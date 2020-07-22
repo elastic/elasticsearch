@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -23,7 +24,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.ToIntFunction;
 
-public class DatePart extends BinaryDateTimeFunction {
+import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDate;
+
+public class DatePart extends BinaryDateTimeDatePartFunction {
 
     public enum Part implements DateTimeField {
         YEAR(DateTimeExtractor.YEAR::extract, "years", "yyyy", "yy"),
@@ -82,6 +85,19 @@ public class DatePart extends BinaryDateTimeFunction {
     @Override
     public DataType dataType() {
         return DataTypes.INTEGER;
+    }
+
+    @Override
+    protected TypeResolution resolveType() {
+        TypeResolution resolution = super.resolveType();
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        resolution = isDate(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override

@@ -20,18 +20,25 @@
 package org.elasticsearch.ingest;
 
 /**
- * An Abstract Processor that holds a processorTag field to be used
- * by other processors.
+ * An Abstract Processor that holds tag and description information
+ * about the processor.
  */
 public abstract class AbstractProcessor implements Processor {
     protected final String tag;
+    protected final String description;
 
-    protected AbstractProcessor(String tag) {
+    protected AbstractProcessor(String tag, String description) {
         this.tag = tag;
+        this.description = description;
     }
 
     @Override
     public String getTag() {
         return tag;
+    }
+
+    @Override
+    public String getDescription() {
+        return description;
     }
 }

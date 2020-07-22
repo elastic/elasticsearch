@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
@@ -213,6 +214,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above.
                     || dataType == DATETIME
+                    || dataType == CONSTANT_KEYWORD // because a non-existent value is considered the constant value itself
                     || dataType == SCALED_FLOAT; // because of scaling_factor
     }
     
@@ -308,6 +310,14 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     public DataType dataType() {
         return dataType;
+    }
+
+    public boolean useDocValues() {
+        return useDocValue;
+    }
+
+    public boolean arrayLeniency() {
+        return arrayLeniency;
     }
 
     @Override

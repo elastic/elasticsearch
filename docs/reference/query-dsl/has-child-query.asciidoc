@@ -31,16 +31,16 @@ field mapping. For example:
 ----
 PUT /my_index
 {
-    "mappings": {
-        "properties" : {
-            "my-join-field" : {
-                "type" : "join",
-                "relations": {
-                    "parent": "child"
-                }
-            }
+  "mappings": {
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "parent": "child"
         }
+      }
     }
+  }
 }
 
 ----
@@ -53,17 +53,17 @@ PUT /my_index
 ----
 GET /_search
 {
-    "query": {
-        "has_child" : {
-            "type" : "child",
-            "query" : {
-                "match_all" : {}
-            },
-            "max_children": 10,
-            "min_children": 2,
-            "score_mode" : "min"
-        }
+  "query": {
+    "has_child": {
+      "type": "child",
+      "query": {
+        "match_all": {}
+      },
+      "max_children": 10,
+      "min_children": 2,
+      "score_mode": "min"
     }
+  }
 }
 ----
 
@@ -141,18 +141,18 @@ sorts returned documents by the `click_count` field of their child documents.
 ----
 GET /_search
 {
-    "query": {
-        "has_child" : {
-            "type" : "child",
-            "query" : {
-                "function_score" : {
-                    "script_score": {
-                        "script": "_score * doc['click_count'].value"
-                    }
-                }
-            },
-            "score_mode" : "max"
+  "query": {
+    "has_child": {
+      "type": "child",
+      "query": {
+        "function_score": {
+          "script_score": {
+            "script": "_score * doc['click_count'].value"
+          }
         }
+      },
+      "score_mode": "max"
     }
+  }
 }
 ----

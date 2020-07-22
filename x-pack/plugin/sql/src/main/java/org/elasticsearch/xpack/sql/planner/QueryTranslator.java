@@ -11,7 +11,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Foldables;
-import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
@@ -37,11 +36,8 @@ import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
@@ -63,6 +59,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
+import org.elasticsearch.xpack.sql.querydsl.agg.AggSource;
 import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
@@ -84,9 +81,7 @@ import org.elasticsearch.xpack.sql.util.Check;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.id;
@@ -97,7 +92,7 @@ final class QueryTranslator {
     public static final String DATE_FORMAT = "strict_date_time";
     public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
 
-    private QueryTranslator(){}
+    private QueryTranslator() {}
 
     private static final List<SqlExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
             new BinaryComparisons(),
@@ -138,10 +133,6 @@ final class QueryTranslator {
 
         QueryTranslation(Query query) {
             this(query, null);
-        }
-
-        QueryTranslation(AggFilter aggFilter) {
-            this(null, aggFilter);
         }
 
         QueryTranslation(Query query, AggFilter aggFilter) {
@@ -245,39 +236,36 @@ final class QueryTranslator {
         }
     }
 
-    static String dateFormat(Expression e) {
-        if (e instanceof DateTimeFunction) {
-            return ((DateTimeFunction) e).dateTimeFormat();
+    static String field(AggregateFunction af, Expression arg) {
+        if (arg.foldable()) {
+            return String.valueOf(arg.fold());
         }
-        return null;
-    }
-
-    static String field(AggregateFunction af) {
-        Expression arg = af.field();
         if (arg instanceof FieldAttribute) {
             FieldAttribute field = (FieldAttribute) arg;
             // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
-            if (af instanceof Count && ((Count) af).distinct()) {
+            if ((af instanceof Count && ((Count) af).distinct()) || af instanceof TopHits) {
                 // use the `keyword` version of the field, if there is one
                 return field.exactAttribute().name();
             }
             return field.name();
         }
-        if (arg instanceof Literal) {
-            return String.valueOf(((Literal) arg).value());
-        }
         throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", arg.nodeString(),
                                               af.nodeString());
     }
 
-    private static String topAggsField(AggregateFunction af, Expression e) {
+    private static boolean isFieldOrLiteral(Expression e) {
+        return e.foldable() || e instanceof FieldAttribute;
+    }
+
+    private static AggSource asFieldOrLiteralOrScript(AggregateFunction af) {
+        return asFieldOrLiteralOrScript(af, af.field());
+    }
+
+    private static AggSource asFieldOrLiteralOrScript(AggregateFunction af, Expression e) {
         if (e == null) {
             return null;
         }
-        if (e instanceof FieldAttribute) {
-            return ((FieldAttribute) e).exactAttribute().name();
-        }
-        throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", e.nodeString(), af.nodeString());
+        return isFieldOrLiteral(e) ? AggSource.of(field(af, e)) : AggSource.of(((ScalarFunction) e).asScript());
     }
 
     // TODO: see whether escaping is needed
@@ -461,23 +449,7 @@ final class QueryTranslator {
                 aggFilter = new AggFilter(id(in.value()), in.asScript());
             }
             else {
-                Query q = null;
-                if (in.value() instanceof FieldAttribute) {
-                    // equality should always be against an exact match (which is important for strings)
-                    FieldAttribute fa = (FieldAttribute) in.value();
-                    List<Expression> list = in.list();
-                    // TODO: this needs to be handled inside the optimizer
-                    list.removeIf(e -> DataTypes.isNull(e.dataType()));
-                    DataType dt = list.get(0).dataType();
-                    Set<Object> set = new LinkedHashSet<>(CollectionUtils.mapSize(list.size()));
-                    for (Expression e : list) {
-                        set.add(SqlDataTypeConverter.convert(e.fold(), dt));
-                    }
-                    q = new TermsQuery(in.source(), fa.exactAttribute().name(), set);
-                } else {
-                    q = new ScriptQuery(in.source(), in.asScript());
-                }
-                query = handler.wrapFunctionQuery(in, in.value(), q);
+                query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.InComparisons.doTranslate(in, handler);
             }
             return new QueryTranslation(query, aggFilter);
         }
@@ -545,9 +517,9 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, Count c) {
             if (c.distinct()) {
-                return new CardinalityAgg(id, field(c));
+                return new CardinalityAgg(id, asFieldOrLiteralOrScript(c));
             } else {
-                return new FilterExistsAgg(id, field(c));
+                return new FilterExistsAgg(id, asFieldOrLiteralOrScript(c));
             }
         }
     }
@@ -556,7 +528,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Sum s) {
-            return new SumAgg(id, field(s));
+            return new SumAgg(id, asFieldOrLiteralOrScript(s));
         }
     }
 
@@ -564,7 +536,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Avg a) {
-            return new AvgAgg(id, field(a));
+            return new AvgAgg(id, asFieldOrLiteralOrScript(a));
         }
     }
 
@@ -572,7 +544,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Max m) {
-            return new MaxAgg(id, field(m));
+            return new MaxAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 
@@ -580,14 +552,14 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Min m) {
-            return new MinAgg(id, field(m));
+            return new MinAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 
     static class MADs extends SingleValueAggTranslator<MedianAbsoluteDeviation> {
         @Override
         protected LeafAgg toAgg(String id, MedianAbsoluteDeviation m) {
-            return new MedianAbsoluteDeviationAgg(id, field(m));
+            return new MedianAbsoluteDeviationAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 
@@ -595,8 +567,14 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, First f) {
-            return new TopHitsAgg(id, topAggsField(f, f.field()), f.dataType(),
-                topAggsField(f, f.orderField()), f.orderField() == null ? null : f.orderField().dataType(), SortOrder.ASC);
+            return new TopHitsAgg(
+                id,
+                asFieldOrLiteralOrScript(f, f.field()),
+                f.dataType(),
+                asFieldOrLiteralOrScript(f, f.orderField()),
+                f.orderField() == null ? null : f.orderField().dataType(),
+                SortOrder.ASC
+            );
         }
     }
 
@@ -604,8 +582,14 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Last l) {
-            return new TopHitsAgg(id, topAggsField(l, l.field()), l.dataType(),
-                topAggsField(l, l.orderField()), l.orderField() == null ? null : l.orderField().dataType(), SortOrder.DESC);
+            return new TopHitsAgg(
+                id,
+                asFieldOrLiteralOrScript(l, l.field()),
+                l.dataType(),
+                asFieldOrLiteralOrScript(l, l.orderField()),
+                l.orderField() == null ? null : l.orderField().dataType(),
+                SortOrder.DESC
+            );
         }
     }
 
@@ -613,7 +597,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Stats s) {
-            return new StatsAgg(id, field(s));
+            return new StatsAgg(id, asFieldOrLiteralOrScript(s));
         }
     }
 
@@ -621,7 +605,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, ExtendedStats e) {
-            return new ExtendedStatsAgg(id, field(e));
+            return new ExtendedStatsAgg(id, asFieldOrLiteralOrScript(e));
         }
     }
 
@@ -629,7 +613,13 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, MatrixStats m) {
-            return new MatrixStatsAgg(id, singletonList(field(m)));
+            if (isFieldOrLiteral(m.field())) {
+                return new MatrixStatsAgg(id, singletonList(field(m, m.field())));
+            }
+            throw new SqlIllegalArgumentException(
+                "Cannot use scalar functions or operators: [{}] in aggregate functions [KURTOSIS] and [SKEWNESS]",
+                m.field().toString()
+            );
         }
     }
 
@@ -637,7 +627,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Percentiles p) {
-            return new PercentilesAgg(id, field(p), foldAndConvertToDoubles(p.percents()));
+            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()));
         }
     }
 
@@ -645,7 +635,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, PercentileRanks p) {
-            return new PercentileRanksAgg(id, field(p), foldAndConvertToDoubles(p.values()));
+            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()));
         }
     }
 
@@ -653,7 +643,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Min m) {
-            return new MinAgg(id, field(m));
+            return new MinAgg(id, asFieldOrLiteralOrScript(m));
         }
     }
 
@@ -698,7 +688,7 @@ final class QueryTranslator {
 
         protected abstract LeafAgg toAgg(String id, C f);
     }
-    
+
     private static List<Double> foldAndConvertToDoubles(List<Expression> list) {
         List<Double> values = new ArrayList<>(list.size());
         for (Expression e : list) {

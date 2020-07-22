@@ -4,190 +4,278 @@
 <titleabbrev>Stemmer</titleabbrev>
 ++++
 
-// Adds attribute for the 'minimal_portuguese' stemmer values link.
-// This link contains ~, which is converted to subscript.
-// This attribute prevents that substitution.
-// See https://github.com/asciidoctor/asciidoctor/wiki/How-to-prevent-URLs-containing-formatting-characters-from-getting-mangled
-:min-pt-stemmer-values-url: http://www.inf.ufrgs.br/~buriol/papers/Orengo_CLEF07.pdf
+Provides <<algorithmic-stemmers,algorithmic stemming>> for several languages,
+some with additional variants. For a list of supported languages, see the
+<<analysis-stemmer-tokenfilter-language-parm,`language`>> parameter.
 
-A filter that provides access to (almost) all of the available stemming token
-filters through a single unified interface. For example:
+When not customized, the filter uses the
+http://snowball.tartarus.org/algorithms/porter/stemmer.html[porter stemming
+algorithm] for English.
+
+[[analysis-stemmer-tokenfilter-analyze-ex]]
+==== Example
+
+The following analyze API request uses the `stemmer` filter's default porter
+stemming algorithm to stem `the foxes jumping quickly` to `the fox jump
+quickli`:
 
 [source,console]
---------------------------------------------------
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [ "stemmer" ],
+  "text": "the foxes jumping quickly"
+}
+----
+
+The filter produces the following tokens:
+
+[source,text]
+----
+[ the, fox, jump, quickli ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "fox",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "jump",
+      "start_offset": 10,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "quickli",
+      "start_offset": 18,
+      "end_offset": 25,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+[[analysis-stemmer-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`stemmer` filter to configure a new <<analysis-custom-analyzer,custom
+analyzer>>.
+
+[source,console]
+----
 PUT /my_index
 {
-    "settings": {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["lowercase", "my_stemmer"]
-                }
-            },
-            "filter" : {
-                "my_stemmer" : {
-                    "type" : "stemmer",
-                    "name" : "light_german"
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "whitespace",
+          "filter": [ "stemmer" ]
         }
+      }
     }
+  }
 }
---------------------------------------------------
+----
 
-The `language`/`name` parameter controls the stemmer with the following
-available values (the preferred filters are marked in *bold*):
+[role="child_attributes"]
+[[analysis-stemmer-tokenfilter-configure-parms]]
+==== Configurable parameters
 
-[horizontal]
+[[analysis-stemmer-tokenfilter-language-parm]]
+`language`::
+(Optional, string)
+Language-dependent stemming algorithm used to stem tokens. If both this and the
+`name` parameter are specified, the `language` parameter argument is used.
++
+[%collapsible%open]
+.Valid values for `language`
+====
+Valid values are sorted by language. Defaults to
+http://snowball.tartarus.org/algorithms/porter/stemmer.html[*`english`*].
+Recommended algorithms are *bolded*.
+
 Arabic::
-
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/ar/ArabicStemmer.html[*`arabic`*]
+{lucene-analysis-docs}/ar/ArabicStemmer.html[*`arabic`*]
 
 Armenian::
-
 http://snowball.tartarus.org/algorithms/armenian/stemmer.html[*`armenian`*]
 
 Basque::
-
 http://snowball.tartarus.org/algorithms/basque/stemmer.html[*`basque`*]
 
 Bengali::
 http://www.tandfonline.com/doi/abs/10.1080/02564602.1993.11437284[*`bengali`*]
-http://members.unine.ch/jacques.savoy/clef/BengaliStemmerLight.java.txt[*`light_bengali`*]
 
 Brazilian Portuguese::
-
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/br/BrazilianStemmer.html[*`brazilian`*]
+{lucene-analysis-docs}/br/BrazilianStemmer.html[*`brazilian`*]
 
 Bulgarian::
-
 http://members.unine.ch/jacques.savoy/Papers/BUIR.pdf[*`bulgarian`*]
 
 Catalan::
-
 http://snowball.tartarus.org/algorithms/catalan/stemmer.html[*`catalan`*]
 
 Czech::
-
 http://portal.acm.org/citation.cfm?id=1598600[*`czech`*]
 
 Danish::
-
 http://snowball.tartarus.org/algorithms/danish/stemmer.html[*`danish`*]
 
 Dutch::
-
 http://snowball.tartarus.org/algorithms/dutch/stemmer.html[*`dutch`*],
 http://snowball.tartarus.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`]
 
 English::
-
 http://snowball.tartarus.org/algorithms/porter/stemmer.html[*`english`*],
 http://ciir.cs.umass.edu/pubfiles/ir-35.pdf[`light_english`],
+http://snowball.tartarus.org/algorithms/lovins/stemmer.html[`lovins`],
 http://www.researchgate.net/publication/220433848_How_effective_is_suffixing[`minimal_english`],
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/en/EnglishPossessiveFilter.html[`possessive_english`],
 http://snowball.tartarus.org/algorithms/english/stemmer.html[`porter2`],
-http://snowball.tartarus.org/algorithms/lovins/stemmer.html[`lovins`]
+{lucene-analysis-docs}/en/EnglishPossessiveFilter.html[`possessive_english`]
+
+Estonian::
+https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/tartarus/snowball/ext/EstonianStemmer.html[*`estonian`*]
 
 Finnish::
-
 http://snowball.tartarus.org/algorithms/finnish/stemmer.html[*`finnish`*],
 http://clef.isti.cnr.it/2003/WN_web/22.pdf[`light_finnish`]
 
 French::
-
-http://snowball.tartarus.org/algorithms/french/stemmer.html[`french`],
 http://dl.acm.org/citation.cfm?id=1141523[*`light_french`*],
+http://snowball.tartarus.org/algorithms/french/stemmer.html[`french`],
 http://dl.acm.org/citation.cfm?id=318984[`minimal_french`]
 
 Galician::
-
 http://bvg.udc.es/recursos_lingua/stemming.jsp[*`galician`*],
 http://bvg.udc.es/recursos_lingua/stemming.jsp[`minimal_galician`] (Plural step only)
 
 German::
-
+http://dl.acm.org/citation.cfm?id=1141523[*`light_german`*],
 http://snowball.tartarus.org/algorithms/german/stemmer.html[`german`],
 http://snowball.tartarus.org/algorithms/german2/stemmer.html[`german2`],
-http://dl.acm.org/citation.cfm?id=1141523[*`light_german`*],
 http://members.unine.ch/jacques.savoy/clef/morpho.pdf[`minimal_german`]
 
 Greek::
-
 http://sais.se/mthprize/2007/ntais2007.pdf[*`greek`*]
 
 Hindi::
-
 http://computing.open.ac.uk/Sites/EACLSouthAsia/Papers/p6-Ramanathan.pdf[*`hindi`*]
 
 Hungarian::
-
 http://snowball.tartarus.org/algorithms/hungarian/stemmer.html[*`hungarian`*],
 http://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[`light_hungarian`]
 
 Indonesian::
-
 http://www.illc.uva.nl/Publications/ResearchReports/MoL-2003-02.text.pdf[*`indonesian`*]
 
 Irish::
-
 http://snowball.tartarus.org/otherapps/oregan/intro.html[*`irish`*]
 
 Italian::
-
-http://snowball.tartarus.org/algorithms/italian/stemmer.html[`italian`],
-http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_italian`*]
+http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_italian`*],
+http://snowball.tartarus.org/algorithms/italian/stemmer.html[`italian`]
 
 Kurdish (Sorani)::
-
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/ckb/SoraniStemmer.html[*`sorani`*]
+{lucene-analysis-docs}/ckb/SoraniStemmer.html[*`sorani`*]
 
 Latvian::
-
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/lv/LatvianStemmer.html[*`latvian`*]
+{lucene-analysis-docs}/lv/LatvianStemmer.html[*`latvian`*]
 
 Lithuanian::
-
 http://svn.apache.org/viewvc/lucene/dev/branches/lucene_solr_5_3/lucene/analysis/common/src/java/org/apache/lucene/analysis/lt/stem_ISO_8859_1.sbl?view=markup[*`lithuanian`*]
 
 Norwegian (Bokmål)::
-
 http://snowball.tartarus.org/algorithms/norwegian/stemmer.html[*`norwegian`*],
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_norwegian`*],
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html[`minimal_norwegian`]
+{lucene-analysis-docs}/no/NorwegianLightStemmer.html[*`light_norwegian`*],
+{lucene-analysis-docs}/no/NorwegianMinimalStemmer.html[`minimal_norwegian`]
 
 Norwegian (Nynorsk)::
-
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianLightStemmer.html[*`light_nynorsk`*],
-http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`]
+{lucene-analysis-docs}/no/NorwegianLightStemmer.html[*`light_nynorsk`*],
+{lucene-analysis-docs}/no/NorwegianMinimalStemmer.html[`minimal_nynorsk`]
 
 Portuguese::
-
-http://snowball.tartarus.org/algorithms/portuguese/stemmer.html[`portuguese`],
 http://dl.acm.org/citation.cfm?id=1141523&dl=ACM&coll=DL&CFID=179095584&CFTOKEN=80067181[*`light_portuguese`*],
-{min-pt-stemmer-values-url}[`minimal_portuguese`],
+pass:macros[http://www.inf.ufrgs.br/~buriol/papers/Orengo_CLEF07.pdf[`minimal_portuguese`\]],
+http://snowball.tartarus.org/algorithms/portuguese/stemmer.html[`portuguese`],
 http://www.inf.ufrgs.br/\~viviane/rslp/index.htm[`portuguese_rslp`]
 
 Romanian::
-
 http://snowball.tartarus.org/algorithms/romanian/stemmer.html[*`romanian`*]
 
 Russian::
-
 http://snowball.tartarus.org/algorithms/russian/stemmer.html[*`russian`*],
 http://doc.rero.ch/lm.php?url=1000%2C43%2C4%2C20091209094227-CA%2FDolamic_Ljiljana_-_Indexing_and_Searching_Strategies_for_the_Russian_20091209.pdf[`light_russian`]
 
 Spanish::
-
-http://snowball.tartarus.org/algorithms/spanish/stemmer.html[`spanish`],
-http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*]
+http://www.ercim.eu/publication/ws-proceedings/CLEF2/savoy.pdf[*`light_spanish`*],
+http://snowball.tartarus.org/algorithms/spanish/stemmer.html[`spanish`]
 
 Swedish::
-
 http://snowball.tartarus.org/algorithms/swedish/stemmer.html[*`swedish`*],
 http://clef.isti.cnr.it/2003/WN_web/22.pdf[`light_swedish`]
 
 Turkish::
-
 http://snowball.tartarus.org/algorithms/turkish/stemmer.html[*`turkish`*]
+====
+
+`name`::
+An alias for the <<analysis-stemmer-tokenfilter-language-parm,`language`>>
+parameter. If both this and the `language` parameter are specified, the
+`language` parameter argument is used.
+
+[[analysis-stemmer-tokenfilter-customize]]
+==== Customize
+
+To customize the `stemmer` filter, duplicate it to create the basis for a new
+custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following request creates a custom `stemmer` filter that stems
+words using the `light_german` algorithm:
+
+[source,console]
+----
+PUT /my_index
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "my_stemmer"
+          ]
+        }
+      },
+      "filter": {
+        "my_stemmer": {
+          "type": "stemmer",
+          "language": "light_german"
+        }
+      }
+    }
+  }
+}
+----

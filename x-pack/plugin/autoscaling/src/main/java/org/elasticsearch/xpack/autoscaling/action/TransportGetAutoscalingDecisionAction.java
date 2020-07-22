@@ -20,6 +20,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.TreeMap;
 
 public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAction<
     GetAutoscalingDecisionAction.Request,
@@ -61,7 +63,7 @@ public class TransportGetAutoscalingDecisionAction extends TransportMasterNodeAc
         final ClusterState state,
         final ActionListener<GetAutoscalingDecisionAction.Response> listener
     ) {
-        listener.onResponse(new GetAutoscalingDecisionAction.Response());
+        listener.onResponse(new GetAutoscalingDecisionAction.Response(Collections.unmodifiableSortedMap(new TreeMap<>())));
     }
 
     @Override

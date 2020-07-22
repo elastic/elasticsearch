@@ -27,11 +27,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -67,16 +67,16 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
-        final AtomicNumericFieldData data = indexFieldData.load(context);
+        final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericDocValues values;
-        if (data instanceof SortedNumericDVIndexFieldData.NanoSecondFieldData) {
-            values = ((SortedNumericDVIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
+        if (data instanceof SortedNumericIndexFieldData.NanoSecondFieldData) {
+            values = ((SortedNumericIndexFieldData.NanoSecondFieldData) data).getLongValuesAsNanos();
         } else {
             values = data.getLongValues();
         }
         return converter != null ? converter.apply(values) : values;
     }
-    
+
     private NumericDocValues getNumericDocValues(LeafReaderContext context, long missingValue) throws IOException {
         final SortedNumericDocValues values = loadDocValues(context);
         if (nested == null) {

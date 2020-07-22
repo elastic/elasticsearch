@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -38,7 +39,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -80,11 +83,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             nodeInfos.add(nodeResponse.nodeInfo());
             nodeStats.add(nodeResponse.nodeStats());
             this.versions.add(nodeResponse.nodeInfo().getVersion());
-            this.plugins.addAll(nodeResponse.nodeInfo().getPlugins().getPluginInfos());
+            this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress =
-                    nodeResponse.nodeInfo().getTransport().address().publishAddress();
+                    nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
             final InetAddress inetAddress = publishAddress.address().getAddress();
             if (!seenAddresses.add(inetAddress)) {
                 continue;
@@ -256,14 +259,14 @@ public class ClusterStatsNodes implements ToXContentFragment {
             int availableProcessors = 0;
             int allocatedProcessors = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
-                availableProcessors += nodeInfo.getOs().getAvailableProcessors();
-                allocatedProcessors += nodeInfo.getOs().getAllocatedProcessors();
+                availableProcessors += nodeInfo.getInfo(OsInfo.class).getAvailableProcessors();
+                allocatedProcessors += nodeInfo.getInfo(OsInfo.class).getAllocatedProcessors();
 
-                if (nodeInfo.getOs().getName() != null) {
-                    names.addTo(nodeInfo.getOs().getName(), 1);
+                if (nodeInfo.getInfo(OsInfo.class).getName() != null) {
+                    names.addTo(nodeInfo.getInfo(OsInfo.class).getName(), 1);
                 }
-                if (nodeInfo.getOs().getPrettyName() != null) {
-                    prettyNames.addTo(nodeInfo.getOs().getPrettyName(), 1);
+                if (nodeInfo.getInfo(OsInfo.class).getPrettyName() != null) {
+                    prettyNames.addTo(nodeInfo.getInfo(OsInfo.class).getPrettyName(), 1);
                 }
             }
             this.availableProcessors = availableProcessors;
@@ -454,7 +457,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long heapMax = 0;
             long heapUsed = 0;
             for (NodeInfo nodeInfo : nodeInfos) {
-                versions.addTo(new JvmVersion(nodeInfo.getJvm()), 1);
+                versions.addTo(new JvmVersion(nodeInfo.getInfo(JvmInfo.class)), 1);
             }
 
             for (NodeStats nodeStats : nodeStatsList) {

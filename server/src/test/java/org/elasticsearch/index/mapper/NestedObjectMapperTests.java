@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -386,17 +386,21 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
      * lead to duplicate fields on the root document.
      */
     public void testMultipleLevelsIncludeRoot1() throws Exception {
+        MapperService mapperService = createIndex("test").mapperService();
+
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("type").startObject("properties")
+            .startObject().startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
             .startObject("nested1").field("type", "nested").field("include_in_root", true)
             .field("include_in_parent", true).startObject("properties")
             .startObject("nested2").field("type", "nested").field("include_in_root", true)
             .field("include_in_parent", true)
             .endObject().endObject().endObject()
             .endObject().endObject().endObject());
+        MergeReason mergeReason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
+        DocumentMapper docMapper = mapperService.documentMapper();
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -418,8 +422,11 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
      * {@code false} and {@code include_in_root} set to {@code true}.
      */
     public void testMultipleLevelsIncludeRoot2() throws Exception {
+        MapperService mapperService = createIndex("test").mapperService();
+
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject().startObject("type").startObject("properties")
+            .startObject().startObject(MapperService.SINGLE_MAPPING_NAME)
+            .startObject("properties")
             .startObject("nested1").field("type", "nested")
             .field("include_in_root", true).field("include_in_parent", true).startObject("properties")
             .startObject("nested2").field("type", "nested")
@@ -428,9 +435,10 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .field("include_in_root", true).field("include_in_parent", true)
             .endObject().endObject().endObject().endObject().endObject()
             .endObject().endObject().endObject());
+        MergeReason mergeReason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
-            .parse("type", new CompressedXContent(mapping));
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), mergeReason);
+        DocumentMapper docMapper = mapperService.documentMapper();
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -439,6 +447,66 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
                         .startObject().startArray("nested3").startObject().field("foo", "bar")
                         .endObject().endArray().endObject().endArray().endObject().endArray()
                         .endObject()),
+            XContentType.JSON));
+
+        final Collection<IndexableField> fields = doc.rootDoc().getFields();
+        assertThat(fields.size(), equalTo(new HashSet<>(fields).size()));
+    }
+
+   /**
+     * Same as {@link NestedObjectMapperTests#testMultipleLevelsIncludeRoot1()} but tests that
+     * the redundant includes are removed even if each individual mapping doesn't contain the
+     * redundancy, only the merged mapping does.
+     */
+    public void testMultipleLevelsIncludeRootWithMerge() throws Exception {
+        MapperService mapperService = createIndex("test").mapperService();
+
+        String firstMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                    .startObject("nested1")
+                        .field("type", "nested")
+                        .field("include_in_root", true)
+                        .startObject("properties")
+                            .startObject("nested2")
+                                .field("type", "nested")
+                                .field("include_in_root", true)
+                                .field("include_in_parent", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(firstMapping), MergeReason.INDEX_TEMPLATE);
+
+        String secondMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                    .startObject("nested1")
+                        .field("type", "nested")
+                        .field("include_in_root", true)
+                        .field("include_in_parent", true)
+                        .startObject("properties")
+                            .startObject("nested2")
+                                .field("type", "nested")
+                                .field("include_in_root", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(secondMapping), MergeReason.INDEX_TEMPLATE);
+        DocumentMapper docMapper = mapperService.documentMapper();
+
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject().startArray("nested1")
+                .startObject().startArray("nested2").startObject().field("foo", "bar")
+                .endObject().endArray().endObject().endArray()
+                .endObject()),
             XContentType.JSON));
 
         final Collection<IndexableField> fields = doc.rootDoc().getFields();
@@ -694,7 +762,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         /**
-         * This is needed to force the index version with {@link IndexMetaData.SETTING_INDEX_VERSION_CREATED}.
+         * This is needed to force the index version with {@link IndexMetadata.SETTING_INDEX_VERSION_CREATED}.
          */
         return false;
     }
@@ -704,7 +772,7 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .startObject("nested1").field("type", "nested").endObject()
             .endObject().endObject().endObject());
 
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
             VersionUtils.randomIndexCompatibleVersion(random())).build();
         DocumentMapper docMapper = createIndex("test", settings)
             .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
@@ -741,5 +809,32 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("3"));
         assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("4"));
         assertThat(doc.docs().get(2).get("field"), equalTo("value"));
+    }
+
+    public void testMergeNestedMappings() throws IOException {
+        MapperService mapperService = createIndex("index1", Settings.EMPTY, jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("nested1")
+                    .field("type", "nested")
+                .endObject()
+            .endObject().endObject()).mapperService();
+
+        String mapping1 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").field("include_in_parent", true)
+            .endObject().endObject().endObject().endObject());
+
+        // cannot update `include_in_parent` dynamically
+        MapperException e1 = expectThrows(MapperException.class, () -> mapperService.merge("type",
+            new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE));
+        assertEquals("the [include_in_parent] parameter can't be updated on a nested object mapping", e1.getMessage());
+
+        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("nested1").field("type", "nested").field("include_in_root", true)
+            .endObject().endObject().endObject().endObject());
+
+        // cannot update `include_in_root` dynamically
+        MapperException e2 = expectThrows(MapperException.class, () -> mapperService.merge("type",
+            new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
+        assertEquals("the [include_in_root] parameter can't be updated on a nested object mapping", e2.getMessage());
     }
 }

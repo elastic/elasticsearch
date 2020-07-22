@@ -1,0 +1,89 @@
+---
+setup:
+  - skip:
+      features: ["headers", "allowed_warnings"]
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "append_logs"
+        body:  >
+          {
+            "indices": [
+              { "names": ["logs-foobar" ], "privileges": ["create_doc", "create_index"] },
+              { "names": ["logs-*" ], "privileges": ["create_doc"] }
+            ]
+          }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "append_logs" ],
+            "full_name" : "user with mixed privileges to multiple indices"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "append_logs"
+        ignore: 404
+
+---
+"Test auto index creation":
+  # Only auto creation of logs-foobar index works.
+  - do:
+      allowed_warnings:
+        - "the index privilege [create_doc] allowed the update mapping action [indices:admin/mapping/auto_put] on index [logs-foobar], this privilege will not permit mapping updates in the next major release - users who require access to update mappings must be granted explicit privileges"
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        body:
+          - '{"create": {"_index": "logs-foobar"}}'
+          - '{}'
+          - '{"create": {"_index": "logs-barbaz"}}'
+          - '{}'
+  - match: { errors: true }
+  - match: { items.0.create.status: 201 }
+  - match: { items.1.create.status: 403 }
+
+  - do: # superuser
+      indices.refresh:
+        index: "_all"
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: "logs-*"
+  - match: { hits.total: 1 }
+
+  # Create the logs-barbaz with the superuser
+  - do: # superuser
+      indices.create:
+        index: logs-barbaz
+        body: {}
+
+  # Ensure that just appending data via both indices work now that the indices have been auto created
+  - do:
+      allowed_warnings:
+        - "the index privilege [create_doc] allowed the update mapping action [indices:admin/mapping/auto_put] on index [logs-barbaz], this privilege will not permit mapping updates in the next major release - users who require access to update mappings must be granted explicit privileges"
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        body:
+          - '{"create": {"_index": "logs-foobar"}}'
+          - '{}'
+          - '{"create": {"_index": "logs-barbaz"}}'
+          - '{}'
+  - match: { errors: false }
+  - match: { items.0.create.status: 201 }
+  - match: { items.1.create.status: 201 }

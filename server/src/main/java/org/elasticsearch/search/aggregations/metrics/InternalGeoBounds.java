@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,18 +32,17 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InternalGeoBounds extends InternalAggregation implements GeoBounds {
-    final double top;
-    final double bottom;
-    final double posLeft;
-    final double posRight;
-    final double negLeft;
-    final double negRight;
-    final boolean wrapLongitude;
+    public final double top;
+    public final double bottom;
+    public final double posLeft;
+    public final double posRight;
+    public final double negLeft;
+    public final double negRight;
+    public final boolean wrapLongitude;
 
-    InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-                      double negLeft, double negRight, boolean wrapLongitude,
-                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
+                             double negLeft, double negRight, boolean wrapLongitude, Map<String, Object> metadata) {
+        super(name, metadata);
         this.top = top;
         this.bottom = bottom;
         this.posLeft = posLeft;
@@ -115,8 +113,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
                 negRight = bounds.negRight;
             }
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(),
-                getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, getMetadata());
     }
 
     @Override

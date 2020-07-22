@@ -5,28 +5,41 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class CategoryDefinitionTests extends AbstractSerializingTestCase<CategoryDefinition> {
+public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<CategoryDefinition> {
 
-    public CategoryDefinition createTestInstance(String jobId) {
+    public static CategoryDefinition createTestInstance(String jobId) {
         CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
+        if (randomBoolean()) {
+            categoryDefinition.setPartitionFieldName(randomAlphaOfLength(10));
+            categoryDefinition.setPartitionFieldValue(randomAlphaOfLength(20));
+        }
         categoryDefinition.setTerms(randomAlphaOfLength(10));
         categoryDefinition.setRegex(randomAlphaOfLength(10));
         categoryDefinition.setMaxMatchingLength(randomLong());
         categoryDefinition.setExamples(Arrays.asList(generateRandomStringArray(10, 10, false)));
         if (randomBoolean()) {
             categoryDefinition.setGrokPattern(randomAlphaOfLength(50));
+        }
+        if (randomBoolean()) {
+            categoryDefinition.setNumMatches(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
+            categoryDefinition.setPreferredToCategories(LongStream.generate(ESTestCase::randomNonNegativeLong).limit(10).toArray());
         }
         return categoryDefinition;
     }
@@ -43,7 +56,11 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
 
     @Override
     protected CategoryDefinition doParseInstance(XContentParser parser) {
-        return CategoryDefinition.STRICT_PARSER.apply(parser, null);
+        // As a category definition contains a field named after the partition field, the parser
+        // for category definitions serialised to XContent must always ignore unknown fields.
+        // This is why the lenient parser is used in this test rather than the strict parser
+        // that most of the other tests for this package use.
+        return CategoryDefinition.LENIENT_PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenSameObject() {
@@ -121,6 +138,8 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
     private static CategoryDefinition createFullyPopulatedCategoryDefinition() {
         CategoryDefinition category = new CategoryDefinition("jobName");
         category.setCategoryId(42);
+        category.setPartitionFieldName("p");
+        category.setPartitionFieldValue("v");
         category.setTerms("foo bar");
         category.setRegex(".*?foo.*?bar.*");
         category.setMaxMatchingLength(120L);
@@ -129,6 +148,9 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
         return category;
     }
 
+    /**
+     * For this class the strict parser is <em>only</em> used for parsing C++ output.
+     */
     public void testStrictParser() throws IOException {
         String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
@@ -144,5 +166,14 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             CategoryDefinition.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    @Override
+    protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
+        if (version.before(Version.V_7_8_0)) {
+            instance.setPreferredToCategories(new long[0]);
+            instance.setNumMatches(0L);
+        }
+        return instance;
     }
 }

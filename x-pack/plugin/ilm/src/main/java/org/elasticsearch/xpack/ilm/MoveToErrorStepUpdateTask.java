@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ilm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
@@ -24,13 +24,13 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
     private final String policy;
     private final Step.StepKey currentStepKey;
-    private final BiFunction<IndexMetaData, Step.StepKey, Step> stepLookupFunction;
+    private final BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction;
     private final Consumer<ClusterState> stateChangeConsumer;
     private LongSupplier nowSupplier;
     private Exception cause;
 
     public MoveToErrorStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Exception cause, LongSupplier nowSupplier,
-                                     BiFunction<IndexMetaData, Step.StepKey, Step> stepLookupFunction,
+                                     BiFunction<IndexMetadata, Step.StepKey, Step> stepLookupFunction,
                                      Consumer<ClusterState> stateChangeConsumer) {
         this.index = index;
         this.policy = policy;
@@ -59,7 +59,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws IOException {
-        IndexMetaData idxMeta = currentState.getMetaData().index(index);
+        IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;

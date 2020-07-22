@@ -497,8 +497,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public MappedFieldType smartNameFieldType(String name) {
-        return in.smartNameFieldType(name);
+    public MappedFieldType fieldType(String name) {
+        return in.fieldType(name);
     }
 
     @Override

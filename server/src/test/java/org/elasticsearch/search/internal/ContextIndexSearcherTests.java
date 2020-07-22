@@ -240,7 +240,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
 
         ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
 
         // Assert wrapping
         assertEquals(ExitableDirectoryReader.class, searcher.getIndexReader().getClass());

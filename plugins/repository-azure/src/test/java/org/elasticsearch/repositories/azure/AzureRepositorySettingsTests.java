@@ -20,12 +20,14 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,8 +43,9 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
-        final AzureRepository azureRepository = new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings),
-            NamedXContentRegistry.EMPTY, mock(AzureStorageService.class), BlobStoreTestUtil.mockClusterService());
+        final AzureRepository azureRepository = new AzureRepository(new RepositoryMetadata("foo", "azure", internalSettings),
+            NamedXContentRegistry.EMPTY, mock(AzureStorageService.class), BlobStoreTestUtil.mockClusterService(),
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
     }
@@ -120,8 +123,9 @@ public class AzureRepositorySettingsTests extends ESTestCase {
 
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () ->
-            azureRepository(Settings.builder().put("chunk_size", "257mb").build()));
-        assertEquals("failed to parse value [257mb] for setting [chunk_size], must be <= [256mb]", e.getMessage());
+                azureRepository(Settings.builder().put("chunk_size", "6tb").build()));
+        assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= ["
+                + AzureStorageService.MAX_CHUNK_SIZE.getStringRep() + "]", e.getMessage());
     }
 
 }

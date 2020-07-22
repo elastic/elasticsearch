@@ -20,53 +20,54 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.ExpressionNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
 /**
  * Represents a string constant.
  */
-public final class EString extends AExpression {
+public class EString extends AExpression {
 
-    protected String constant;
+    private final String string;
 
-    public EString(Location location, String string) {
-        super(location);
+    public EString(int identifier, Location location, String string) {
+        super(identifier, location);
 
-        this.constant = Objects.requireNonNull(string);
+        this.string = Objects.requireNonNull(string);
+    }
+
+    public String getString() {
+        return string;
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitString(this, scope);
+    }
 
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException(
+                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
         }
 
-        output.actual = String.class;
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
+        }
 
-        return output;
-    }
-
-    @Override
-    ExpressionNode write(ClassNode classNode) {
-        ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(location);
-        constantNode.setExpressionType(output.actual);
-        constantNode.setConstant(constant);
-
-        return constantNode;
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString("'" + constant.toString() + "'");
+        semanticScope.putDecoration(this, new ValueType(String.class));
+        semanticScope.putDecoration(this, new StandardConstant(string));
     }
 }

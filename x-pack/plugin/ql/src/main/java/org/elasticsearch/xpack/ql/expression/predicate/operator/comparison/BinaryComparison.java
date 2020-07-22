@@ -15,11 +15,20 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.time.ZoneId;
+
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
-    protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation) {
+    private final ZoneId zoneId;
+
+    protected BinaryComparison(Source source, Expression left, Expression right, BinaryComparisonOperation operation, ZoneId zoneId) {
         super(source, left, right, operation);
+        this.zoneId = zoneId;
+    }
+
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     @Override

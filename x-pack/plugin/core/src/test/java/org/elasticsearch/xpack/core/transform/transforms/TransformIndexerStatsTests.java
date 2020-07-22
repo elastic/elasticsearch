@@ -7,13 +7,42 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
+import java.io.IOException;
+
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformIndexerStatsTests extends AbstractSerializingTestCase<TransformIndexerStats> {
+
+    public static TransformIndexerStats randomStats() {
+        return new TransformIndexerStats(
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomLongBetween(0L, 10000L),
+            randomDouble(),
+            randomDouble(),
+            randomDouble()
+        );
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 
     @Override
     protected TransformIndexerStats createTestInstance() {
@@ -28,24 +57,6 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
     @Override
     protected TransformIndexerStats doParseInstance(XContentParser parser) {
         return TransformIndexerStats.fromXContent(parser);
-    }
-
-    public static TransformIndexerStats randomStats() {
-        return new TransformIndexerStats(
-            randomLongBetween(10L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L),
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null,
-            randomBoolean() ? randomDouble() : null
-        );
     }
 
     public void testExpAvgIncrement() {
@@ -66,5 +77,67 @@ public class TransformIndexerStatsTests extends AbstractSerializingTestCase<Tran
         assertThat(stats.getExpAvgCheckpointDurationMs(), closeTo(109.090909, 0.0000001));
         assertThat(stats.getExpAvgDocumentsIndexed(), closeTo(20.54545454, 0.0000001));
         assertThat(stats.getExpAvgDocumentsProcessed(), closeTo(59.0909090, 0.0000001));
+    }
+
+    public void testXContentLeniencyForMissingFields() throws IOException {
+        // this is essentially the same test as done in the super class, but with the difference of a custom toXContent method that leaves
+        // out fields if the value is 0, this allow us to test successful parsing if fields are not available, e.g. on older versions
+        xContentTester(this::createParser, this::createTestInstance, TransformIndexerStatsTests::toXContentIfNotZero, this::doParseInstance)
+            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+            .supportsUnknownFields(supportsUnknownFields())
+            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
+            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .assertToXContentEquivalence(assertToXContentEquivalence())
+            .test();
+    }
+
+    public static void toXContentIfNotZero(TransformIndexerStats stats, XContentBuilder builder) throws IOException {
+        // a toXContent version which leaves out field with value 0
+        builder.startObject();
+        xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_PAGES.getPreferredName(), stats.getNumPages());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(), stats.getOutputDocuments());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(), stats.getNumInvocations());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.INDEX_FAILURES.getPreferredName(), stats.getIndexFailures());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName(), stats.getSearchTime());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TIME_IN_MS.getPreferredName(), stats.getProcessingTime());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.PROCESSING_TOTAL.getPreferredName(), stats.getProcessingTotal());
+        xContentFieldIfNotZero(builder, TransformIndexerStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
+        xContentFieldIfNotZero(
+            builder,
+            TransformIndexerStats.EXPONENTIAL_AVG_CHECKPOINT_DURATION_MS.getPreferredName(),
+            stats.getExpAvgCheckpointDurationMs()
+        );
+        xContentFieldIfNotZero(
+            builder,
+            TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_INDEXED.getPreferredName(),
+            stats.getExpAvgDocumentsIndexed()
+        );
+        xContentFieldIfNotZero(
+            builder,
+            TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(),
+            stats.getExpAvgDocumentsProcessed()
+        );
+        builder.endObject();
+    }
+
+    private static XContentBuilder xContentFieldIfNotZero(XContentBuilder builder, String name, long value) throws IOException {
+        if (value > 0) {
+            builder.field(name, value);
+        }
+
+        return builder;
+    }
+
+    private static XContentBuilder xContentFieldIfNotZero(XContentBuilder builder, String name, double value) throws IOException {
+        if (value > 0.0) {
+            builder.field(name, value);
+        }
+
+        return builder;
     }
 }

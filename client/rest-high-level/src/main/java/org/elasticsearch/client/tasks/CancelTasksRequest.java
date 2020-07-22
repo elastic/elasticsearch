@@ -33,6 +33,7 @@ public class CancelTasksRequest implements Validatable {
     private Optional<TimeValue> timeout = Optional.empty();
     private Optional<TaskId> parentTaskId = Optional.empty();
     private Optional<TaskId> taskId = Optional.empty();
+    private Boolean waitForCompletion;
 
     CancelTasksRequest(){}
 
@@ -76,6 +77,14 @@ public class CancelTasksRequest implements Validatable {
         return taskId;
     }
 
+    public Boolean getWaitForCompletion() {
+        return waitForCompletion;
+    }
+
+    public void setWaitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -85,12 +94,13 @@ public class CancelTasksRequest implements Validatable {
             Objects.equals(getActions(), that.getActions()) &&
             Objects.equals(getTimeout(), that.getTimeout()) &&
             Objects.equals(getParentTaskId(), that.getParentTaskId()) &&
-            Objects.equals(getTaskId(), that.getTaskId()) ;
+            Objects.equals(getTaskId(), that.getTaskId()) &&
+            Objects.equals(waitForCompletion, that.waitForCompletion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodes(), getActions(), getTimeout(), getParentTaskId(), getTaskId());
+        return Objects.hash(getNodes(), getActions(), getTimeout(), getParentTaskId(), getTaskId(), waitForCompletion);
     }
 
     @Override
@@ -101,6 +111,7 @@ public class CancelTasksRequest implements Validatable {
             ", timeout=" + timeout +
             ", parentTaskId=" + parentTaskId +
             ", taskId=" + taskId +
+            ", waitForCompletion=" + waitForCompletion +
             '}';
     }
 
@@ -110,6 +121,7 @@ public class CancelTasksRequest implements Validatable {
         private Optional<TaskId> parentTaskId = Optional.empty();
         private List<String> actionsFilter = new ArrayList<>();
         private List<String> nodesFilter = new ArrayList<>();
+        private Boolean waitForCompletion;
 
         public Builder withTimeout(TimeValue timeout){
             this.timeout = Optional.of(timeout);
@@ -138,6 +150,11 @@ public class CancelTasksRequest implements Validatable {
             return this;
         }
 
+        public Builder withWaitForCompletion(boolean waitForCompletion) {
+            this.waitForCompletion = waitForCompletion;
+            return this;
+        }
+
         public CancelTasksRequest build() {
             CancelTasksRequest request = new CancelTasksRequest();
             timeout.ifPresent(request::setTimeout);
@@ -145,6 +162,9 @@ public class CancelTasksRequest implements Validatable {
             parentTaskId.ifPresent(request::setParentTaskId);
             request.setNodes(nodesFilter);
             request.setActions(actionsFilter);
+            if (waitForCompletion != null) {
+                request.setWaitForCompletion(waitForCompletion);
+            }
             return request;
         }
     }

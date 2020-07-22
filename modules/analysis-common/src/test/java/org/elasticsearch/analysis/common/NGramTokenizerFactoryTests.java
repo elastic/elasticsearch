@@ -25,7 +25,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
@@ -154,7 +154,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 builder.put("side", "back");
             }
             Settings settings = builder.build();
-            Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
+            Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetadata.SETTING_VERSION_CREATED, v.id).build();
             Tokenizer tokenizer = new MockTokenizer();
             tokenizer.setReader(new StringReader("foo bar"));
             TokenStream edgeNGramTokenFilter =

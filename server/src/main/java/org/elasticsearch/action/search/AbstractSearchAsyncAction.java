@@ -77,7 +77,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
-    private final SearchPhaseResults<Result> results;
+    final SearchPhaseResults<Result> results;
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
@@ -467,7 +467,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param result the result returned form the shard
      * @param shardIt the shard iterator
      */
-    private void onShardResult(Result result, SearchShardIterator shardIt) {
+    protected void onShardResult(Result result, SearchShardIterator shardIt) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         successfulOps.incrementAndGet();
@@ -559,13 +559,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
         results.getSuccessfulResults().forEach((entry) -> {
-            try {
-                SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
-            } catch (Exception inner) {
-                inner.addSuppressed(exception);
-                logger.trace("failed to release context", inner);
+            if (entry.getContextId() != null) {
+                try {
+                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                    sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                } catch (Exception inner) {
+                    inner.addSuppressed(exception);
+                    logger.trace("failed to release context", inner);
+                }
             }
         });
         listener.onFailure(exception);

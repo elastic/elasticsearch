@@ -73,8 +73,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     protected ScriptedMetricAggregationBuilder(ScriptedMetricAggregationBuilder clone,
-                                               Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+                                               Builder factoriesBuilder, Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.initScript = clone.initScript;
         this.mapScript = clone.mapScript;
         this.combineScript = clone.combineScript;
@@ -83,8 +83,8 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new ScriptedMetricAggregationBuilder(this, factoriesBuilder, metaData);
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new ScriptedMetricAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
@@ -207,6 +207,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
     protected ScriptedMetricAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
                                                       Builder subfactoriesBuilder) throws IOException {
 
@@ -227,7 +232,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             compiledInitScript = queryShardContext.compile(initScript, ScriptedMetricAggContexts.InitScript.CONTEXT);
             initScriptParams = initScript.getParams();
         } else {
-            compiledInitScript = (p, a) -> null;
+            compiledInitScript = null;
             initScriptParams = Collections.emptyMap();
         }
 
@@ -236,16 +241,13 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         Map<String, Object> mapScriptParams = mapScript.getParams();
 
 
-        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript;
-        Map<String, Object> combineScriptParams;
-
-        compiledCombineScript = queryShardContext.compile(combineScript,
+        ScriptedMetricAggContexts.CombineScript.Factory compiledCombineScript = queryShardContext.compile(combineScript,
             ScriptedMetricAggContexts.CombineScript.CONTEXT);
-        combineScriptParams = combineScript.getParams();
+        Map<String, Object> combineScriptParams = combineScript.getParams();
 
         return new ScriptedMetricAggregatorFactory(name, compiledMapScript, mapScriptParams, compiledInitScript,
                 initScriptParams, compiledCombineScript, combineScriptParams, reduceScript,
-                params, queryShardContext.lookup(), queryShardContext, parent, subfactoriesBuilder, metaData);
+                params, queryShardContext.lookup(), queryShardContext, parent, subfactoriesBuilder, metadata);
     }
 
 

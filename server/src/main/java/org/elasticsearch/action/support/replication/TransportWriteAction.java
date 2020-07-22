@@ -22,6 +22,8 @@ package org.elasticsearch.action.support.replication;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -32,6 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -57,12 +60,58 @@ public abstract class TransportWriteAction<
             Response extends ReplicationResponse & WriteResponse
         > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
 
+    private final boolean forceExecution;
+    private final IndexingPressure indexingPressure;
+    private final String executor;
+
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary) {
+                                   Writeable.Reader<ReplicaRequest> replicaRequest, String executor, boolean forceExecutionOnPrimary,
+                                   IndexingPressure indexingPressure) {
+        // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
+        // ThreadPool.Names.WRITE thread pool in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-              request, replicaRequest, executor, true, forceExecutionOnPrimary);
+            request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
+        this.executor = executor;
+        this.forceExecution = forceExecutionOnPrimary;
+        this.indexingPressure = indexingPressure;
+    }
+
+    @Override
+    protected Releasable checkOperationLimits(Request request) {
+        return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
+    }
+
+    @Override
+    protected Releasable checkPrimaryLimits(Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
+        if (rerouteWasLocal) {
+            // If this primary request was received from a local reroute initiated by the node client, we
+            // must mark a new primary operation local to the coordinating node.
+            if (localRerouteInitiatedByNodeClient) {
+                return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(primaryOperationSize(request));
+            } else {
+                return () -> {};
+            }
+        } else {
+            // If this primary request was received directly from the network, we must mark a new primary
+            // operation. This happens if the write action skips the reroute step (ex: rsync) or during
+            // primary delegation, after the primary relocation hand-off.
+            return indexingPressure.markPrimaryOperationStarted(primaryOperationSize(request), forceExecution);
+        }
+    }
+
+    protected long primaryOperationSize(Request request) {
+        return 0;
+    }
+
+    @Override
+    protected Releasable checkReplicaLimits(ReplicaRequest request) {
+        return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), forceExecution);
+    }
+
+    protected long replicaOperationSize(ReplicaRequest request) {
+        return 0;
     }
 
     /** Syncs operation result to the translog or throws a shard not available failure */
@@ -104,18 +153,48 @@ public abstract class TransportWriteAction<
      * and failure async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
     @Override
-    protected abstract void shardOperationOnPrimary(
-            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
+    protected void shardOperationOnPrimary(
+            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
+        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                dispatchedShardOperationOnPrimary(request, primary, listener);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return forceExecution;
+            }
+        });
+    }
+
+    protected abstract void dispatchedShardOperationOnPrimary(
+        Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
      *
-     * @return the result of the operation on replica, including current translog location and operation response and failure
-     * async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code> refresh policy
+     * @param listener listener for the result of the operation on replica, including current translog location and operation
+     * response and failure async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code>
+     * refresh policy
      */
     @Override
-    protected abstract WriteReplicaResult<ReplicaRequest> shardOperationOnReplica(
-            ReplicaRequest request, IndexShard replica) throws Exception;
+    protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        threadPool.executor(executor).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                dispatchedShardOperationOnReplica(request, replica, listener);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        });
+    }
+
+    protected abstract void dispatchedShardOperationOnReplica(
+        ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener);
 
     /**
      * Result of taking the action on the primary.

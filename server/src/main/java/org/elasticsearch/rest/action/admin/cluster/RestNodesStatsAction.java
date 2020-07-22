@@ -38,7 +38,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
@@ -54,20 +53,16 @@ public class RestNodesStatsAction extends BaseRestHandler {
             new Route(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}"));
     }
 
-    static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(
-            entry("os", r -> r.os(true)),
-            entry("jvm", r -> r.jvm(true)),
-            entry("thread_pool", r -> r.threadPool(true)),
-            entry("fs", r -> r.fs(true)),
-            entry("transport", r -> r.transport(true)),
-            entry("http", r -> r.http(true)),
-            entry("indices", r -> r.indices(true)),
-            entry("process", r -> r.process(true)),
-            entry("breaker", r -> r.breaker(true)),
-            entry("script", r -> r.script(true)),
-            entry("discovery", r -> r.discovery(true)),
-            entry("ingest", r -> r.ingest(true)),
-            entry("adaptive_selection", r -> r.adaptiveSelection(true)));
+    static final Map<String, Consumer<NodesStatsRequest>> METRICS;
+
+    static {
+        Map<String, Consumer<NodesStatsRequest>> map = new HashMap<>();
+        for (NodesStatsRequest.Metric metric : NodesStatsRequest.Metric.values()) {
+            map.put(metric.metricName(), request -> request.addMetric(metric.metricName()));
+        }
+        map.put("indices", request -> request.indices(true));
+        METRICS = Collections.unmodifiableMap(map);
+    }
 
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 

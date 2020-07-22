@@ -21,85 +21,82 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NewArrayFuncRefNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
+import org.elasticsearch.painless.symbol.Decorations.MethodNameDecoration;
+import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ReferenceDecoration;
+import org.elasticsearch.painless.symbol.Decorations.ReturnType;
+import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.ValueType;
+import org.elasticsearch.painless.symbol.Decorations.Write;
+import org.elasticsearch.painless.symbol.ScriptScope;
+import org.elasticsearch.painless.symbol.SemanticScope;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a function reference.
  */
-public final class ENewArrayFunctionRef extends AExpression implements ILambda {
-    private final String type;
+public class ENewArrayFunctionRef extends AExpression {
 
-    private SFunction function;
-    private FunctionRef ref;
-    private String defPointer;
+    private final String canonicalTypeName;
 
-    public ENewArrayFunctionRef(Location location, String type) {
-        super(location);
+    public ENewArrayFunctionRef(int identifier, Location location, String canonicalTypeName) {
+        super(identifier, location);
 
-        this.type = Objects.requireNonNull(type);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
     }
 
     @Override
-    Output analyze(ScriptRoot scriptRoot, Scope scope, Input input) {
-        this.input = input;
-        output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNewArrayFunctionRef(this, scope);
+    }
 
-        SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
-        function = new SFunction(
-                location, type, scriptRoot.getNextSyntheticName("newarray"),
-                Collections.singletonList("int"), Collections.singletonList("size"),
-                new SBlock(location, Collections.singletonList(code)), true, true, true, false);
-        function.generateSignature(scriptRoot.getPainlessLookup());
-        function.analyze(scriptRoot);
-        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true, true);
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
+    }
 
-        if (input.expected == null) {
-            ref = null;
-            output.actual = String.class;
-            defPointer = "Sthis." + function.name + ",0";
-        } else {
-            defPointer = null;
-            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
-                    location, input.expected, "this", function.name, 0);
-            output.actual = input.expected;
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        if (semanticScope.getCondition(this, Write.class)) {
+            throw createError(new IllegalArgumentException(
+                    "cannot assign a value to new array function reference with target type [ + " + canonicalTypeName  + "]"));
         }
 
-        return output;
-    }
+        if (semanticScope.getCondition(this, Read.class) == false) {
+            throw createError(new IllegalArgumentException(
+                    "not a statement: new array function reference with target type [" + canonicalTypeName + "] not used"));
+        }
 
-    @Override
-    NewArrayFuncRefNode write(ClassNode classNode) {
-        classNode.addFunctionNode(function.write(classNode));
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+        TargetType targetType = semanticScope.getDecoration(this, TargetType.class);
 
-        NewArrayFuncRefNode newArrayFuncRefNode = new NewArrayFuncRefNode();
+        Class<?> valueType;
+        Class<?> clazz = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
+        semanticScope.putDecoration(this, new ReturnType(clazz));
 
-        newArrayFuncRefNode.setLocation(location);
-        newArrayFuncRefNode.setExpressionType(output.actual);
-        newArrayFuncRefNode.setFuncRef(ref);
+        if (clazz == null) {
+            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
+        }
 
-        return newArrayFuncRefNode;
-    }
+        String name = scriptScope.getNextSyntheticName("newarray");
+        scriptScope.getFunctionTable().addFunction(name, clazz, Collections.singletonList(int.class), true, true);
+        semanticScope.putDecoration(this, new MethodNameDecoration(name));
 
-    @Override
-    public String getPointer() {
-        return defPointer;
-    }
+        if (targetType == null) {
+            String defReferenceEncoding = "Sthis." + name + ",0";
+            valueType = String.class;
+            scriptScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
+        } else {
+            FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
+                    getLocation(), targetType.getTargetType(), "this", name, 0);
+            valueType = targetType.getTargetType();
+            semanticScope.putDecoration(this, new ReferenceDecoration(ref));
+        }
 
-    @Override
-    public List<Class<?>> getCaptures() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public String toString() {
-        return singleLineToString(type + "[]", "new");
+        semanticScope.putDecoration(this, new ValueType(valueType));
     }
 }

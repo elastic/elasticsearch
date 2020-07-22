@@ -90,7 +90,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
         ActionListener<AcknowledgedResponse> listener
     ) {
 
-        if (licenseState.isAuthAllowed()) {
+        if (licenseState.isSecurityEnabled()) {
             RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getPolicy().getIndices())
                 .privileges("read")

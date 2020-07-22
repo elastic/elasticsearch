@@ -40,7 +40,7 @@ IMPORTANT: To complete this tutorial, you must install the default {es} and
 When you install these products, they apply basic licenses with no expiration
 dates. All of the subsequent steps in this tutorial assume that you are using a
 basic license. For more information, see {subscriptions} and
-{stack-ov}/license-management.html[License-management].
+{kibana-ref}/managing-licenses.html[License management].
 
 include::tutorial-tls-certificates.asciidoc[]
 include::tutorial-tls-internode.asciidoc[]

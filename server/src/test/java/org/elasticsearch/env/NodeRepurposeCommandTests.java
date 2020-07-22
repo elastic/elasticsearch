@@ -26,8 +26,9 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -44,11 +44,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_CLEANUP;
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_DATA_TO_CLEAN_UP_FOUND;
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_SHARD_DATA_TO_CLEAN_UP_FOUND;
+import static org.elasticsearch.test.NodeRoles.masterNode;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -72,24 +77,14 @@ public class NodeRepurposeCommandTests extends ESTestCase {
             final String nodeId = randomAlphaOfLength(10);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L, true).createWriter()) {
+                new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
             }
         }
-        dataNoMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .build();
-        noDataNoMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .build();
-        noDataMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true)
-            .build();
+        dataNoMasterSettings = nonMasterNode(dataMasterSettings);
+        noDataNoMasterSettings = removeRoles(dataMasterSettings, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+
+        noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
 
     public void testEarlyExitNoCleanup() throws Exception {
@@ -237,9 +232,9 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                 try (PersistedClusterStateService.Writer writer =
                          ElasticsearchNodeCommand.createPersistedClusterStateService(Settings.EMPTY, env.nodeDataPaths()).createWriter()) {
                     writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT)
-                        .metaData(MetaData.builder().put(IndexMetaData.builder(INDEX.getName())
+                        .metadata(Metadata.builder().put(IndexMetadata.builder(INDEX.getName())
                             .settings(Settings.builder().put("index.version.created", Version.CURRENT)
-                                .put(IndexMetaData.SETTING_INDEX_UUID, INDEX.getUUID()))
+                                .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID()))
                             .numberOfShards(1)
                             .numberOfReplicas(1)).build())
                         .build());

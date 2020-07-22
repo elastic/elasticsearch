@@ -107,7 +107,7 @@ As an alternative to deep paging, we recommend using
 
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices will be
-ignored when frozen. Defaults to `false`.
+ignored when frozen. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.StringJoiner;
@@ -50,6 +52,7 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         StreamInput streamInput = out.bytes().streamInput();
         SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(streamInput);
         assertThat(otherSimulateProcessorResult.getProcessorTag(), equalTo(simulateProcessorResult.getProcessorTag()));
+        assertThat(otherSimulateProcessorResult.getDescription(), equalTo(simulateProcessorResult.getDescription()));
         if (isSuccessful) {
             assertIngestDocument(otherSimulateProcessorResult.getIngestDocument(), simulateProcessorResult.getIngestDocument());
             if (isIgnoredException) {
@@ -67,19 +70,36 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         }
     }
 
+    public void testBWCDescription() throws IOException {
+        boolean isSuccessful = randomBoolean();
+        boolean isIgnoredException = randomBoolean();
+        SimulateProcessorResult simulateProcessorResult = createTestInstance(isSuccessful, isIgnoredException);
+        
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
+        simulateProcessorResult.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        in.setVersion(VersionUtils.getPreviousVersion(Version.V_7_9_0));
+        SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(in);
+        assertNull(otherSimulateProcessorResult.getDescription());
+    }
+
     static SimulateProcessorResult createTestInstance(boolean isSuccessful,
                                                                 boolean isIgnoredException) {
         String processorTag = randomAlphaOfLengthBetween(1, 10);
+        String description = randomAlphaOfLengthBetween(1, 10);
         SimulateProcessorResult simulateProcessorResult;
         if (isSuccessful) {
             IngestDocument ingestDocument = createRandomIngestDoc();
             if (isIgnoredException) {
-                simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument, new IllegalArgumentException("test"));
+                simulateProcessorResult = new SimulateProcessorResult(processorTag, description, ingestDocument,
+                    new IllegalArgumentException("test"));
             } else {
-                simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument);
+                simulateProcessorResult = new SimulateProcessorResult(processorTag, description, ingestDocument);
             }
         } else {
-            simulateProcessorResult = new SimulateProcessorResult(processorTag, new IllegalArgumentException("test"));
+            simulateProcessorResult = new SimulateProcessorResult(processorTag, description,
+                new IllegalArgumentException("test"));
         }
         return simulateProcessorResult;
     }

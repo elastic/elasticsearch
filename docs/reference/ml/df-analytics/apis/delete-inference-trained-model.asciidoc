@@ -27,8 +27,7 @@ built-in roles or equivalent privileges:
 
 * `machine_learning_admin`
 
-For more information, see <<built-in-roles>> and
-{ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
+For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
 
 
 [[ml-delete-inference-path-params]]

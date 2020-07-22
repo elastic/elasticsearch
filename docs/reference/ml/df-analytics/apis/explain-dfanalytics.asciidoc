@@ -33,8 +33,7 @@ privileges:
 
 * cluster: `monitor_ml`
   
-For more information, see <<security-privileges>> and
-{ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 [[ml-explain-dfanalytics-desc]]

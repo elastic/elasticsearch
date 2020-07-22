@@ -24,7 +24,7 @@ If the {es} {security-features} are enabled, you must have the following privile
 * `manage_ml` or cluster: `manage`
 
 For more information, see <<security-privileges>> and
-{ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
+{ml-docs-setup-privileges}.
 
 
 [[ml-estimate-model-memory-request-body]]

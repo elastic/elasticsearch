@@ -23,7 +23,7 @@ Retrieves {anomaly-job} results for one or more categories.
 need `read` index privilege on the index that stores the results. The
 `machine_learning_admin` and `machine_learning_user` roles provide these
 privileges. See <<security-privileges>>, <<built-in-roles>>, and
-{ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
+{ml-docs-setup-privileges}.
 
 [[ml-get-category-desc]]
 == {api-description-title}

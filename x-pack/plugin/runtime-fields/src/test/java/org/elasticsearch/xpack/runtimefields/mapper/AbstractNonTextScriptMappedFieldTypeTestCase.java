@@ -41,7 +41,11 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
         assertThat(
             e.getMessage(),
             equalTo(
-                "Can only use " + queryName + " queries on keyword and text fields - not on [test] which is of type [" + runtimeType() + "]"
+                "Can only use "
+                    + queryName
+                    + " queries on keyword and text fields - not on [test] which is of type [script] with runtime_type ["
+                    + runtimeType()
+                    + "]"
             )
         );
     }
@@ -53,7 +57,7 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
             equalTo(
                 "Can only use "
                     + queryName
-                    + " queries on keyword, text and wildcard fields - not on [test] which is of type ["
+                    + " queries on keyword, text and wildcard fields - not on [test] which is of type [script] with runtime_type ["
                     + runtimeType()
                     + "]"
             )

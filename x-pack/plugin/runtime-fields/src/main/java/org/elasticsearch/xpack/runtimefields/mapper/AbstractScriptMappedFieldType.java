@@ -81,29 +81,15 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         boolean transpositions,
         QueryShardContext context
     ) {
-        throw new IllegalArgumentException(
-            "Can only use fuzzy queries on keyword and text fields - not on [" + name() + "] which is of type [" + runtimeType() + "]"
-        );
+        throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
     }
 
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new IllegalArgumentException(
-            "Can only use prefix queries on keyword, text and wildcard fields - not on ["
-                + name()
-                + "] which is of type ["
-                + runtimeType()
-                + "]"
-        );
+        throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
     }
 
     public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
-        throw new IllegalArgumentException(
-            "Can only use wildcard queries on keyword, text and wildcard fields - not on ["
-                + name()
-                + "] which is of type ["
-                + runtimeType()
-                + "]"
-        );
+        throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
     }
 
     public Query regexpQuery(
@@ -113,35 +99,30 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
         MultiTermQuery.RewriteMethod method,
         QueryShardContext context
     ) {
-        throw new IllegalArgumentException(
-            "Can only use regexp queries on keyword and text fields - not on [" + name() + "] which is of type [" + runtimeType() + "]"
-        );
+        throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
     }
 
     public abstract Query existsQuery(QueryShardContext context);
 
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException(
-            "Can only use phrase queries on text fields - not on [" + name() + "] which is of type [" + runtimeType() + "]"
-        );
+        throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
-        throw new IllegalArgumentException(
-            "Can only use phrase queries on text fields - not on [" + name() + "] which is of type [" + runtimeType() + "]"
-        );
+        throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
-        throw new IllegalArgumentException(
-            "Can only use phrase prefix queries on text fields - not on [" + name() + "] which is of type [" + runtimeType() + "]"
-        );
+        throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
     }
 
     public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
-        throw new IllegalArgumentException(
-            "Can only use span prefix queries on text fields - not on [" + name() + "] which is of type [" + runtimeType() + "]"
-        );
+        throw new IllegalArgumentException(unsupported("span prefix", "text"));
+    }
+
+    private String unsupported(String query, String supported) {
+        String thisField = "[" + name() + "] which is of type [script] with runtime_type [" + runtimeType() + "]";
+        return "Can only use " + query + " queries on " + supported + " fields - not on " + thisField;
     }
 
     protected final void checkAllowExpensiveQueries(QueryShardContext context) {

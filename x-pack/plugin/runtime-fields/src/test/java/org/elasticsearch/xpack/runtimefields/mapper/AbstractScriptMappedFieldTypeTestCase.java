@@ -97,7 +97,13 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         Exception e = expectThrows(IllegalArgumentException.class, buildQuery);
         assertThat(
             e.getMessage(),
-            equalTo("Can only use " + queryName + " queries on text fields - not on [test] which is of type [" + runtimeType() + "]")
+            equalTo(
+                "Can only use "
+                    + queryName
+                    + " queries on text fields - not on [test] which is of type [script] with runtime_type ["
+                    + runtimeType()
+                    + "]"
+            )
         );
     }
 

@@ -950,7 +950,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         coordinationMetadata.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        hashesOfConsistentSettings.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            hashesOfConsistentSettings.writeTo(out);
+        }
         out.writeVInt(indices.size());
         for (IndexMetadata indexMetadata : this) {
             indexMetadata.writeTo(out);

@@ -23,6 +23,16 @@ For additional information about working with the explore API, see the Graph
 
 `POST <target>/_graph/explore`
 
+[discrete]
+[[graph-explore-api-prereqs]]
+==== {api-prereq-title}
+
+The graph explore API is enabled by default.
+
+To disable access to the graph explore API and the Kibana
+{kibana-ref}/graph-getting-started.html[Graph UI], set `xpack.graph.enabled:
+false` in `elasticsearch.yml`.
+
 [float]
 === Description
 

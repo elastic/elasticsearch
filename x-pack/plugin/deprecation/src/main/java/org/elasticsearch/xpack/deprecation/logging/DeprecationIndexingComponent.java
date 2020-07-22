@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.deprecation.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Filter;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -21,15 +20,12 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
-import org.elasticsearch.common.logging.UnionFilter;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 
 import java.util.function.Consumer;
-
-import static org.elasticsearch.common.logging.DeprecationLogger.DEPRECATION_ONLY_FILTER;
 
 /**
  * This component manages the construction and lifecycle of the {@link DeprecationIndexingAppender}.
@@ -49,9 +45,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     public DeprecationIndexingComponent(ThreadPool threadPool, Client client) {
         final Consumer<IndexRequest> consumer = buildIndexRequestConsumer(threadPool, client);
-        final Filter filter = UnionFilter.createFilters(DEPRECATION_ONLY_FILTER, new RateLimitingFilter());
 
-        this.appender = new DeprecationIndexingAppender("DeprecationIndexer", filter, consumer);
+        this.appender = new DeprecationIndexingAppender("DeprecationIndexer", new RateLimitingFilter(), consumer);
     }
 
     @Override
@@ -62,7 +57,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     @Override
     protected void doStop() {
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.appender);
+        this.appender.stop();
     }
 
     @Override

@@ -46,16 +46,6 @@ public class DeprecationLogger {
      */
     public static Level DEPRECATION = Level.forName("DEPRECATION", Level.WARN.intLevel() + 1);
 
-    /**
-     * A level filter that only accepts messages written at the {@link #DEPRECATION} level.
-     */
-    public static final LevelRangeFilter DEPRECATION_ONLY_FILTER = LevelRangeFilter.createFilter(
-        DEPRECATION,
-        DEPRECATION,
-        Filter.Result.ACCEPT,
-        Filter.Result.DENY
-    );
-
     private final Logger logger;
 
     private DeprecationLogger(Logger parentLogger) {

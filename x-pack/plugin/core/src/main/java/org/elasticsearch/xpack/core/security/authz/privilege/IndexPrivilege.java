@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
@@ -65,7 +66,7 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME, DeleteDataStreamAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, GetIndexAction.NAME,
             GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME, ClusterSearchShardsAction.NAME, ValidateQueryAction.NAME + "*",
-            GetSettingsAction.NAME, ExplainLifecycleAction.NAME, GetDataStreamAction.NAME);
+            GetSettingsAction.NAME, ExplainLifecycleAction.NAME, GetDataStreamAction.NAME, ResolveIndexAction.NAME);
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
         CloseIndexAction.NAME + "*");
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");

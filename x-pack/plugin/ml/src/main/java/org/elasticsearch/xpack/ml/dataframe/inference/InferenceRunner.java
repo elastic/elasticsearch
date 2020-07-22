@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -45,18 +47,20 @@ public class InferenceRunner {
     private final ResultsPersisterService resultsPersisterService;
     private final TaskId parentTaskId;
     private final DataFrameAnalyticsConfig config;
+    private final ExtractedFields extractedFields;
     private final ProgressTracker progressTracker;
     private final DataCountsTracker dataCountsTracker;
     private volatile boolean isCancelled;
 
     public InferenceRunner(Client client, ModelLoadingService modelLoadingService, ResultsPersisterService resultsPersisterService,
-                           TaskId parentTaskId, DataFrameAnalyticsConfig config, ProgressTracker progressTracker,
-                           DataCountsTracker dataCountsTracker) {
+                           TaskId parentTaskId, DataFrameAnalyticsConfig config, ExtractedFields extractedFields,
+                           ProgressTracker progressTracker, DataCountsTracker dataCountsTracker) {
         this.client = Objects.requireNonNull(client);
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
         this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
         this.config = Objects.requireNonNull(config);
+        this.extractedFields = Objects.requireNonNull(extractedFields);
         this.progressTracker = Objects.requireNonNull(progressTracker);
         this.dataCountsTracker = Objects.requireNonNull(dataCountsTracker);
     }
@@ -74,7 +78,8 @@ public class InferenceRunner {
         try {
             PlainActionFuture<LocalModel> localModelPlainActionFuture = new PlainActionFuture<>();
             modelLoadingService.getModelForPipeline(modelId, localModelPlainActionFuture);
-            TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config);
+            TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config,
+                extractedFields);
             try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
                 inferTestDocs(localModel, testDocsIterator);
             }
@@ -102,7 +107,7 @@ public class InferenceRunner {
 
             for (SearchHit doc : batch) {
                 dataCountsTracker.incrementTestDocsCount();
-                InferenceResults inferenceResults = model.inferNoStats(new HashMap<>(doc.getSourceAsMap()));
+                InferenceResults inferenceResults = model.inferNoStats(featuresFromDoc(doc));
                 bulkRequest.add(createIndexRequest(doc, inferenceResults, config.getDest().getResultsField()));
 
                 processedDocCount++;
@@ -122,6 +127,17 @@ public class InferenceRunner {
         if (isCancelled == false) {
             progressTracker.updateInferenceProgress(100);
         }
+    }
+
+    private Map<String, Object> featuresFromDoc(SearchHit doc) {
+        Map<String, Object> features = new HashMap<>();
+        for (ExtractedField extractedField : extractedFields.getAllFields()) {
+            Object[] values = extractedField.value(doc);
+            if (values.length == 1) {
+                features.put(extractedField.getName(), values[0]);
+            }
+        }
+        return features;
     }
 
     private IndexRequest createIndexRequest(SearchHit hit, InferenceResults results, String resultField) {

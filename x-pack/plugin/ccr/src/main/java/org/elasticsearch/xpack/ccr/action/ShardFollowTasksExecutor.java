@@ -9,9 +9,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -25,7 +29,9 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -86,6 +92,7 @@ import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.ext
 public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTasksExecutor.class);
+    private static final TimeValue UNBOUNDED_TIMEOUT = TimeValue.timeValueNanos(Long.MAX_VALUE);
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -137,7 +144,23 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  PersistentTasksCustomMetadata.PersistentTask<ShardFollowTask> taskInProgress,
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
-        Client followerClient = wrapClient(client, params.getHeaders());
+        final Client followerClient;
+        if (Assertions.ENABLED) {
+            followerClient = new FilterClient(wrapClient(client, params.getHeaders())) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse>
+                void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                    if (request instanceof MasterNodeRequest) {
+                        final TimeValue masterTimeout = ((MasterNodeRequest<?>) request).masterNodeTimeout();
+                        assert masterTimeout.nanos() == Long.MAX_VALUE :
+                            "The time out of a master node request [" + request + "] on the follower cluster is not set to unbounded";
+                    }
+                    super.doExecute(action, request, listener);
+                }
+            };
+        } else {
+            followerClient = wrapClient(client, params.getHeaders());
+        }
         BiConsumer<TimeValue, Runnable> scheduler = (delay, command) ->
             threadPool.scheduleUnlessShuttingDown(delay, Ccr.CCR_THREAD_POOL_NAME, command);
 
@@ -158,7 +181,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             return;
                         }
                         MappingMetadata mappingMetadata = indexMetadata.mapping();
-                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
+                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata)
+                            .masterNodeTimeout(UNBOUNDED_TIMEOUT);
                         followerClient.admin().indices().putMapping(putMappingRequest, ActionListener.wrap(
                             putMappingResponse -> handler.accept(indexMetadata.getMappingVersion()),
                             errorHandler));
@@ -205,8 +229,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         // if so just update the follower index's settings:
                         if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
                             // If only dynamic settings have been updated then just update these settings in follower index:
-                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName());
-                            updateSettingsRequest.settings(updatedSettings);
+                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName())
+                                .masterNodeTimeout(UNBOUNDED_TIMEOUT)
+                                .settings(updatedSettings);
                             followerClient.admin().indices().updateSettings(updateSettingsRequest,
                                 ActionListener.wrap(response -> finalHandler.accept(leaderIMD.getSettingsVersion()), errorHandler));
                         } else {
@@ -327,7 +352,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     if (aliasActions.isEmpty()) {
                         handler.accept(leaderIndexMetadata.getAliasesVersion());
                     } else {
-                        final var request = new IndicesAliasesRequest();
+                        final var request = new IndicesAliasesRequest().masterNodeTimeout(UNBOUNDED_TIMEOUT);
                         request.origin("ccr");
                         aliasActions.forEach(request::addAliasAction);
                         followerClient.admin().indices().aliases(
@@ -347,7 +372,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                               Settings updatedSettings,
                                                               Runnable handler,
                                                               Consumer<Exception> onFailure) {
-                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex);
+                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex).masterNodeTimeout(UNBOUNDED_TIMEOUT);
                 CheckedConsumer<CloseIndexResponse, Exception> onResponse = response -> {
                     updateSettingsAndOpenIndex(followIndex, updatedSettings, handler, onFailure);
                 };
@@ -358,7 +383,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                     Settings updatedSettings,
                                                     Runnable handler,
                                                     Consumer<Exception> onFailure) {
-                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex);
+                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex)
+                    .masterNodeTimeout(UNBOUNDED_TIMEOUT);
                 updateSettingsRequest.settings(updatedSettings);
                 CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
                 followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
@@ -367,7 +393,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             private void openIndex(String followIndex,
                                    Runnable handler,
                                    Consumer<Exception> onFailure) {
-                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex);
+                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex).masterNodeTimeout(UNBOUNDED_TIMEOUT);
                 CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
                 followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));
             }

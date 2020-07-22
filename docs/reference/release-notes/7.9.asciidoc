@@ -56,17 +56,17 @@ Features/Ingest::
 
 Aggregations::
 * Add moving percentiles pipeline aggregation {es-pull}55441[#55441] (issue: {es-issue}49452[#49452])
-* Add Normalize Pipeline Aggregation {es-pull}56399[#56399] (issue: {es-issue}51005[#51005])
-* Add Variable Width Histogram Aggregation {es-pull}42035[#42035] (issues: {es-issue}9572[#9572], {es-issue}50863[#50863])
-* Pipeline Inference Aggregation {es-pull}58193[#58193]
-* Speed up time interval arounding around dst {es-pull}56371[#56371] (issue: {es-issue}55559[#55559])
+* Add normalize pipeline aggregation {es-pull}56399[#56399] (issue: {es-issue}51005[#51005])
+* Add variable width histogram aggregation {es-pull}42035[#42035] (issues: {es-issue}9572[#9572], {es-issue}50863[#50863])
+* Add pipeline inference aggregation {es-pull}58193[#58193]
+* Speed up time interval arounding around daylight savings time (DST) {es-pull}56371[#56371] (issue: {es-issue}55559[#55559])
 
 Geo::
 * Override doc_value parameter in Spatial XPack module {es-pull}53286[#53286] (issue: {es-issue}37206[#37206])
 
 Machine Learning::
-* Introduce DataFrameAnalyticsConfig update API {es-pull}58302[#58302] (issue: {es-issue}45720[#45720])
-* Introduce ModelPlotConfig.annotations_enabled setting {es-pull}57539[#57539] (issue: {es-issue}55781[#55781])
+* Add update data frame analytics jobs API {es-pull}58302[#58302] (issue: {es-issue}45720[#45720])
+* Introduce model_plot_config.annotations_enabled setting for anomaly detection jobs {es-pull}57539[#57539] (issue: {es-issue}55781[#55781])
 
 Mapping::
 * Merge mappings for composable index templates {es-pull}58521[#58521] (issue: {es-issue}53101[#53101])
@@ -88,7 +88,7 @@ Aggregations::
 * Increase search.max_buckets to 65,535 {es-pull}57042[#57042] (issue: {es-issue}51731[#51731])
 * Optimize date_histograms across daylight savings time {es-pull}55559[#55559]
 * Return clear error message if aggregation type is invalid {es-pull}58255[#58255] (issue: {es-issue}58146[#58146])
-* Save memory on numeric sig terms when not top {es-pull}56789[#56789] (issue: {es-issue}55873[#55873])
+* Save memory on numeric significant terms when not top {es-pull}56789[#56789] (issue: {es-issue}55873[#55873])
 * Save memory when auto_date_histogram is not on top {es-pull}57304[#57304] (issue: {es-issue}56487[#56487])
 * Save memory when date_histogram is not on top {es-pull}56921[#56921] (issues: {es-issue}55873[#55873], {es-issue}56487[#56487])
 * Save memory when histogram agg is not on top {es-pull}57277[#57277]
@@ -115,7 +115,7 @@ Authentication::
 
 Authorization::
 * Add cache for application privileges {es-pull}55836[#55836] (issue: {es-issue}54317[#54317])
-* Add monitor and view_index_metadata to built-in `kibana_system` role {es-pull}57755[#57755]
+* Add monitor and view_index_metadata privileges to built-in `kibana_system` role {es-pull}57755[#57755]
 * Improve role cache efficiency for API key roles {es-pull}58156[#58156] (issue: {es-issue}53939[#53939])
 
 CCR::
@@ -129,7 +129,7 @@ Engine::
 
 Features/Data streams::
 * Add support for snapshot and restore to data streams {es-pull}57675[#57675] (issues: {es-issue}53100[#53100], {es-issue}57127[#57127])
-* DataStream creation validation allows for prefixed indices {es-pull}57750[#57750] (issue: {es-issue}53100[#53100])
+* Data stream creation validation allows for prefixed indices {es-pull}57750[#57750] (issue: {es-issue}53100[#53100])
 * Disallow deletion of composable template if in use by data stream {es-pull}57957[#57957] (issue: {es-issue}57004[#57004])
 * Validate alias operations don't target data streams {es-pull}58327[#58327] (issue: {es-issue}53100[#53100])
 
@@ -143,7 +143,7 @@ Features/Indices APIs::
 * Add default composable templates for new indexing strategy {es-pull}57629[#57629] (issue: {es-issue}56709[#56709])
 * Add index block api {es-pull}58094[#58094]
 * Add new flag to check whether alias exists on remove {es-pull}58100[#58100]
-* Add prefer_v2_templates parameter to Reindex {es-pull}56253[#56253] (issue: {es-issue}53101[#53101])
+* Add prefer_v2_templates parameter to reindex {es-pull}56253[#56253] (issue: {es-issue}53101[#53101])
 * Add template simulation API for simulating template composition {es-pull}56842[#56842] (issues: {es-issue}53101[#53101], {es-issue}55686[#55686], {es-issue}56255[#56255], {es-issue}56390[#56390])
 
 Features/Ingest::
@@ -165,7 +165,7 @@ Infra/Core::
 * Introduce node.roles setting {es-pull}54998[#54998]
 
 Infra/Packaging::
-* Remove DEBUG-level logging from actions in docker {es-pull}57389[#57389] (issues: {es-issue}51198[#51198], {es-issue}51459[#51459])
+* Remove DEBUG-level logging from actions in Docker {es-pull}57389[#57389] (issues: {es-issue}51198[#51198], {es-issue}51459[#51459])
 
 Infra/Plugins::
 * Improved ExtensiblePlugin {es-pull}58234[#58234]
@@ -208,7 +208,7 @@ SQL::
 * Make CASTing string to DATETIME more lenient {es-pull}57451[#57451]
 * Redact credentials in connection exceptions {es-pull}58650[#58650] (issue: {es-issue}56474[#56474])
 * Relax parsing of date/time escaped literals {es-pull}58336[#58336] (issue: {es-issue}58262[#58262])
-* SQL/EQL: Add support for scalars within LIKE/RLIKE {es-pull}56495[#56495] (issue: {es-issue}55058[#55058])
+* Add support for scalars within LIKE/RLIKE {es-pull}56495[#56495] (issue: {es-issue}55058[#55058])
 
 Search::
 * Add description to submit and get async search, as well as cancel tasks {es-pull}57745[#57745]
@@ -220,13 +220,13 @@ Search::
 * Use index sort range query when possible. {es-pull}56657[#56657] (issue: {es-issue}48665[#48665])
 
 Security::
-* Add ML admin permissions to the kibana_system role {es-pull}58061[#58061]
+* Add machine learning admin permissions to the kibana_system role {es-pull}58061[#58061]
 * Just log 401 stacktraces {es-pull}55774[#55774]
 
 Snapshot/Restore::
 * Deduplicate Index Metadata in BlobStore {es-pull}50278[#50278] (issues: {es-issue}45736[#45736], {es-issue}46250[#46250], {es-issue}49800[#49800])
 * Default to zero replicas for searchable snapshots {es-pull}57802[#57802] (issue: {es-issue}50999[#50999])
-* Enable Fully Concurrent Snapshot Operations {es-pull}56911[#56911]
+* Enable fully concurrent snapshot operations {es-pull}56911[#56911]
 * Support cloning of searchable snapshot indices {es-pull}56595[#56595]
 * Track GET/LIST Azure Storage API calls  {es-pull}56773[#56773]
 * Track GET/LIST GoogleCloudStorage API calls {es-pull}56585[#56585]
@@ -264,7 +264,7 @@ Authorization::
 * Change privilege of enrich stats API to monitor {es-pull}52027[#52027] (issue: {es-issue}51677[#51677])
 
 Engine::
-* Fix Local Translog Recovery not Updating Safe Commit in Edge Case {es-pull}57350[#57350] (issue: {es-issue}57010[#57010])
+* Fix local translog recovery not updating safe commit in edge case {es-pull}57350[#57350] (issue: {es-issue}57010[#57010])
 * Hide AlreadyClosedException on IndexCommit release {es-pull}57986[#57986] (issue: {es-issue}57797[#57797])
 
 Features/ILM+SLM::
@@ -282,7 +282,7 @@ Geo::
 * Fix bug in circuit-breaker check for geoshape grid aggregations {es-pull}57962[#57962] (issue: {es-issue}57847[#57847])
 
 Infra/Scripting::
-* Fix Source Return Bug in Scripting {es-pull}56831[#56831] (issue: {es-issue}52103[#52103])
+* Fix source return bug in scripting {es-pull}56831[#56831] (issue: {es-issue}52103[#52103])
 
 Machine Learning::
 * Fix wire serialization for flush acknowledgements {es-pull}58413[#58413]
@@ -301,8 +301,8 @@ Search::
 
 Snapshot/Restore::
 * Account for recovery throttling when restoring snapshot {es-pull}58658[#58658] (issue: {es-issue}57023[#57023])
-* Fix Noisy Logging during Snapshot Delete {es-pull}56264[#56264]
-* Fix S3ClientSettings Leak {es-pull}56703[#56703] (issue: {es-issue}56702[#56702])
+* Fix noisy logging during snapshot delete {es-pull}56264[#56264]
+* Fix S3ClientSettings leak {es-pull}56703[#56703] (issue: {es-issue}56702[#56702])
 
 
 
@@ -312,6 +312,5 @@ Snapshot/Restore::
 
 Search::
 * Update to lucene snapshot e7c625430ed {es-pull}57981[#57981]
-
 
 

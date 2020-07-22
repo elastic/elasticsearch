@@ -48,7 +48,7 @@ EQL (Event Query Language) is a declarative language dedicated for identifying p
 Consider using EQL if you:
 
 * Use {es} for threat hunting or other security use cases
-* Search time-series data or logs, such as network or system logs
+* Search time series data or logs, such as network or system logs
 * Want an easy way to explore relationships between events
 
 A good intro on EQL and its purpose is available
@@ -56,7 +56,7 @@ https://www.elastic.co/blog/introducing-event-query-language[in this blog
 post]. See the <<eql,EQL in Elasticsearch>> documentaton for an in-depth
 explanation, and also the
 https://eql.readthedocs.io/en/latest/query-guide/index.html[language
-reference]
+reference].
 
 This release includes the following features:
 
@@ -72,7 +72,7 @@ An in-depth discussion of EQL in ES scope can be found at {es-issue}49581[#49581
 === Data streams
 
 A _data stream_ is a convenient, scalable way to ingest, search, and manage
-continuously generated time-series data. The provide a simpler way to split
+continuously generated time series data. They provide a simpler way to split
 data across multiple indices and still query it via a single named resource.
 
 See the <<data-streams,Data streams documentation>> to get started.
@@ -194,7 +194,7 @@ recoveries.
 
 {es} now supports a `wildcard` field type, which stores values optimised
 for wildcard grep-like queries. While such queries are possible with other
-field types, they suffer from constraint that limit their usefulness.
+field types, they suffer from constraints that limit their usefulness.
 
 This field type is especially well suited for running grep-like queries on
 log lines. See the <<wildcard,wildcard datatype>> documentation for more

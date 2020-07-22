@@ -45,12 +45,12 @@ should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?s
 --------------------------------------------------
 POST /twitter/_search?scroll=1m
 {
-    "size": 100,
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
+  "size": 100,
+  "query": {
+    "match": {
+      "title": "elasticsearch"
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -61,10 +61,10 @@ results.
 
 [source,console]
 --------------------------------------------------
-POST /_search/scroll <1>
+POST /_search/scroll                                                               <1>
 {
-    "scroll" : "1m", <2>
-    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <3>
+  "scroll" : "1m",                                                                 <2>
+  "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <3>
 }
 --------------------------------------------------
 // TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
@@ -161,7 +161,7 @@ cleared as soon as the scroll is not being used anymore using the
 ---------------------------------------
 DELETE /_search/scroll
 {
-    "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
+  "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 ---------------------------------------
 // TEST[catch:missing]
@@ -172,10 +172,10 @@ Multiple scroll IDs can be passed as array:
 ---------------------------------------
 DELETE /_search/scroll
 {
-    "scroll_id" : [
-      "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==",
-      "DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB"
-    ]
+  "scroll_id" : [
+    "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==",
+    "DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB"
+  ]
 }
 ---------------------------------------
 // TEST[catch:missing]
@@ -206,27 +206,27 @@ can be consumed independently:
 --------------------------------------------------
 GET /twitter/_search?scroll=1m
 {
-    "slice": {
-        "id": 0, <1>
-        "max": 2 <2>
-    },
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
+  "slice": {
+    "id": 0,                      <1>
+    "max": 2                      <2>
+  },
+  "query": {
+    "match": {
+      "title": "elasticsearch"
     }
+  }
 }
 GET /twitter/_search?scroll=1m
 {
-    "slice": {
-        "id": 1,
-        "max": 2
-    },
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
+  "slice": {
+    "id": 1,
+    "max": 2
+  },
+  "query": {
+    "match": {
+      "title": "elasticsearch"
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:big_twitter]
@@ -268,16 +268,16 @@ slice gets deterministic results.
 --------------------------------------------------
 GET /twitter/_search?scroll=1m
 {
-    "slice": {
-        "field": "date",
-        "id": 0,
-        "max": 10
-    },
-    "query": {
-        "match" : {
-            "title" : "elasticsearch"
-        }
+  "slice": {
+    "field": "date",
+    "id": 0,
+    "max": 10
+  },
+  "query": {
+    "match": {
+      "title": "elasticsearch"
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:big_twitter]

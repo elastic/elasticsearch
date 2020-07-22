@@ -46,8 +46,14 @@ public class EDecimal extends AExpression {
         return decimal;
     }
 
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitDecimal(this, input);
+    @Override
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDecimal(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 
     @Override

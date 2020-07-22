@@ -49,7 +49,7 @@ See <<ml-evaluate-dfanalytics-resources>>.
 --
 Available evaluation types:
 
-* `binary_soft_classification`
+* `outlier_detection`
 * `regression`
 * `classification`
 
@@ -66,13 +66,11 @@ source index. See <<query-dsl>>.
 [[ml-evaluate-dfanalytics-resources]]
 == {dfanalytics-cap} evaluation resources
 
-[[binary-sc-resources]]
-=== Binary soft classification evaluation objects
+[[oldetection-resources]]
+=== {oldetection-cap} evaluation objects
 
-Binary soft classification evaluates the results of an analysis which outputs 
-the probability that each document belongs to a certain class. For example, in 
-the context of {oldetection}, the analysis outputs the probability whether each 
-document is an outlier.
+{oldetection-cap} evaluates the results of an {oldetection} analysis which outputs
+the probability that each document is an outlier.
 
 `actual_field`::
   (Required, string) The field of the `index` which contains the `ground truth`. 
@@ -180,8 +178,8 @@ belongs.
 [[ml-evaluate-dfanalytics-results]]
 == {api-response-body-title}
 
-`binary_soft_classification`::
-  (object) If you chose to do binary soft classification, the API returns the
+`outlier_detection`::
+  (object) If you chose to do outlier detection, the API returns the
   following evaluation metrics:
   
 `auc_roc`::: TBD
@@ -198,8 +196,8 @@ belongs.
 == {api-examples-title}
 
 
-[[ml-evaluate-binary-soft-class-example]]
-=== Binary soft classification
+[[ml-evaluate-oldetection-example]]
+=== {oldetection-cap}
 
 [source,console]
 --------------------------------------------------
@@ -207,7 +205,7 @@ POST _ml/data_frame/_evaluate
 {
   "index": "my_analytics_dest_index",
   "evaluation": {
-    "binary_soft_classification": {
+    "outlier_detection": {
       "actual_field": "is_outlier",
       "predicted_probability_field": "ml.outlier_score"
     }
@@ -221,7 +219,7 @@ The API returns the following results:
 [source,console-result]
 ----
 {
-  "binary_soft_classification": {
+  "outlier_detection": {
     "auc_roc": {
       "score": 0.92584757746414444
     },

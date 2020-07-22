@@ -215,6 +215,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
     public void testOverflowToDisk() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
+        // This test repeatedly fails in encryption-at-rest (EAR) builds, and
+        // the only way to detect such a build appears to be the CI job name
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/58806",
+            System.getenv().getOrDefault("JOB_NAME", "not a CI build").contains("EAR"));
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 
@@ -393,7 +397,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
         String jobId = job.getId();
-      
+
         registerJob(job);
         putJob(job);
         openJob(job.getId());
@@ -409,7 +413,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         postData(job.getId(), data.stream().collect(Collectors.joining()));
         flushJob(job.getId(), false);
-      
+
         String forecastId = forecast(jobId, TimeValue.timeValueDays(1000), TimeValue.ZERO);
         waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.values());
 
@@ -453,7 +457,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         postData(job.getId(), data.stream().collect(Collectors.joining()));
         flushJob(job.getId(), false);
-  
+
         // Now we can start doing forecast requests
 
         String forecastId = forecast(job.getId(),
@@ -472,7 +476,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         assertThat(forecastDuration1HourNoExpiry.getRecordCount(), equalTo(1L));
         assertThat(forecasts.size(), equalTo(1));
     }
-  
+
     private void createDataWithLotsOfClientIps(TimeValue bucketSpan, Job.Builder job) {
         long now = Instant.now().getEpochSecond();
         long timestamp = now - 15 * bucketSpan.seconds();

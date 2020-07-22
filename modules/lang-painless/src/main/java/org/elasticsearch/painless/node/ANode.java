@@ -59,8 +59,15 @@ public abstract class ANode {
     /**
      * Callback to visit a user tree node.
      */
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         throw new UnsupportedOperationException("cannot visit user node type [" + getClass().getCanonicalName() + "]");
+    }
+
+    /**
+     * Visits all child user tree nodes for this user tree node.
+     */
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        throw new UnsupportedOperationException("cannot visit children of user node type [" + getClass().getCanonicalName() + "]");
     }
 
     /**

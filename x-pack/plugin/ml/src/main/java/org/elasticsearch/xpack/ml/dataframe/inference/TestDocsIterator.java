@@ -18,18 +18,32 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.ml.dataframe.DestinationIndex;
+import org.elasticsearch.xpack.ml.extractor.ExtractedField;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.utils.persistence.SearchAfterDocumentsIterator;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     private final DataFrameAnalyticsConfig config;
     private String lastDocId;
+    private final Map<String, String> docValueFieldAndFormatPairs;
 
-    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config) {
+    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields) {
         super(client, config.getDest().getIndex(), true);
         this.config = Objects.requireNonNull(config);
+        this.docValueFieldAndFormatPairs = buildDocValueFieldAndFormatPairs(extractedFields);
+    }
+
+    private static Map<String, String> buildDocValueFieldAndFormatPairs(ExtractedFields extractedFields) {
+        Map<String, String> docValueFieldAndFormatPairs = new HashMap<>();
+        for (ExtractedField docValueField : extractedFields.getDocValueFields()) {
+            docValueFieldAndFormatPairs.put(docValueField.getSearchField(), docValueField.getDocValueFormat());
+        }
+        return docValueFieldAndFormatPairs;
     }
 
     @Override
@@ -62,5 +76,10 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
     protected SearchResponse executeSearchRequest(SearchRequest searchRequest) {
         return ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client(),
             () -> client().search(searchRequest).actionGet());
+    }
+
+    @Override
+    protected Map<String, String> docValueFieldAndFormatPairs() {
+        return docValueFieldAndFormatPairs;
     }
 }

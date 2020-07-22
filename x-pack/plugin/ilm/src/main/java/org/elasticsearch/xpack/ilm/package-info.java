@@ -16,8 +16,8 @@
  * {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner} method.
  * This happens in:
  * <ul>
- *  <li>{@link org.elasticsearch.xpack.ilm.IndexLifecycleService#onMaster()} which runs when a master is elected (first election when the
- *      cluster starts up or due to the previous master having stepped down) and executes only
+ *  <li>{org.elasticsearch.xpack.ilm.IndexLifecycleService#clusterChanged(org.elasticsearch.cluster.ClusterChangedEvent)} when a master is
+ *      elected (first election when the cluster starts up or due to the previous master having stepped down) and executes only
  *      {@link org.elasticsearch.xpack.core.ilm.AsyncActionStep}s
  *  </li>
  *  <li>

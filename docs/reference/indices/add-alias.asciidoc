@@ -85,11 +85,11 @@ with a mapping for the `user_id` field:
 --------------------------------------------------
 PUT /users
 {
-    "mappings" : {
-        "properties" : {
-            "user_id" : {"type" : "integer"}
-        }
+  "mappings" : {
+    "properties" : {
+      "user_id" : {"type" : "integer"}
     }
+  }
 }
 --------------------------------------------------
 
@@ -99,12 +99,12 @@ Then add the index alias for a specific user, `user_12`:
 --------------------------------------------------
 PUT /users/_alias/user_12
 {
-    "routing" : "12",
-    "filter" : {
-        "term" : {
-            "user_id" : 12
-        }
+  "routing" : "12",
+  "filter" : {
+    "term" : {
+      "user_id" : 12
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -119,18 +119,18 @@ to add an index alias during index creation.
 --------------------------------------------------
 PUT /logs_20302801
 {
-    "mappings" : {
-        "properties" : {
-            "year" : {"type" : "integer"}
-        }
-    },
-    "aliases" : {
-        "current_day" : {},
-        "2030" : {
-            "filter" : {
-                "term" : {"year" : 2030 }
-            }
-        }
+  "mappings": {
+    "properties": {
+      "year": { "type": "integer" }
     }
+  },
+  "aliases": {
+    "current_day": {},
+    "2030": {
+      "filter": {
+        "term": { "year": 2030 }
+      }
+    }
+  }
 }
 --------------------------------------------------

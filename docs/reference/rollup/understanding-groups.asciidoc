@@ -211,30 +211,30 @@ the best practice is to combine them into a single rollup job which covers both 
 --------------------------------------------------
 PUT _rollup/job/combined
 {
-    "index_pattern": "data-*",
-    "rollup_index": "data_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node", "title"]
-      }
+  "index_pattern": "data-*",
+  "rollup_index": "data_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "price",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node", "title" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "price",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
 // NOTCONSOLE

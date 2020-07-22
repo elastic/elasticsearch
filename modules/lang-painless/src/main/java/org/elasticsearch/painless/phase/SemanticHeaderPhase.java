@@ -28,19 +28,17 @@ import org.elasticsearch.painless.symbol.ScriptScope;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope, Void> {
+public class SemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope> {
 
     @Override
-    public Void visitClass(SClass userClassNode, ScriptScope scriptScope) {
+    public void visitClass(SClass userClassNode, ScriptScope scriptScope) {
         for (SFunction userFunctionNode : userClassNode.getFunctionNodes()) {
             visitFunction(userFunctionNode, scriptScope);
         }
-
-        return null;
     }
 
     @Override
-    public Void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
+    public void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
         String functionName = userFunctionNode.getFunctionName();
         List<String> canonicalTypeNameParameters = userFunctionNode.getCanonicalTypeNameParameters();
         List<String> parameterNames = userFunctionNode.getParameterNames();
@@ -82,7 +80,5 @@ public class SemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope, Void> 
         }
 
         functionTable.addFunction(functionName, returnType, typeParameters, userFunctionNode.isInternal(), userFunctionNode.isStatic());
-
-        return null;
     }
 }

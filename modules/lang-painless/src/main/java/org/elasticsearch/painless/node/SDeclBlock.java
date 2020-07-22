@@ -44,8 +44,15 @@ public class SDeclBlock extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitDeclBlock(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclBlock(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (SDeclaration declarationNode : declarationNodes) {
+            declarationNode.visit(userTreeVisitor, scope);
+        }
     }
 
     @Override

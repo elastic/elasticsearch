@@ -3,7 +3,7 @@
 
 This multi-bucket aggregation is similar to the normal
 <<search-aggregations-bucket-histogram-aggregation,histogram>>, but it can
-only be used with date or date range values. Because dates are represented internally in 
+only be used with date or date range values. Because dates are represented internally in
 Elasticsearch as long values, it is possible, but not as accurate, to use the
 normal `histogram` on dates as well. The main difference in the two APIs is
 that here the interval can be specified using date/time expressions. Time-based
@@ -119,14 +119,14 @@ As an example, here is an aggregation requesting bucket intervals of a month in 
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "month"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -138,14 +138,14 @@ singular calendar units are supported:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "2d"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "2d"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -214,14 +214,14 @@ If we try to recreate the "month" `calendar_interval` from earlier, we can appro
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "fixed_interval" : "30d"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "fixed_interval": "30d"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -232,14 +232,14 @@ But if we try to use a calendar unit that is not supported, such as weeks, we'll
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "fixed_interval" : "2w"
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "fixed_interval": "2w"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -269,10 +269,10 @@ In all cases, when the specified end time does not exist, the actual end time is
 the closest available time after the specified end.
 
 Widely distributed applications must also consider vagaries such as countries that
-start and stop daylight savings time at 12:01 A.M., so end up with one minute of 
+start and stop daylight savings time at 12:01 A.M., so end up with one minute of
 Sunday followed by an additional 59 minutes of Saturday once a year, and countries
 that decide to move across the international date line. Situations like
-that can make irregular time zone offsets seem easy. 
+that can make irregular time zone offsets seem easy.
 
 As always, rigorous testing, especially around time-change events, will ensure
 that your time interval specification is
@@ -303,15 +303,15 @@ TIP: If you don't specify `format`, the first date
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "1M",
-                "format" : "yyyy-MM-dd" <1>
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M",
+        "format": "yyyy-MM-dd" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -323,28 +323,28 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "sales_over_time": {
-            "buckets": [
-                {
-                    "key_as_string": "2015-01-01",
-                    "key": 1420070400000,
-                    "doc_count": 3
-                },
-                {
-                    "key_as_string": "2015-02-01",
-                    "key": 1422748800000,
-                    "doc_count": 2
-                },
-                {
-                    "key_as_string": "2015-03-01",
-                    "key": 1425168000000,
-                    "doc_count": 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": [
+        {
+          "key_as_string": "2015-01-01",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        {
+          "key_as_string": "2015-02-01",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        {
+          "key_as_string": "2015-03-01",
+          "key": 1425168000000,
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -567,16 +567,16 @@ bucket and returns the ranges as a hash rather than an array:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "1M",
-                "format" : "yyyy-MM-dd",
-                "keyed": true
-            }
-        }
+  "aggs": {
+    "sales_over_time": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M",
+        "format": "yyyy-MM-dd",
+        "keyed": true
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -586,28 +586,28 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "sales_over_time": {
-            "buckets": {
-                "2015-01-01": {
-                    "key_as_string": "2015-01-01",
-                    "key": 1420070400000,
-                    "doc_count": 3
-                },
-                "2015-02-01": {
-                    "key_as_string": "2015-02-01",
-                    "key": 1422748800000,
-                    "doc_count": 2
-                },
-                "2015-03-01": {
-                    "key_as_string": "2015-03-01",
-                    "key": 1425168000000,
-                    "doc_count": 2
-                }
-            }
+  ...
+  "aggregations": {
+    "sales_over_time": {
+      "buckets": {
+        "2015-01-01": {
+          "key_as_string": "2015-01-01",
+          "key": 1420070400000,
+          "doc_count": 3
+        },
+        "2015-02-01": {
+          "key_as_string": "2015-02-01",
+          "key": 1422748800000,
+          "doc_count": 2
+        },
+        "2015-03-01": {
+          "key_as_string": "2015-03-01",
+          "key": 1425168000000,
+          "doc_count": 2
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -623,8 +623,10 @@ settings and filter the returned buckets based on a `min_doc_count` setting
 bucket that matches documents and the last one are returned). This histogram
 also supports the `extended_bounds`
 setting, which enables extending the bounds of the histogram beyond the data
-itself. For more information, see
-<<search-aggregations-bucket-histogram-aggregation-extended-bounds,`Extended Bounds`>>.
+itself, and `hard_bounds` that limits the histogram to specified bounds.
+For more information, see
+<<search-aggregations-bucket-histogram-aggregation-extended-bounds,`Extended Bounds`>> and
+<<search-aggregations-bucket-histogram-aggregation-hard-bounds,`Hard Bounds`>>.
 
 ===== Missing value
 
@@ -636,15 +638,15 @@ have a value.
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs" : {
-        "sale_date" : {
-             "date_histogram" : {
-                 "field" : "date",
-                 "calendar_interval": "year",
-                 "missing": "2000/01/01" <1>
-             }
-         }
+  "aggs": {
+    "sale_date": {
+      "date_histogram": {
+        "field": "date",
+        "calendar_interval": "year",
+        "missing": "2000/01/01" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -661,7 +663,7 @@ the `order` setting. This setting supports the same `order` functionality as
 
 ===== Using a script to aggregate by day of the week
 
-When you need to aggregate the results by day of the week, use a script that 
+When you need to aggregate the results by day of the week, use a script that
 returns the day of the week:
 
 
@@ -669,16 +671,16 @@ returns the day of the week:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs": {
-        "dayOfWeek": {
-            "terms": {
-                "script": {
-                    "lang": "painless",
-                    "source": "doc['date'].value.dayOfWeekEnum.value"
-                }
-            }
+  "aggs": {
+    "dayOfWeek": {
+      "terms": {
+        "script": {
+          "lang": "painless",
+          "source": "doc['date'].value.dayOfWeekEnum.value"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]

@@ -78,8 +78,17 @@ public class SEach extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitEach(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitEach(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        iterableNode.visit(userTreeVisitor, scope);
+
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
+        }
     }
 
     @Override

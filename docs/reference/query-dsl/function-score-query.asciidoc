@@ -19,14 +19,14 @@ by the query.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "query": { "match_all": {} },
-            "boost": "5",
-            "random_score": {}, <1>
-            "boost_mode":"multiply"
-        }
+  "query": {
+    "function_score": {
+      "query": { "match_all": {} },
+      "boost": "5",
+      "random_score": {}, <1>
+      "boost_mode": "multiply"
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -41,27 +41,27 @@ given filtering query
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-          "query": { "match_all": {} },
-          "boost": "5", <1>
-          "functions": [
-              {
-                  "filter": { "match": { "test": "bar" } },
-                  "random_score": {}, <2>
-                  "weight": 23
-              },
-              {
-                  "filter": { "match": { "test": "cat" } },
-                  "weight": 42
-              }
-          ],
-          "max_boost": 42,
-          "score_mode": "max",
-          "boost_mode": "multiply",
-          "min_score" : 42
+  "query": {
+    "function_score": {
+      "query": { "match_all": {} },
+      "boost": "5", <1>
+      "functions": [
+        {
+          "filter": { "match": { "test": "bar" } },
+          "random_score": {}, <2>
+          "weight": 23
+        },
+        {
+          "filter": { "match": { "test": "cat" } },
+          "weight": 42
         }
+      ],
+      "max_boost": 42,
+      "score_mode": "max",
+      "boost_mode": "multiply",
+      "min_score": 42
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -137,18 +137,18 @@ simple sample:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "query": {
-                "match": { "message": "elasticsearch" }
-            },
-            "script_score" : {
-                "script" : {
-                  "source": "Math.log(2 + doc['likes'].value)"
-                }
-            }
+  "query": {
+    "function_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script_score": {
+        "script": {
+          "source": "Math.log(2 + doc['likes'].value)"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -175,22 +175,22 @@ same script, and provide parameters to it:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "query": {
-                "match": { "message": "elasticsearch" }
-            },
-            "script_score" : {
-                "script" : {
-                    "params": {
-                        "a": 5,
-                        "b": 1.2
-                    },
-                    "source": "params.a / Math.pow(params.b, doc['likes'].value)"
-                }
-            }
+  "query": {
+    "function_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script_score": {
+        "script": {
+          "params": {
+            "a": 5,
+            "b": 1.2
+          },
+          "source": "params.a / Math.pow(params.b, doc['likes'].value)"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -241,14 +241,14 @@ a lot of memory.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "random_score": {
-                "seed": 10,
-                "field": "_seq_no"
-            }
-        }
+  "query": {
+    "function_score": {
+      "random_score": {
+        "seed": 10,
+        "field": "_seq_no"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -269,16 +269,16 @@ doing so would look like:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "field_value_factor": {
-                "field": "likes",
-                "factor": 1.2,
-                "modifier": "sqrt",
-                "missing": 1
-            }
-        }
+  "query": {
+    "function_score": {
+      "field_value_factor": {
+        "field": "likes",
+        "factor": 1.2,
+        "modifier": "sqrt",
+        "missing": 1
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -380,18 +380,18 @@ days, weeks, and so on. Example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-            "gauss": {
-                "date": {
-                      "origin": "2013-09-17", <1>
-                      "scale": "10d",
-                      "offset": "5d", <2>
-                      "decay" : 0.5 <2>
-                }
-            }
+  "query": {
+    "function_score": {
+      "gauss": {
+        "date": {
+          "origin": "2013-09-17", <1>
+          "scale": "10d",
+          "offset": "5d",         <2>
+          "decay": 0.5            <2>
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]
@@ -578,34 +578,34 @@ the request would look like this:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "function_score": {
-          "functions": [
-            {
-              "gauss": {
-                "price": {
-                  "origin": "0",
-                  "scale": "20"
-                }
-              }
-            },
-            {
-              "gauss": {
-                "location": {
-                  "origin": "11, 12",
-                  "scale": "2km"
-                }
-              }
+  "query": {
+    "function_score": {
+      "functions": [
+        {
+          "gauss": {
+            "price": {
+              "origin": "0",
+              "scale": "20"
             }
-          ],
-          "query": {
-            "match": {
-              "properties": "balcony"
+          }
+        },
+        {
+          "gauss": {
+            "location": {
+              "origin": "11, 12",
+              "scale": "2km"
             }
-          },
-          "score_mode": "multiply"
+          }
         }
+      ],
+      "query": {
+        "match": {
+          "properties": "balcony"
+        }
+      },
+      "score_mode": "multiply"
     }
+  }
 }
 --------------------------------------------------
 

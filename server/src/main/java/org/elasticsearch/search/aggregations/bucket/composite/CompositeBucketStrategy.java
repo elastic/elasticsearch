@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 
 /**
  * This class acts as a bit of syntactic sugar to let us pass in the rounding info for dates or the interval for numeric histograms as one
@@ -29,6 +30,7 @@ public class CompositeBucketStrategy {
     public enum Strategy {
         ROUNDING,
         INTERVAL,
+        GEOTILE,
         NONE
     }
 
@@ -36,9 +38,12 @@ public class CompositeBucketStrategy {
 
     private final String name;
 
-    // At most one of these should be set
     private final Rounding rounding;
     private final double interval;
+
+    private final int precision;
+    private final GeoBoundingBox boundingBox;
+
 
     private CompositeBucketStrategy() {
         throw new UnsupportedOperationException();
@@ -48,20 +53,39 @@ public class CompositeBucketStrategy {
         this.strategy = Strategy.NONE;
         this.name = name;
         this.rounding = null;
+
         this.interval = Double.NaN;
+        this.precision = 0;
+        this.boundingBox = null;
     }
 
     public CompositeBucketStrategy(String name, Rounding rounding) {
         this.strategy = Strategy.ROUNDING;
         this.name = name;
         this.rounding = rounding;
+
         this.interval = Double.NaN;
+        this.precision = 0;
+        this.boundingBox = null;
     }
 
     public CompositeBucketStrategy(String name, double interval) {
         this.strategy = Strategy.INTERVAL;
         this.name = name;
         this.interval = interval;
+
+        this.rounding = null;
+        this.precision = 0;
+        this.boundingBox = null;
+    }
+
+    public CompositeBucketStrategy(String name, int precision, GeoBoundingBox boundingBox) {
+        this.strategy = Strategy.GEOTILE;
+        this.name = name;
+        this.precision = precision;
+        this.boundingBox = boundingBox;
+
+        this.interval = 0;
         this.rounding = null;
     }
 
@@ -73,6 +97,16 @@ public class CompositeBucketStrategy {
     public double getInterval() {
         assert strategy == Strategy.INTERVAL;
         return interval;
+    }
+
+    public int getPrecision() {
+        assert strategy == Strategy.GEOTILE;
+        return precision;
+    }
+
+    public GeoBoundingBox getBoundingBox() {
+        assert strategy == Strategy.GEOTILE;
+        return boundingBox;
     }
 
     public String getName() {

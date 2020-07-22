@@ -36,9 +36,11 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,6 +61,54 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     static GeoTileGridValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new GeoTileGridValuesSourceBuilder(name), null);
+    }
+
+    static void register(ValuesSourceRegistry.Builder builder) {
+
+        builder.registerComposite(
+            TYPE,
+            CoreValuesSourceType.GEOPOINT,
+            (valuesSourceConfig, compositeBucketStrategy, hasScript, format, missingBucket, order) -> {
+                ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
+                // is specified in the builder.
+                final MappedFieldType fieldType = valuesSourceConfig.fieldType();
+                CellIdSource cellIdSource = new CellIdSource(
+                    geoPoint,
+                    compositeBucketStrategy.getPrecision(),
+                    compositeBucketStrategy.getBoundingBox(),
+                    GeoTileUtils::longEncode
+                );
+                return new CompositeValuesSourceConfig(
+                    compositeBucketStrategy.getName(),
+                    fieldType,
+                    cellIdSource,
+                    DocValueFormat.GEOTILE,
+                    order,
+                    missingBucket,
+                    hasScript,
+                    (
+                        BigArrays bigArrays,
+                        IndexReader reader,
+                        int size,
+                        LongConsumer addRequestCircuitBreakerBytes,
+                        CompositeValuesSourceConfig compositeValuesSourceConfig
+
+                    ) -> {
+                        final CellIdSource cis = (CellIdSource) compositeValuesSourceConfig.valuesSource();
+                        return new GeoTileValuesSource(
+                            bigArrays,
+                            compositeValuesSourceConfig.fieldType(),
+                            cis::longValues,
+                            LongUnaryOperator.identity(),
+                            compositeValuesSourceConfig.format(),
+                            compositeValuesSourceConfig.missingBucket(),
+                            size,
+                            compositeValuesSourceConfig.reverseMul()
+                        );
+                    }
+                );
+            }
+        );
     }
 
     private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
@@ -133,35 +183,16 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource orig = config.getValuesSource();
-        if (orig instanceof ValuesSource.GeoPoint) {
-            ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;
-            // is specified in the builder.
-            final MappedFieldType fieldType = config.fieldType();
-            CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, geoBoundingBox, GeoTileUtils::longEncode);
-            return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(),
-                missingBucket(), script() != null,
-                (
-                BigArrays bigArrays,
-                IndexReader reader,
-                int size,
-                LongConsumer addRequestCircuitBreakerBytes,
-                CompositeValuesSourceConfig compositeValuesSourceConfig
-
-            ) -> {
-            final CellIdSource cis = (CellIdSource) compositeValuesSourceConfig.valuesSource();
-            return new GeoTileValuesSource(
-                bigArrays,
-                compositeValuesSourceConfig.fieldType(),
-                cis::longValues,
-                LongUnaryOperator.identity(),
-                compositeValuesSourceConfig.format(),
-                compositeValuesSourceConfig.missingBucket(),
-                size,
-                compositeValuesSourceConfig.reverseMul());});
-        } else {
-            throw new IllegalArgumentException("invalid source, expected geo_point, got " + orig.getClass().getSimpleName());
-        }
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config)
+            .apply(
+                config,
+                new CompositeBucketStrategy(name, precision, geoBoundingBox()),
+                script() != null,
+                format(),
+                missingBucket(),
+                order()
+            );
     }
 
 }

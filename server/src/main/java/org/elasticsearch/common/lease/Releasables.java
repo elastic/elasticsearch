@@ -96,13 +96,13 @@ public enum Releasables {
     }
 
     /**
-     * Equivalent to {@link #wrap(Releasable...)} but can be called multiple times without double releasing.
+     * Wraps a {@link Releasable} such that its {@link Releasable#close()} method can be called multiple times without double releasing.
      */
-    public static Releasable releaseOnce(final Releasable... releasables) {
+    public static Releasable releaseOnce(final Releasable releasable) {
         final AtomicBoolean released = new AtomicBoolean(false);
         return () -> {
             if (released.compareAndSet(false, true)) {
-                close(releasables);
+                releasable.close();
             }
         };
     }

@@ -2103,6 +2103,13 @@ Contains statistics for the cumulative indexing load since the node started.
 .Properties of `<total>`
 [%collapsible%open]
 =======
+`mem`::
+(object)
+Contains statistics for memory consumption from indexing load.
++
+.Properties of `<mem>`
+[%collapsible%open]
+========
 `combined_coordinating_and_primary`::
 (<<byte-units,byte value>>)
 Memory consumed by indexing requests in the coordinating or primary stage. This
@@ -2147,6 +2154,7 @@ Memory consumed by indexing requests in the coordinating, primary, or replica st
 (integer)
 Memory consumed, in bytes, by indexing requests in the coordinating, primary,
 or replica stage.
+========
 
 `coordinating_rejections`::
 (integer)
@@ -2167,6 +2175,13 @@ Contains statistics for current indexing load.
 .Properties of `<current>`
 [%collapsible%open]
 =======
+`mem`::
+(object)
+Contains statistics for memory consumption from indexing load.
++
+.Properties of `<mem>`
+[%collapsible%open]
+========
 `combined_coordinating_and_primary`::
 (<<byte-units,byte value>>)
 Memory consumed by indexing requests in the coordinating or primary stage. This
@@ -2211,6 +2226,7 @@ Memory consumed by indexing requests in the coordinating, primary, or replica st
 (integer)
 Memory consumed, in bytes, by indexing requests in the coordinating, primary,
 or replica stage.
+========
 =======
 ======
 

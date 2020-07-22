@@ -789,7 +789,7 @@ public class WildcardFieldMapperTests extends ESTestCase {
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
-            return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
+            return builder.build(new IndexFieldDataCache.None(), null, null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, xContentRegistry(), null, null, null,

@@ -79,8 +79,13 @@ public class EDot extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitDot(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDot(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        prefixNode.visit(userTreeVisitor, scope);
     }
 
     @Override
@@ -279,7 +284,7 @@ public class EDot extends AExpression {
                                     || !getter.returnType.equals(setter.typeParameters.get(1)))) {
                                 throw createError(new IllegalArgumentException("Shortcut argument types must match."));
                             }
-                            
+
                             if ((read == false || getter != null) && (write == false || setter != null)) {
                                 valueType = setter != null ? setter.typeParameters.get(1) : getter.returnType;
                             } else {

@@ -90,6 +90,7 @@ task createKey(type: LoggedExec) {
     '-keypass', 'keypass',
     '-storepass', 'keypass'
 }
+//no unit tests
 test.enabled = false
 // add keystore to test classpath: it expects it there
 processInternalClusterTestResources {

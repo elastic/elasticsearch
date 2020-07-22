@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package elasticsearch.discovery.azure.classic;
+package org.elasticsearch.discovery.azure.classic;
 
 import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
 import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.node.Node;

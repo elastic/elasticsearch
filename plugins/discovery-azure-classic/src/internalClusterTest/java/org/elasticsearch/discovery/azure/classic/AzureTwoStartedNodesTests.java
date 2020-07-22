@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package elasticsearch.discovery.azure.classic;
+package org.elasticsearch.discovery.azure.classic;
 
-import elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase;
+import org.elasticsearch.cloud.azure.classic.AbstractAzureComputeServiceTestCase;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package elasticsearch.cloud.azure.classic;
+package org.elasticsearch.cloud.azure.classic;
 
 import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
 import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;

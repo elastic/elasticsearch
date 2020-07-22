@@ -112,7 +112,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("indexing_pressure");
         builder.startObject("total");
-        builder.startObject("mem");
+        builder.startObject("memory");
         builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(totalCombinedCoordinatingAndPrimaryBytes));
         builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(totalCoordinatingBytes));
         builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(totalPrimaryBytes));
@@ -124,7 +124,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(REPLICA_REJECTIONS, replicaRejections);
         builder.endObject();
         builder.startObject("current");
-        builder.startObject("mem");
+        builder.startObject("memory");
         builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(currentCombinedCoordinatingAndPrimaryBytes));
         builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(currentCoordinatingBytes));
         builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(currentPrimaryBytes));

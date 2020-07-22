@@ -2103,11 +2103,11 @@ Contains statistics for the cumulative indexing load since the node started.
 .Properties of `<total>`
 [%collapsible%open]
 =======
-`mem`::
+`memory`::
 (object)
 Contains statistics for memory consumption from indexing load.
 +
-.Properties of `<mem>`
+.Properties of `<memory>`
 [%collapsible%open]
 ========
 `combined_coordinating_and_primary`::
@@ -2175,11 +2175,11 @@ Contains statistics for current indexing load.
 .Properties of `<current>`
 [%collapsible%open]
 =======
-`mem`::
+`memory`::
 (object)
 Contains statistics for memory consumption from indexing load.
 +
-.Properties of `<mem>`
+.Properties of `<memory>`
 [%collapsible%open]
 ========
 `combined_coordinating_and_primary`::

@@ -14,22 +14,18 @@
       nodes.stats:
         metric: [ indexing_pressure ]
 
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.combined_coordinating_and_primary_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.coordinating_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.primary_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.replica_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.all_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.combined_coordinating_and_primary_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.coordinating_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.primary_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.replica_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.all_in_bytes: 0 }
 
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.coordinating_rejections: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.primary_rejections: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.total.mem.replica_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.coordinating_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.primary_rejections: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.total.memory.replica_rejections: 0 }
 
-  - gte:  { nodes.$node_id.indexing_pressure.current.mem.combined_coordinating_and_primary_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.current.mem.coordinating_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.current.mem.primary_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.current.mem.replica_in_bytes: 0 }
-  - gte:  { nodes.$node_id.indexing_pressure.current.mem.all_in_bytes: 0 }
-
-# TODO:
-#
-# Change skipped version after backport
+  - gte:  { nodes.$node_id.indexing_pressure.current.memory.combined_coordinating_and_primary_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.memory.coordinating_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.memory.primary_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.memory.replica_in_bytes: 0 }
+  - gte:  { nodes.$node_id.indexing_pressure.current.memory.all_in_bytes: 0 }

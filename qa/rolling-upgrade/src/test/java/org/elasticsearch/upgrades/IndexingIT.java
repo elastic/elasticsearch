@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.either;
  */
 public class IndexingIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59935")
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:
@@ -77,11 +76,13 @@ public class IndexingIT extends AbstractRollingTestCase {
             String recoverQuickly = "{\"settings\": {\"index.unassigned.node_left.delayed_timeout\": \"100ms\"}}";
             Request createIndexWithReplicas = new Request("PUT", "/index_with_replicas");
             createIndexWithReplicas.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createIndexWithReplicas);
             client().performRequest(createIndexWithReplicas);
 
             Request createEmptyIndex = new Request("PUT", "/empty_index");
             // Ask for recovery to be quick
             createEmptyIndex.setJsonEntity(recoverQuickly);
+            useIgnoreMultipleMatchingTemplatesWarningsHandler(createEmptyIndex);
             client().performRequest(createEmptyIndex);
 
             bulk("test_index", "_OLD", 5);

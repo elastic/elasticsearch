@@ -58,6 +58,9 @@ using metrics.
   `http`::
       HTTP connection information.
 
+  `indexing_pressure`::
+        Statistics about the node's indexing load and related rejections.
+
   `indices`::
       Indices stats about size, document count, indexing and deletion times,
       search times, field cache size, merges and flushes.
@@ -1687,17 +1690,6 @@ less than `free_in_bytes`. This is the actual amount of free disk
 space the {es} node can utilise.
 =======
 
-`least_usage_estimate`::
-(object)
-Contains statistics for the file store with the least estimated usage. See
-<<cluster-nodes-stats-fs-data,`fs.data`>> for a list of child parameters.
-
-
-`most_usage_estimate`::
-(object)
-Contains statistics for the file store with the most estimated usage. See
-<<cluster-nodes-stats-fs-data,`fs.data`>> for a list of child parameters.
-
 [[cluster-nodes-stats-fs-data]]
 `data`::
 (array of objects)
@@ -1713,9 +1705,6 @@ Path to the file store.
 `mount`::
 (string)
 Mount point of the file store (ex: /dev/sda2).
-+
-NOTE: This parameter is not provided for the `least_usage_estimate` or
-`most_usage_estimate` file stores.
 
 `type`::
 (string)
@@ -2096,6 +2085,82 @@ Number of failed operations for the processor.
 ==========
 =========
 ========
+=======
+======
+
+[[cluster-nodes-stats-api-response-body-indexing-pressure]]
+`indexing_pressure`::
+(object)
+Contains <<index-modules-indexing-pressure,indexing pressure>> statistics for the node.
++
+.Properties of `indexing_pressure`
+[%collapsible%open]
+======
+`total`::
+(object)
+Contains statistics for the cumulative indexing load since the node started.
++
+.Properties of `<total>`
+[%collapsible%open]
+=======
+`combined_coordinating_and_primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating or primary stage. This
+value is not the sum of coordinating_bytes and primary_bytes as a node can reuse
+the coordinating bytes if the primary stage is executed locally.
+
+`coordinating_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating stage.
+
+`primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the primary stage.
+
+`all_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating, primary, or replica stage.
+
+`coordinating_rejections`::
+(integer)
+Number of indexing requests rejected in the coordinating stage.
+
+`primary_rejections`::
+(integer)
+Number of indexing requests rejected in the primary stage.
+
+`replica_rejections`::
+(integer)
+Number of indexing requests rejected in the replica stage.
+=======
+`current`::
+(object)
+Contains statistics for current indexing load.
++
+.Properties of `<current>`
+[%collapsible%open]
+=======
+`combined_coordinating_and_primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating or primary stage. This
+value is not the sum of coordinating_bytes and primary_bytes as a node can reuse
+the coordinating bytes if the primary stage is executed locally.
+
+`coordinating_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating stage.
+
+`primary_bytes`::
+(integer)
+Bytes consumed by indexing requests in the primary stage.
+
+`replica_bytes`::
+(integer)
+Bytes consumed by indexing requests in the replica stage.
+
+`all_bytes`::
+(integer)
+Bytes consumed by indexing requests in the coordinating, primary, or replica stage.
 =======
 ======
 

@@ -604,7 +604,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foofoobar"));
-            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one indices associated with it"));
+            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one index associated with it"));
         }
 
         {
@@ -612,7 +612,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 new IndexNameExpressionResolver.Context(state, IndicesOptions.strictSingleIndexNoExpandForbidClosed());
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(context, "foo", "foofoobar"));
-            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one indices associated with it"));
+            assertThat(e.getMessage(), containsString("alias [foofoobar] has more than one index associated with it"));
         }
 
         {

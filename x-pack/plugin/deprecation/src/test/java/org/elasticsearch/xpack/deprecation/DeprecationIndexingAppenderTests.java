@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingAppender;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -67,7 +68,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
     public void testWritesMessageWhenServiceEnabled() {
         appender.setEnabled(true);
 
-        when(layout.toByteArray(any())).thenReturn("{ \"some key\": \"some value\" }".getBytes());
+        when(layout.toByteArray(any())).thenReturn("{ \"some key\": \"some value\" }".getBytes(StandardCharsets.UTF_8));
 
         appender.append(mock(LogEvent.class));
 

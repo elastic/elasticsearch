@@ -29,9 +29,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.After;
 
-import java.util.Arrays;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -488,14 +488,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "      }\n" +
             "    }";
         client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping(mapping)
+            .addMapping("_doc", mapping, XContentType.JSON)
             .get();
 
         int totalDocCount = 300;
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < totalDocCount; i++) {
-            List<Object> source = List.of("field_1", i, "field_2", 2 * i);
+            List<Object> source = Arrays.asList("field_1", i, "field_2", 2 * i);
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }

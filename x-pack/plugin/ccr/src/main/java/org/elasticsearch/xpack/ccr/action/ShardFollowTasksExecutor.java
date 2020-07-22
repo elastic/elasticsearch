@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -111,9 +112,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
-        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
-        if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
-            throw new IllegalArgumentException("Not all copies of follow shard are started");
+        final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
+        final ShardRouting primaryShard = routingTable.shard(params.getFollowShardId().id()).primaryShard();
+        if (primaryShard.active() == false) {
+            throw new IllegalArgumentException("The primary shard of a follower index " + primaryShard + " is not active");
         }
     }
 

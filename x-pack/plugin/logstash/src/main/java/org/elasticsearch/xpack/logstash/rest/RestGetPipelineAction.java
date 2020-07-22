@@ -13,7 +13,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.logstash.action.GetPipelineAction;
 import org.elasticsearch.xpack.logstash.action.GetPipelineRequest;
 import org.elasticsearch.xpack.logstash.action.GetPipelineResponse;
@@ -35,7 +34,6 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        client.threadPool().getThreadContext().allowSystemIndexAccess(List.of(Logstash.LOGSTASH_CONCRETE_INDEX_NAME));
         final List<String> ids = List.of(request.paramAsStringArray("id", Strings.EMPTY_ARRAY));
         return restChannel -> client.execute(
             GetPipelineAction.INSTANCE,

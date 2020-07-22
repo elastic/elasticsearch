@@ -15,7 +15,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.action.RestActionListener;
-import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.logstash.Pipeline;
 import org.elasticsearch.xpack.logstash.action.PutPipelineAction;
 import org.elasticsearch.xpack.logstash.action.PutPipelineRequest;
@@ -38,7 +37,6 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        client.threadPool().getThreadContext().allowSystemIndexAccess(List.of(Logstash.LOGSTASH_CONCRETE_INDEX_NAME));
         final String id = request.param("id");
         try (XContentParser parser = request.contentParser()) {
             // parse pipeline for validation

@@ -37,7 +37,7 @@ setup:
 ---
 "search context":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "search context is introduced in 8.0"
   - do:
       open_search_context:
@@ -139,7 +139,7 @@ setup:
 ---
 "Search context with wildcard":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "search context is introduced in 8.0"
   - do:
       open_search_context:

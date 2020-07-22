@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[transform-painless-examples]]
-=== Painless examples for {transforms}
+= Painless examples for {transforms}
 ++++
 <titleabbrev>Painless examples for {transforms}</titleabbrev>
 ++++
@@ -22,10 +22,8 @@ NOTE: While the context of the following examples is the {transform} use case,
 the Painless scripts in the snippets below can be used in other {es} search 
 aggregations, too.
 
-
-[discrete]
 [[painless-top-hits]]
-==== Getting top hits by using scripted metric aggregation
+== Getting top hits by using scripted metric aggregation
 
 This snippet shows how to find the latest document, in other words the document 
 with the earliest timestamp. From a technical perspective, it helps to achieve 
@@ -103,10 +101,8 @@ You can retrieve the last value in a similar way:
 --------------------------------------------------
 // NOTCONSOLE
 
-
-[discrete]
 [[painless-time-features]]
-==== Getting time features by using aggregations
+== Getting time features by using aggregations
 
 This snippet shows how to extract time based features by using Painless in a 
 {transform}. The snippet uses an index where `@timestamp` is defined as a `date` 
@@ -149,10 +145,8 @@ type field.
 <7> Sets `date` based on the timestamp of the document.
 <8> Returns the month value from `date`.
 
-
-[discrete]
 [[painless-group-by]]
-==== Using Painless in `group_by`
+== Using Painless in `group_by`
 
 It is possible to base the `group_by` property of a {transform} on the output of 
 a script. The following example uses the {kib} sample web logs dataset. The goal 
@@ -287,14 +281,12 @@ them. The table below shows how normalization modifies the output of the
 | "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
 |===
 
-
-[discrete]
 [[painless-bucket-script]]
-==== Getting duration by using bucket script
+== Getting duration by using bucket script
 
 This example shows you how to get the duration of a session by client IP from a 
 data log by using 
-{ref}/search-aggregations-pipeline-bucket-script-aggregation.html[bucket script]. 
+<<search-aggregations-pipeline-bucket-script-aggregation,bucket script>>. 
 The example uses the {kib} sample web logs dataset.
 
 [source,console]
@@ -345,10 +337,8 @@ the buckets you want to use for the variable. In this particular case, `min` and
 <3> Finally, the script substracts the start date of the session from the end 
 date which results in the duration of the session.
 
-
-[discrete]
 [[painless-count-http]]
-==== Counting HTTP responses by using scripted metric aggregation
+== Counting HTTP responses by using scripted metric aggregation
 
 You can count the different HTTP response types in a web log data set by using 
 scripted metric aggregation as part of the {transform}. The example below 
@@ -405,10 +395,8 @@ properties of the `counts` object; error responses to the error counts, success
 responses to the success counts, and other responses to the other counts. 
 Finally, returns the `counts` array with the response counts.
 
-
-[discrete]
 [[painless-compare]]
-==== Comparing indices by using scripted metric aggregations
+== Comparing indices by using scripted metric aggregations
 
 This example shows how to compare the content of two indices by a {transform} 
 that uses a scripted metric aggregation. 
@@ -475,9 +463,8 @@ not equal, than it reports back a `count_mismatch`. Then it iterates through all
 the values of the two indices and compare them. If the values are equal, then it 
 returns a `match`, otherwise returns a `mismatch`.
 
-[discrete]
 [[painless-web-session]]
-==== Getting web session details by using scripted metric aggregation
+== Getting web session details by using scripted metric aggregation
 
 This example shows how to derive multiple features from a single transaction. 
 Let's take a look on the example source document from the data:

@@ -180,11 +180,11 @@ Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern
 
 `wait_for_completion`::
 (Optional, boolean)
-If `true`, the request returns a response when the restore operation
-completes.
-+
 If `false`, the request returns a response when the restore operation initializes.
 Defaults to `false`.
++
+If `true`, the request returns a response when the restore operation
+completes.
 
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}

@@ -131,11 +131,6 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         logger.debug("ML memory tracker stopped");
     }
 
-    @Override
-    public String executorName() {
-        return MachineLearning.UTILITY_THREAD_POOL_NAME;
-    }
-
     /**
      * Is the information in this object sufficiently up to date
      * for valid task assignment decisions to be made using it?
@@ -222,7 +217,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
                     e -> logger.warn("Failed to refresh job memory requirements", e)
                 );
-                threadPool.executor(executorName()).execute(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
                     () -> refresh(clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
@@ -339,7 +334,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
-                    mem -> threadPool.executor(executorName()).execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
+                    mem -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
                     refreshComplete::onFailure));
         } else {
             refreshComplete.onResponse(null);

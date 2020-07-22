@@ -19,6 +19,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     private static final String IGNORED_ERROR_FIELD = "ignored_error";
     private final String processorTag;
+    private final String description;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
@@ -62,18 +64,20 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
             true,
             a -> {
                 String processorTag = a[0] == null ? null : (String)a[0];
-                IngestDocument document = a[1] == null ? null : ((WriteableIngestDocument)a[1]).getIngestDocument();
+                String description = a[1] == null ? null : (String)a[1];
+                IngestDocument document = a[2] == null ? null : ((WriteableIngestDocument)a[2]).getIngestDocument();
                 Exception failure = null;
-                if (a[2] != null) {
-                    failure = (ElasticsearchException)a[2];
-                } else if (a[3] != null) {
+                if (a[3] != null) {
                     failure = (ElasticsearchException)a[3];
+                } else if (a[4] != null) {
+                    failure = (ElasticsearchException)a[4];
                 }
-                return new SimulateProcessorResult(processorTag, document, failure);
+                return new SimulateProcessorResult(processorTag, description, document, failure);
             }
         );
     static {
         PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.TAG_KEY));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(ConfigurationUtils.DESCRIPTION_KEY));
         PARSER.declareObject(
             optionalConstructorArg(),
             WriteableIngestDocument.INGEST_DOC_PARSER,
@@ -91,22 +95,24 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         );
     }
 
-    public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument, Exception failure) {
+    public SimulateProcessorResult(String processorTag, String description, IngestDocument ingestDocument,
+                                   Exception failure) {
         this.processorTag = processorTag;
+        this.description = description;
         this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
         this.failure = failure;
     }
 
-    public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
-        this(processorTag, ingestDocument, null);
+    public SimulateProcessorResult(String processorTag, String description, IngestDocument ingestDocument) {
+        this(processorTag, description, ingestDocument, null);
     }
 
-    public SimulateProcessorResult(String processorTag, Exception failure) {
-        this(processorTag, null, failure);
+    public SimulateProcessorResult(String processorTag, String description, Exception failure) {
+        this(processorTag, description, null, failure);
     }
 
-    public SimulateProcessorResult(String processorTag) {
-        this(processorTag, null, null);
+    public SimulateProcessorResult(String processorTag, String description) {
+        this(processorTag, description, null, null);
     }
 
     /**
@@ -116,6 +122,11 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.processorTag = in.readString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
+        if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
+            this.description = in.readOptionalString();
+        } else {
+            this.description = null;
+        }
     }
 
     @Override
@@ -123,6 +134,9 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeOptionalString(description);
+        }
     }
 
     public IngestDocument getIngestDocument() {
@@ -140,6 +154,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         return failure;
     }
 
+    public String getDescription() {
+        return description;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (processorTag == null && failure == null && ingestDocument == null) {
@@ -151,6 +169,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
         if (processorTag != null) {
             builder.field(ConfigurationUtils.TAG_KEY, processorTag);
+        }
+
+        if (description != null) {
+            builder.field(ConfigurationUtils.DESCRIPTION_KEY, description);
         }
 
         if (failure != null && ingestDocument != null) {

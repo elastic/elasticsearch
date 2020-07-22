@@ -106,7 +106,7 @@ public class FsRepository extends BlobStoreRepository {
     protected BlobStore createBlobStore() throws Exception {
         final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
         final Path locationFile = environment.resolveRepoFile(location);
-        return new FsBlobStore(environment.settings(), locationFile, isReadOnly());
+        return new FsBlobStore(bufferSize, locationFile, isReadOnly());
     }
 
     @Override

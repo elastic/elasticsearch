@@ -250,7 +250,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
-                                metadata.settings().get("bucket"), "test", metadata.name(), storageService) {
+                                metadata.settings().get("bucket"), "test", metadata.name(), storageService,
+                            randomIntBetween(1, 8) * 1024) {
                             @Override
                             long getLargeBlobThresholdInBytes() {
                                 return ByteSizeUnit.MB.toBytes(1);

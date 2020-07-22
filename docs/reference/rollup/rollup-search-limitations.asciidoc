@@ -45,14 +45,14 @@ the usage of `avg` here is not allowed:
 --------------------------------------------------
 GET sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "avg_temperature": {
-            "avg": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "avg_temperature": {
+      "avg": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]
@@ -63,19 +63,19 @@ The response will tell you that the field and aggregation were not possible, bec
 [source,console-result]
 ----
 {
-    "error" : {
-        "root_cause" : [
-            {
-                "type" : "illegal_argument_exception",
-                "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
-                "stack_trace": ...
-            }
-        ],
-        "type" : "illegal_argument_exception",
-        "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
         "stack_trace": ...
-    },
-    "status": 400
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+    "stack_trace": ...
+  },
+  "status": 400
 }
 ----
 // TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]

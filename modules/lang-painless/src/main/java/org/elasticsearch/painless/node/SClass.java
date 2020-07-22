@@ -45,8 +45,15 @@ public class SClass extends ANode {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitClass(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitClass(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (SFunction functionNode : functionNodes) {
+            functionNode.visit(userTreeVisitor, scope);
+        }
     }
 
     public void analyze(ScriptScope scriptScope) {

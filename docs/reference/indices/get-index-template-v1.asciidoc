@@ -1,8 +1,12 @@
 [[indices-get-template-v1]]
 === Get index template API
 ++++
-<titleabbrev>Get index template</titleabbrev>
+<titleabbrev>Get index template (legacy)</titleabbrev>
 ++++
+
+IMPORTANT: This documentation is about legacy index templates, 
+which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
+For information about composable templates, <<indices-templates>>.
 
 Returns information about one or more index templates.
 

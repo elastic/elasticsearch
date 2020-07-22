@@ -89,15 +89,17 @@ example above:
    starting to send TCP keepalive probes. A value of `-1` means not to set
    this option at the socket level but to use the system default instead.
    Only applicable on Linux and Mac, and requires Java 11 or newer.
-   Defaults to -1. On applicable configurations, this value is set to 5 minutes
-   if the system default or user-configured setting is higher than that.
+   Defaults to -1. On applicable configurations, this value is set to
+   300 seconds (5 minutes) if the system default or user-configured setting
+   is higher than that. Values above 300 seconds are rejected for this setting.
 * `tcp.keep_interval`: Configures the `TCP_KEEPINTVL` option for this socket,
    which determines the time in seconds between sending TCP keepalive probes.
    A value of `-1` means not to set this option at the socket level but to
    use the system default instead.
    Only applicable on Linux and Mac, and requires Java 11 or newer.
-   Defaults to -1. On applicable configurations, this value is set to 5 minutes
-   if the system default or user-configured setting is higher than that.
+   Defaults to -1. On applicable configurations, this value is set to
+   300 seconds (5 minutes) if the system default or user-configured setting
+   is higher than that. Values above 300 seconds are rejected for this setting.
 * `tcp.keep_count`: Configures the `TCP_KEEPCNT` option for this socket, which
    determines the number of unacknowledged TCP keepalive probes that may be
    sent on a connection before it is dropped. A value of `-1` means not to set

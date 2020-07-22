@@ -69,9 +69,9 @@ the older round robin of search requests, you can use the
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "transient": {
-        "cluster.routing.use_adaptive_replica_selection": false
-    }
+  "transient": {
+    "cluster.routing.use_adaptive_replica_selection": false
+  }
 }
 --------------------------------------------------
 
@@ -232,13 +232,13 @@ match and `relation` indicates whether the value is accurate (`eq`) or a lower b
 [source,js]
 --------------------------------------------------
 {
-    "hits": {
-        "total": {  
-            "value": 1000,
-            "relation": "eq"
-        },
-        ...
-    }
+  "hits": {
+    "total": {
+      "value": 1000,
+      "relation": "eq"
+    },
+    ...
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -273,17 +273,17 @@ documents. If the total number of hits that match the query is greater than this
 [source,js]
 --------------------------------------------------
 {
-     "_shards": ...
-     "timed_out": false,
-     "took": 100,
-     "hits": {
-         "max_score": 1.0,
-         "total" : {
-             "value": 10000,    <1>
-             "relation": "gte"  <2>
-         },
-         "hits": ...
-     }
+  "_shards": ...
+  "timed_out": false,
+  "took": 100,
+  "hits": {
+    "max_score": 1.0,
+    "total": {
+      "value": 10000,    <1>
+      "relation": "gte"  <2>
+    },
+    "hits": ...
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

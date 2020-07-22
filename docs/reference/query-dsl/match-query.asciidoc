@@ -283,14 +283,14 @@ Here is an example showing a query composed of stopwords exclusively:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "to be or not to be",
-                "cutoff_frequency" : 0.001
-            }
-        }
+  "query": {
+    "match": {
+      "message": {
+        "query": "to be or not to be",
+        "cutoff_frequency": 0.001
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[warning:Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]]

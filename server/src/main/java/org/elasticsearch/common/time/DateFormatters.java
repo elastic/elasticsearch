@@ -1644,12 +1644,6 @@ public class DateFormatters {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        FormatNames formatName = FormatNames.forName(input);
-        if (formatName != null && formatName.isCamelCase(input)) {
-            throw new IllegalArgumentException("Camel case format names are no longer supported. " +
-                "Use snake case name " + formatName.getSnakeCaseName() + " instead.");
-        }
-
         if (FormatNames.ISO8601.matches(input)) {
             return ISO_8601;
         } else if (FormatNames.BASIC_DATE.matches(input)) {

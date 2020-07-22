@@ -69,14 +69,6 @@ public class Joda {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        FormatNames formatName = FormatNames.forName(input);
-        if (formatName != null && formatName.isCamelCase(input)) {
-            String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
-                "Use snake case name {} instead.";
-            getDeprecationLogger()
-                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
-        }
-
         DateTimeFormatter formatter;
         if ("basicDate".equals(input) || "basic_date".equals(input)) {
             formatter = ISODateTimeFormat.basicDate();

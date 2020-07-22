@@ -378,7 +378,7 @@ public class DateFormattersTests extends ESTestCase {
         }
     }
 
-    public void testCamelCaseDeprecation() {
+    public void testCamelCaseRemoval() {
         String[] deprecatedNames = new String[]{
             "basicDate", "basicDateTime", "basicDateTimeNoMillis", "basicOrdinalDate", "basicOrdinalDateTime",
             "basicOrdinalDateTimeNoMillis", "basicTime", "basicTimeNoMillis", "basicTTime", "basicTTimeNoMillis",
@@ -398,29 +398,7 @@ public class DateFormattersTests extends ESTestCase {
             "strictWeekyearWeekDay", "strictYear", "strictYearMonth", "strictYearMonthDay"
         };
         for (String name : deprecatedNames) {
-            String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-
-            DateFormatter dateFormatter = DateFormatter.forPattern(name);
-            assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
-            assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                "Use snake case name " + snakeCaseName + " instead.");
-
-            dateFormatter = DateFormatter.forPattern(snakeCaseName);
-            assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
-        }
-
-        for (String name : deprecatedNames) {
-            if (name.equals("strictDateOptionalTimeNanos") == false) {
-                DateFormatter dateFormatter = Joda.forPattern(name);
-                assertThat(dateFormatter.pattern(), equalTo(name));
-
-                String snakeCaseName = FormatNames.forName(name).getSnakeCaseName();
-                assertWarnings("Camel case format name " + name + " is deprecated and will be removed in a future version. " +
-                    "Use snake case name " + snakeCaseName + " instead.");
-
-                dateFormatter = Joda.forPattern(snakeCaseName);
-                assertThat(dateFormatter.pattern(), equalTo(snakeCaseName));
-            }
+            expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(name));
         }
     }
 }

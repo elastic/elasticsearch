@@ -189,7 +189,7 @@ completes.
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}
 
-The following request restores `index_1` and `index_2` from `snapshot_2`. The `rename_pattern` parameter indicates that any index matching the regex pattern `index_(.+)` will be renamed using the pattern `restored_index_$1`, which is defined by the `rename_replacement` parameter.
+The following request restores `index_1` and `index_2` from `snapshot_2`. The `rename_pattern` and `rename_replacement` parameters indicate any index matching the regular expression `index_(.+)` will be renamed using the pattern `restored_index_$1` when restored.
 
 For example, `index_1` will be renamed to `restored_index_1` and `index_2` will be renamed to `restored_index_2`.
 

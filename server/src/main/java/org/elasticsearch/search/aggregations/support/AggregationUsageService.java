@@ -19,12 +19,19 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.search.aggregations.AggregationInfo;
+
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.LongAdder;
 
-public class AggregationUsageService {
+public class AggregationUsageService implements ReportingService<AggregationInfo> {
     private final Map<String, Map<String, LongAdder>> aggs;
+    private final AggregationInfo info;
 
     public static final String OTHER_SUBTYPE = "other";
 
@@ -54,6 +61,10 @@ public class AggregationUsageService {
 
     private AggregationUsageService(Builder builder) {
         this.aggs = builder.aggs;
+        // we use a treemap/treeset here to have a test-able / predictable order
+        Map<String, Set<String>> aggsInfo = new TreeMap<>();
+        aggs.forEach((s, m) -> aggsInfo.put(s, new TreeSet<>(m.keySet())));
+        info = new AggregationInfo(aggsInfo);
     }
 
     public void incAggregationUsage(String aggregationName, String valuesSourceType) {
@@ -84,5 +95,10 @@ public class AggregationUsageService {
             }
         });
         return aggsUsageMap;
+    }
+
+    @Override
+    public AggregationInfo info() {
+        return info;
     }
 }

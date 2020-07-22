@@ -39,6 +39,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.search.aggregations.AggregationInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,10 +48,14 @@ import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -168,12 +173,22 @@ public class NodeInfoStreamingTests extends ESTestCase {
             ingestInfo = new IngestInfo(processors);
         }
 
+        AggregationInfo aggregationInfo = null;
+        if (randomBoolean()) {
+            int numOfAggs = randomIntBetween(0, 10);
+            Map<String, Set<String>> aggs = new TreeMap<>();
+            for (int i=0; i<numOfAggs; i++) {
+                aggs.put(randomAlphaOfLength(10), new TreeSet<>(Arrays.asList(generateRandomStringArray(10,10, false))));
+            }
+            aggregationInfo = new AggregationInfo(aggs);
+        }
+
         ByteSizeValue indexingBuffer = null;
         if (randomBoolean()) {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }
         return new NodeInfo(VersionUtils.randomVersion(random()), build, node, settings, osInfo, process, jvm,
-            threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, indexingBuffer);
+            threadPoolInfo, transport, httpInfo, pluginsAndModules, ingestInfo, aggregationInfo, indexingBuffer);
     }
 }

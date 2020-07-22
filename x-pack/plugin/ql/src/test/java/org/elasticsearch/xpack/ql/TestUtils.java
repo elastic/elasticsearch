@@ -30,18 +30,18 @@ public final class TestUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
 
-    public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
+    public static final Configuration TEST_CFG = new TestConfiguration(UTC, null, null);
 
     private TestUtils() {}
 
     public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(),
+        return new TestConfiguration(randomZone(),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10));
     }
 
     public static Configuration randomConfiguration(ZoneId zoneId) {
-        return new Configuration(zoneId,
+        return new TestConfiguration(zoneId,
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10));
     }

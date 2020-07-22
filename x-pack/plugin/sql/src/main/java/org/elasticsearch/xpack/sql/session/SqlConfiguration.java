@@ -14,7 +14,7 @@ import java.time.ZoneId;
 
 // Typed object holding properties for a given query
 public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
-    
+
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
@@ -73,5 +73,9 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public boolean includeFrozen() {
         return includeFrozenIndices;
+    }
+
+    public boolean isCaseSensitive() {
+        return true;
     }
 }

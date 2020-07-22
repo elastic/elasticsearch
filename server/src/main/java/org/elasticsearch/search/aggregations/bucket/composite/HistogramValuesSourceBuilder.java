@@ -29,11 +29,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongConsumer;
 
@@ -52,6 +55,43 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     }
     static HistogramValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
         return PARSER.parse(parser, new HistogramValuesSourceBuilder(name), null);
+    }
+
+    public static void register(ValuesSourceRegistry.Builder builder) {
+        builder.registerComposite(
+            TYPE,
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            (valuesSourceConfig, compositeBucketStrategy, hasScript, format, missingBucket, order) -> {
+                ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+                final HistogramValuesSource vs = new HistogramValuesSource(numeric, compositeBucketStrategy.getInterval());
+                final MappedFieldType fieldType = valuesSourceConfig.fieldType();
+                return new CompositeValuesSourceConfig(
+                    compositeBucketStrategy.getName(),
+                    fieldType,
+                    vs,
+                    valuesSourceConfig.format(),
+                    order,
+                    missingBucket,
+                    hasScript,
+                    (
+                        BigArrays bigArrays,
+                        IndexReader reader,
+                        int size,
+                        LongConsumer addRequestCircuitBreakerBytes,
+                        CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+                        final ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
+                        return new DoubleValuesSource(
+                            bigArrays,
+                            compositeValuesSourceConfig.fieldType(),
+                            numericValuesSource::doubleValues,
+                            compositeValuesSourceConfig.format(),
+                            compositeValuesSourceConfig.missingBucket(),
+                            size,
+                            compositeValuesSourceConfig.reverseMul()
+                        );
+                    }
+                );
+            });
     }
 
     private double interval = 0;
@@ -114,39 +154,8 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource orig =  config.getValuesSource();
-        if (orig instanceof ValuesSource.Numeric) {
-            ValuesSource.Numeric numeric = (ValuesSource.Numeric) orig;
-            final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);
-            final MappedFieldType fieldType = config.fieldType();
-            return new CompositeValuesSourceConfig(
-                name,
-                fieldType,
-                vs,
-                config.format(),
-                order(),
-                missingBucket(),
-                script() != null,
-                (
-                    BigArrays bigArrays,
-                    IndexReader reader,
-                    int size,
-                    LongConsumer addRequestCircuitBreakerBytes,
-                    CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
-                    final ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
-                    return new DoubleValuesSource(
-                        bigArrays,
-                        compositeValuesSourceConfig.fieldType(),
-                        numericValuesSource::doubleValues,
-                        compositeValuesSourceConfig.format(),
-                        compositeValuesSourceConfig.missingBucket(),
-                        size,
-                        compositeValuesSourceConfig.reverseMul()
-                    );
-                }
-            );
-        } else {
-            throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
-        }
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config)
+            .apply(config, new CompositeBucketStrategy(name, interval), script() != null, format(), missingBucket(), order());
     }
 }

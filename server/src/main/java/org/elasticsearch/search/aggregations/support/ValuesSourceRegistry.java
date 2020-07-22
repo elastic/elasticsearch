@@ -45,6 +45,7 @@ public class ValuesSourceRegistry {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             CompositeBucketStrategy compositeBucketStrategy,
+            boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
             SortOrder order

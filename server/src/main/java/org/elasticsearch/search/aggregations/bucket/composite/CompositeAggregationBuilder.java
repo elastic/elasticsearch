@@ -64,6 +64,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         DateHistogramValuesSourceBuilder.register(builder);
+        HistogramValuesSourceBuilder.register(builder);
         builder.registerUsage(NAME);
     }
 

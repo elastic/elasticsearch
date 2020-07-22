@@ -80,8 +80,14 @@ public class EAssignment extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitAssignment(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitAssignment(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        leftNode.visit(userTreeVisitor, scope);
+        rightNode.visit(userTreeVisitor, scope);
     }
 
     @Override

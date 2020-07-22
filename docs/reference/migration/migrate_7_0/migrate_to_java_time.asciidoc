@@ -240,14 +240,14 @@ The following `my_index_1` index contains a mapping for the `datetime` field, a
 --------------------------------------------------
 PUT my_index_1
 {
-    "mappings" : {
-      "properties" : {
-         "datetime": {
-           "type": "date",
-           "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
-         }
+  "mappings": {
+    "properties": {
+      "datetime": {
+        "type": "date",
+        "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
       }
     }
+  }
 }
 --------------------------------------------------
 ////
@@ -323,10 +323,10 @@ If you use index aliases, update them to point to the new index.
 --------------------------------------------------
 POST /_aliases
 {
-    "actions" : [
-        { "remove" : { "index" : "my_index_1", "alias" : "my_index" } },
-        { "add" : { "index" : "my_index_2", "alias" : "my_index" } }
-    ]
+  "actions" : [
+    { "remove" : { "index" : "my_index_1", "alias" : "my_index" } },
+    { "add" : { "index" : "my_index_2", "alias" : "my_index" } }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]

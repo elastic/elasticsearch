@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -111,11 +110,6 @@ public class SnapshotRetentionService implements LocalNodeMasterListener, Closea
             long now = clock.millis();
             this.retentionTask.triggered(new SchedulerEngine.Event(SLM_RETENTION_MANUAL_JOB_ID, now, now));
         }
-    }
-
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.SAME;
     }
 
     @Override

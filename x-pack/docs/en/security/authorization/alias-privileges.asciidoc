@@ -17,9 +17,6 @@ to control access to a data stream. Any role or user granted privileges to a
 data stream are automatically granted the same privileges to its backing
 indices.
 
-.*Example*
-[%collapsible]
-====
 `logs` is a data stream that consists of two backing indices: `.ds-logs-000001`
 and `.ds-logs-000002`.
 
@@ -96,7 +93,6 @@ DELETE /_index_template/*
 ----
 // TEST[continued]
 ////
-====
 
 [[index-alias-privileges]]
 ==== Index alias privileges

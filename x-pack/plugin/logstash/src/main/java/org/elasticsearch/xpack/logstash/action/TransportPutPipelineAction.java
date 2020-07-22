@@ -13,6 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.logstash.Logstash;
 
 public class TransportPutPipelineAction extends HandledTransportAction<PutPipelineRequest, PutPipelineResponse> {
 
@@ -26,7 +27,7 @@ public class TransportPutPipelineAction extends HandledTransportAction<PutPipeli
 
     @Override
     protected void doExecute(Task task, PutPipelineRequest request, ActionListener<PutPipelineResponse> listener) {
-        client.prepareIndex(".logstash")
+        client.prepareIndex(Logstash.LOGSTASH_CONCRETE_INDEX_NAME)
             .setId(request.id())
             .setSource(request.source(), request.xContentType())
             .execute(

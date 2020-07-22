@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.logstash.Logstash;
 
 public class TransportDeletePipelineAction extends HandledTransportAction<DeletePipelineRequest, DeletePipelineResponse> {
 
@@ -27,7 +28,7 @@ public class TransportDeletePipelineAction extends HandledTransportAction<Delete
 
     @Override
     protected void doExecute(Task task, DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
-        client.prepareDelete(".logstash", request.id())
+        client.prepareDelete(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.id())
             .execute(
                 ActionListener.wrap(
                     deleteResponse -> listener.onResponse(new DeletePipelineResponse(deleteResponse.getResult() == Result.DELETED)),

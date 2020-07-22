@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.logstash.Logstash;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -46,7 +47,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
     @Override
     protected void doExecute(Task task, GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
         if (request.ids().isEmpty()) {
-            client.prepareSearch(".logstash")
+            client.prepareSearch(Logstash.LOGSTASH_CONCRETE_INDEX_NAME)
                 .setSource(
                     SearchSourceBuilder.searchSource()
                         .fetchSource(true)
@@ -77,16 +78,17 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                     handleSearchResponse(searchResponse, pipelineSources, clearScroll, listener);
                 }, listener::onFailure));
         } else if (request.ids().size() == 1) {
-            client.prepareGet(".logstash", request.ids().get(0)).setFetchSource(true).execute(ActionListener.wrap(response -> {
-                if (response.isExists()) {
-                    listener.onResponse(new GetPipelineResponse(Map.of(response.getId(), response.getSourceAsBytesRef())));
-                } else {
-                    listener.onResponse(new GetPipelineResponse(Map.of()));
-                }
-            }, listener::onFailure));
+            client.prepareGet(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids().get(0)).setFetchSource(true)
+                .execute(ActionListener.wrap(response -> {
+                    if (response.isExists()) {
+                        listener.onResponse(new GetPipelineResponse(Map.of(response.getId(), response.getSourceAsBytesRef())));
+                    } else {
+                        listener.onResponse(new GetPipelineResponse(Map.of()));
+                    }
+                }, listener::onFailure));
         } else {
             client.prepareMultiGet()
-                .addIds(".logstash", request.ids())
+                .addIds(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids())
                 .execute(
                     ActionListener.wrap(
                         mGetResponse -> listener.onResponse(

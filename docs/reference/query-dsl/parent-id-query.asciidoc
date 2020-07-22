@@ -24,16 +24,16 @@ the following example.
 ----
 PUT /my-index
 {
-    "mappings": {
-        "properties" : {
-            "my-join-field" : {
-                "type" : "join",
-                "relations": {
-                    "my-parent": "my-child"
-                }
-            }
+  "mappings": {
+    "properties": {
+      "my-join-field": {
+        "type": "join",
+        "relations": {
+          "my-parent": "my-child"
         }
+      }
     }
+  }
 }
 
 ----

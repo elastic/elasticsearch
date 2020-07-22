@@ -429,14 +429,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 // This is what we want to happen
             }
             logger.info("--> snapshot [{}] has been deleted", snapshotName);
-        });
-
-        // Cancel/delete the snapshot
-        try {
-            client().admin().cluster().prepareDeleteSnapshot(REPO, snapshotName).get();
-        } catch (SnapshotMissingException e) {
-            // ignore
-        }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String snapshotName) {

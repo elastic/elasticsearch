@@ -18,23 +18,27 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.After;
 
-import java.util.Arrays;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -443,6 +447,104 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertModelStatePersisted(stateDocId());
         assertInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [regression]",
+            "Estimated memory usage for this analytics to be",
+            "Starting analytics on node",
+            "Started analytics",
+            "Creating destination index [" + destIndex + "]",
+            "Started reindexing to destination index [" + destIndex + "]",
+            "Finished reindexing to destination index [" + destIndex + "]",
+            "Started loading data",
+            "Started analyzing",
+            "Started writing results",
+            "Finished analysis");
+    }
+
+    public void testAliasFields() throws Exception {
+        // The goal of this test is to assert alias fields are included in the analytics job.
+        // We have a simple dataset with two integer fields: field_1 and field_2.
+        // field_2 is double the value of field_1.
+        // We also add an alias to field_1 and we exclude field_1 from the analysis forcing
+        // field_1_alias to be the feature and field_2 to be the dependent variable.
+        // Then we proceed to check the predictions are roughly double the feature value.
+        // If alias fields are not being extracted properly the predictions will be wrong.
+
+        initialize("regression_alias_fields");
+        String predictionField = "field_2_prediction";
+
+        String mapping = "{\n" +
+            "      \"properties\": {\n" +
+            "        \"field_1\": {\n" +
+            "          \"type\": \"integer\"\n" +
+            "        }," +
+            "        \"field_2\": {\n" +
+            "          \"type\": \"integer\"\n" +
+            "        }," +
+            "        \"field_1_alias\": {\n" +
+            "          \"type\": \"alias\",\n" +
+            "          \"path\": \"field_1\"\n" +
+            "        }" +
+            "      }\n" +
+            "    }";
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", mapping, XContentType.JSON)
+            .get();
+
+        int totalDocCount = 300;
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < totalDocCount; i++) {
+            List<Object> source = Arrays.asList("field_1", i, "field_2", 2 * i);
+            IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        Regression regression = new Regression(
+            "field_2",
+            BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
+            null,
+            90.0,
+            null,
+            null,
+            null);
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId(jobId)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null))
+            .setDest(new DataFrameAnalyticsDest(destIndex, null))
+            .setAnalysis(regression)
+            .setAnalyzedFields(new FetchSourceContext(true, null, new String[] {"field_1"}))
+            .build();
+        putAnalytics(config);
+
+        assertIsStopped(jobId);
+        assertProgressIsZero(jobId);
+
+        startAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setSize(totalDocCount).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            Map<String, Object> destDoc = getDestDoc(config, hit);
+            Map<String, Object> resultsObject = getMlResultsObjectFromDestDoc(destDoc);
+
+            int featureValue = (int) destDoc.get("field_1");
+            double predictionValue = (double) resultsObject.get(predictionField);
+            assertThat(predictionValue, closeTo(2 * featureValue, 10.0));
+
+            assertThat(resultsObject.containsKey(predictionField), is(true));
+            assertThat(resultsObject.containsKey("is_training"), is(true));
+        }
+
+        assertProgressComplete(jobId);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertModelStatePersisted(stateDocId());
+        assertInferenceModelPersisted(jobId);
+        assertMlResultsFieldMappings(destIndex, predictionField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
             "Estimated memory usage for this analytics to be",

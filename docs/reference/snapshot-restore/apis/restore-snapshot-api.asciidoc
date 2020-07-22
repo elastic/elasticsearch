@@ -70,7 +70,7 @@ NOTE: You cannot restore a data stream if a stream with the same name already
 exists.
 
 You can run the restore operation on a cluster that contains an elected
-master node and has data nodes with enough capacity to accommodate the snapshot
+<<master-node,master node>> and has data nodes with enough capacity to accommodate the snapshot
 you are restoring. Existing indices can only be restored if they are
 <<indices-close,closed>> and have the same number of shards as the indices in
 the snapshot. The restore operation automatically opens restored indices if

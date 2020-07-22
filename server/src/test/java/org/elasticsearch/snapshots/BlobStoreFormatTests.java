@@ -30,7 +30,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -149,7 +148,7 @@ public class BlobStoreFormatTests extends ESTestCase {
     }
 
     protected BlobStore createTestBlobStore() throws IOException {
-        return new FsBlobStore(Settings.EMPTY, createTempDir(), false);
+        return new FsBlobStore(randomIntBetween(1, 8) * 1024, createTempDir(), false);
     }
 
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {

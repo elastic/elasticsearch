@@ -162,8 +162,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final ThreadPool threadPool;
 
-    private static final int BUFFER_SIZE = 4096;
-
     public static final String SNAPSHOT_PREFIX = "snap-";
 
     public static final String INDEX_FILE_PREFIX = "index-";
@@ -205,6 +203,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Boolean> CACHE_REPOSITORY_DATA =
         Setting.boolSetting("cache_repository_data", true, Setting.Property.Deprecated);
+
+    /**
+     * Size hint for the IO buffer size to use when reading from and writing to the repository.
+     */
+    public static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("io_buffer_size",
+        ByteSizeValue.parseBytesSizeValue("128kb", "io_buffer_size"), ByteSizeValue.parseBytesSizeValue("8kb", "buffer_size"),
+        ByteSizeValue.parseBytesSizeValue("16mb", "io_buffer_size"), Setting.Property.NodeScope);
 
     private final boolean compress;
 
@@ -278,6 +283,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private volatile boolean bestEffortConsistency;
 
     /**
+     * IO buffer size hint for reading and writing to the underlying blob store.
+     */
+    protected final int bufferSize;
+
+    /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
      * @param clusterService ClusterService
@@ -298,6 +308,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
         readOnly = metadata.settings().getAsBoolean("readonly", false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
+        bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
     }
 
     @Override
@@ -2059,7 +2070,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     return container.readBlob(fileInfo.partName(slice));
                                 }
                             })) {
-                                final byte[] buffer = new byte[BUFFER_SIZE];
+                                final byte[] buffer = new byte[Math.toIntExact(Math.min(bufferSize, fileInfo.length()))];
                                 int length;
                                 while ((length = stream.read(buffer)) > 0) {
                                     indexOutput.writeBytes(buffer, 0, length);

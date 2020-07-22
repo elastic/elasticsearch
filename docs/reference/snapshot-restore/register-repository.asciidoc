@@ -7,19 +7,23 @@
 [[snapshots-register-repository-description]]
 // tag::snapshots-register-repository-tag[]
 You must register a snapshot repository before you can perform snapshot and
-restore operations. We recommend creating a new snapshot repository for each
+restore operations. Use the <<put-snapshot-repo-api,put snapshot repository API>> to register or update a snapshot repository. We recommend creating a new snapshot repository for each
 major version. The valid repository settings depend on the repository type.
 
-If you register same snapshot repository with multiple clusters, only
+If you register the same snapshot repository with multiple clusters, only
 one cluster should have write access to the repository. All other clusters
 connected to that repository should set the repository to `readonly` mode.
 // end::snapshots-register-repository-tag[]
-IMPORTANT: The snapshot format can change across major versions, so if you have
-clusters on different versions trying to write the same repository, snapshots
+
+[IMPORTANT]
+====
+The snapshot format can change across major versions, so if you have
+clusters on different versions trying to write to the same repository, snapshots
 written by one version may not be visible to the other and the repository could
 be corrupted. While setting the repository to `readonly` on all but one of the
 clusters should work with multiple clusters differing by one major version, it
 is not a supported configuration.
+====
 
 [source,console]
 -----------------------------------
@@ -33,14 +37,14 @@ PUT /_snapshot/my_backup
 -----------------------------------
 // TESTSETUP
 
-To retrieve information about a registered repository, use a GET request:
+Use the <<get-snapshot-api,get snapshot API>> to retrieve information about a registered repository:
 
 [source,console]
 -----------------------------------
 GET /_snapshot/my_backup
 -----------------------------------
 
-which returns:
+This request returns the following response:
 
 [source,console-result]
 -----------------------------------
@@ -55,7 +59,7 @@ which returns:
 -----------------------------------
 
 To retrieve information about multiple repositories, specify a comma-delimited
-list of repositories. You can also use the * wildcard when
+list of repositories. You can also use a wildcard (`*`) when
 specifying repository names. For example, the following request retrieves
 information about all of the snapshot repositories that start with `repo` or
 contain `backup`:
@@ -66,22 +70,22 @@ GET /_snapshot/repo*,*backup*
 -----------------------------------
 
 To retrieve information about all registered snapshot repositories, omit the
-repository name or specify `_all`:
+repository name:
 
 [source,console]
 -----------------------------------
 GET /_snapshot
 -----------------------------------
 
-or
+Alternatively, you can specify `_all`:
 
 [source,console]
 -----------------------------------
 GET /_snapshot/_all
 -----------------------------------
 
-You can unregister a repository using the <<delete-snapshot-repo-api,delete
-snapshot repository API>>:
+You can unregister a repository using the
+<<delete-snapshot-repo-api,delete snapshot repository API>>:
 
 [source,console]
 -----------------------------------
@@ -151,7 +155,6 @@ PUT /_snapshot/my_fs_backup
 
 The following settings are supported:
 
-[horizontal]
 `location`:: Location of the snapshots. Mandatory.
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. Specify the chunk size as a value and

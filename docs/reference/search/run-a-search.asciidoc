@@ -30,7 +30,7 @@ You can use the search API's <<search-api-query-params-q,`q` query string
 parameter>> to run a search in the request's URI. The `q` parameter only accepts
 queries written in Lucene's <<query-string-syntax,query string syntax>>.
 
-To get started, ingest or add some data to an {es} data stream or index.
+To get started, ingest or add some data to an {es} index.
 
 The following <<docs-bulk,bulk API>> request adds some example server access log
 data to the `my-index-000001` index.

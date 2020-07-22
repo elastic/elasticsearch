@@ -2103,6 +2103,58 @@ Contains statistics for memory consumption from indexing load.
 .Properties of `<memory>`
 [%collapsible%open]
 =======
+`current`::
+(object)
+Contains statistics for current indexing load.
++
+.Properties of `<current>`
+[%collapsible%open]
+========
+`combined_coordinating_and_primary`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating or primary stage. This
+value is not the sum of coordinating and primary as a node can reuse the
+coordinating memory if the primary stage is executed locally.
+
+`combined_coordinating_and_primary_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating or primary
+stage. This value is not the sum of coordinating and primary as a node can
+reuse the coordinating memory if the primary stage is executed locally.
+
+`coordinating`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating stage.
+
+`coordinating_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating stage.
+
+`primary`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the primary stage.
+
+`primary_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the primary stage.
+
+`replica`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the replica stage.
+
+`replica_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the replica stage.
+
+`all`::
+(<<byte-units,byte value>>)
+Memory consumed by indexing requests in the coordinating, primary, or replica stage.
+
+`all_in_bytes`::
+(integer)
+Memory consumed, in bytes, by indexing requests in the coordinating, primary,
+or replica stage.
+========
 `total`::
 (object)
 Contains statistics for the cumulative indexing load since the node started.
@@ -2166,58 +2218,6 @@ Number of indexing requests rejected in the primary stage.
 `replica_rejections`::
 (integer)
 Number of indexing requests rejected in the replica stage.
-========
-`current`::
-(object)
-Contains statistics for current indexing load.
-+
-.Properties of `<current>`
-[%collapsible%open]
-========
-`combined_coordinating_and_primary`::
-(<<byte-units,byte value>>)
-Memory consumed by indexing requests in the coordinating or primary stage. This
-value is not the sum of coordinating and primary as a node can reuse the
-coordinating memory if the primary stage is executed locally.
-
-`combined_coordinating_and_primary_in_bytes`::
-(integer)
-Memory consumed, in bytes, by indexing requests in the coordinating or primary
-stage. This value is not the sum of coordinating and primary as a node can
-reuse the coordinating memory if the primary stage is executed locally.
-
-`coordinating`::
-(<<byte-units,byte value>>)
-Memory consumed by indexing requests in the coordinating stage.
-
-`coordinating_in_bytes`::
-(integer)
-Memory consumed, in bytes, by indexing requests in the coordinating stage.
-
-`primary`::
-(<<byte-units,byte value>>)
-Memory consumed by indexing requests in the primary stage.
-
-`primary_in_bytes`::
-(integer)
-Memory consumed, in bytes, by indexing requests in the primary stage.
-
-`replica`::
-(<<byte-units,byte value>>)
-Memory consumed by indexing requests in the replica stage.
-
-`replica_in_bytes`::
-(integer)
-Memory consumed, in bytes, by indexing requests in the replica stage.
-
-`all`::
-(<<byte-units,byte value>>)
-Memory consumed by indexing requests in the coordinating, primary, or replica stage.
-
-`all_in_bytes`::
-(integer)
-Memory consumed, in bytes, by indexing requests in the coordinating, primary,
-or replica stage.
 ========
 =======
 ======

@@ -32,7 +32,6 @@ import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Map;
 
 public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
     public static final String NAME = "geojson";
@@ -66,7 +65,7 @@ public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
     }
 
     @Override
-    public Map<?, ?> toXContentAsObject(Geometry geometry) {
+    public Object toXContentAsObject(Geometry geometry) {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);

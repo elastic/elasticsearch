@@ -19,8 +19,7 @@ import org.elasticsearch.gradle.info.BuildParams
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.rest-resources'
 
 esplugin {
   description 'The Azure Classic Discovery plugin allows to use Azure Classic API for the unicast discovery mechanism'
@@ -64,7 +63,6 @@ restResources {
     includeCore '_common', 'cluster', 'nodes'
   }
 }
-
 // needed to be consistent with ssl host checking
 String host = InetAddress.getLoopbackAddress().getHostAddress()
 
@@ -90,10 +88,9 @@ task createKey(type: LoggedExec) {
     '-keypass', 'keypass',
     '-storepass', 'keypass'
 }
-//no unit tests
-test.enabled = false
+
 // add keystore to test classpath: it expects it there
-processInternalClusterTestResources {
+processTestResources {
   from createKey
 }
 

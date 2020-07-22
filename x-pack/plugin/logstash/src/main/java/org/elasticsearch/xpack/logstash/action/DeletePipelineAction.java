@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.logstash.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class DeletePipelineAction extends ActionType<org.elasticsearch.xpack.logstash.action.DeletePipelineResponse> {
+public class DeletePipelineAction extends ActionType<DeletePipelineResponse> {
 
     public static final String NAME = "cluster:admin/logstash/pipeline/delete";
     public static final DeletePipelineAction INSTANCE = new DeletePipelineAction();
 
     private DeletePipelineAction() {
-        super(NAME, org.elasticsearch.xpack.logstash.action.DeletePipelineResponse::new);
+        super(NAME, DeletePipelineResponse::new);
     }
 }

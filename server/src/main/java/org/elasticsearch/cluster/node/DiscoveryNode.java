@@ -298,6 +298,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                         throw new AssertionError(legacyRole.roleName());
                 }
             }
+            // we have to assume that an old node has the remote_cluster_client role as it does not serialize that role
+            roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
         }
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
         this.version = Version.readVersion(in);

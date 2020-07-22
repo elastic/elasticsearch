@@ -28,28 +28,36 @@ POST /twitter/_shrink/shrunk-twitter-index
 Before you can shrink an index:
 
 * The index must be read-only.
-* A copy of every shard in the index must reside on the same node.
-* The <<cluster-health, cluster health>> status must be green.
+* All primary shards for the index must reside on the same node.
+* The index must have a `green` <<cluster-health,health status>>.
 
-These three conditions can be achieved with the following request:
+To make shard allocation easier, we recommend you also remove the index's
+replica shards. You can later re-add replica shards as part of the shrink
+operation.
+
+You can use the following <<indices-update-settings,update index settings API>>
+request to remove an index's replica shards, relocates the index's remaining
+shards to the same node, and make the index read-only.
 
 [source,console]
 --------------------------------------------------
 PUT /my_source_index/_settings
 {
   "settings": {
-    "index.routing.allocation.require._name": "shrink_node_name", <1>
-    "index.blocks.write": true <2>
+    "index.number_of_replicas": 0,                                <1>
+    "index.routing.allocation.require._name": "shrink_node_name", <2>
+    "index.blocks.write": true                                    <3>
   }
 }
 --------------------------------------------------
 // TEST[s/^/PUT my_source_index\n{"settings":{"index.number_of_shards":2}}\n/]
 
-<1> Forces the relocation of a copy of each shard to the node with name
-    `shrink_node_name`.  See <<shard-allocation-filtering>> for more options.
+<1> Removes replica shards for the index.
+<2> Relocates the index's shards to the `shrink_node_name` node. 
+    See <<shard-allocation-filtering>>.
+<3> Prevents write operations to this index. Metadata changes, such as deleting
+    the index, are still allowed.
 
-<2> Prevents write operations to this index while still allowing metadata
-    changes like deleting the index.
 
 It can take a while to relocate the source index.  Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,

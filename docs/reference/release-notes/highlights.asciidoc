@@ -106,6 +106,7 @@ assumption that required that they duplicate many data structures once per
 bucket that contained them. The most expensive of these weighed in at a
 couple of kilobytes each. So for an aggregation like:
 
+[source,console]
 ----
 POST _search
 {

@@ -27,6 +27,28 @@ setup:
                     }
                   params:
                     multiplier: 10
+              # Test fetching from _source
+              voltage_times_ten_from_source:
+                type: script
+                runtime_type: long
+                script:
+                  source: |
+                    value((long)(source['voltage'] * params.multiplier));
+                  params:
+                    multiplier: 10
+              # Test fetching many values
+              temperature_digits:
+                type: script
+                runtime_type: long
+                script:
+                  source: |
+                    for (long temperature : doc['temperature']) {
+                      long t = temperature;
+                      while (t != 0) {
+                        value(t % 10);
+                        t /= 10;
+                      }
+                    }
               even_voltage_times_ten:
                 type: script
                 runtime_type: long
@@ -87,8 +109,11 @@ setup:
         index: sensor
         body:
           sort: timestamp
-          docvalue_fields: [voltage_times_ten]
+          docvalue_fields: [voltage_times_ten, voltage_times_ten_from_source, temperature_digits]
   - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.0.fields.voltage_times_ten_from_source: [40] }
+  - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
   - match: {hits.hits.0.fields.voltage_times_ten: [40] }
   - match: {hits.hits.1.fields.voltage_times_ten: [42] }
   - match: {hits.hits.2.fields.voltage_times_ten: [56] }

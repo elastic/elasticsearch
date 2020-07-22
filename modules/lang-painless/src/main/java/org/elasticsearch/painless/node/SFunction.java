@@ -20,18 +20,14 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
-import org.elasticsearch.painless.phase.DefaultSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope.FunctionScope;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -112,52 +108,13 @@ public class SFunction extends ANode {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitFunction(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitFunction(this, scope);
     }
 
-    public static void visitDefaultSemanticHeader(DefaultSemanticHeaderPhase visitor, SFunction userFunctionNode, ScriptScope scriptScope) {
-        String functionName = userFunctionNode.getFunctionName();
-        List<String> canonicalTypeNameParameters = userFunctionNode.getCanonicalTypeNameParameters();
-        List<String> parameterNames = userFunctionNode.getParameterNames();
-
-        if (canonicalTypeNameParameters.size() != parameterNames.size()) {
-            throw userFunctionNode.createError(new IllegalStateException("invalid function definition: " +
-                    "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
-                    "parameter names size [" + parameterNames.size() + "] for function [" + functionName +"]"));
-        }
-
-        FunctionTable functionTable = scriptScope.getFunctionTable();
-        String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
-
-        if (functionTable.getFunction(functionKey) != null) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "found duplicate function [" + functionKey + "]."));
-        }
-
-        PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
-        String returnCanonicalTypeName = userFunctionNode.getReturnCanonicalTypeName();
-        Class<?> returnType = painlessLookup.canonicalTypeNameToType(returnCanonicalTypeName);
-
-        if (returnType == null) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "return type [" + returnCanonicalTypeName + "] not found for function [" + functionKey + "]"));
-        }
-
-        List<Class<?>> typeParameters = new ArrayList<>();
-
-        for (String typeParameter : canonicalTypeNameParameters) {
-            Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
-
-            if (paramType == null) {
-                throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                        "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
-            }
-
-            typeParameters.add(paramType);
-        }
-
-        functionTable.addFunction(functionName, returnType, typeParameters, userFunctionNode.isInternal(), userFunctionNode.isStatic());
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        blockNode.visit(userTreeVisitor, scope);
     }
 
     public static void visitDefaultSemanticAnalysis(

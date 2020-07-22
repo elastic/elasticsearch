@@ -64,8 +64,15 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitConditional(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitConditional(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+        trueNode.visit(userTreeVisitor, scope);
+        falseNode.visit(userTreeVisitor, scope);
     }
 
     public static void visitDefaultSemanticAnalysis(

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-transform]]
-=== Create {transform} API
+= Create {transform} API
 
 [subs="attributes"]
 ++++
@@ -11,12 +11,12 @@
 Instantiates a {transform}.
 
 [[put-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `PUT _transform/<transform_id>`
 
 [[put-transform-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 built-in roles and privileges:
@@ -32,7 +32,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[put-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API defines a {transform}, which copies data from source indices,
 transforms it, and persists it into an entity-centric destination index. The
@@ -64,14 +64,14 @@ IMPORTANT:  You must use {kib} or this API to create a {transform}.
             `.data-frame-internal*` indices.
 
 [[put-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[put-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `defer_validation`::
   (Optional, boolean) When `true`, deferrable validations are not run. This
@@ -80,7 +80,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [role="child_attributes"]
 [[put-transform-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `description`::
   (Optional, string) Free text description of the {transform}.
@@ -204,7 +204,7 @@ delays.
 
 
 [[put-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

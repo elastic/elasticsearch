@@ -28,6 +28,7 @@ import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.DefaultSemanticHeaderPhase;
 import org.elasticsearch.painless.phase.DefaultUserTreeToIRTreeVisitor;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.objectweb.asm.util.Printer;
 
@@ -216,7 +217,8 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new DefaultSemanticHeaderPhase().visitClass(root, scriptScope);
         new DefaultSemanticAnalysisPhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
+        new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptScope, classNode);
         byte[] bytes = classNode.write();
@@ -248,7 +250,8 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new DefaultSemanticHeaderPhase().visitClass(root, scriptScope);
         new DefaultSemanticAnalysisPhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
+        new DefaultUserTreeToIRTreeVisitor().visitClass(root, scriptScope);
+        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         classNode.setDebugStream(debugStream);
         DefBootstrapInjectionPhase.phase(classNode);
         ScriptInjectionPhase.phase(scriptScope, classNode);

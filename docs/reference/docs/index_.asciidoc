@@ -11,7 +11,7 @@ it searchable. If the target is an index and the document already exists,
 the request updates the document and increments its version.
 
 NOTE: You cannot use the index API to send update requests for existing
-documents to a data stream. See <<update-delete-docs-in-a-data-stream>>
+documents to a data stream. See <<update-docs-in-a-data-stream-by-query>>
 and <<update-delete-docs-in-a-backing-index>>.
 
 [[docs-index-api-request]]

@@ -69,8 +69,14 @@ public class EBinary extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitBinary(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitBinary(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        leftNode.visit(userTreeVisitor, scope);
+        rightNode.visit(userTreeVisitor, scope);
     }
 
     public static void visitDefaultSemanticAnalysis(
@@ -97,7 +103,7 @@ public class EBinary extends AExpression {
         semanticScope.setCondition(userRightNode, Read.class);
         visitor.checkedVisit(userRightNode, semanticScope);
         Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
-        
+
         Class<?> valueType;
         Class<?> binaryType;
         Class<?> shiftType = null;
@@ -145,7 +151,7 @@ public class EBinary extends AExpression {
                         ((EBinary)userLeftNode).getOperation() == Operation.ADD && leftValueType == String.class) {
                     semanticScope.setCondition(userLeftNode, Concatenate.class);
                 }
-                
+
                 if (userRightNode instanceof EBinary &&
                         ((EBinary)userRightNode).getOperation() == Operation.ADD && rightValueType == String.class) {
                     semanticScope.setCondition(userRightNode, Concatenate.class);

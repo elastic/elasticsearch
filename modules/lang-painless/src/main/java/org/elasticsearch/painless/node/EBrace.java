@@ -66,8 +66,14 @@ public class EBrace extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitBrace(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitBrace(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        prefixNode.visit(userTreeVisitor, scope);
+        indexNode.visit(userTreeVisitor, scope);
     }
 
     public static void visitDefaultSemanticAnalysis(

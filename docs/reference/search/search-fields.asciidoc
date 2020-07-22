@@ -48,8 +48,8 @@ GET /_search
 {
   "_source": false,
   "query": {
-    "term": {
-      "user.id": "8a4f500d"
+    "match": {
+      "user.id": "kimchy"
     }
   }
 }
@@ -65,8 +65,8 @@ GET /_search
 {
   "_source": "obj.*",
   "query": {
-    "term": {
-      "user.id": "8a4f500d"
+    "match": {
+      "user.id": "kimchy"
     }
   }
 }
@@ -82,8 +82,8 @@ GET /_search
 {
   "_source": [ "obj1.*", "obj2.*" ],
   "query": {
-    "term": {
-      "user.id": "8a4f500d"
+    "match": {
+      "user.id": "kimchy"
     }
   }
 }
@@ -112,7 +112,7 @@ GET /_search
   },
   "query": {
     "term": {
-      "user.id": "8a4f500d"
+      "user.id": "kimchy"
     }
   }
 }

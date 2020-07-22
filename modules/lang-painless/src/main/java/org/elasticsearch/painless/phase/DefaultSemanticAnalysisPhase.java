@@ -23,6 +23,7 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.node.AExpression;
+import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.EAssignment;
 import org.elasticsearch.painless.node.EBinary;
 import org.elasticsearch.painless.node.EBooleanComp;
@@ -78,7 +79,7 @@ import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.painless.symbol.SemanticScope;
 
-public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticScope, Void> {
+public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticScope> {
 
     public void decorateWithCast(AExpression userExpressionNode, SemanticScope semanticScope) {
         Location location = userExpressionNode.getLocation();
@@ -94,21 +95,30 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
     }
 
+    public void visit(ANode userNode, SemanticScope semanticScope) {
+        if (userNode != null) {
+            userNode.visit(this, semanticScope);
+        }
+    }
+
     public void checkedVisit(AExpression userExpressionNode, SemanticScope semanticScope) {
-        visit(userExpressionNode, semanticScope);
+        if (userExpressionNode != null) {
+            userExpressionNode.visit(this, semanticScope);
 
-        if (semanticScope.hasDecoration(userExpressionNode, PartialCanonicalTypeName.class)) {
-            throw userExpressionNode.createError(new IllegalArgumentException("cannot resolve symbol [" +
-                    semanticScope.getDecoration(userExpressionNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() + "]"));
-        }
+            if (semanticScope.hasDecoration(userExpressionNode, PartialCanonicalTypeName.class)) {
+                throw userExpressionNode.createError(new IllegalArgumentException("cannot resolve symbol [" +
+                        semanticScope.getDecoration(userExpressionNode, PartialCanonicalTypeName.class).getPartialCanonicalTypeName() +
+                        "]"));
+            }
 
-        if (semanticScope.hasDecoration(userExpressionNode, StaticType .class)) {
-            throw userExpressionNode.createError(new IllegalArgumentException("value required: instead found unexpected type " +
-                    "[" + semanticScope.getDecoration(userExpressionNode, StaticType.class).getStaticCanonicalTypeName() + "]"));
-        }
+            if (semanticScope.hasDecoration(userExpressionNode, StaticType.class)) {
+                throw userExpressionNode.createError(new IllegalArgumentException("value required: instead found unexpected type " +
+                        "[" + semanticScope.getDecoration(userExpressionNode, StaticType.class).getStaticCanonicalTypeName() + "]"));
+            }
 
-        if (semanticScope.hasDecoration(userExpressionNode, ValueType.class) == false) {
-            throw userExpressionNode.createError(new IllegalStateException("value required: instead found no value"));
+            if (semanticScope.hasDecoration(userExpressionNode, ValueType.class) == false) {
+                throw userExpressionNode.createError(new IllegalStateException("value required: instead found no value"));
+            }
         }
     }
 
@@ -121,303 +131,303 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     }
 
     @Override
-    public Void visitBlock(SBlock userBlockNode, SemanticScope semanticScope) {
+    public void visitBlock(SBlock userBlockNode, SemanticScope semanticScope) {
         SBlock.visitDefaultSemanticAnalysis(this, userBlockNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitIf(SIf userIfNode, SemanticScope semanticScope) {
+    public void visitIf(SIf userIfNode, SemanticScope semanticScope) {
         SIf.visitDefaultSemanticAnalysis(this, userIfNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitIfElse(SIfElse userIfElseNode, SemanticScope semanticScope) {
+    public void visitIfElse(SIfElse userIfElseNode, SemanticScope semanticScope) {
         SIfElse.visitDefaultSemanticAnalysis(this, userIfElseNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitWhile(SWhile userWhileNode, SemanticScope semanticScope) {
+    public void visitWhile(SWhile userWhileNode, SemanticScope semanticScope) {
         SWhile.visitDefaultSemanticAnalysis(this, userWhileNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitDo(SDo userDoNode, SemanticScope semanticScope) {
+    public void visitDo(SDo userDoNode, SemanticScope semanticScope) {
         SDo.visitDefaultSemanticAnalysis(this, userDoNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitFor(SFor userForNode, SemanticScope semanticScope) {
+    public void visitFor(SFor userForNode, SemanticScope semanticScope) {
         SFor.visitDefaultSemanticAnalysis(this, userForNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitEach(SEach userEachNode, SemanticScope semanticScope) {
+    public void visitEach(SEach userEachNode, SemanticScope semanticScope) {
         SEach.visitDefaultSemanticAnalysis(this, userEachNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitDeclBlock(SDeclBlock userDeclBlockNode, SemanticScope semanticScope) {
+    public void visitDeclBlock(SDeclBlock userDeclBlockNode, SemanticScope semanticScope) {
         SDeclBlock.visitDefaultSemanticAnalysis(this, userDeclBlockNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitDeclaration(SDeclaration userDeclarationNode, SemanticScope semanticScope) {
+    public void visitDeclaration(SDeclaration userDeclarationNode, SemanticScope semanticScope) {
         SDeclaration.visitDefaultSemanticAnalysis(this, userDeclarationNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitReturn(SReturn userReturnNode, SemanticScope semanticScope) {
+    public void visitReturn(SReturn userReturnNode, SemanticScope semanticScope) {
         SReturn.visitDefaultSemanticAnalysis(this, userReturnNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitExpression(SExpression userExpressionNode, SemanticScope semanticScope) {
+    public void visitExpression(SExpression userExpressionNode, SemanticScope semanticScope) {
         SExpression.visitDefaultSemanticAnalysis(this, userExpressionNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitTry(STry userTryNode, SemanticScope semanticScope) {
+    public void visitTry(STry userTryNode, SemanticScope semanticScope) {
         STry.visitDefaultSemanticAnalysis(this, userTryNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitCatch(SCatch userCatchNode, SemanticScope semanticScope) {
+    public void visitCatch(SCatch userCatchNode, SemanticScope semanticScope) {
         SCatch.visitDefaultSemanticAnalysis(this, userCatchNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitThrow(SThrow userThrowNode, SemanticScope semanticScope) {
+    public void visitThrow(SThrow userThrowNode, SemanticScope semanticScope) {
         SThrow.visitDefaultSemanticAnalysis(this, userThrowNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitContinue(SContinue userContinueNode, SemanticScope semanticScope) {
+    public void visitContinue(SContinue userContinueNode, SemanticScope semanticScope) {
         SContinue.visitDefaultSemanticAnalysis(this, userContinueNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitBreak(SBreak userBreakNode, SemanticScope semanticScope) {
+    public void visitBreak(SBreak userBreakNode, SemanticScope semanticScope) {
         SBreak.visitDefaultSemanticAnalysis(this, userBreakNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitAssignment(EAssignment userAssignmentNode, SemanticScope semanticScope) {
+    public void visitAssignment(EAssignment userAssignmentNode, SemanticScope semanticScope) {
         EAssignment.visitDefaultSemanticAnalysis(this, userAssignmentNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitUnary(EUnary userUnaryNode, SemanticScope semanticScope) {
+    public void visitUnary(EUnary userUnaryNode, SemanticScope semanticScope) {
         EUnary.visitDefaultSemanticAnalysis(this, userUnaryNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitBinary(EBinary userBinaryNode, SemanticScope semanticScope) {
+    public void visitBinary(EBinary userBinaryNode, SemanticScope semanticScope) {
         EBinary.visitDefaultSemanticAnalysis(this, userBinaryNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitBool(EBooleanComp userBoolNode, SemanticScope semanticScope) {
-        EBooleanComp.visitDefaultSemanticAnalysis(this, userBoolNode, semanticScope);
+    public void visitBooleanComp(EBooleanComp userBooleanCompNode, SemanticScope semanticScope) {
+        EBooleanComp.visitDefaultSemanticAnalysis(this, userBooleanCompNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitComp(EComp userCompNode, SemanticScope semanticScope) {
+    public void visitComp(EComp userCompNode, SemanticScope semanticScope) {
         EComp.visitDefaultSemanticAnalysis(this, userCompNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitExplicit(EExplicit userExplicitNode, SemanticScope semanticScope) {
+    public void visitExplicit(EExplicit userExplicitNode, SemanticScope semanticScope) {
         EExplicit.visitDefaultSemanticAnalysis(this, userExplicitNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitInstanceof(EInstanceof userInstanceofNode, SemanticScope semanticScope) {
+    public void visitInstanceof(EInstanceof userInstanceofNode, SemanticScope semanticScope) {
         EInstanceof.visitDefaultSemanticAnalysis(this, userInstanceofNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitConditional(EConditional userConditionalNode, SemanticScope semanticScope) {
+    public void visitConditional(EConditional userConditionalNode, SemanticScope semanticScope) {
         EConditional.visitDefaultSemanticAnalysis(this, userConditionalNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitElvis(EElvis userElvisNode, SemanticScope semanticScope) {
+    public void visitElvis(EElvis userElvisNode, SemanticScope semanticScope) {
         EElvis.visitDefaultSemanticAnalysis(this, userElvisNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitListInit(EListInit userListInitNode, SemanticScope semanticScope) {
+    public void visitListInit(EListInit userListInitNode, SemanticScope semanticScope) {
         EListInit.visitDefaultSemanticAnalysis(this, userListInitNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitMapInit(EMapInit userMapInitNode, SemanticScope semanticScope) {
+    public void visitMapInit(EMapInit userMapInitNode, SemanticScope semanticScope) {
         EMapInit.visitDefaultSemanticAnalysis(this, userMapInitNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitNewArray(ENewArray userNewArrayNode, SemanticScope semanticScope) {
+    public void visitNewArray(ENewArray userNewArrayNode, SemanticScope semanticScope) {
         ENewArray.visitDefaultSemanticAnalysis(this, userNewArrayNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitNewObj(ENewObj userNewObjNode, SemanticScope semanticScope) {
+    public void visitNewObj(ENewObj userNewObjNode, SemanticScope semanticScope) {
         ENewObj.visitDefaultSemanticAnalysis(this, userNewObjNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitCallLocal(ECallLocal userCallLocalNode, SemanticScope semanticScope) {
+    public void visitCallLocal(ECallLocal userCallLocalNode, SemanticScope semanticScope) {
         ECallLocal.visitDefaultSemanticAnalysis(this, userCallLocalNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitBoolean(EBooleanConstant userBooleanNode, SemanticScope semanticScope) {
-        EBooleanConstant.visitDefaultSemanticAnalysis(this, userBooleanNode, semanticScope);
+    public void visitBooleanConstant(EBooleanConstant userBooleanConstantNode, SemanticScope semanticScope) {
+        EBooleanConstant.visitDefaultSemanticAnalysis(this, userBooleanConstantNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitNumeric(ENumeric userNumericNode, SemanticScope semanticScope) {
+    public void visitNumeric(ENumeric userNumericNode, SemanticScope semanticScope) {
         ENumeric.visitDefaultSemanticAnalysis(this, userNumericNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitDecimal(EDecimal userDecimalNode, SemanticScope semanticScope) {
+    public void visitDecimal(EDecimal userDecimalNode, SemanticScope semanticScope) {
         EDecimal.visitDefaultSemanticAnalysis(this, userDecimalNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitString(EString userStringNode, SemanticScope semanticScope) {
+    public void visitString(EString userStringNode, SemanticScope semanticScope) {
         EString.visitDefaultSemanticAnalysis(this, userStringNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitNull(ENull userNullNode, SemanticScope semanticScope) {
+    public void visitNull(ENull userNullNode, SemanticScope semanticScope) {
         ENull.visitDefaultSemanticAnalysis(this, userNullNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitRegex(ERegex userRegexNode, SemanticScope semanticScope) {
+    public void visitRegex(ERegex userRegexNode, SemanticScope semanticScope) {
         ERegex.visitDefaultSemanticAnalysis(this, userRegexNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitLambda(ELambda userLambdaNode, SemanticScope semanticScope) {
+    public void visitLambda(ELambda userLambdaNode, SemanticScope semanticScope) {
         ELambda.visitDefaultSemanticAnalysis(this, userLambdaNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitFunctionRef(EFunctionRef userFunctionRefNode, SemanticScope semanticScope) {
+    public void visitFunctionRef(EFunctionRef userFunctionRefNode, SemanticScope semanticScope) {
         EFunctionRef.visitDefaultSemanticAnalysis(this, userFunctionRefNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, SemanticScope semanticScope) {
+    public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, SemanticScope semanticScope) {
         ENewArrayFunctionRef.visitDefaultSemanticAnalysis(this, userNewArrayFunctionRefNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitSymbol(ESymbol userSymbolNode, SemanticScope semanticScope) {
+    public void visitSymbol(ESymbol userSymbolNode, SemanticScope semanticScope) {
         ESymbol.visitDefaultSemanticAnalysis(this, userSymbolNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitDot(EDot userDotNode, SemanticScope semanticScope) {
+    public void visitDot(EDot userDotNode, SemanticScope semanticScope) {
         EDot.visitDefaultSemanticAnalysis(this, userDotNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitBrace(EBrace userBraceNode, SemanticScope semanticScope) {
+    public void visitBrace(EBrace userBraceNode, SemanticScope semanticScope) {
         EBrace.visitDefaultSemanticAnalysis(this, userBraceNode, semanticScope);
 
-        return null;
+
     }
 
     @Override
-    public Void visitCall(ECall userCallNode, SemanticScope semanticScope) {
+    public void visitCall(ECall userCallNode, SemanticScope semanticScope) {
         ECall.visitDefaultSemanticAnalysis(this, userCallNode, semanticScope);
 
-        return null;
+
     }
 }

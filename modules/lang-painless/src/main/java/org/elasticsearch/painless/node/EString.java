@@ -35,7 +35,7 @@ import java.util.Objects;
  */
 public class EString extends AExpression {
 
-    private String string;
+    private final String string;
 
     public EString(int identifier, Location location, String string) {
         super(identifier, location);
@@ -47,8 +47,14 @@ public class EString extends AExpression {
         return string;
     }
 
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitString(this, input);
+    @Override
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitString(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 
     public static void visitDefaultSemanticAnalysis(

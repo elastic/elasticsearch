@@ -52,8 +52,13 @@ public class SExpression extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitExpression(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitExpression(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        statementNode.visit(userTreeVisitor, scope);
     }
 
     public static void visitDefaultSemanticAnalysis(
@@ -63,11 +68,11 @@ public class SExpression extends AStatement {
         boolean isVoid = rtnType == void.class;
         boolean lastSource = semanticScope.getCondition(userExpressionNode, LastSource.class);
         AExpression userStatementNode = userExpressionNode.getStatementNode();
-        
+
         if (lastSource && isVoid == false) {
             semanticScope.setCondition(userStatementNode, Read.class);
         }
-        
+
         visitor.checkedVisit(userStatementNode, semanticScope);
         Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, ValueType.class).getValueType();
         boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;

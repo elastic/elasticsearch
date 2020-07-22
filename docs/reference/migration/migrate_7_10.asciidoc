@@ -17,4 +17,16 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 //tag::notable-breaking-changes[]
 
+[discrete]
+[[breaking_710_search_changes]]
+=== Search Changes
+
+[discrete]
+==== Missing checks for `index.max_docvalue_fields_search`
+The setting `index.max_docvalue_fields_search` limits the number of fields that
+can be retrieved through `docvalue_fields` in a search. Previously we only
+checked this limit when `docvalue_fields` appeared in the top-level search
+request body. Now we also enforce the limit when loading doc value fields in
+an `inner_hits` section or in a `top_hits` aggregation.
+
 //end::notable-breaking-changes[]

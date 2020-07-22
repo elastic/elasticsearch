@@ -19,17 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Explicit;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import static java.util.Objects.requireNonNull;
 
@@ -66,74 +57,5 @@ public class EElvis extends AExpression {
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         leftNode.visit(userTreeVisitor, scope);
         rightNode.visit(userTreeVisitor, scope);
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, EElvis userElvisNode, SemanticScope semanticScope) {
-
-        if (semanticScope.getCondition(userElvisNode, Write.class)) {
-            throw userElvisNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to elvis operation [?:]"));
-        }
-
-        if (semanticScope.getCondition(userElvisNode, Read.class) == false) {
-            throw userElvisNode.createError(new IllegalArgumentException("not a statement: result not used from elvis operation [?:]"));
-        }
-
-        TargetType targetType = semanticScope.getDecoration(userElvisNode, TargetType.class);
-
-        if (targetType != null && targetType.getTargetType().isPrimitive()) {
-            throw userElvisNode.createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
-        }
-
-        AExpression userLeftNode = userElvisNode.getLeftNode();
-        semanticScope.setCondition(userLeftNode, Read.class);
-        semanticScope.copyDecoration(userElvisNode, userLeftNode, TargetType.class);
-        semanticScope.replicateCondition(userElvisNode, userLeftNode, Explicit.class);
-        semanticScope.replicateCondition(userElvisNode, userLeftNode, Internal.class);
-        visitor.checkedVisit(userLeftNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(userLeftNode, ValueType.class).getValueType();
-
-        AExpression userRightNode = userElvisNode.getRightNode();
-        semanticScope.setCondition(userRightNode, Read.class);
-        semanticScope.copyDecoration(userElvisNode, userRightNode, TargetType.class);
-        semanticScope.replicateCondition(userElvisNode, userRightNode, Explicit.class);
-        semanticScope.replicateCondition(userElvisNode, userRightNode, Internal.class);
-        visitor.checkedVisit(userRightNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
-
-        if (userLeftNode instanceof ENull) {
-            throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
-        }
-        if (    userLeftNode instanceof EBooleanConstant ||
-                userLeftNode instanceof ENumeric         ||
-                userLeftNode instanceof EDecimal         ||
-                userLeftNode instanceof EString
-        ) {
-            throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a constant."));
-        }
-        if (leftValueType.isPrimitive()) {
-            throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. LHS is a primitive."));
-        }
-        if (userRightNode instanceof ENull) {
-            throw userElvisNode.createError(new IllegalArgumentException("Extraneous elvis operator. RHS is null."));
-        }
-
-        Class<?> valueType;
-
-        if (targetType == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
-
-            semanticScope.putDecoration(userLeftNode, new TargetType(promote));
-            semanticScope.putDecoration(userRightNode, new TargetType(promote));
-            valueType = promote;
-        } else {
-            valueType = targetType.getTargetType();
-        }
-
-        visitor.decorateWithCast(userLeftNode, semanticScope);
-        visitor.decorateWithCast(userRightNode, semanticScope);
-
-        semanticScope.putDecoration(userElvisNode, new ValueType(valueType));
     }
 }

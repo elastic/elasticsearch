@@ -20,18 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
-import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
-import org.elasticsearch.painless.symbol.Decorations.BeginLoop;
-import org.elasticsearch.painless.symbol.Decorations.InLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.List;
@@ -63,70 +52,6 @@ public class SBlock extends AStatement {
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         for (AStatement statementNode: statementNodes) {
             statementNode.visit(userTreeVisitor, scope);
-        }
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, SBlock userBlockNode, SemanticScope semanticScope) {
-
-        List<AStatement> userStatementNodes = userBlockNode.getStatementNodes();
-
-        if (userStatementNodes.isEmpty()) {
-            throw userBlockNode.createError(new IllegalArgumentException("invalid block: found no statements"));
-        }
-
-        AStatement lastUserStatement = userStatementNodes.get(userStatementNodes.size() - 1);
-
-        boolean lastSource = semanticScope.getCondition(userBlockNode, LastSource.class);
-        boolean beginLoop = semanticScope.getCondition(userBlockNode, BeginLoop.class);
-        boolean inLoop = semanticScope.getCondition(userBlockNode, InLoop.class);
-        boolean lastLoop = semanticScope.getCondition(userBlockNode, LastLoop.class);
-
-        boolean allEscape;
-        boolean anyContinue = false;
-        boolean anyBreak = false;
-
-        for (AStatement userStatementNode : userStatementNodes) {
-            if (inLoop) {
-                semanticScope.setCondition(userStatementNode, InLoop.class);
-            }
-
-            if (userStatementNode == lastUserStatement) {
-                if (beginLoop || lastLoop) {
-                    semanticScope.setCondition(userStatementNode, LastLoop.class);
-                }
-
-                if (lastSource) {
-                    semanticScope.setCondition(userStatementNode, LastSource.class);
-                }
-            }
-
-            visitor.visit(userStatementNode, semanticScope);
-            allEscape = semanticScope.getCondition(userStatementNode, AllEscape.class);
-
-            if (userStatementNode == lastUserStatement) {
-                semanticScope.replicateCondition(userStatementNode, userBlockNode, MethodEscape.class);
-                semanticScope.replicateCondition(userStatementNode, userBlockNode, LoopEscape.class);
-
-                if (allEscape) {
-                    semanticScope.setCondition(userStatementNode, AllEscape.class);
-                }
-            } else {
-                if (allEscape) {
-                    throw userBlockNode.createError(new IllegalArgumentException("invalid block: unreachable statement"));
-                }
-            }
-
-            anyContinue |= semanticScope.getCondition(userStatementNode, AnyContinue.class);
-            anyBreak |= semanticScope.getCondition(userStatementNode, AnyBreak.class);
-        }
-
-        if (anyContinue) {
-            semanticScope.setCondition(userBlockNode, AnyContinue.class);
-        }
-
-        if (anyBreak) {
-            semanticScope.setCondition(userBlockNode, AnyBreak.class);
         }
     }
 }

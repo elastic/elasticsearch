@@ -20,13 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a boolean constant.
@@ -53,23 +47,5 @@ public class EBooleanConstant extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, EBooleanConstant userBooleanNode, SemanticScope semanticScope) {
-
-        boolean bool = userBooleanNode.getBool();
-
-        if (semanticScope.getCondition(userBooleanNode, Write.class)) {
-            throw userBooleanNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to boolean constant [" + bool + "]"));
-        }
-
-        if (semanticScope.getCondition(userBooleanNode, Read.class) == false) {
-            throw userBooleanNode.createError(new IllegalArgumentException("not a statement: boolean constant [" + bool + "] not used"));
-        }
-
-        semanticScope.putDecoration(userBooleanNode, new ValueType(boolean.class));
-        semanticScope.putDecoration(userBooleanNode, new StandardConstant(bool));
     }
 }

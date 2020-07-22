@@ -20,16 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
-import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
-import org.elasticsearch.painless.symbol.Decorations.InLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -68,28 +59,5 @@ public class SIf extends AStatement {
         if (ifBlockNode != null) {
             ifBlockNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, SIf userIfNode, SemanticScope semanticScope) {
-
-        AExpression userConditionNode = userIfNode.getConditionNode();
-        semanticScope.setCondition(userConditionNode, Read.class);
-        semanticScope.putDecoration(userConditionNode, new TargetType(boolean.class));
-        visitor.checkedVisit(userConditionNode, semanticScope);
-        visitor.decorateWithCast(userConditionNode, semanticScope);
-
-        SBlock userIfBlockNode = userIfNode.getIfBlockNode();
-
-        if (userConditionNode instanceof EBooleanConstant || userIfBlockNode == null) {
-            throw userIfNode.createError(new IllegalArgumentException("extraneous if block"));
-        }
-
-        semanticScope.replicateCondition(userIfNode, userIfBlockNode, LastSource.class);
-        semanticScope.replicateCondition(userIfNode, userIfBlockNode, InLoop.class);
-        semanticScope.replicateCondition(userIfNode, userIfBlockNode, LastLoop.class);
-        visitor.visit(userIfBlockNode, semanticScope.newLocalScope());
-        semanticScope.replicateCondition(userIfBlockNode, userIfNode, AnyContinue.class);
-        semanticScope.replicateCondition(userIfBlockNode, userIfNode, AnyBreak.class);
     }
 }

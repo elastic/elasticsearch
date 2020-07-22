@@ -20,13 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -55,23 +49,5 @@ public class EString extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, EString userStringNode, SemanticScope semanticScope) {
-
-        String string = userStringNode.getString();
-
-        if (semanticScope.getCondition(userStringNode, Write.class)) {
-            throw userStringNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to string constant [" + string + "]"));
-        }
-
-        if (semanticScope.getCondition(userStringNode, Read.class) == false) {
-            throw userStringNode.createError(new IllegalArgumentException("not a statement: string constant [" + string + "] not used"));
-        }
-
-        semanticScope.putDecoration(userStringNode, new ValueType(String.class));
-        semanticScope.putDecoration(userStringNode, new StandardConstant(string));
     }
 }

@@ -20,16 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a return statement.
@@ -58,29 +49,5 @@ public class SReturn extends AStatement {
         if (valueNode != null) {
             valueNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, SReturn userReturnNode, SemanticScope semanticScope) {
-
-        AExpression userValueNode = userReturnNode.getValueNode();
-
-        if (userValueNode == null) {
-            if (semanticScope.getReturnType() != void.class) {
-                throw userReturnNode.createError(new ClassCastException("cannot cast from " +
-                        "[" + semanticScope.getReturnCanonicalTypeName() + "] to " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]"));
-            }
-        } else {
-            semanticScope.setCondition(userValueNode, Read.class);
-            semanticScope.putDecoration(userValueNode, new TargetType(semanticScope.getReturnType()));
-            semanticScope.setCondition(userValueNode, Internal.class);
-            visitor.checkedVisit(userValueNode, semanticScope);
-            visitor.decorateWithCast(userValueNode, semanticScope);
-        }
-
-        semanticScope.setCondition(userReturnNode, MethodEscape.class);
-        semanticScope.setCondition(userReturnNode, LoopEscape.class);
-        semanticScope.setCondition(userReturnNode, AllEscape.class);
     }
 }

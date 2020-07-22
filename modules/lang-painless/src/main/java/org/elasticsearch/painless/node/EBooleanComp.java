@@ -21,13 +21,7 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -69,35 +63,5 @@ public class EBooleanComp extends AExpression {
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         leftNode.visit(userTreeVisitor, scope);
         rightNode.visit(userTreeVisitor, scope);
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, EBooleanComp userBoolNode, SemanticScope semanticScope) {
-
-        Operation operation = userBoolNode.getOperation();
-
-        if (semanticScope.getCondition(userBoolNode, Write.class)) {
-            throw userBoolNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
-        if (semanticScope.getCondition(userBoolNode, Read.class) == false) {
-            throw userBoolNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
-        AExpression userLeftNode = userBoolNode.getLeftNode();
-        semanticScope.setCondition(userLeftNode, Read.class);
-        semanticScope.putDecoration(userLeftNode, new TargetType(boolean.class));
-        visitor.checkedVisit(userLeftNode, semanticScope);
-        visitor.decorateWithCast(userLeftNode, semanticScope);
-
-        AExpression userRightNode = userBoolNode.getRightNode();
-        semanticScope.setCondition(userRightNode, Read.class);
-        semanticScope.putDecoration(userRightNode, new TargetType(boolean.class));
-        visitor.checkedVisit(userRightNode, semanticScope);
-        visitor.decorateWithCast(userRightNode, semanticScope);
-
-        semanticScope.putDecoration(userBoolNode, new ValueType(boolean.class));
     }
 }

@@ -19,18 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Explicit;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -73,65 +63,5 @@ public class EConditional extends AExpression {
         conditionNode.visit(userTreeVisitor, scope);
         trueNode.visit(userTreeVisitor, scope);
         falseNode.visit(userTreeVisitor, scope);
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, EConditional userConditionalNode, SemanticScope semanticScope) {
-
-        if (semanticScope.getCondition(userConditionalNode, Write.class)) {
-            throw userConditionalNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to conditional operation [?:]"));
-        }
-
-        if (semanticScope.getCondition(userConditionalNode, Read.class) == false) {
-            throw userConditionalNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from conditional operation [?:]"));
-        }
-
-        AExpression userConditionNode = userConditionalNode.getConditionNode();
-        semanticScope.setCondition(userConditionNode, Read.class);
-        semanticScope.putDecoration(userConditionNode, new TargetType(boolean.class));
-        visitor.checkedVisit(userConditionNode, semanticScope);
-        visitor.decorateWithCast(userConditionNode, semanticScope);
-
-        AExpression userTrueNode = userConditionalNode.getTrueNode();
-        semanticScope.setCondition(userTrueNode, Read.class);
-        semanticScope.copyDecoration(userConditionalNode, userTrueNode, TargetType.class);
-        semanticScope.replicateCondition(userConditionalNode, userTrueNode, Explicit.class);
-        semanticScope.replicateCondition(userConditionalNode, userTrueNode, Internal.class);
-        visitor.checkedVisit(userTrueNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(userTrueNode, ValueType.class).getValueType();
-
-        AExpression userFalseNode = userConditionalNode.getFalseNode();
-        semanticScope.setCondition(userFalseNode, Read.class);
-        semanticScope.copyDecoration(userConditionalNode, userFalseNode, TargetType.class);
-        semanticScope.replicateCondition(userConditionalNode, userFalseNode, Explicit.class);
-        semanticScope.replicateCondition(userConditionalNode, userFalseNode, Internal.class);
-        visitor.checkedVisit(userFalseNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(userFalseNode, ValueType.class).getValueType();
-
-        TargetType targetType = semanticScope.getDecoration(userConditionalNode, TargetType.class);
-        Class<?> valueType;
-
-        if (targetType == null) {
-            Class<?> promote = AnalyzerCaster.promoteConditional(leftValueType, rightValueType);
-
-            if (promote == null) {
-                throw userConditionalNode.createError(new ClassCastException("cannot apply the conditional operator [?:] to the types " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
-            }
-
-            semanticScope.putDecoration(userTrueNode, new TargetType(promote));
-            semanticScope.putDecoration(userFalseNode, new TargetType(promote));
-            valueType = promote;
-        } else {
-            valueType = targetType.getTargetType();
-        }
-
-        visitor.decorateWithCast(userTrueNode, semanticScope);
-        visitor.decorateWithCast(userFalseNode, semanticScope);
-
-        semanticScope.putDecoration(userConditionalNode, new ValueType(valueType));
     }
 }

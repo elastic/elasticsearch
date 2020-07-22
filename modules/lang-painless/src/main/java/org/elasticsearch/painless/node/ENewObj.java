@@ -20,25 +20,11 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.StandardPainlessConstructor;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents and object instantiation.
@@ -73,57 +59,5 @@ public class ENewObj extends AExpression {
         for (AExpression argumentNode : argumentNodes) {
             argumentNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, ENewObj userNewObjNode, SemanticScope semanticScope) {
-
-        String canonicalTypeName =  userNewObjNode.getCanonicalTypeName();
-        List<AExpression> userArgumentNodes = userNewObjNode.getArgumentNodes();
-        int userArgumentsSize = userArgumentNodes.size();
-
-        if (semanticScope.getCondition(userNewObjNode, Write.class)) {
-            throw userNewObjNode.createError(new IllegalArgumentException(
-                    "invalid assignment cannot assign a value to new object with constructor " +
-                    "[" + canonicalTypeName + "/" + userArgumentsSize + "]"));
-        }
-
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        Class<?> valueType = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (valueType == null) {
-            throw userNewObjNode.createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        PainlessConstructor constructor = scriptScope.getPainlessLookup().lookupPainlessConstructor(valueType, userArgumentsSize);
-
-        if (constructor == null) {
-            throw userNewObjNode.createError(new IllegalArgumentException(
-                    "constructor [" + typeToCanonicalTypeName(valueType) + ", <init>/" + userArgumentsSize + "] not found"));
-        }
-
-        scriptScope.putDecoration(userNewObjNode, new StandardPainlessConstructor(constructor));
-        scriptScope.markNonDeterministic(constructor.annotations.containsKey(NonDeterministicAnnotation.class));
-
-        Class<?>[] types = new Class<?>[constructor.typeParameters.size()];
-        constructor.typeParameters.toArray(types);
-
-        if (constructor.typeParameters.size() != userArgumentsSize) {
-            throw userNewObjNode.createError(new IllegalArgumentException(
-                    "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(valueType) + "] " +
-                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + userArgumentsSize + "]."));
-        }
-
-        for (int i = 0; i < userArgumentsSize; ++i) {
-            AExpression userArgumentNode = userArgumentNodes.get(i);
-
-            semanticScope.setCondition(userArgumentNode, Read.class);
-            semanticScope.putDecoration(userArgumentNode, new TargetType(types[i]));
-            semanticScope.setCondition(userArgumentNode, Internal.class);
-            visitor.checkedVisit(userArgumentNode, semanticScope);
-            visitor.decorateWithCast(userArgumentNode, semanticScope);
-        }
-
-        semanticScope.putDecoration(userNewObjNode, new ValueType(valueType));
     }
 }

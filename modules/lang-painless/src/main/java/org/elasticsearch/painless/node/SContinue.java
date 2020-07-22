@@ -20,13 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.AnyContinue;
-import org.elasticsearch.painless.symbol.Decorations.InLoop;
-import org.elasticsearch.painless.symbol.Decorations.LastLoop;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a continue statement.
@@ -45,20 +39,5 @@ public class SContinue extends AStatement {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, SContinue userContinueNode, SemanticScope semanticScope) {
-
-        if (semanticScope.getCondition(userContinueNode, InLoop.class) == false) {
-            throw userContinueNode.createError(new IllegalArgumentException("invalid continue statement: not inside loop"));
-        }
-
-        if (semanticScope.getCondition(userContinueNode, LastLoop.class)) {
-            throw userContinueNode.createError(new IllegalArgumentException("extraneous continue statement"));
-        }
-
-        semanticScope.setCondition(userContinueNode, AllEscape.class);
-        semanticScope.setCondition(userContinueNode, AnyContinue.class);
     }
 }

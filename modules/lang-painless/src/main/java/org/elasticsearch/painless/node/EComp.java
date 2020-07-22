@@ -19,19 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -73,63 +63,5 @@ public class EComp extends AExpression {
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         leftNode.visit(userTreeVisitor, scope);
         rightNode.visit(userTreeVisitor, scope);
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, EComp userCompNode, SemanticScope semanticScope) {
-
-        Operation operation = userCompNode.getOperation();
-
-        if (semanticScope.getCondition(userCompNode, Write.class)) {
-            throw userCompNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
-        if (semanticScope.getCondition(userCompNode, Read.class) == false) {
-            throw userCompNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from " + operation.name + " operation " + "[" + operation.symbol + "]"));
-        }
-
-        AExpression userLeftNode = userCompNode.getLeftNode();
-        semanticScope.setCondition(userLeftNode, Read.class);
-        visitor.checkedVisit(userLeftNode, semanticScope);
-        Class<?> leftValueType = semanticScope.getDecoration(userLeftNode, ValueType.class).getValueType();
-
-        AExpression userRightNode = userCompNode.getRightNode();
-        semanticScope.setCondition(userRightNode, Read.class);
-        visitor.checkedVisit(userRightNode, semanticScope);
-        Class<?> rightValueType = semanticScope.getDecoration(userRightNode, ValueType.class).getValueType();
-
-        Class<?> promotedType;
-
-        if (operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER) {
-            promotedType = AnalyzerCaster.promoteEquality(leftValueType, rightValueType);
-        } else if (operation == Operation.GT || operation == Operation.GTE || operation == Operation.LT || operation == Operation.LTE) {
-            promotedType = AnalyzerCaster.promoteNumeric(leftValueType, rightValueType, true);
-        } else {
-            throw userCompNode.createError(new IllegalStateException("unexpected binary operation [" + operation.name + "]"));
-        }
-
-        if (promotedType == null) {
-            throw userCompNode.createError(new ClassCastException("cannot apply the " + operation.name + " operator " +
-                    "[" + operation.symbol + "] to the types " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(leftValueType) + "] and " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(rightValueType) + "]"));
-        }
-
-        if ((operation == Operation.EQ || operation == Operation.EQR || operation == Operation.NE || operation == Operation.NER)
-                && userLeftNode instanceof ENull && userRightNode instanceof ENull) {
-            throw userCompNode.createError(new IllegalArgumentException("extraneous comparison of [null] constants"));
-        }
-
-        if (operation == Operation.EQR || operation == Operation.NER || promotedType != def.class) {
-            semanticScope.putDecoration(userLeftNode, new TargetType(promotedType));
-            semanticScope.putDecoration(userRightNode, new TargetType(promotedType));
-            visitor.decorateWithCast(userLeftNode, semanticScope);
-            visitor.decorateWithCast(userRightNode, semanticScope);
-        }
-
-        semanticScope.putDecoration(userCompNode, new ValueType(boolean.class));
-        semanticScope.putDecoration(userCompNode, new ComparisonType(promotedType));
     }
 }

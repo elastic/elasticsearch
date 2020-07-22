@@ -20,14 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Collections;
 import java.util.List;
@@ -72,35 +65,5 @@ public class ENewArray extends AExpression {
         for (AExpression valueNode : valueNodes) {
             valueNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, ENewArray userNewArrayNode, SemanticScope semanticScope) {
-
-        if (semanticScope.getCondition(userNewArrayNode, Write.class)) {
-            throw userNewArrayNode.createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
-        }
-
-        if (semanticScope.getCondition(userNewArrayNode, Read.class) == false) {
-            throw userNewArrayNode.createError(new IllegalArgumentException("not a statement: result not used from new array"));
-        }
-
-        String canonicalTypeName = userNewArrayNode.getCanonicalTypeName();
-        Class<?> valueType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (valueType == null) {
-            throw userNewArrayNode.createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        for (AExpression userValueNode : userNewArrayNode.getValueNodes()) {
-            semanticScope.setCondition(userValueNode, Read.class);
-            semanticScope.putDecoration(userValueNode,
-                    new TargetType(userNewArrayNode.isInitializer() ? valueType.getComponentType() : int.class));
-            semanticScope.setCondition(userValueNode, Internal.class);
-            visitor.checkedVisit(userValueNode, semanticScope);
-            visitor.decorateWithCast(userValueNode, semanticScope);
-        }
-
-        semanticScope.putDecoration(userNewArrayNode, new ValueType(valueType));
     }
 }

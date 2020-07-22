@@ -20,17 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.AllEscape;
-import org.elasticsearch.painless.symbol.Decorations.Internal;
-import org.elasticsearch.painless.symbol.Decorations.LastSource;
-import org.elasticsearch.painless.symbol.Decorations.LoopEscape;
-import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -59,32 +49,5 @@ public class SExpression extends AStatement {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         statementNode.visit(userTreeVisitor, scope);
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, SExpression userExpressionNode, SemanticScope semanticScope) {
-
-        Class<?> rtnType = semanticScope.getReturnType();
-        boolean isVoid = rtnType == void.class;
-        boolean lastSource = semanticScope.getCondition(userExpressionNode, LastSource.class);
-        AExpression userStatementNode = userExpressionNode.getStatementNode();
-
-        if (lastSource && isVoid == false) {
-            semanticScope.setCondition(userStatementNode, Read.class);
-        }
-
-        visitor.checkedVisit(userStatementNode, semanticScope);
-        Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, ValueType.class).getValueType();
-        boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
-
-        if (rtn) {
-            semanticScope.putDecoration(userStatementNode, new TargetType(rtnType));
-            semanticScope.setCondition(userStatementNode, Internal.class);
-            visitor.decorateWithCast(userStatementNode, semanticScope);
-
-            semanticScope.setCondition(userExpressionNode, MethodEscape.class);
-            semanticScope.setCondition(userExpressionNode, LoopEscape.class);
-            semanticScope.setCondition(userExpressionNode, AllEscape.class);
-        }
     }
 }

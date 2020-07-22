@@ -20,13 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 /**
  * Represents a null constant.
@@ -45,33 +39,5 @@ public class ENull extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, ENull userNullNode, SemanticScope semanticScope) {
-
-        if (semanticScope.getCondition(userNullNode, Write.class)) {
-            throw userNullNode.createError(new IllegalArgumentException("invalid assignment: cannot assign a value to null constant"));
-        }
-
-        if (semanticScope.getCondition(userNullNode, Read.class) == false) {
-            throw userNullNode.createError(new IllegalArgumentException("not a statement: null constant not used"));
-        }
-
-        TargetType targetType = semanticScope.getDecoration(userNullNode, TargetType.class);
-        Class<?> valueType;
-
-        if (targetType != null) {
-            if (targetType.getTargetType().isPrimitive()) {
-                throw userNullNode.createError(new IllegalArgumentException(
-                        "Cannot cast null to a primitive type [" + targetType.getTargetCanonicalTypeName() + "]."));
-            }
-
-            valueType = targetType.getTargetType();
-        } else {
-            valueType = Object.class;
-        }
-
-        semanticScope.putDecoration(userNullNode, new ValueType(valueType));
     }
 }

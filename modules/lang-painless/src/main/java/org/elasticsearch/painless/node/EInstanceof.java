@@ -20,13 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.InstanceType;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.ValueType;
-import org.elasticsearch.painless.symbol.Decorations.Write;
-import org.elasticsearch.painless.symbol.SemanticScope;
 
 import java.util.Objects;
 
@@ -63,34 +57,5 @@ public class EInstanceof extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         expressionNode.visit(userTreeVisitor, scope);
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, EInstanceof userInstanceofNode, SemanticScope semanticScope) {
-
-        String canonicalTypeName = userInstanceofNode.getCanonicalTypeName();
-
-        if (semanticScope.getCondition(userInstanceofNode, Write.class)) {
-            throw userInstanceofNode.createError(new IllegalArgumentException(
-                    "invalid assignment: cannot assign a value to instanceof with target type [" + canonicalTypeName + "]"));
-        }
-
-        if (semanticScope.getCondition(userInstanceofNode, Read.class) == false) {
-            throw userInstanceofNode.createError(new IllegalArgumentException(
-                    "not a statement: result not used from instanceof with target type [" + canonicalTypeName + "]"));
-        }
-
-        Class<?> instanceType = semanticScope.getScriptScope().getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (instanceType == null) {
-            throw userInstanceofNode.createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        AExpression userExpressionNode = userInstanceofNode.getExpressionNode();
-        semanticScope.setCondition(userExpressionNode, Read.class);
-        visitor.checkedVisit(userExpressionNode, semanticScope);
-
-        semanticScope.putDecoration(userInstanceofNode, new ValueType(boolean.class));
-        semanticScope.putDecoration(userInstanceofNode, new InstanceType(instanceType));
     }
 }

@@ -20,14 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.phase.DefaultSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.UserTreeVisitor;
-import org.elasticsearch.painless.symbol.Decorations.Read;
-import org.elasticsearch.painless.symbol.Decorations.SemanticVariable;
-import org.elasticsearch.painless.symbol.Decorations.TargetType;
-import org.elasticsearch.painless.symbol.ScriptScope;
-import org.elasticsearch.painless.symbol.SemanticScope;
-import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.Objects;
 
@@ -70,38 +63,5 @@ public class SDeclaration extends AStatement {
         if (valueNode != null) {
             valueNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    public static void visitDefaultSemanticAnalysis(
-            DefaultSemanticAnalysisPhase visitor, SDeclaration userDeclarationNode, SemanticScope semanticScope) {
-
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        String symbol = userDeclarationNode.getSymbol();
-
-        if (scriptScope.getPainlessLookup().isValidCanonicalClassName(symbol)) {
-            throw userDeclarationNode.createError(new IllegalArgumentException(
-                    "invalid declaration: type [" + symbol + "] cannot be a name"));
-        }
-
-        String canonicalTypeName = userDeclarationNode.getCanonicalTypeName();
-        Class<?> type = scriptScope.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (type == null) {
-            throw userDeclarationNode.createError(new IllegalArgumentException(
-                    "invalid declaration: cannot resolve type [" + canonicalTypeName + "]"));
-        }
-
-        AExpression userValueNode = userDeclarationNode.getValueNode();
-
-        if (userValueNode != null) {
-            semanticScope.setCondition(userValueNode, Read.class);
-            semanticScope.putDecoration(userValueNode, new TargetType(type));
-            visitor.checkedVisit(userValueNode, semanticScope);
-            visitor.decorateWithCast(userValueNode, semanticScope);
-        }
-
-        Location location = userDeclarationNode.getLocation();
-        Variable variable = semanticScope.defineVariable(location, type, symbol, false);
-        semanticScope.putDecoration(userDeclarationNode, new SemanticVariable(variable));
     }
 }

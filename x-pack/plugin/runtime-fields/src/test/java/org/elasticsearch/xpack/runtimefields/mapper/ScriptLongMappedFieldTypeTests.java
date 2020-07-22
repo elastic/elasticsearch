@@ -245,6 +245,11 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         return build("value(source.foo)");
     }
 
+    @Override
+    protected String runtimeType() {
+        return "long";
+    }
+
     private static ScriptLongMappedFieldType build(String code) throws IOException {
         return build(new Script(code));
     }

@@ -15,12 +15,17 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
+    protected abstract AbstractScriptMappedFieldType simpleMappedFieldType() throws IOException;
+
+    protected abstract String runtimeType();
+
     public abstract void testDocValues() throws IOException;
 
     public abstract void testSort() throws IOException;
@@ -71,4 +76,35 @@ abstract class AbstractScriptMappedFieldTypeTestCase extends ESTestCase {
         when(context.lookup()).thenReturn(lookup);
         return context;
     }
+
+    public void testPhraseQueryIsError() throws IOException {
+        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().phraseQuery(null, 1, false));
+    }
+
+    public void testPhrasePrefixQueryIsError() throws IOException {
+        assertQueryOnlyOnText("phrase prefix", () -> simpleMappedFieldType().phrasePrefixQuery(null, 1, 1));
+    }
+
+    public void testMultiPhraseQueryIsError() throws IOException {
+        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().multiPhraseQuery(null, 1, false));
+    }
+
+    public void testSpanPrefixQueryIsError() throws IOException {
+        assertQueryOnlyOnText("span prefix", () -> simpleMappedFieldType().spanPrefixQuery(null, null, null));
+    }
+
+    private void assertQueryOnlyOnText(String queryName, ThrowingRunnable buildQuery) {
+        Exception e = expectThrows(IllegalArgumentException.class, buildQuery);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Can only use "
+                    + queryName
+                    + " queries on text fields - not on [test] which is of type [script] with runtime_type ["
+                    + runtimeType()
+                    + "]"
+            )
+        );
+    }
+
 }

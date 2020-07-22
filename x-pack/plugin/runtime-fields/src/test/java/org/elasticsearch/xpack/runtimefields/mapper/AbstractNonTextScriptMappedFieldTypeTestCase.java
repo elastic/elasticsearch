@@ -14,8 +14,6 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 
 abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScriptMappedFieldTypeTestCase {
-    protected abstract AbstractScriptMappedFieldType simpleMappedFieldType() throws IOException;
-
     public void testFuzzyQueryIsError() throws IOException {
         assertQueryOnlyOnTextAndKeyword(
             "fuzzy",
@@ -39,20 +37,30 @@ abstract class AbstractNonTextScriptMappedFieldTypeTestCase extends AbstractScri
     }
 
     private void assertQueryOnlyOnTextAndKeyword(String queryName, ThrowingRunnable buildQuery) {
-        // TODO use runtime type in the error message and a consistent exception type
-        Exception e = expectThrows(Exception.class, buildQuery);
+        Exception e = expectThrows(IllegalArgumentException.class, buildQuery);
         assertThat(
             e.getMessage(),
-            equalTo("Can only use " + queryName + " queries on keyword and text fields - not on [test] which is of type [script]")
+            equalTo(
+                "Can only use "
+                    + queryName
+                    + " queries on keyword and text fields - not on [test] which is of type [script] with runtime_type ["
+                    + runtimeType()
+                    + "]"
+            )
         );
     }
 
     private void assertQueryOnlyOnTextKeywordAndWildcard(String queryName, ThrowingRunnable buildQuery) {
-        // TODO use runtime type in the error message and a consistent exception type
-        Exception e = expectThrows(Exception.class, buildQuery);
+        Exception e = expectThrows(IllegalArgumentException.class, buildQuery);
         assertThat(
             e.getMessage(),
-            equalTo("Can only use " + queryName + " queries on keyword, text and wildcard fields - not on [test] which is of type [script]")
+            equalTo(
+                "Can only use "
+                    + queryName
+                    + " queries on keyword, text and wildcard fields - not on [test] which is of type [script] with runtime_type ["
+                    + runtimeType()
+                    + "]"
+            )
         );
     }
 }

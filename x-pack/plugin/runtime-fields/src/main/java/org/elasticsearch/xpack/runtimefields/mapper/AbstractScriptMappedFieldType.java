@@ -6,12 +6,23 @@
 
 package org.elasticsearch.xpack.runtimefields.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -47,6 +58,71 @@ abstract class AbstractScriptMappedFieldType extends MappedFieldType {
     @Override
     public final boolean isAggregatable() {
         return true;
+    }
+
+    public abstract Query termsQuery(List<?> values, QueryShardContext context);
+
+    public abstract Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        ShapeRelation relation,
+        ZoneId timeZone,
+        DateMathParser parser,
+        QueryShardContext context
+    );
+
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        QueryShardContext context
+    ) {
+        throw new IllegalArgumentException(unsupported("fuzzy", "keyword and text"));
+    }
+
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new IllegalArgumentException(unsupported("prefix", "keyword, text and wildcard"));
+    }
+
+    public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        throw new IllegalArgumentException(unsupported("wildcard", "keyword, text and wildcard"));
+    }
+
+    public Query regexpQuery(
+        String value,
+        int flags,
+        int maxDeterminizedStates,
+        MultiTermQuery.RewriteMethod method,
+        QueryShardContext context
+    ) {
+        throw new IllegalArgumentException(unsupported("regexp", "keyword and text"));
+    }
+
+    public abstract Query existsQuery(QueryShardContext context);
+
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException(unsupported("phrase", "text"));
+    }
+
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        throw new IllegalArgumentException(unsupported("phrase", "text"));
+    }
+
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
+    }
+
+    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        throw new IllegalArgumentException(unsupported("span prefix", "text"));
+    }
+
+    private String unsupported(String query, String supported) {
+        String thisField = "[" + name() + "] which is of type [script] with runtime_type [" + runtimeType() + "]";
+        return "Can only use " + query + " queries on " + supported + " fields - not on " + thisField;
     }
 
     protected final void checkAllowExpensiveQueries(QueryShardContext context) {

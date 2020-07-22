@@ -128,7 +128,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
+                basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
             options.addHeader("es-security-runas-user", "custom_user2");
             Request request = new Request("GET", "/_security/_authenticate");
             request.setOptions(options);

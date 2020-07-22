@@ -152,12 +152,14 @@ query rewrites to `match_none` on every shard.
 Transforms now support the `terms` and `rare_terms` aggregations. The
 default behavior is that the results are collapsed in the following manner:
 
+[source,txt]
 ----
 <AGG_NAME>.<BUCKET_NAME>.<SUBAGGS...>...
 ----
 
 Or if no sub-aggregations exist:
 
+[source,txt]
 ----
 <AGG_NAME>.<BUCKET_NAME>.<_doc_count>
 ----

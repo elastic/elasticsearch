@@ -256,7 +256,7 @@ public class DateHistogramValuesSourceBuilder
         builder.registerComposite(
             TYPE,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            ((valuesSourceConfig, compositeBucketStrategy, hasScript, format, missingBucket, order) -> {
+            ((valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
@@ -267,7 +267,7 @@ public class DateHistogramValuesSourceBuilder
                 final DocValueFormat docValueFormat = format == null ? DocValueFormat.RAW : valuesSourceConfig.format();
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
                 return new CompositeValuesSourceConfig(
-                    compositeBucketStrategy.getName(),
+                    name,
                     fieldType,
                     vs,
                     docValueFormat,
@@ -301,6 +301,6 @@ public class DateHistogramValuesSourceBuilder
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         return queryShardContext.getValuesSourceRegistry()
             .getComposite(TYPE, config)
-            .apply(config, new CompositeBucketStrategy(name, rounding), config.script() != null, format(), missingBucket(), order());
+            .apply(config, new CompositeBucketStrategy(rounding), name, config.script() != null, format(), missingBucket(), order());
     }
 }

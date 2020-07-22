@@ -61,12 +61,12 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
         builder.registerComposite(
             TYPE,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, compositeBucketStrategy, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, compositeBucketStrategy.getInterval());
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
                 return new CompositeValuesSourceConfig(
-                    compositeBucketStrategy.getName(),
+                    name,
                     fieldType,
                     vs,
                     valuesSourceConfig.format(),
@@ -156,6 +156,6 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         return queryShardContext.getValuesSourceRegistry()
             .getComposite(TYPE, config)
-            .apply(config, new CompositeBucketStrategy(name, interval), script() != null, format(), missingBucket(), order());
+            .apply(config, new CompositeBucketStrategy(interval), name, script() != null, format(), missingBucket(), order());
     }
 }

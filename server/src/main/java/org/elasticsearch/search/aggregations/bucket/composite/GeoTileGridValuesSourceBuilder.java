@@ -68,7 +68,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         builder.registerComposite(
             TYPE,
             CoreValuesSourceType.GEOPOINT,
-            (valuesSourceConfig, compositeBucketStrategy, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
@@ -79,7 +79,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                     GeoTileUtils::longEncode
                 );
                 return new CompositeValuesSourceConfig(
-                    compositeBucketStrategy.getName(),
+                    name,
                     fieldType,
                     cellIdSource,
                     DocValueFormat.GEOTILE,
@@ -187,7 +187,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             .getComposite(TYPE, config)
             .apply(
                 config,
-                new CompositeBucketStrategy(name, precision, geoBoundingBox()),
+                new CompositeBucketStrategy(precision, geoBoundingBox()),
+                name,
                 script() != null,
                 format(),
                 missingBucket(),

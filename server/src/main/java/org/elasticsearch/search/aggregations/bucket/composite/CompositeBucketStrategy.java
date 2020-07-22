@@ -36,8 +36,6 @@ public class CompositeBucketStrategy {
 
     private final Strategy strategy;
 
-    private final String name;
-
     private final Rounding rounding;
     private final double interval;
 
@@ -45,13 +43,8 @@ public class CompositeBucketStrategy {
     private final GeoBoundingBox boundingBox;
 
 
-    private CompositeBucketStrategy() {
-        throw new UnsupportedOperationException();
-    }
-
-    public CompositeBucketStrategy(String name) {
+    public CompositeBucketStrategy() {
         this.strategy = Strategy.NONE;
-        this.name = name;
         this.rounding = null;
 
         this.interval = Double.NaN;
@@ -59,9 +52,8 @@ public class CompositeBucketStrategy {
         this.boundingBox = null;
     }
 
-    public CompositeBucketStrategy(String name, Rounding rounding) {
+    public CompositeBucketStrategy(Rounding rounding) {
         this.strategy = Strategy.ROUNDING;
-        this.name = name;
         this.rounding = rounding;
 
         this.interval = Double.NaN;
@@ -69,9 +61,8 @@ public class CompositeBucketStrategy {
         this.boundingBox = null;
     }
 
-    public CompositeBucketStrategy(String name, double interval) {
+    public CompositeBucketStrategy(double interval) {
         this.strategy = Strategy.INTERVAL;
-        this.name = name;
         this.interval = interval;
 
         this.rounding = null;
@@ -79,9 +70,8 @@ public class CompositeBucketStrategy {
         this.boundingBox = null;
     }
 
-    public CompositeBucketStrategy(String name, int precision, GeoBoundingBox boundingBox) {
+    public CompositeBucketStrategy(int precision, GeoBoundingBox boundingBox) {
         this.strategy = Strategy.GEOTILE;
-        this.name = name;
         this.precision = precision;
         this.boundingBox = boundingBox;
 
@@ -109,7 +99,4 @@ public class CompositeBucketStrategy {
         return boundingBox;
     }
 
-    public String getName() {
-        return name;
-    }
 }

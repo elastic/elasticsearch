@@ -26,7 +26,8 @@ operations, but you can still explore and navigate results.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-<<security-privileges>>.
+<<security-privileges>> and
+{ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges].
 * Before you can close an {anomaly-job}, you must stop its {dfeed}. See
 <<ml-stop-datafeed>>.
 

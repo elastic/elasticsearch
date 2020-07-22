@@ -114,13 +114,13 @@ following simplified syntax:
 --------------------------------------------------
 POST /twitter/_mtermvectors
 {
-    "ids" : ["1", "2"],
-    "parameters": {
-    	"fields": [
-         	"message"
-      	],
-      	"term_statistics": true
-    }
+  "ids": [ "1", "2" ],
+  "parameters": {
+    "fields": [
+      "message"
+    ],
+    "term_statistics": true
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]

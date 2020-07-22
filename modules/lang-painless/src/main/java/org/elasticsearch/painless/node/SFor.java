@@ -70,8 +70,27 @@ public class SFor extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitFor(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitFor(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (initializerNode != null) {
+            initializerNode.visit(userTreeVisitor, scope);
+        }
+
+        if (conditionNode != null) {
+            conditionNode.visit(userTreeVisitor, scope);
+        }
+
+        if (afterthoughtNode != null) {
+            afterthoughtNode.visit(userTreeVisitor, scope);
+        }
+
+        if (blockNode != null) {
+            blockNode.visit(userTreeVisitor, scope);
+        }
     }
 
     @Override

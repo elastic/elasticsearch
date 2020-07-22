@@ -89,14 +89,14 @@ using `english` analyzer, and will be indexed without offsets or term vectors.
 --------------------------------------------------
 PUT test_index
 {
-    "mappings": {
-        "properties": {
-            "content" : {
-                "type" : "text",
-                "analyzer" : "english"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "text",
+        "analyzer": "english"
+      }
     }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -119,16 +119,16 @@ And we ran the following query with a highlight request:
 --------------------------------------------------
 GET test_index/_search
 {
-    "query": {
-        "match_phrase" : {"content" : "only fox"}
-    },
-    "highlight": {
-        "type" : "unified",
-        "number_of_fragments" : 3,
-        "fields": {
-            "content": {}
-        }
+  "query": {
+    "match_phrase" : {"content" : "only fox"}
+  },
+  "highlight": {
+    "type" : "unified",
+    "number_of_fragments" : 3,
+    "fields": {
+      "content": {}
     }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

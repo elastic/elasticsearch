@@ -51,5 +51,5 @@ public interface GeometryFormat<ParsedFormat> {
      *
      * For example, the GeoJson format returns the geometry as a map, while WKT returns a string.
      */
-    Object toObject(ParsedFormat geometry);
+    Object toXContentAsObject(ParsedFormat geometry);
 }

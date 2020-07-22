@@ -258,7 +258,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
             for (ParsedPoint point : points) {
                 Geometry geometry = point.asGeometry();
-                result.add(geometryFormat.toObject(geometry));
+                result.add(geometryFormat.toXContentAsObject(geometry));
             }
             return result;
         }

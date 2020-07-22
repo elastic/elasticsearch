@@ -66,7 +66,7 @@ public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
     }
 
     @Override
-    public Map<?, ?> toObject(Geometry geometry) {
+    public Map<?, ?> toXContentAsObject(Geometry geometry) {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);

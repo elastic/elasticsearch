@@ -47,7 +47,7 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
 
     @Override
     public Object format(Geometry value, String format) {
-        return geometryParser.geometryFormat(format).toObject(value);
+        return geometryParser.geometryFormat(format).toXContentAsObject(value);
     }
 
     @Override

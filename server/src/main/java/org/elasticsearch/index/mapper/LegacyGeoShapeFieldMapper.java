@@ -299,7 +299,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         @Override
         public Object format(ShapeBuilder<?, ?, ?> value, String format) {
             Geometry geometry = value.buildGeometry();
-            return geometryParser.geometryFormat(format).toObject(geometry);
+            return geometryParser.geometryFormat(format).toXContentAsObject(geometry);
         }
     }
 

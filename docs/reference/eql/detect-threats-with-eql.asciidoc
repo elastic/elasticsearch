@@ -30,7 +30,7 @@ To get started, download and index the dataset:
 
 . Index the data into the `sec_logs` index with the following
 <<docs-bulk,bulk API>> request:
-
++
 [source,sh]
 ----
 curl -H "Content-Type: application/json" -XPOST "localhost:9200/sec_logs/_bulk?pretty&refresh" --data-binary "@normalized-T1117-AtomicRed-regsvr32.json"
@@ -39,7 +39,7 @@ curl -H "Content-Type: application/json" -XPOST "localhost:9200/sec_logs/_bulk?p
 
 . Use the <<cat-indices,cat indices API>> to verify the dataset was indexed
 successfully.
-
++
 [source,console]
 ----
 GET /_cat/indices/sec_logs?v&h=health,status,index,docs.count

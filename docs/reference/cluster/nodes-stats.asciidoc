@@ -2096,18 +2096,18 @@ Contains <<index-modules-indexing-pressure,indexing pressure>> statistics for th
 .Properties of `indexing_pressure`
 [%collapsible%open]
 ======
-`total`::
-(object)
-Contains statistics for the cumulative indexing load since the node started.
-+
-.Properties of `<total>`
-[%collapsible%open]
-=======
 `memory`::
 (object)
 Contains statistics for memory consumption from indexing load.
 +
 .Properties of `<memory>`
+[%collapsible%open]
+=======
+`total`::
+(object)
+Contains statistics for the cumulative indexing load since the node started.
++
+.Properties of `<total>`
 [%collapsible%open]
 ========
 `combined_coordinating_and_primary`::
@@ -2154,7 +2154,6 @@ Memory consumed by indexing requests in the coordinating, primary, or replica st
 (integer)
 Memory consumed, in bytes, by indexing requests in the coordinating, primary,
 or replica stage.
-========
 
 `coordinating_rejections`::
 (integer)
@@ -2167,19 +2166,12 @@ Number of indexing requests rejected in the primary stage.
 `replica_rejections`::
 (integer)
 Number of indexing requests rejected in the replica stage.
-=======
+========
 `current`::
 (object)
 Contains statistics for current indexing load.
 +
 .Properties of `<current>`
-[%collapsible%open]
-=======
-`memory`::
-(object)
-Contains statistics for memory consumption from indexing load.
-+
-.Properties of `<memory>`
 [%collapsible%open]
 ========
 `combined_coordinating_and_primary`::

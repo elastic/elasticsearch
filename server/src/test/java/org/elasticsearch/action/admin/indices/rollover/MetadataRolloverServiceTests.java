@@ -558,7 +558,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             when(mockedTimestampField.fieldType()).thenReturn(mockedTimestampFieldType);
             DocumentFieldMappers documentFieldMappers =
-                new DocumentFieldMappers(List.of(mockedTimestampField, dateFieldMapper), List.of(), new StandardAnalyzer());
+                new DocumentFieldMappers(List.of(mockedTimestampField, dateFieldMapper), List.of(), List.of(), new StandardAnalyzer());
 
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);

@@ -128,7 +128,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("field")
                     .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
-                        .startObject("field")
+                        .startObject("text")
                             .field("type", "text")
                             .field("store", true)
                         .endObject()
@@ -154,7 +154,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField shape = doc.rootDoc().getField("field.shape");
         assertThat(shape, notNullValue());
 
-        IndexableField field = doc.rootDoc().getField("field.field");
+        IndexableField field = doc.rootDoc().getField("field.text");
         assertThat(field, notNullValue());
         assertThat(field.stringValue(), is("foo"));
     }

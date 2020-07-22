@@ -46,8 +46,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,9 +125,6 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final DocumentFieldMappers fieldMappers;
 
-    private final Map<String, ObjectMapper> objectMappers;
-
-    private final boolean hasNestedObjects;
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
@@ -155,25 +150,9 @@ public class DocumentMapper implements ToXContentFragment {
 
         final IndexAnalyzers indexAnalyzers = mapperService.getIndexAnalyzers();
         this.fieldMappers = new DocumentFieldMappers(newFieldMappers,
+                newObjectMappers,
                 newFieldAliasMappers,
                 indexAnalyzers.getDefaultIndexAnalyzer());
-
-        Map<String, ObjectMapper> builder = new HashMap<>();
-        for (ObjectMapper objectMapper : newObjectMappers) {
-            ObjectMapper previous = builder.put(objectMapper.fullPath(), objectMapper);
-            if (previous != null) {
-                throw new IllegalStateException("duplicate key " + objectMapper.fullPath() + " encountered");
-            }
-        }
-
-        boolean hasNestedObjects = false;
-        this.objectMappers = Collections.unmodifiableMap(builder);
-        for (ObjectMapper objectMapper : newObjectMappers) {
-            if (objectMapper.nested().isNested()) {
-                hasNestedObjects = true;
-            }
-        }
-        this.hasNestedObjects = hasNestedObjects;
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
@@ -236,15 +215,19 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public boolean hasNestedObjects() {
-        return hasNestedObjects;
+        return mappers().hasNested();
     }
 
     public DocumentFieldMappers mappers() {
         return this.fieldMappers;
     }
 
+    public FieldTypeLookup fieldTypes() {
+        return mappers().fieldTypes();
+    }
+
     public Map<String, ObjectMapper> objectMappers() {
-        return this.objectMappers;
+        return mappers().objectMappers();
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
@@ -304,6 +287,25 @@ public class DocumentMapper implements ToXContentFragment {
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping.merge(mapping, reason);
         return new DocumentMapper(mapperService, merged);
+    }
+
+    public void validate(IndexSettings settings, boolean checkLimits) {
+        this.mapping.validate(this.fieldMappers);
+        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
+            if (routingFieldMapper().required() == false) {
+                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
+                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+            }
+        }
+        if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
+            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+        }
+        if (checkLimits) {
+            this.fieldMappers.checkFieldLimit(settings.getMappingTotalFieldsLimit());
+            this.fieldMappers.checkObjectDepthLimit(settings.getMappingDepthLimit());
+            this.fieldMappers.checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
+            this.fieldMappers.checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        }
     }
 
     @Override

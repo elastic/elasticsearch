@@ -127,6 +127,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         DocumentFieldMappers documentFieldMappers = new DocumentFieldMappers(
             Arrays.asList(fieldMapper1, fieldMapper2),
             Collections.emptyList(),
+            Collections.emptyList(),
             defaultIndex);
 
         assertAnalyzes(documentFieldMappers.indexAnalyzer(), "field1", "index");

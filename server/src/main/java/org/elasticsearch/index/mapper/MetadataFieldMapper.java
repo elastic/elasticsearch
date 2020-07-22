@@ -70,6 +70,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      * Called when mapping gets merged. Provides the opportunity to validate other fields a metadata field mapper
      * is supposed to work with before a mapping update is completed.
      */
+    @Override
     public void validate(DocumentFieldMappers lookup) {
         // noop by default
     }

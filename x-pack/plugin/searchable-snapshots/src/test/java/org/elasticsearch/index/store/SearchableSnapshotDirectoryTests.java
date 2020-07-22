@@ -629,7 +629,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("_snapshot", 0L, randomFiles, 0L, 0L, 0, 0L);
             final BlobContainer blobContainer = new FsBlobContainer(
-                new FsBlobStore(Settings.EMPTY, shardSnapshotDir, true),
+                new FsBlobStore(randomIntBetween(1, 8) * 1024, shardSnapshotDir, true),
                 BlobPath.cleanPath(),
                 shardSnapshotDir
             );

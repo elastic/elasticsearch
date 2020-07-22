@@ -11,15 +11,20 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -205,6 +210,46 @@ public class VersionStringFieldMapper extends FieldMapper {
             }
             failIfNotIndexed();
             return wildcardQuery(value + "*", method, context);
+        }
+
+        @Override
+        public Query regexpQuery(
+            String value,
+            int flags,
+            int maxDeterminizedStates,
+            @Nullable MultiTermQuery.RewriteMethod method,
+            QueryShardContext context
+        ) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotIndexed();
+            RegexpQuery query = new RegexpQuery(new Term(name(), new BytesRef(value)), flags, maxDeterminizedStates) {
+
+                @Override
+                protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
+                    return new FilteredTermsEnum(terms.iterator(), false) {
+
+                        @Override
+                        protected AcceptStatus accept(BytesRef term) throws IOException {
+                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes();
+                            boolean accepted = compiled.runAutomaton.run(decoded, 0, decoded.length);
+                            // System.out.println(accepted + " : " + VersionEncoder.decodeVersion(term));
+                            if (accepted) {
+                                return AcceptStatus.YES;
+                            }
+                            return AcceptStatus.NO;
+                        }
+                    };
+                }
+            };
+
+            if (method != null) {
+                query.setRewriteMethod(method);
+            }
+            return query;
         }
 
         @Override

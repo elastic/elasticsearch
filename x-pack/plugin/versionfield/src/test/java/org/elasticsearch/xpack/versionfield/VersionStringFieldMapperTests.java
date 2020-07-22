@@ -28,21 +28,11 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        // return pluginList(VersionFieldPlugin.class, LocalStateCompositeXPackPlugin.class, PainlessPlugin.class);
-        // TODO PainlessPlugin loading doesn't work when test is run through "gradle check"
         return pluginList(VersionFieldPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     public String setUpIndex(String indexName) throws IOException {
-        createIndex(
-            indexName,
-            Settings.builder().put("index.number_of_shards", 1).build(),
-            "_doc",
-            "version",
-            "type=version",
-            "foo",
-            "type=keyword"
-        );
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
         client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "11.1.0").endObject()).get();
@@ -184,6 +174,44 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("2.1.0", hits[3].getSortValues()[0]);
         assertEquals("11.1.0", hits[4].getSortValues()[0]);
         assertEquals("21.11.0", hits[5].getSortValues()[0]);
+    }
+
+    public void testRegexQuery() throws Exception {
+        String indexName = "test_regex";
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
+        ensureGreen(indexName);
+
+        client().prepareIndex(indexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("version", "1.0.0-alpha.2.1.0-rc.1").endObject())
+            .get();
+        client().prepareIndex(indexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject())
+            .get();
+        client().prepareIndex(indexName)
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject())
+            .get();
+        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.33.0").endObject()).get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        // regex
+        SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2.*0")).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals("2.1.0", response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        assertEquals("2.33.0", response.getHits().getHits()[1].getSourceAsMap().get("version"));
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "<0-10>.<0-10>.*al.*")).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals("1.0.0-alpha.2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        assertEquals("2.1.0-alpha.beta", response.getHits().getHits()[1].getSourceAsMap().get("version"));
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "1.[0-9].[0-9].*")).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals("1.0.0-alpha.2.1.0-rc.1", response.getHits().getHits()[0].getSourceAsMap().get("version"));
+        assertEquals("1.3.0+build.1234567", response.getHits().getHits()[1].getSourceAsMap().get("version"));
     }
 
     public void testWildcardQuery() throws Exception {

@@ -28,7 +28,7 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         IntegerScriptFieldScript.Factory,
         IntegerScriptFieldScript.LeafFactory,
         Integer>{
-    
+
     public void testConstant() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
@@ -36,7 +36,7 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         };
         assertThat(execute(indexBuilder, "value(3)"), equalTo(List.of(3, 3)));
     }
-    
+
     public void testTwoConstants() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", randomLong())));
@@ -44,7 +44,7 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         };
         assertThat(execute(indexBuilder, "value(3); value(2)"), equalTo(List.of(3, 2, 3, 2)));
     }
-    
+
     public void testSource() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
@@ -52,7 +52,7 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         };
         assertThat(execute(indexBuilder, "value(source['foo'] * 10)"), equalTo(List.of(10, 100)));
     }
-    
+
     public void testTwoSourceFields() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1, \"bar\": 2}"))));
@@ -63,7 +63,7 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
                 equalTo(List.of(10, 20, 100, 200))
         );
     }
-    
+
     public void testDocValues() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
             iw.addDocument(List.of(new SortedNumericDocValuesField("foo", 1)));
@@ -74,7 +74,7 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
                 equalTo(List.of(10, 100))
         );
     }
-    
+
     public void testTwoDocValuesValues() throws IOException {
         CheckedConsumer<RandomIndexWriter, IOException> indexBuilder = iw -> {
             iw.addDocument(
@@ -95,13 +95,12 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
                 equalTo(List.of(10, 20, 100, 200))
         );
     }
-    
-    
+
     @Override
     protected ScriptContext<IntegerScriptFieldScript.Factory> scriptContext() {
         return IntegerScriptFieldScript.CONTEXT;
     }
-    
+
     @Override
     protected IntegerScriptFieldScript.LeafFactory newLeafFactory(
         IntegerScriptFieldScript.Factory factory, 
@@ -109,7 +108,7 @@ public class IntegerScriptFieldScriptTests extends ScriptFieldScriptTestCase<
         SearchLookup searchLookup) {
         return factory.newFactory(params, searchLookup);
     }
-    
+
     @Override
     protected IntFunction<List<Integer>> newInstance(IntegerScriptFieldScript.LeafFactory leafFactory, LeafReaderContext context) throws IOException {
         IntegerScriptFieldScript script = leafFactory.newInstance(context);

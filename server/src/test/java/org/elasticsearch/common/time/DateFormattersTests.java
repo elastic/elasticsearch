@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;

@@ -30,6 +30,7 @@ setup:
                   Instant instant = Instant.ofEpochMilli(source['timestamp']);
                   ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
                   value(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
+              # Test fetching many values
               day_of_week_letters:
                 type: script
                 runtime_type: keyword
@@ -37,16 +38,6 @@ setup:
                   for (String dow: doc['day_of_week']) {
                     for (int i = 0; i < dow.length(); i++) {
                       value(dow.charAt(i).toString());
-                    }
-                  }
-              # Test fetching many values
-              days_starting_with_t:
-                type: script
-                runtime_type: keyword
-                script: |
-                  for (String dow: doc['day_of_week']) {
-                    if (dow.startsWith('T')) {
-                      value(dow);
                     }
                   }
               prefixed_node:
@@ -89,25 +80,6 @@ setup:
       sensor.mappings.properties.day_of_week.script.source: |
         value(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
   - match: {sensor.mappings.properties.day_of_week.script.lang: painless }
-  - match: {sensor.mappings.properties.days_starting_with_t.type: script }
-  - match: {sensor.mappings.properties.days_starting_with_t.runtime_type: keyword }
-  - match:
-      sensor.mappings.properties.days_starting_with_t.script.source: |
-        for (String dow: doc['day_of_week']) {
-          if (dow.startsWith('T')) {
-            value(dow);
-          }
-        }
-  - match: {sensor.mappings.properties.days_starting_with_t.script.lang: painless }
-  - match: {sensor.mappings.properties.prefixed_node.type: script }
-  - match: {sensor.mappings.properties.prefixed_node.runtime_type: keyword }
-  - match:
-      sensor.mappings.properties.prefixed_node.script.source: |
-        for (String node : doc['node']) {
-          value(params.prefix + node);
-        }
-  - match: {sensor.mappings.properties.prefixed_node.script.params: {prefix: node_} }
-  - match: {sensor.mappings.properties.prefixed_node.script.lang: painless }
 
 ---
 "get field mapping":
@@ -133,12 +105,11 @@ setup:
         index: sensor
         body:
           sort: timestamp
-          docvalue_fields: [day_of_week, day_of_week_from_source, day_of_week_letters, days_starting_with_t, prefixed_node]
+          docvalue_fields: [day_of_week, day_of_week_from_source, day_of_week_letters, prefixed_node]
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.day_of_week: [Thursday] }
   - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
   - match: {hits.hits.0.fields.day_of_week_letters: [T, a, d, h, r, s, u, y] }
-  - match: {hits.hits.0.fields.days_starting_with_t: [Thursday] }
   - match: {hits.hits.0.fields.prefixed_node: [node_c] }
 
 ---
@@ -156,72 +127,6 @@ setup:
   - match: {aggregations.dow.buckets.0.doc_count: 1}
   - match: {aggregations.dow.buckets.1.key: Monday}
   - match: {aggregations.dow.buckets.1.doc_count: 1}
-
----
-"exists query":
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            exists:
-              field: days_starting_with_t
-          sort: timestamp
-  - match: {hits.total.value: 2}
-  - match: {hits.hits.0._source.voltage: 4.0}
-  - match: {hits.hits.1._source.voltage: 5.2}
-
----
-"fuzzy query":
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            fuzzy:
-              day_of_week:
-                value: Manday
-                fuzziness: 1
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._source.voltage: 5.8}
-
----
-"prefix query":
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            prefix:
-              day_of_week: M
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._source.voltage: 5.8}
-
----
-"range query":
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            range:
-              day_of_week:
-                gt: M
-                lt: N
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._source.voltage: 5.8}
-
----
-"regexp query":
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            regexp:
-              day_of_week: M[aeiou]nday
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._source.voltage: 5.8}
 
 ---
 "term query":
@@ -257,29 +162,3 @@ setup:
                 query: Monday
                 analyzer: standard
   - match: {hits.total.value: 0}
-
----
-"terms query":
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            terms:
-              day_of_week: [Monday, Tuesday]
-          sort: timestamp
-  - match: {hits.total.value: 2}
-  - match: {hits.hits.0._source.voltage: 5.8}
-  - match: {hits.hits.1._source.voltage: 5.2}
-
----
-"wildcard query":
-  - do:
-      search:
-        index: sensor
-        body:
-          query:
-            wildcard:
-              day_of_week: M*ay
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0._source.voltage: 5.8}

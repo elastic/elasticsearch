@@ -94,11 +94,6 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         }
     }
 
-    @Override
-    public String executorName() {
-        return ThreadPool.Names.GENERIC;
-    }
-
     private void scheduleNext() {
         if (isMaster) {
             try {

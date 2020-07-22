@@ -33,20 +33,5 @@ public interface LocalNodeMasterListener {
      * Called when the local node used to be the master, a new master was elected and it's no longer the local node.
      */
     void offMaster();
-
-    /**
-     * The name of the executor that the implementation of the callbacks of this lister should be executed on. The thread
-     * that is responsible for managing instances of this lister is the same thread handling the cluster state events. If
-     * the work done is the callbacks above is inexpensive, this value may be
-     * {@link org.elasticsearch.threadpool.ThreadPool.Names#SAME SAME} (indicating that the callbacks will run on the same thread
-     * as the cluster state events are fired with). On the other hand, if the logic in the callbacks are heavier and take
-     * longer to process (or perhaps involve blocking due to IO operations), prefer to execute them on a separate more appropriate
-     * executor (eg. {@link org.elasticsearch.threadpool.ThreadPool.Names#GENERIC GENERIC}
-     * or {@link org.elasticsearch.threadpool.ThreadPool.Names#MANAGEMENT MANAGEMENT}).
-     *
-     * @return The name of the executor that will run the callbacks of this listener.
-     */
-    String executorName();
-
 }
 

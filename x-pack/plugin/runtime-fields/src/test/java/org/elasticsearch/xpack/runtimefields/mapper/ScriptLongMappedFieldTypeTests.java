@@ -279,7 +279,7 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),
-            equalTo("queries cannot be executed against [script] fields while [search.allow_expensive_queries] is set to [false].")
+            equalTo("queries cannot be executed against [runtime_script] fields while [search.allow_expensive_queries] is set to [false].")
         );
     }
 }

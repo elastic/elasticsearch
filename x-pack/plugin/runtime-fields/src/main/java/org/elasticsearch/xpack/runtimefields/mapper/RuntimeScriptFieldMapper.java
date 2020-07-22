@@ -25,15 +25,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public final class ScriptFieldMapper extends ParametrizedFieldMapper {
+public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
 
-    public static final String CONTENT_TYPE = "script";
+    public static final String CONTENT_TYPE = "runtime_script";
 
     private final String runtimeType;
     private final Script script;
     private final ScriptCompiler scriptCompiler;
 
-    protected ScriptFieldMapper(
+    protected RuntimeScriptFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
@@ -50,7 +50,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
-        return new ScriptFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
+        return new RuntimeScriptFieldMapper.Builder(simpleName(), scriptCompiler).init(this);
     }
 
     @Override
@@ -107,8 +107,8 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
             }
         );
 
-        private static ScriptFieldMapper toType(FieldMapper in) {
-            return (ScriptFieldMapper) in;
+        private static RuntimeScriptFieldMapper toType(FieldMapper in) {
+            return (RuntimeScriptFieldMapper) in;
         }
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -119,7 +119,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
             null
         ).setValidator(runtimeType -> {
             if (runtimeType == null) {
-                throw new IllegalArgumentException("runtime_type must be specified for script field [" + name + "]");
+                throw new IllegalArgumentException("runtime_type must be specified for " + CONTENT_TYPE + " field [" + name + "]");
             }
         });
         private final Parameter<Script> script = new Parameter<>(
@@ -130,7 +130,7 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
             mapper -> toType(mapper).script
         ).setValidator(script -> {
             if (script == null) {
-                throw new IllegalArgumentException("script must be specified for script field [" + name + "]");
+                throw new IllegalArgumentException("script must be specified for " + CONTENT_TYPE + " field [" + name + "]");
             }
         });
 
@@ -147,15 +147,17 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ScriptFieldMapper build(BuilderContext context) {
+        public RuntimeScriptFieldMapper build(BuilderContext context) {
             BiFunction<Builder, BuilderContext, MappedFieldType> fieldTypeResolver = Builder.FIELD_TYPE_RESOLVER.get(
                 runtimeType.getValue()
             );
             if (fieldTypeResolver == null) {
-                throw new IllegalArgumentException("runtime_type [" + runtimeType.getValue() + "] not supported");
+                throw new IllegalArgumentException(
+                    "runtime_type [" + runtimeType.getValue() + "] not supported for " + CONTENT_TYPE + " field [" + name + "]"
+                );
             }
             // TODO copy to and multi_fields should not be supported, parametrized field mapper needs to be adapted
-            return new ScriptFieldMapper(
+            return new RuntimeScriptFieldMapper(
                 name,
                 fieldTypeResolver.apply(this, context),
                 multiFieldsBuilder.build(this, context),
@@ -169,7 +171,9 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
         static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
             Script script = Script.parse(scriptObject);
             if (script.getType() == ScriptType.STORED) {
-                throw new IllegalArgumentException("stored scripts specified but not supported when defining script field [" + name + "]");
+                throw new IllegalArgumentException(
+                    "stored scripts specified but not supported for " + CONTENT_TYPE + " field [" + name + "]"
+                );
             }
             return script;
         }
@@ -178,10 +182,10 @@ public final class ScriptFieldMapper extends ParametrizedFieldMapper {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public ScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public RuntimeScriptFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
 
-            ScriptFieldMapper.Builder builder = new ScriptFieldMapper.Builder(name, new ScriptCompiler() {
+            RuntimeScriptFieldMapper.Builder builder = new RuntimeScriptFieldMapper.Builder(name, new ScriptCompiler() {
                 @Override
                 public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                     return parserContext.queryShardContextSupplier().get().compile(script, context);

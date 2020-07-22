@@ -1431,7 +1431,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void removeFailedSnapshotFromClusterState(Snapshot snapshot, Exception failure, @Nullable RepositoryData repositoryData,
                                                       @Nullable CleanupAfterErrorListener listener) {
         assert failure != null : "Failure must be supplied";
-        assert (listener == null || repositoryData == null) && (repositoryData != null || listener != null) :
+        assert (listener == null || repositoryData == null) && (listener == null && repositoryData == null) == false :
                 "Either repository data or a listener but not both must be null but saw [" + listener + "] and [" + repositoryData + "]";
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 

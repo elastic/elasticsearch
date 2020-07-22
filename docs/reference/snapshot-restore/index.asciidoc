@@ -32,7 +32,7 @@ streams or indices from a snapshot.
 // end::restore-intro[]
 
 You can use
-<<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>
+<<getting-started-snapshot-lifecycle-management, {slm}>>
 to automatically take and manage snapshots.
 
 // tag::backup-warning[]

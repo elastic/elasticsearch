@@ -78,7 +78,8 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                     handleSearchResponse(searchResponse, pipelineSources, clearScroll, listener);
                 }, listener::onFailure));
         } else if (request.ids().size() == 1) {
-            client.prepareGet(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids().get(0)).setFetchSource(true)
+            client.prepareGet(Logstash.LOGSTASH_CONCRETE_INDEX_NAME, request.ids().get(0))
+                .setFetchSource(true)
                 .execute(ActionListener.wrap(response -> {
                     if (response.isExists()) {
                         listener.onResponse(new GetPipelineResponse(Map.of(response.getId(), response.getSourceAsBytesRef())));

@@ -39,6 +39,7 @@ import java.util.Collection;
  * in order to run these tests.
  */
 @ThirdParty
+//TODO: move this test case over to an internalClusterTest
 public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
     @Override

@@ -87,9 +87,13 @@ POST twitter/_search
 
 <1> Both full field names and wildcard patterns are accepted.
 <2> Using object notation, you can pass a `format` parameter to apply a custom
-    format for the field's values. This is currently supported for
-    <<date,`date` fields>> and <<date_nanos, `date_nanos` fields>>, which
-    accept a <<mapping-date-format,date format>>.
+    format for the field's values. The date fields
+    <<date,`date`>> and <<date_nanos, `date_nanos`>> accept a
+    <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
+    accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
+    or `wkt` for
+    https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text].
+    Other field types do not support the `format` parameter.
 
 The values are returned as a flat list in the `fields` section in each hit:
 

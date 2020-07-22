@@ -57,3 +57,26 @@ setup:
               field: location
 
   - match: {hits.total: 1}
+
+---
+"Test retrieve geo_shape field":
+  - do:
+      search:
+        index: test
+        body:
+          fields: [location]
+          _source: false
+
+  - match: { hits.hits.0.fields.location.0.type: "Point" }
+  - match: { hits.hits.0.fields.location.0.coordinates: [1.0, 1.0] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: location
+              format: wkt
+          _source: false
+
+  - match: { hits.hits.0.fields.location.0: "POINT (1.0 1.0)" }

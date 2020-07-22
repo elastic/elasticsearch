@@ -69,11 +69,19 @@ Use the restore snapshot API to restore a snapshot of a cluster, including all d
 NOTE: You cannot restore a data stream if a stream with the same name already
 exists.
 
-You can run the restore operation only on a functioning cluster. Existing indices can only be restored if they are <<indices-close,closed>> and have the same number of shards as the indices in the snapshot. The restore operation automatically opens restored indices if they were closed and creates new indices if they do not exist in the cluster.
+You can run the restore operation on a cluster that contains an elected
+master node and has data nodes with enough capacity to accommodate the snapshot
+you are restoring. Existing indices can only be restored if they are
+<<indices-close,closed>> and have the same number of shards as the indices in
+the snapshot. The restore operation automatically opens restored indices if
+they were closed and creates new indices if they do not exist in the cluster.
 
-If a data stream is restored, its backing indices are also restored. However, restored backing indices are not automatically
-added to any existing data streams. For example, if only the
-`.ds-logs-000003` backing index is restored from a snapshot, it is not automatically added to the existing `logs` data stream.
+If a data stream is restored, its backing indices are also restored.
+Alternatively, you can restore individual backing indices without restoring an
+entire data stream. If you restore individual backing indices, they are not
+automatically added to any existing data stream. For example, if only the
+`.ds-logs-00003` backing index is restored from a snapshot, it is not
+automatically added to the existing `logs` data stream.
 
 include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=index-settings-data-stream-warning]
 
@@ -86,7 +94,7 @@ Name of the repository to restore a snapshot from.
 
 `<snapshot>`::
 (Required, string)
-Name of the snapshot to restore. This name must be unique in the snapshot repository.
+Name of the snapshot to restore.
 
 [role="child-attributes"]
 [[restore-snapshot-api-request-body]]
@@ -94,7 +102,7 @@ Name of the snapshot to restore. This name must be unique in the snapshot reposi
 
 `ignore_index_settings`::
 (Optional, string)
-A comma-separated list of index settings and index settings groups that should not be restored from a snapshot.
+A comma-separated list of index settings that should not be restored from a snapshot.
 
 `include_aliases`::
 (Optional, boolean)
@@ -200,31 +208,3 @@ POST /_snapshot/my_repository/snapshot_2/_restore?wait_for_completion=true
 
 The API returns an acknowledgement if the request succeeds. If the request encounters errors, the response indicates any issues found, such as
 open indices that are blocking the restore operation from completing.
-
-For example, the following error indicates that `snapshot_2` cannot be restored because an open index with the same name (`restored_index_2`) already exists in the cluster.
-
-[source,console-result]
-----
-{
-  "error" : {
-    "root_cause" : [
-      {
-        "type" : "snapshot_restore_exception",
-        "reason" : "[my_repository:snapshot_2/0LIMUElxQkyRoimBDAkYIQ]
-        cannot restore index [restored_index_2] because an open index
-        with same name already exists in the cluster. Either close or
-        delete the existing index or restore the index under a different
-        name by providing a rename pattern and replacement name"
-      }
-    ],
-    "type" : "snapshot_restore_exception",
-    "reason" : "[my_respository:snapshot_2/0LIMUElxQkyRoimBDAkYIQ]
-    cannot restore index [restored_index_2] because an open index
-    with same name already exists in the cluster. Either close or
-    delete the existing index or restore the index under a different
-    name by providing a rename pattern and replacement name"
-  },
-  "status" : 500
-}
-----
-// TEST[skip:example only]

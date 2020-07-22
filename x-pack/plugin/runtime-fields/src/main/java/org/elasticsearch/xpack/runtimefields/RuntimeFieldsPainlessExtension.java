@@ -17,6 +17,7 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         return Map.ofEntries(
+            Map.entry(DateScriptFieldScript.CONTEXT, DateScriptFieldScript.whitelist()),
             Map.entry(DoubleScriptFieldScript.CONTEXT, DoubleScriptFieldScript.whitelist()),
             Map.entry(LongScriptFieldScript.CONTEXT, LongScriptFieldScript.whitelist()),
             Map.entry(StringScriptFieldScript.CONTEXT, StringScriptFieldScript.whitelist())

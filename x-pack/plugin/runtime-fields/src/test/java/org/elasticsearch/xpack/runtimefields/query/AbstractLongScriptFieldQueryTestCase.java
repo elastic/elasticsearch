@@ -10,7 +10,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +21,7 @@ import static org.mockito.Mockito.mock;
 
 public abstract class AbstractLongScriptFieldQueryTestCase<T extends AbstractLongScriptFieldQuery> extends AbstractScriptFieldQueryTestCase<
     T> {
-    protected final LongScriptFieldScript.LeafFactory leafFactory = mock(LongScriptFieldScript.LeafFactory.class);
+    protected final AbstractLongScriptFieldScript.LeafFactory leafFactory = mock(AbstractLongScriptFieldScript.LeafFactory.class);
 
     @Override
     public final void testVisit() {

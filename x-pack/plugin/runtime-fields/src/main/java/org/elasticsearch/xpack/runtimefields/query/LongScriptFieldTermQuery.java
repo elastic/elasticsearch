@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
 import java.util.Objects;
 
 public class LongScriptFieldTermQuery extends AbstractLongScriptFieldQuery {
     private final long term;
 
-    public LongScriptFieldTermQuery(Script script, LongScriptFieldScript.LeafFactory leafFactory, String fieldName, long term) {
+    public LongScriptFieldTermQuery(Script script, AbstractLongScriptFieldScript.LeafFactory leafFactory, String fieldName, long term) {
         super(script, leafFactory, fieldName);
         this.term = term;
     }

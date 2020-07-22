@@ -120,6 +120,7 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
             return Queries.newMatchNoDocsQuery("Can't run [" + NAME + "] query on unmapped fields!");
         }
         Object originObj = origin.origin();
+        // TODO these ain't gonna work with runtime fields
         if (fieldType instanceof DateFieldType) {
             long originLong = ((DateFieldType) fieldType).parseToLong(originObj, true, null, null, context::nowInMillis);
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");

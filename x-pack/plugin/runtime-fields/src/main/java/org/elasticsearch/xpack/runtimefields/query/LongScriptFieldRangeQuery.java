@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
 import java.util.Objects;
 
@@ -17,7 +17,7 @@ public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
 
     public LongScriptFieldRangeQuery(
         Script script,
-        LongScriptFieldScript.LeafFactory leafFactory,
+        AbstractLongScriptFieldScript.LeafFactory leafFactory,
         String fieldName,
         long lowerValue,
         long upperValue

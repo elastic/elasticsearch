@@ -131,8 +131,8 @@ public class ScriptLongMappedFieldTypeTests extends AbstractNonTextScriptMappedF
                         return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Longs doubles = (ScriptDocValues.Longs) getDoc().get("test");
-                                return doubles.get(0);
+                                ScriptDocValues.Longs longs = (ScriptDocValues.Longs) getDoc().get("test");
+                                return longs.get(0);
                             }
                         };
                     }

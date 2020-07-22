@@ -16,6 +16,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptLongFieldData;
 import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldExistsQuery;
@@ -51,8 +52,9 @@ public class ScriptLongMappedFieldType extends AbstractScriptMappedFieldType {
         return new ScriptLongFieldData.Builder(name(), script, scriptFactory);
     }
 
-    private LongScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {
-        return scriptFactory.newFactory(script.getParams(), context.lookup());
+    private AbstractLongScriptFieldScript.LeafFactory leafFactory(QueryShardContext context) {
+        LongScriptFieldScript.LeafFactory delegate = scriptFactory.newFactory(script.getParams(), context.lookup());
+        return ctx -> delegate.newInstance(ctx);
     }
 
     @Override

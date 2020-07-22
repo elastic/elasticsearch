@@ -9,14 +9,19 @@ package org.elasticsearch.xpack.runtimefields.query;
 import com.carrotsearch.hppc.LongSet;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.AbstractLongScriptFieldScript;
 
 import java.util.Objects;
 
 public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
     private final LongSet terms;
 
-    public LongScriptFieldTermsQuery(Script script, LongScriptFieldScript.LeafFactory leafFactory, String fieldName, LongSet terms) {
+    public LongScriptFieldTermsQuery(
+        Script script,
+        AbstractLongScriptFieldScript.LeafFactory leafFactory,
+        String fieldName,
+        LongSet terms
+    ) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
     }

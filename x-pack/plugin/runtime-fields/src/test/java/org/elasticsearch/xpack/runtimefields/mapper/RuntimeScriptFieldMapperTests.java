@@ -35,12 +35,12 @@ import java.util.Set;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
+public class RuntimeScriptFieldMapperTests extends ESSingleNodeTestCase {
 
     private final String[] runtimeTypes;
 
-    public ScriptFieldMapperTests() {
-        this.runtimeTypes = ScriptFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
+    public RuntimeScriptFieldMapperTests() {
+        this.runtimeTypes = RuntimeScriptFieldMapper.Builder.FIELD_TYPE_RESOLVER.keySet().toArray(new String[0]);
         Arrays.sort(runtimeTypes);
     }
 
@@ -55,7 +55,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "script")
+            .field("type", "runtime_script")
             .field("script", "keyword('test')")
             .endObject()
             .endObject()
@@ -63,7 +63,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
-        assertEquals("Failed to parse mapping: runtime_type must be specified for script field [my_field]", exception.getMessage());
+        assertEquals("Failed to parse mapping: runtime_type must be specified for runtime_script field [my_field]", exception.getMessage());
     }
 
     public void testScriptIsRequired() throws Exception {
@@ -72,7 +72,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "script")
+            .field("type", "runtime_script")
             .field("runtime_type", randomFrom(runtimeTypes))
             .endObject()
             .endObject()
@@ -80,7 +80,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .endObject();
 
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
-        assertEquals("Failed to parse mapping: script must be specified for script field [my_field]", exception.getMessage());
+        assertEquals("Failed to parse mapping: script must be specified for runtime_script field [my_field]", exception.getMessage());
     }
 
     public void testStoredScriptsAreNotSupported() throws Exception {
@@ -89,7 +89,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("_doc")
             .startObject("properties")
             .startObject("my_field")
-            .field("type", "script")
+            .field("type", "runtime_script")
             .field("runtime_type", randomFrom(runtimeTypes))
             .startObject("script")
             .field("id", "test")
@@ -100,37 +100,40 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
             .endObject();
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createIndex("test", Settings.EMPTY, mapping));
         assertEquals(
-            "Failed to parse mapping: stored scripts specified but not supported when defining script field [my_field]",
+            "Failed to parse mapping: stored scripts specified but not supported for runtime_script field [my_field]",
             exception.getMessage()
         );
     }
 
-    public void testUnsupportedRuntimeType() throws Exception {
+    public void testUnsupportedRuntimeType() {
         MapperParsingException exc = expectThrows(
             MapperParsingException.class,
             () -> createIndex("test", Settings.EMPTY, mapping("unsupported"))
         );
-        assertEquals("Failed to parse mapping: runtime_type [unsupported] not supported", exc.getMessage());
+        assertEquals(
+            "Failed to parse mapping: runtime_type [unsupported] not supported for runtime_script field [field]",
+            exc.getMessage()
+        );
     }
 
     public void testDouble() throws IOException {
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("double")).mapperService();
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(ScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("double")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testKeyword() throws IOException {
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("keyword")).mapperService();
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(ScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("keyword")), Strings.toString(mapperService.documentMapper()));
     }
 
     public void testLong() throws IOException {
         MapperService mapperService = createIndex("test", Settings.EMPTY, mapping("long")).mapperService();
         FieldMapper mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper, instanceOf(ScriptFieldMapper.class));
+        assertThat(mapper, instanceOf(RuntimeScriptFieldMapper.class));
         assertEquals(Strings.toString(mapping("long")), Strings.toString(mapperService.documentMapper()));
     }
 
@@ -175,7 +178,7 @@ public class ScriptFieldMapperTests extends ESSingleNodeTestCase {
                 {
                     mapping.startObject("field");
                     {
-                        mapping.field("type", "script").field("runtime_type", type);
+                        mapping.field("type", "runtime_script").field("runtime_type", type);
                         mapping.startObject("script");
                         {
                             mapping.field("source", "dummy_source").field("lang", "test");

@@ -18,7 +18,7 @@ setup:
               node:
                 type: keyword
               voltage_times_ten:
-                type: script
+                type: runtime_script
                 runtime_type: long
                 script:
                   source: |
@@ -29,7 +29,7 @@ setup:
                     multiplier: 10
               # Test fetching from _source
               voltage_times_ten_from_source:
-                type: script
+                type: runtime_script
                 runtime_type: long
                 script:
                   source: |
@@ -38,7 +38,7 @@ setup:
                     multiplier: 10
               # Test fetching many values
               temperature_digits:
-                type: script
+                type: runtime_script
                 runtime_type: long
                 script:
                   source: |
@@ -73,7 +73,7 @@ setup:
   - do:
       indices.get_mapping:
         index: sensor
-  - match: {sensor.mappings.properties.voltage_times_ten.type: script }
+  - match: {sensor.mappings.properties.voltage_times_ten.type: runtime_script }
   - match: {sensor.mappings.properties.voltage_times_ten.runtime_type: long }
   - match:
       sensor.mappings.properties.voltage_times_ten.script.source: |

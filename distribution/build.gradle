@@ -54,23 +54,23 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
  *****************************************************************************/
 
 // integ test zip only uses server, so a different notice file is needed there
-task buildServerNotice(type: NoticeTask)
+tasks.register("buildServerNotice", NoticeTask)
 
 // other distributions include notices from modules as well, which are added below later
-task buildDefaultNotice(type: NoticeTask) {
+tasks.register("buildDefaultNotice", NoticeTask).configure {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-task buildOssNotice(type: NoticeTask) {
+tasks.register("buildOssNotice", NoticeTask).configure {
   licensesDir new File(project(':distribution').projectDir, 'licenses')
 }
 
-task buildDefaultNoJdkNotice(type: NoticeTask)
+tasks.register("buildDefaultNoJdkNotice", NoticeTask)
 
-task buildOssNoJdkNotice(type: NoticeTask)
+tasks.register("buildOssNoJdkNotice", NoticeTask)
 
 // The :server and :libs projects belong to all distributions
-tasks.withType(NoticeTask) {
+tasks.withType(NoticeTask).configureEach {
   licensesDir project(':server').file('licenses')
   source project(':server').file('src/main/java')
   project(':libs').subprojects.each { Project lib ->

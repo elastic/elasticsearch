@@ -22,7 +22,7 @@ testClusters."leader-cluster" {
 }
 
 File policyFile = file("${buildDir}/tmp/java.policy")
-task writeJavaPolicy {
+tasks.register("writeJavaPolicy") {
   doLast {
     if (policyFile.parentFile.exists() == false && policyFile.parentFile.mkdirs() == false) {
       throw new GradleException("failed to create temporary directory [${tmp}]")
@@ -82,5 +82,6 @@ testClusters."follow-cluster" {
 }
 
 
-check.dependsOn "follow-cluster"
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("check").configure { dependsOn "follow-cluster" }
+// no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("test").configure { enabled = false }

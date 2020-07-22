@@ -88,63 +88,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         int userWithMissingBuckets,
         String missingBucketField
     ) throws IOException {
+        putReviewsIndex(indexName, dateType, isDataStream);
+
         int[] distributionTable = { 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3, 2, 1, 1, 1 };
-
-        // create mapping
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-
-                builder.startObject("mappings").startObject("properties");
-                builder.startObject("@timestamp").field("type", dateType);
-                if (dateType.equals("date_nanos")) {
-                    builder.field("format", "strict_date_optional_time_nanos");
-                }
-                builder.endObject();
-                builder.startObject("timestamp").field("type", dateType);
-                if (dateType.equals("date_nanos")) {
-                    builder.field("format", "strict_date_optional_time_nanos");
-                }
-                builder.endObject()
-                    .startObject("user_id")
-                    .field("type", "keyword")
-                    .endObject()
-                    .startObject("business_id")
-                    .field("type", "keyword")
-                    .endObject()
-                    .startObject("stars")
-                    .field("type", "integer")
-                    .endObject()
-                    .startObject("location")
-                    .field("type", "geo_point")
-                    .endObject()
-                    .endObject()
-                    .endObject();
-            }
-            builder.endObject();
-            if (isDataStream) {
-                Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(
-                    "{\n"
-                        + "  \"index_patterns\": [ \""
-                        + indexName
-                        + "\" ],\n"
-                        + "  \"data_stream\": {\n"
-                        + "  },\n"
-                        + "  \"template\": \n"
-                        + Strings.toString(builder)
-                        + "}"
-                );
-                client().performRequest(createCompositeTemplate);
-                client().performRequest(new Request("PUT", "_data_stream/" + indexName));
-            } else {
-                final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-                Request req = new Request("PUT", indexName);
-                req.setEntity(entity);
-                client().performRequest(req);
-            }
-        }
-
         // create index
         final StringBuilder bulk = new StringBuilder();
         int day = 10;
@@ -209,6 +155,62 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
+    }
+
+    protected void putReviewsIndex(String indexName, String dateType, boolean isDataStream) throws IOException {
+        // create mapping
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings").startObject("properties");
+                builder.startObject("@timestamp").field("type", dateType);
+                if (dateType.equals("date_nanos")) {
+                    builder.field("format", "strict_date_optional_time_nanos");
+                }
+                builder.endObject();
+                builder.startObject("timestamp").field("type", dateType);
+                if (dateType.equals("date_nanos")) {
+                    builder.field("format", "strict_date_optional_time_nanos");
+                }
+                builder.endObject()
+                    .startObject("user_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("business_id")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("stars")
+                    .field("type", "integer")
+                    .endObject()
+                    .startObject("location")
+                    .field("type", "geo_point")
+                    .endObject()
+                    .endObject()
+                    .endObject();
+            }
+            builder.endObject();
+            if (isDataStream) {
+                Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
+                createCompositeTemplate.setJsonEntity(
+                    "{\n"
+                        + "  \"index_patterns\": [ \""
+                        + indexName
+                        + "\" ],\n"
+                        + "  \"data_stream\": {\n"
+                        + "  },\n"
+                        + "  \"template\": \n"
+                        + Strings.toString(builder)
+                        + "}"
+                );
+                client().performRequest(createCompositeTemplate);
+                client().performRequest(new Request("PUT", "_data_stream/" + indexName));
+            } else {
+                final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+                Request req = new Request("PUT", indexName);
+                req.setEntity(entity);
+                client().performRequest(req);
+            }
+        }
     }
 
     /**

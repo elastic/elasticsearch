@@ -6,8 +6,11 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
+import co.elastic.logging.log4j2.EcsLayout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -18,6 +21,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.ECSJsonLayout;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.RateLimitingFilter;
 import org.elasticsearch.common.settings.Setting;
@@ -46,7 +50,12 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     public DeprecationIndexingComponent(ThreadPool threadPool, Client client) {
         final Consumer<IndexRequest> consumer = buildIndexRequestConsumer(threadPool, client);
 
-        this.appender = new DeprecationIndexingAppender("DeprecationIndexer", new RateLimitingFilter(), consumer);
+        final LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        final Configuration configuration = context.getConfiguration();
+
+        final EcsLayout ecsLayout = ECSJsonLayout.newBuilder().setType("deprecation").setConfiguration(configuration).build();
+
+        this.appender = new DeprecationIndexingAppender("deprecation_indexing_appender", new RateLimitingFilter(), ecsLayout, consumer);
     }
 
     @Override
@@ -77,8 +86,6 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
         appender.setEnabled(WRITE_DEPRECATION_LOGS_TO_INDEX.get(state.getMetadata().settings()));
-        appender.setClusterUUID(state.getMetadata().clusterUUID());
-        appender.setNodeId(state.nodes().getLocalNodeId());
     }
 
     /**

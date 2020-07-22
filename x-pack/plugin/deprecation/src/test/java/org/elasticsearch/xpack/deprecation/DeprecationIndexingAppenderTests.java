@@ -6,10 +6,9 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.logging.DeprecatedMessage;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingAppender;
 import org.junit.Before;
@@ -19,8 +18,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -30,16 +27,15 @@ import static org.mockito.Mockito.when;
 public class DeprecationIndexingAppenderTests extends ESTestCase {
 
     private DeprecationIndexingAppender appender;
+    private Layout<String> layout;
     private Consumer<IndexRequest> consumer;
 
     @Before
     @SuppressWarnings("unchecked")
     public void initialize() {
+        layout = mock(Layout.class);
         consumer = mock(Consumer.class);
-        appender = new DeprecationIndexingAppender("a name", null, consumer);
-
-        appender.setClusterUUID("cluster-uuid");
-        appender.setNodeId("local-node-id");
+        appender = new DeprecationIndexingAppender("a name", null, layout, consumer);
     }
 
     /**
@@ -47,7 +43,7 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
      * is disabled.
      */
     public void testDoesNotWriteMessageWhenServiceDisabled() {
-        appender.append(buildEvent());
+        appender.append(mock(LogEvent.class));
 
         verify(consumer, never()).accept(any());
     }
@@ -59,72 +55,29 @@ public class DeprecationIndexingAppenderTests extends ESTestCase {
         appender.setEnabled(true);
         appender.setEnabled(false);
 
-        appender.append(buildEvent());
+        appender.append(mock(LogEvent.class));
 
         verify(consumer, never()).accept(any());
     }
 
     /**
      * Checks that messages are indexed in the correct shape when the service is enabled.
+     * Formatted is handled entirely by the configured Layout, so that is not verified here.
      */
     public void testWritesMessageWhenServiceEnabled() {
         appender.setEnabled(true);
 
-        final Map<String, Object> payloadMap = getWriteRequest(DeprecatedMessage.of("a key", null, "a message"));
+        when(layout.toByteArray(any())).thenReturn("{ \"some key\": \"some value\" }".getBytes());
 
-        assertThat(payloadMap, hasKey("@timestamp"));
-        assertThat(payloadMap, hasEntry("key", "a key"));
-        assertThat(payloadMap, hasEntry("message", "a message"));
-        assertThat(payloadMap, hasEntry("cluster.uuid", "cluster-uuid"));
-        assertThat(payloadMap, hasEntry("node.id", "local-node-id"));
-        // Neither of these should exist since we passed null when writing the message
-        assertThat(payloadMap, not(hasKey("x-opaque-id")));
-    }
-
-    /**
-     * Check that if an xOpaqueId is set, then it is added to the index request payload.
-     */
-    public void testMessageIncludesOpaqueIdWhenSupplied() {
-        appender.setEnabled(true);
-
-        final Map<String, Object> payloadMap = getWriteRequest(DeprecatedMessage.of("a key", "an ID", "a message"));
-
-        assertThat(payloadMap, hasEntry("x-opaque-id", "an ID"));
-    }
-
-    /**
-     * Check that if any arguments are set, then they substituted in the log message
-     */
-    public void testMessageSubstitutesArgumentsWhenSupplied() {
-        appender.setEnabled(true);
-
-        final Map<String, Object> payloadMap = getWriteRequest(
-            DeprecatedMessage.of("a key", null, "a {} and {} message", "first", "second")
-        );
-
-        assertThat(payloadMap, hasEntry("message", "a first and second message"));
-    }
-
-    /*
-     * Wraps up the steps for extracting an index request payload from the mocks.
-     */
-    private Map<String, Object> getWriteRequest(ESLogMessage message) {
-        LogEvent logEvent = mock(LogEvent.class);
-        when(logEvent.getMessage()).thenReturn(message);
-
-        appender.append(logEvent);
+        appender.append(mock(LogEvent.class));
 
         ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
 
         verify(consumer).accept(argument.capture());
 
         final IndexRequest indexRequest = argument.getValue();
-        return indexRequest.sourceAsMap();
-    }
+        final Map<String, Object> payloadMap = indexRequest.sourceAsMap();
 
-    private LogEvent buildEvent() {
-        LogEvent logEvent = mock(LogEvent.class);
-        when(logEvent.getMessage()).thenReturn(DeprecatedMessage.of("a key", null, "a message"));
-        return logEvent;
+        assertThat(payloadMap, hasEntry("some key", "some value"));
     }
 }

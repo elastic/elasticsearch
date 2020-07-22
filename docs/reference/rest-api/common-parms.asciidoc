@@ -373,7 +373,7 @@ end::if_seq_no[]
 tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices are
-ignored when frozen.
+ignored when frozen. Defaults to `true`.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]

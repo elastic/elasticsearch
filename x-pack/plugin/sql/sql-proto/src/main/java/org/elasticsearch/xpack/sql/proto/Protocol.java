@@ -50,14 +50,21 @@ public final class Protocol {
     public static final TimeValue PAGE_TIMEOUT = TimeValue.timeValueSeconds(45);
     public static final boolean FIELD_MULTI_VALUE_LENIENCY = false;
     public static final boolean INDEX_INCLUDE_FROZEN = false;
-    
+
     /*
-     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or 
+     * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or
      * binary parameter).
      * See {@code SqlTranslateRequest.toXContent}
      */
     public static final Boolean COLUMNAR = Boolean.FALSE;
     public static final Boolean BINARY_COMMUNICATION = null;
+
+    /*
+     * URL parameters
+     */
+    public static final String URL_PARAM_FORMAT = "format";
+    public static final String URL_PARAM_HEADER = "header";
+    public static final String URL_PARAM_DELIMITER = "delimiter";
 
     /**
      * SQL-related endpoints

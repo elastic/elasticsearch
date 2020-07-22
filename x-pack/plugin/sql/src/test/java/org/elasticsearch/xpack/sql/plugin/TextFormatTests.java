@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -62,19 +63,20 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvEscaping() {
-        assertEquals("string", CSV.maybeEscape("string"));
-        assertEquals("", CSV.maybeEscape(""));
-        assertEquals("\"\"\"\"", CSV.maybeEscape("\""));
-        assertEquals("\"\"\",\"\"\"", CSV.maybeEscape("\",\""));
-        assertEquals("\"\"\"quo\"\"ted\"\"\"", CSV.maybeEscape("\"quo\"ted\""));
+        assertEquals("string", CSV.maybeEscape("string", CSV.delimiter()));
+        assertEquals("", CSV.maybeEscape("", CSV.delimiter()));
+        assertEquals("\"\"\"\"", CSV.maybeEscape("\"", CSV.delimiter()));
+        assertEquals("\"\"\",\"\"\"", CSV.maybeEscape("\",\"", CSV.delimiter()));
+        assertEquals("\"\"\"quo\"\"ted\"\"\"", CSV.maybeEscape("\"quo\"ted\"", CSV.delimiter()));
+        assertEquals("\"one;two\"", CSV.maybeEscape("one;two", ';'));
     }
 
     public void testTsvEscaping() {
-        assertEquals("string", TSV.maybeEscape("string"));
-        assertEquals("", TSV.maybeEscape(""));
-        assertEquals("\"", TSV.maybeEscape("\""));
-        assertEquals("\\t", TSV.maybeEscape("\t"));
-        assertEquals("\\n\"\\t", TSV.maybeEscape("\n\"\t"));
+        assertEquals("string", TSV.maybeEscape("string", null));
+        assertEquals("", TSV.maybeEscape("", null));
+        assertEquals("\"", TSV.maybeEscape("\"", null));
+        assertEquals("\\t", TSV.maybeEscape("\t", null));
+        assertEquals("\\n\"\\t", TSV.maybeEscape("\n\"\t", null));
     }
 
     public void testCsvFormatWithEmptyData() {
@@ -95,8 +97,20 @@ public class TextFormatTests extends ESTestCase {
             text);
     }
 
+    public void testCsvFormatNoHeaderWithRegularData() {
+        String text = CSV.format(reqWithParam("header", "absent"), regularData());
+        assertEquals("Along The River Bank,708\r\n" +
+                "Mind Train,280\r\n",
+            text);
+    }
+
+    public void testCsvFormatInvalidHeaderValue() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> CSV.format(reqWithParam("header", "invalid"), regularData()));
+        assertEquals("illegal value of [header] attribute: [invalid]; allowed values: [absent, present]", e.getMessage());
+    }
+
     public void testCsvFormatWithCustomDelimiterRegularData() {
-        List<Character> forbidden = Arrays.asList('"', '\r', '\n', '\t');
+        Set<Character> forbidden = Set.of('"', '\r', '\n', '\t');
         Character delim = randomValueOtherThanMany(forbidden::contains, () -> randomAlphaOfLength(1).charAt(0));
         String text = CSV.format(reqWithParam("delimiter", String.valueOf(delim)), regularData());
         List<String> terms = Arrays.asList("string", "number", "Along The River Bank", "708", "Mind Train", "280");
@@ -154,7 +168,7 @@ public class TextFormatTests extends ESTestCase {
             String msg;
             if (c.length() == 1) {
                 msg = c.equals("\t")
-                    ? "illegal delimiter [TAB] specified as delimiter for the [CSV] format; choose the [TSV] format instead"
+                    ? "illegal delimiter [TAB] specified as delimiter for the [csv] format; choose the [tsv] format instead"
                     : "illegal reserved character specified as delimiter [" + c + "]";
             } else {
                 msg = "invalid " + (c.length() > 0 ? "multi-character" : "empty") + " delimiter [" + c + "]";

@@ -30,6 +30,9 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
+import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_HEADER;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
@@ -69,7 +72,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             accept = XContentType.CBOR.name();
         } else {
-            accept = request.param("format");
+            accept = request.param(URL_PARAM_FORMAT);
         }
         if (accept == null) {
             accept = request.header("Accept");
@@ -130,7 +133,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return textFormat == TextFormat.CSV ? Collections.singleton("delimiter") : Collections.emptySet();
+        return textFormat == TextFormat.CSV ? Set.of(URL_PARAM_DELIMITER, URL_PARAM_HEADER) : Collections.emptySet();
     }
 
     @Override

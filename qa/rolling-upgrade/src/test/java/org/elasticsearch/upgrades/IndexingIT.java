@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.either;
  */
 public class IndexingIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/59935")
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:

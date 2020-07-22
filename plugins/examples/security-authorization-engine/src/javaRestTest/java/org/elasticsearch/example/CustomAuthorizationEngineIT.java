@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -40,6 +40,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -67,7 +68,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
+                basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
             Request request = new Request("GET", "_cluster/health");
             request.setOptions(options);
             Response response = client().performRequest(request);
@@ -79,7 +80,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
                 "x-pack-test-password".toCharArray(), true, RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue("custom_user2", new SecureString("x-pack-test-password".toCharArray())));
+                basicAuthHeaderValue("custom_user2", new SecureString("x-pack-test-password".toCharArray())));
             Request request = new Request("GET", "_cluster/health");
             request.setOptions(options);
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
@@ -95,7 +96,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
+                basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
             Request request = new Request("PUT", "/index");
             request.setOptions(options);
             Response response = client().performRequest(request);
@@ -107,7 +108,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
                 "x-pack-test-password".toCharArray(), true, RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue("custom_user2", new SecureString("x-pack-test-password".toCharArray())));
+                basicAuthHeaderValue("custom_user2", new SecureString("x-pack-test-password".toCharArray())));
             Request request = new Request("PUT", "/index");
             request.setOptions(options);
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
@@ -140,7 +141,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
+                basicAuthHeaderValue("custom_user", new SecureString("x-pack-test-password".toCharArray())));
             options.addHeader("es-security-runas-user", "custom_user3");
             Request request = new Request("PUT", "/index");
             request.setOptions(options);
@@ -151,7 +152,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
         {
             RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
             options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue("custom_user3", new SecureString("x-pack-test-password".toCharArray())));
+                basicAuthHeaderValue("custom_user3", new SecureString("x-pack-test-password".toCharArray())));
             options.addHeader("es-security-runas-user", "custom_user2");
             Request request = new Request("PUT", "/index");
             request.setOptions(options);

@@ -1,0 +1,18 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License;
+# you may not use this file except in compliance with the Elastic License.
+#
+
+# The whitelist for integer-valued runtime fields
+
+class org.elasticsearch.xpack.runtimefields.IntegerScriptFieldScript @no_import {
+}
+
+static_import {
+    void value(org.elasticsearch.xpack.runtimefields.IntegerScriptFieldScript, int) bound_to org.elasticsearch.xpack.runtimefields.IntegerScriptFieldScript$Value
+}
+
+# This import is required to make painless happy and it isn't 100% clear why
+class org.elasticsearch.xpack.runtimefields.IntegerScriptFieldScript$Factory @no_import {
+}

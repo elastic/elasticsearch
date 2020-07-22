@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript {
+public abstract class DoubleScriptFieldScript extends AbstractNumberScriptFieldScript {
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("double_script_field", Factory.class);
 
     static List<Whitelist> whitelist() {
@@ -36,36 +36,13 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
     }
 
     private double[] values = new double[1];
-    private int count;
 
     public DoubleScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
     }
 
-    /**
-     * Execute the script for the provided {@code docId}.
-     */
-    public final void runForDoc(int docId) {
-        count = 0;
-        setDocument(docId);
-        execute();
-    }
-
-    /**
-     * Values from the last time {@link #runForDoc(int)} was called. This array
-     * is mutable and will change with the next call of {@link #runForDoc(int)}.
-     * It is also oversized and will contain garbage at all indices at and
-     * above {@link #count()}.
-     */
     public final double[] values() {
         return values;
-    }
-
-    /**
-     * The number of results produced the last time {@link #runForDoc(int)} was called.
-     */
-    public final int count() {
-        return count;
     }
 
     private void collectValue(double v) {

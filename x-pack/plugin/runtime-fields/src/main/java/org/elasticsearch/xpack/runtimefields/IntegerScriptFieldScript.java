@@ -18,40 +18,35 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class LongScriptFieldScript extends AbstractNumberScriptFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("long_script_field", Factory.class);
+public abstract class IntegerScriptFieldScript extends AbstractNumberScriptFieldScript {
 
-    static List<Whitelist> whitelist() {
-        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "long_whitelist.txt"));
-    }
+    public static final ScriptContext<IntegerScriptFieldScript.Factory> CONTEXT = new ScriptContext<>("integer_script_field", IntegerScriptFieldScript.Factory.class);
 
     public static final String[] PARAMETERS = {};
 
+    static List<Whitelist> whitelist() {
+        return List.of(WhitelistLoader.loadFromResourceFiles(RuntimeFieldsPainlessExtension.class, "integer_whitelist.txt"));
+    }
+
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
+        IntegerScriptFieldScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup searchLookup);
     }
 
     public interface LeafFactory {
-        LongScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
+        IntegerScriptFieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }
 
-    private long[] values = new long[1];
+    private int[] values = new int[1];
 
-    public LongScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
+    public IntegerScriptFieldScript(Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(params, searchLookup, ctx);
     }
 
-    /**
-     * Values from the last time {@link #runForDoc(int)} was called. This array
-     * is mutable and will change with the next call of {@link #runForDoc(int)}.
-     * It is also oversized and will contain garbage at all indices at and
-     * above {@link #count()}.
-     */
-    public final long[] values() {
+    public final int[] values(){
         return values;
     }
 
-    private void collectValue(long v) {
+    private void collectValue(int v) {
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
@@ -59,13 +54,13 @@ public abstract class LongScriptFieldScript extends AbstractNumberScriptFieldScr
     }
 
     public static class Value {
-        private final LongScriptFieldScript script;
+        private final IntegerScriptFieldScript script;
 
-        public Value(LongScriptFieldScript script) {
+        public Value(IntegerScriptFieldScript script) {
             this.script = script;
         }
 
-        public void value(long v) {
+        public void value(int v) {
             script.collectValue(v);
         }
     }

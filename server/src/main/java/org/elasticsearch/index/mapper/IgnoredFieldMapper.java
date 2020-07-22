@@ -20,12 +20,17 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -84,12 +89,18 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
         private IgnoredFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
+            failIfNoDocValues();
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override
@@ -125,6 +136,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     protected void parseCreateField(ParseContext context) throws IOException {
         for (String field : context.getIgnoredFields()) {
             context.doc().add(new Field(NAME, field, fieldType));
+            final BytesRef binaryValue = new BytesRef(field);
+            if (fieldType().hasDocValues()) {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            }
         }
     }
 

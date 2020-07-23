@@ -95,7 +95,7 @@ indices.
 Below is a list of all _dynamic_ index settings that are not associated with any
 specific index module:
 
-
+[[dynamic-index-number-of-replicas]]
 `index.number_of_replicas`::
 
     The number of replicas each primary shard has.  Defaults to 1.

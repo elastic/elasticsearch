@@ -234,7 +234,7 @@ public class HllBackedCardinalityAggregationTests extends ESSingleNodeTestCase {
 
         protected final int[] runLens;
 
-        public SimpleHyperLogLog(int precision) {
+        SimpleHyperLogLog(int precision) {
             super(precision);
             runLens = new int[1 << precision];
         }

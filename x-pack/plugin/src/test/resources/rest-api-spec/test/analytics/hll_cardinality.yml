@@ -1,0 +1,121 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: "test"
+        body:
+          mappings:
+            properties:
+              field:
+                type: "hll"
+                precision: 5
+              other_field:
+                type: "keyword"
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"field": {"sketch" : [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15]},"other_field" : "1"}'
+          - '{"index": {}}'
+          - '{"field": {"sketch" : [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15]},"other_field" : "1"}'
+          - '{"index": {}}'
+          - '{"field": {"sketch" : [1, 1, 0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 0, 0, 11, 11, 12, 12, 13, 13, 15, 15, 14, 14]},"other_field" : "2"}'
+          - '{"index": {}}'
+          - '{"field": {"sketch" : [1, 1, 0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 0, 0, 11, 11, 12, 12, 13, 13, 15, 15, 14, 14]},"other_field" : "2"}'
+
+
+---
+"Cardinality Aggregations precision 5":
+
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            field_cardinality:
+              cardinality:
+                field: "field"
+                precision_threshold: 5
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.field_cardinality.value: 238 }
+
+
+
+---
+"Cardinality Aggregations precision 4":
+
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            field_cardinality:
+              cardinality:
+                field: "field"
+                precision_threshold: 0
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.field_cardinality.value: 230 }
+
+---
+"Cardinality Sub-Aggregations percision 5":
+
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            term_agg:
+              terms:
+                field: "other_field"
+              aggs:
+                field_cardinality:
+                  cardinality:
+                    field: "field"
+                    precision_threshold: 5
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.term_agg.buckets.0.key: "1" }
+  - match: { aggregations.term_agg.buckets.0.doc_count: 2 }
+  - match: { aggregations.term_agg.buckets.0.field_cardinality.value: 178 }
+  - match: { aggregations.term_agg.buckets.1.key: "2" }
+  - match: { aggregations.term_agg.buckets.1.doc_count: 2 }
+  - match: { aggregations.term_agg.buckets.1.field_cardinality.value: 119 }
+
+---
+"Cardinality Sub-Aggregations percision 4":
+
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            term_agg:
+              terms:
+                field: "other_field"
+              aggs:
+                field_cardinality:
+                  cardinality:
+                    field: "field"
+                    precision_threshold: 0
+
+  - match: { hits.total.value: 4 }
+  - match: { aggregations.term_agg.buckets.0.key: "1" }
+  - match: { aggregations.term_agg.buckets.0.doc_count: 2 }
+  - match: { aggregations.term_agg.buckets.0.field_cardinality.value: 115 }
+  - match: { aggregations.term_agg.buckets.1.key: "2" }
+  - match: { aggregations.term_agg.buckets.1.doc_count: 2 }
+  - match: { aggregations.term_agg.buckets.1.field_cardinality.value: 70 }
+
+

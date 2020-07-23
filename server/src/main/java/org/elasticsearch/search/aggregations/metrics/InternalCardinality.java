@@ -34,7 +34,7 @@ import java.util.Objects;
 public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
     private final HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts, Map<String, Object> metadata) {
+    public InternalCardinality(String name, HyperLogLogPlusPlus counts, Map<String, Object> metadata) {
         super(name, metadata);
         this.counts = counts;
     }

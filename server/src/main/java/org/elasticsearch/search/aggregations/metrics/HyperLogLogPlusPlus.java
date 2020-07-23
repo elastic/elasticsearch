@@ -104,30 +104,39 @@ public final class HyperLogLogPlusPlus implements Releasable {
         if (precision() != other.precision()) {
             throw new IllegalArgumentException();
         }
-        hll.bucket = thisBucket;
-        lc.bucket = thisBucket;
         hll.ensureCapacity(thisBucket + 1);
         if (other.algorithm.get(otherBucket) == LINEAR_COUNTING) {
             other.lc.bucket = otherBucket;
-            final AbstractLinearCounting.HashesIterator values = other.lc.values();
-            while (values.next()) {
-                final int encoded = values.value();
-                if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
-                    final int newSize = lc.addEncoded(encoded);
-                    if (newSize > lc.threshold) {
-                        upgradeToHll(thisBucket);
-                    }
-                } else {
-                    hll.collectEncoded(encoded);
-                }
-            }
+            merge(thisBucket, other.lc);
         } else {
-            if (algorithm.get(thisBucket) != HYPERLOGLOG) {
-                upgradeToHll(thisBucket);
-            }
             other.hll.bucket = otherBucket;
-            hll.merge(other.hll);
+            merge(thisBucket, other.hll);
         }
+    }
+
+    public void merge(long bucket, AbstractLinearCounting other) {
+        hll.bucket = bucket;
+        lc.bucket = bucket;
+        final AbstractLinearCounting.HashesIterator values = other.values();
+        while (values.next()) {
+            final int encoded = values.value();
+            if (algorithm.get(bucket) == LINEAR_COUNTING) {
+                final int newSize = lc.addEncoded(encoded);
+                if (newSize > lc.threshold) {
+                    upgradeToHll(bucket);
+                }
+            } else {
+                hll.collectEncoded(encoded);
+            }
+        }
+    }
+
+    public void merge(long bucket, AbstractHyperLogLog other) {
+        if (algorithm.get(bucket) != HYPERLOGLOG) {
+            upgradeToHll(bucket);
+        }
+        hll.bucket = bucket;
+        hll.merge(other);
     }
 
     public void collect(long bucket, long hash) {

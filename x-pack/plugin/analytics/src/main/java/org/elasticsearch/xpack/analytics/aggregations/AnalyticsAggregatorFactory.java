@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.analytics.aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
@@ -18,6 +20,7 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.HistoBackedHistogramAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.HllBackedCardinalityAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedAvgAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentilesAggregator;
@@ -25,7 +28,9 @@ import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedSumAggr
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentilesAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedValueCountAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.HyperLogLog;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.HllFieldMapper;
 
 public class AnalyticsAggregatorFactory {
 
@@ -99,5 +104,20 @@ public class AnalyticsAggregatorFactory {
             AnalyticsValuesSourceType.HISTOGRAM,
             (HistogramAggregatorSupplier) HistoBackedHistogramAggregator::new
         );
+    }
+
+    public static void registerCardinalityBackedCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(CardinalityAggregationBuilder.NAME,
+            AnalyticsValuesSourceType.CARDINALITY,
+            (CardinalityAggregatorSupplier) (name, valuesSource, precision, context, parent, metadata) -> {
+                HllFieldMapper.HllFieldType fieldType = (HllFieldMapper.HllFieldType) valuesSource.fieldType();
+                if (fieldType.precision() >= precision) {
+                    return new HllBackedCardinalityAggregator(name, valuesSource, precision,
+                        fieldType.precision(), context, parent, metadata);
+                }
+                throw new IllegalArgumentException("Cardinality aggregation precision ["  + precision + "] " +
+                    "is not compatible with field precision [" + fieldType.precision() + "]. Precision threshold must " +
+                    "be lower or equal than [" + HyperLogLog.thresholdFromPrecision(fieldType.precision()) + "]");
+            });
     }
 }

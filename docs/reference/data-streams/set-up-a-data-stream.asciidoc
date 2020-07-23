@@ -62,10 +62,8 @@ image::images/ilm/create-policy.png[]
 You can also create a policy using the <<ilm-put-lifecycle,create lifecycle
 policy API>>.
 
-The following <<ilm-put-lifecycle,create lifecycle policy API>> request
-configures the `logs_policy` lifecycle policy.
-
-The `logs_policy` policy uses the <<ilm-rollover,`rollover` action>> to create a
+The following request configures the `logs_policy` lifecycle policy. The
+`logs_policy` policy uses the <<ilm-rollover,`rollover` action>> to create a
 new <<data-stream-write-index,write index>> for the data stream when the current
 one reaches 25GB in size. The policy also deletes backing indices 30 days after
 their rollover.
@@ -123,10 +121,12 @@ in this template before creating a data stream. Later changes to the mappings or
 settings of a stream's backing indices may require reindexing. See
 <<data-streams-change-mappings-and-settings>>.
 
-You can create an index template through the Kibana UI. From Kibana, open the
-menu and go to *Stack Management > Index Management*. In the *Index Templates*
-tab, click *Create template*. In the Create template wizard, use the *Data
-stream* toggle to indicate the template is used exclusively for data streams.
+You can create an index template through the Kibana UI:
+
+. From Kibana, open the menu and go to *Stack Management > Index Management*.
+. In the *Index Templates* tab, click *Create template*.
+. In the Create template wizard, use the *Data stream* toggle to indicate the
+template is used exclusively for data streams.
 
 [role="screenshot"]
 image::images/data-streams/create-index-template.png[]
@@ -287,8 +287,6 @@ the following information about one or more data streams:
 * The index template used to create the stream's backing indices
 * The current {ilm-init} lifecycle policy in the stream's matching index
 template
-
-This is also handy way to verify that a recently created data stream exists.
 
 The following get data stream API request retrieves information about the
 `logs` data stream.

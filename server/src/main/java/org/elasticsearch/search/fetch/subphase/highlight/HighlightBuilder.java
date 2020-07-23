@@ -309,7 +309,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private static void transferOptions(AbstractHighlighterBuilder highlighterBuilder,
-                                        SearchHighlightContext.FieldOptions.Builder targetOptionsBuilder, QueryShardContext context) throws IOException {
+                                        SearchHighlightContext.FieldOptions.Builder targetOptionsBuilder,
+                                        QueryShardContext context) throws IOException {
         if (highlighterBuilder.preTags != null) {
             targetOptionsBuilder.preTags(highlighterBuilder.preTags);
         }

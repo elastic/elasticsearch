@@ -116,7 +116,7 @@ Templates* tab, click *Create template*.
 
 image::images/data-streams/create-index-template.png[Create template page]
 
-This wizard invokes the <<indices-templates,put index template API>> to create
+This wizard invokes the <<indices-put-template,put index template API>> to create
 the index template with the options you specify.
 
 .API example

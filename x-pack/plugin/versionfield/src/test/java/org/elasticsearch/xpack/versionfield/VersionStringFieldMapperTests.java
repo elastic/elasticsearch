@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
+import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -473,6 +474,11 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(3L, buckets.get(0).getDocCount());
         assertEquals(5L, buckets.get(1).getKey());
         assertEquals(1L, buckets.get(1).getDocCount());
+
+        // cardinality
+        response = client().prepareSearch(indexName).addAggregation(AggregationBuilders.cardinality("myterms").field("version")).get();
+        Cardinality card = response.getAggregations().get("myterms");
+        assertEquals(5, card.getValue());
     }
 
     public void testNullValue() throws Exception {
@@ -500,6 +506,48 @@ public class VersionStringFieldMapperTests extends ESSingleNodeTestCase {
 
         // range
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").to("3.0.0")).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+    }
+
+    public void testMultiValues() throws Exception {
+        String indexName = "test_multi";
+        createIndex(
+            indexName,
+            Settings.builder().put("index.number_of_shards", 1).build(),
+            "_doc",
+            "version",
+            "type=version,store_malformed=true"
+        );
+        ensureGreen(indexName);
+
+        client().prepareIndex(indexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().array("version", "1.0.0", "3.0.0").endObject())
+            .get();
+        client().prepareIndex(indexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().array("version", "2.0.0", "4.alpha.0").endObject())
+            .get();
+        client().admin().indices().prepareRefresh(indexName).get();
+
+        SearchResponse response = client().prepareSearch(indexName).addSort("version", SortOrder.ASC).get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        assertEquals("1", response.getHits().getAt(0).getId());
+        assertEquals("2", response.getHits().getAt(1).getId());
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "3.0.0")).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals("1", response.getHits().getAt(0).getId());
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("version", "4.alpha.0")).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals("2", response.getHits().getAt(0).getId());
+
+        // range
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").to("1.5.0")).get();
+        assertEquals(1, response.getHits().getTotalHits().value);
+
+        response = client().prepareSearch(indexName).setQuery(QueryBuilders.rangeQuery("version").from("1.5.0")).get();
         assertEquals(2, response.getHits().getTotalHits().value);
     }
 }

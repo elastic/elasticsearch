@@ -85,7 +85,7 @@ explicitly update the mapping of an index:
 * `write`
 
 Additionally, in {es} 8.0.0, the following privileges will no longer allow users to
-{ref}/dynamic-mapping.html[dynamic update the mapping] of an index 
+{ref}/dynamic-mapping.html[dynamically update the mapping] of an index 
 during indexing or ingest:
 
 * `create_doc`

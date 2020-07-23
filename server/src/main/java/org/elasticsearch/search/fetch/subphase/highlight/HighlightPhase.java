@@ -53,10 +53,10 @@ public class HighlightPhase implements FetchSubPhase {
     public void hitExecute(SearchShardTarget shardTarget,
                            QueryShardContext context,
                            Query query,
-                           SearchContextHighlight highlight,
+                           SearchHighlightContext highlight,
                            HitContext hitContext) {
         Map<String, HighlightField> highlightFields = new HashMap<>();
-        for (SearchContextHighlight.Field field : highlight.fields()) {
+        for (SearchHighlightContext.Field field : highlight.fields()) {
             Collection<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
                 fieldNamesToHighlight = context.getMapperService().simpleMatchToFullName(field.field());

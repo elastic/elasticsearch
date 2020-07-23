@@ -27,20 +27,20 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 public class HighlighterContext {
 
     public final String fieldName;
-    public final SearchContextHighlight.Field field;
+    public final SearchHighlightContext.Field field;
     public final MappedFieldType fieldType;
     public final SearchShardTarget shardTarget;
     public final QueryShardContext context;
-    public final SearchContextHighlight highlight;
+    public final SearchHighlightContext highlight;
     public final FetchSubPhase.HitContext hitContext;
     public final Query query;
 
     public HighlighterContext(String fieldName,
-                              SearchContextHighlight.Field field,
+                              SearchHighlightContext.Field field,
                               MappedFieldType fieldType,
                               SearchShardTarget shardTarget,
                               QueryShardContext context,
-                              SearchContextHighlight highlight,
+                              SearchHighlightContext highlight,
                               FetchSubPhase.HitContext hitContext,
                               Query query) {
         this.fieldName = fieldName;

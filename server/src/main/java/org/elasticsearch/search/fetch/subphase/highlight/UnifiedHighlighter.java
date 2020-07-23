@@ -61,7 +61,7 @@ public class UnifiedHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         MappedFieldType fieldType = highlighterContext.fieldType;
-        SearchContextHighlight.Field field = highlighterContext.field;
+        SearchHighlightContext.Field field = highlighterContext.field;
         QueryShardContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
@@ -155,7 +155,7 @@ public class UnifiedHighlighter implements Highlighter {
         return null;
     }
 
-    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchContextHighlight.Field field, Encoder encoder) {
+    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
         CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
             field.fieldOptions().postTags()[0], encoder);
         return passageFormatter;
@@ -167,7 +167,7 @@ public class UnifiedHighlighter implements Highlighter {
     }
 
     protected List<Object> loadFieldValues(MappedFieldType fieldType,
-                                           SearchContextHighlight.Field field,
+                                           SearchHighlightContext.Field field,
                                            QueryShardContext context,
                                            FetchSubPhase.HitContext hitContext,
                                            boolean forceSource) throws IOException {
@@ -178,8 +178,8 @@ public class UnifiedHighlighter implements Highlighter {
         return fieldValues;
     }
 
-    protected BreakIterator getBreakIterator(SearchContextHighlight.Field field) {
-        final SearchContextHighlight.FieldOptions fieldOptions = field.fieldOptions();
+    protected BreakIterator getBreakIterator(SearchHighlightContext.Field field) {
+        final SearchHighlightContext.FieldOptions fieldOptions = field.fieldOptions();
         final Locale locale =
             fieldOptions.boundaryScannerLocale() != null ? fieldOptions.boundaryScannerLocale() :
                 Locale.ROOT;

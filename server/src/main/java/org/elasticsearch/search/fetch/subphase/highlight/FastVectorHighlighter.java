@@ -42,8 +42,8 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
 
 import java.text.BreakIterator;
 import java.util.Collections;
@@ -70,7 +70,7 @@ public class FastVectorHighlighter implements Highlighter {
 
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
-        SearchContextHighlight.Field field = highlighterContext.field;
+        SearchHighlightContext.Field field = highlighterContext.field;
         QueryShardContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         MappedFieldType fieldType = highlighterContext.fieldType;

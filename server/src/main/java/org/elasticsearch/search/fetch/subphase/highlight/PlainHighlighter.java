@@ -56,7 +56,7 @@ public class PlainHighlighter implements Highlighter {
 
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
-        SearchContextHighlight.Field field = highlighterContext.field;
+        SearchHighlightContext.Field field = highlighterContext.field;
         QueryShardContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         MappedFieldType fieldType = highlighterContext.fieldType;

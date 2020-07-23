@@ -49,9 +49,6 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
             this.enabled = in.readBoolean();
         }
 
-        public Request() {
-        }
-
         public boolean isEnabled() {
             return enabled;
         }

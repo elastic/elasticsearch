@@ -36,9 +36,6 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
 
         private String datafeedId;
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();

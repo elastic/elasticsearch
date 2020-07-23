@@ -49,10 +49,6 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
 
         private Calendar calendar;
 
-        public Request() {
-
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             calendar = new Calendar(in);

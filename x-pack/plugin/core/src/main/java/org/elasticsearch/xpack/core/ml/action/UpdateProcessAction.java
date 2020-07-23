@@ -95,8 +95,6 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
         private MlFilter filter;
         private boolean updateScheduledEvents = false;
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             modelPlotConfig = in.readOptionalWriteable(ModelPlotConfig::new);

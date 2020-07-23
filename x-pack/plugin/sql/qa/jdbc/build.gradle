@@ -44,7 +44,7 @@ subprojects {
         }
         testImplementation project(":test:framework")
 
-        testRuntime project(path: xpackModule('sql:jdbc'))
+        testRuntimeOnly project(path: xpackModule('sql:jdbc'))
     }
 
     if (project.name != 'security') {

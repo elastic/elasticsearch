@@ -161,10 +161,11 @@ public class AzureBlobStore implements BlobStore {
     public boolean blobExists(String blob) throws URISyntaxException, StorageException {
         // Container name must be lower case.
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client();
+        final OperationContext context = hookMetricCollector(client.v2().get(), getMetricsCollector);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         return SocketAccess.doPrivilegedException(() -> {
             final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blob);
-            return azureBlob.exists(null, null, client.v2().get());
+            return azureBlob.exists(null, null, context);
         });
     }
 

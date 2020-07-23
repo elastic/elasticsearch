@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -53,6 +54,20 @@ public abstract class ANode {
      */
     public Location getLocation() {
         return location;
+    }
+
+    /**
+     * Callback to visit a user tree node.
+     */
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        throw new UnsupportedOperationException("cannot visit user node type [" + getClass().getCanonicalName() + "]");
+    }
+
+    /**
+     * Visits all child user tree nodes for this user tree node.
+     */
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        throw new UnsupportedOperationException("cannot visit children of user node type [" + getClass().getCanonicalName() + "]");
     }
 
     /**

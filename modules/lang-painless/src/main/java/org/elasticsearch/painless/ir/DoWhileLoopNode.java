@@ -21,12 +21,22 @@ package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 public class DoWhileLoopNode extends LoopNode {
+
+    /* ---- begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitDoWhileLoop(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {

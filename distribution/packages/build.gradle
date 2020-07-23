@@ -384,7 +384,7 @@ Closure commonRpmConfig(boolean oss, boolean jdk, String architecture) {
 
     prefix '/usr'
     packager 'Elasticsearch'
-    version = project.version.replace('-', '_')
+    archiveVersion = project.version.replace('-', '_')
     release = '1'
     os 'LINUX'
     distribution 'Elasticsearch'

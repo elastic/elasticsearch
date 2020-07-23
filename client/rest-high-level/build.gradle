@@ -61,10 +61,6 @@ dependencies {
   testImplementation(project(':x-pack:plugin:eql'))
 }
 
-processTestResources {
-  from(project(':client:rest-high-level').file('src/test/resources'))
-}
-
 tasks.named('forbiddenApisMain').configure {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
@@ -102,9 +98,6 @@ testClusters.all {
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.transport.ssl.enabled', 'false'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.eql_feature_flag_registered', 'true'
-  }
   setting 'xpack.eql.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-preview-datafeed]]
-=== Preview {dfeeds} API
+= Preview {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -11,19 +11,19 @@
 Previews a {dfeed}.
 
 [[ml-preview-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/datafeeds/<datafeed_id>/_preview`
 
 [[ml-preview-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If {es} {security-features} are enabled, you must have `monitor_ml`, `monitor`,
 `manage_ml`, or `manage` cluster privileges to use this API. See
 <<security-privileges>>.
 
 [[ml-preview-datafeed-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 The preview {dfeeds} API returns the first "page" of results from the `search`
 that is created by using the current {dfeed} settings. This preview shows the
@@ -40,14 +40,14 @@ it to ensure it is returning the expected data. Alternatively, use
 supply the credentials.
 
 [[ml-preview-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<datafeed_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-preview-datafeed-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

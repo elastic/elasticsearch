@@ -256,18 +256,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             super(name, true, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
         }
 
-        protected KeywordFieldType(KeywordFieldType ref) {
-            super(ref);
-            this.hasNorms = ref.hasNorms;
-            setEagerGlobalOrdinals(ref.eagerGlobalOrdinals());
-            setIndexAnalyzer(ref.indexAnalyzer());
-        }
-
-        @Override
-        public KeywordFieldType clone() {
-            return new KeywordFieldType(this);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -291,7 +279,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
         }
 
         @Override

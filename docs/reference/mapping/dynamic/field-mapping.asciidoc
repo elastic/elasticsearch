@@ -8,10 +8,10 @@ setting the <<dynamic,`dynamic`>> parameter to `false` (to ignore new fields) or
 an exception if an unknown field is encountered).
 
 Assuming `dynamic` field mapping is enabled, some simple rules are used to
-determine which datatype the field should have:
+determine which data type the field should have:
 
 [horizontal]
-*JSON datatype*::                   *Elasticsearch datatype*
+*JSON data type*::                   *Elasticsearch data type*
 
 `null`::                            No field is added.
 `true` or `false`::                 <<boolean,`boolean`>> field
@@ -25,8 +25,8 @@ string::                            Either a <<date,`date`>> field
                                         (if the value passes <<numeric-detection,numeric detection>>)
                                     or a <<text,`text`>> field, with a <<keyword,`keyword`>> sub-field.
 
-These are the only <<mapping-types,field datatypes>> that are dynamically
-detected.  All other datatypes must be mapped explicitly.
+These are the only <<mapping-types,field data types>> that are dynamically
+detected.  All other data types must be mapped explicitly.
 
 Besides the options listed below, dynamic field mapping rules can be further
 customised with <<dynamic-templates,`dynamic_templates`>>.
@@ -105,7 +105,7 @@ PUT my_index/_doc/1
 [[numeric-detection]]
 ==== Numeric detection
 
-While JSON has support for native floating point and integer datatypes, some
+While JSON has support for native floating point and integer data types, some
 applications or languages may sometimes render numbers as strings. Usually the
 correct solution is to map these fields explicitly, but numeric detection
 (which is disabled by default) can be enabled to do this automatically:

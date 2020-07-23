@@ -20,9 +20,9 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.StandardConstant;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
@@ -54,11 +54,21 @@ public class ENumeric extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
-        return analyze(semanticScope, false);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNumeric(this, scope);
     }
 
-    Output analyze(SemanticScope semanticScope, boolean negate) {
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
+        analyze(semanticScope, false);
+    }
+
+    void analyze(SemanticScope semanticScope, boolean negate) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException(
                     "invalid assignment: cannot assign a value to numeric constant [" + numeric + "]"));
@@ -68,7 +78,6 @@ public class ENumeric extends AExpression {
             throw createError(new IllegalArgumentException("not a statement: numeric constant [" + numeric + "] not used"));
         }
 
-        Output output = new Output();
         Class<?> valueType;
         Object constant;
 
@@ -136,13 +145,6 @@ public class ENumeric extends AExpression {
         }
 
         semanticScope.putDecoration(this, new ValueType(valueType));
-
-        ConstantNode constantNode = new ConstantNode();
-        constantNode.setLocation(getLocation());
-        constantNode.setExpressionType(valueType);
-        constantNode.setConstant(constant);
-        output.expressionNode = constantNode;
-
-        return output;
+        semanticScope.putDecoration(this, new StandardConstant(constant));
     }
 }

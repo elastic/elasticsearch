@@ -5,6 +5,8 @@
 ++++
 
 Forces a <<index-modules-merge,merge>> on the shards of one or more indices.
+For data streams, the API forces a merge on the shards of the stream's backing
+indices.
 
 [source,console]
 ----
@@ -16,7 +18,7 @@ POST /twitter/_forcemerge
 [[forcemerge-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_forcemerge`
+`POST /<target>/_forcemerge`
 
 `POST /_forcemerge`
 
@@ -51,8 +53,14 @@ until the ongoing force merge is complete.
 [[forcemerge-multi-index]]
 ===== Force merging multiple indices
 
-The force merge API can be applied to more than one index with a single call, or
-even on `_all` the indices. Multi index operations are executed one shard at a
+You can force merge multiple indices with a single request by targeting:
+
+* One or more data streams that contain multiple backing indices
+* Multiple indices
+* One or more index aliases that point to multiple indices
+* All data streams and indices in a cluster
+
+Multi-index operations are executed one shard at a
 time per node. Force merge makes the storage for the shard being merged
 temporarily increase, up to double its size in case `max_num_segments` parameter
 is set to `1`, as all segments need to be rewritten into a new one.
@@ -61,11 +69,13 @@ is set to `1`, as all segments need to be rewritten into a new one.
 [[forcemerge-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
 +
-To force merge all indices in the cluster,
-omit this parameter
-or use a value of `_all` or `*`.
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[forcemerge-api-query-params]]
@@ -93,7 +103,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 --
 (Optional, integer)
 The number of segments to merge to.
-To fully merge the index,
+To fully merge indices,
 set it to `1`.
 
 Defaults to checking if a merge needs to execute.
@@ -125,7 +135,7 @@ NOTE: This parameter does *not* override the
 
 
 [[forcemerge-api-specific-ex]]
-===== Force merge a specific index
+===== Force merge a specific data stream or index
 
 [source,console]
 ----
@@ -135,7 +145,7 @@ POST /twitter/_forcemerge
 
 
 [[forcemerge-api-multiple-ex]]
-===== Force merge several indices
+===== Force merge several data streams or indices
 
 [source,console]
 ----
@@ -154,10 +164,11 @@ POST /_forcemerge
 
 
 [[forcemerge-api-time-based-index-ex]]
-===== Time-based indices
+===== Data streams and time-based indices
 
-Force-merging is useful for time-based indices,
-particularly when using <<indices-rollover-index,rollover>>.
+Force-merging is useful for managing a data stream's older backing indices and
+other time-based indices, particularly after a
+<<indices-rollover-index,rollover>>.
 In these cases,
 each index only receives indexing traffic for a certain period of time.
 Once an index receive no more writes,
@@ -165,10 +176,10 @@ its shards can be force-merged to a single segment.
 
 [source,console]
 --------------------------------------------------
-POST /logs-000001/_forcemerge?max_num_segments=1
+POST /.ds-logs-000001/_forcemerge?max_num_segments=1
 --------------------------------------------------
 // TEST[setup:twitter]
-// TEST[s/logs-000001/twitter/]
+// TEST[s/.ds-logs-000001/twitter/]
 
 This can be a good idea because single-segment shards can sometimes use simpler
 and more efficient data structures to perform searches.

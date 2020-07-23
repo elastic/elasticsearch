@@ -1,5 +1,5 @@
-[[highlighter-internal-work]]
-==== How highlighters work internally
+[[how-highlighters-work-internally]]
+=== How highlighters work internally
 
 Given a query and a text (the content of a document field), the goal of a
 highlighter is to find the best text fragments for the query, and highlight
@@ -10,7 +10,7 @@ address several questions:
 - How to find the best fragments among all fragments?
 - How to highlight the query terms in a fragment?
 
-===== How to break a text into fragments?
+==== How to break a text into fragments?
 Relevant settings: `fragment_size`, `fragmenter`, `type` of highlighter,
 `boundary_chars`, `boundary_max_scan`, `boundary_scanner`, `boundary_scanner_locale`.
 
@@ -28,7 +28,7 @@ fragments by utilizing Java's `BreakIterator`. This ensures that a fragment
 is a valid sentence as long as `fragment_size` allows for this.
 
 
-===== How to find the best fragments?
+==== How to find the best fragments?
 Relevant settings: `number_of_fragments`.
 
 To find the best, most relevant, fragments, a highlighter needs to score
@@ -61,7 +61,7 @@ an in-memory index from the text. Unified highlighter uses the BM25 scoring mode
 to score fragments.
 
 
-===== How to highlight the query terms in a fragment?
+==== How to highlight the query terms in a fragment?
 Relevant settings:  `pre-tags`, `post-tags`.
 
 The goal is to highlight only those terms that participated in generating the 'hit' on the document.
@@ -78,7 +78,7 @@ fragments in some raw form, and then populate them with actual text.
 A highlighter uses `pre-tags`, `post-tags` to encode highlighted terms.
 
 
-===== An example of the work of the unified highlighter
+==== An example of the work of the unified highlighter
 
 Let's look in more details how unified highlighter works.
 
@@ -89,14 +89,14 @@ using `english` analyzer, and will be indexed without offsets or term vectors.
 --------------------------------------------------
 PUT test_index
 {
-    "mappings": {
-        "properties": {
-            "content" : {
-                "type" : "text",
-                "analyzer" : "english"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "text",
+        "analyzer": "english"
+      }
     }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -119,16 +119,16 @@ And we ran the following query with a highlight request:
 --------------------------------------------------
 GET test_index/_search
 {
-    "query": {
-        "match_phrase" : {"content" : "only fox"}
-    },
-    "highlight": {
-        "type" : "unified",
-        "number_of_fragments" : 3,
-        "fields": {
-            "content": {}
-        }
+  "query": {
+    "match_phrase" : {"content" : "only fox"}
+  },
+  "highlight": {
+    "type" : "unified",
+    "number_of_fragments" : 3,
+    "fields": {
+      "content": {}
     }
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE

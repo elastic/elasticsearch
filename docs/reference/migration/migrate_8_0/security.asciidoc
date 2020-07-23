@@ -219,7 +219,7 @@ on startup.
 [[builtin-users-changes]]
 ==== Changes to built-in users
 
-.The `kibana` user has been renamed `kibana_system`.
+.The `kibana` user has been replaced by `kibana_system`.
 [%collapsible]
 ====
 *Details* +
@@ -243,6 +243,9 @@ then you should update to use the new `kibana_system` user instead:
 --------------------------------------------------
 elasticsearch.username: kibana_system
 --------------------------------------------------
+
+IMPORTANT: The new `kibana_system` user does not preserve the previous `kibana`
+user password. You must explicitly set a password for the `kibana_system` user.
 ====
 
 [discrete]

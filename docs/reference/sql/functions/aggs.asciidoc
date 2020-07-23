@@ -599,6 +599,35 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevPop]
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevPopScalars]
 --------------------------------------------------
 
+[[sql-functions-aggs-stddev-samp]]
+==== `STDDEV_SAMP`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+STDDEV_SAMP(field_name) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+*Description*:
+
+Returns the https://en.wikipedia.org/wiki/Standard_deviations[sample standard deviation] of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevSamp]
+--------------------------------------------------
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggStddevSampScalars]
+--------------------------------------------------
+
 [[sql-functions-aggs-sum-squares]]
 ==== `SUM_OF_SQUARES`
 
@@ -656,4 +685,34 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[aggVarPop]
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[aggVarPopScalars]
+--------------------------------------------------
+
+[[sql-functions-aggs-var-samp]]
+==== `VAR_SAMP`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+VAR_SAMP(field_name) <1>
+--------------------------------------------------
+
+*Input*:
+
+<1> a numeric field
+
+*Output*: `double` numeric value
+
+*Description*:
+
+Returns the https://en.wikipedia.org/wiki/Variance[sample variance] of input values in the field `field_name`.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggVarSamp]
+--------------------------------------------------
+
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[aggVarSampScalars]
 --------------------------------------------------

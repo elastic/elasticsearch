@@ -24,6 +24,7 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.elasticsearch.painless.symbol.WriteScope.Variable;
 import org.objectweb.asm.Label;
@@ -97,7 +98,14 @@ public class ForEachSubIterableNode extends LoopNode {
         return method;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitForEachSubIterableLoop(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {

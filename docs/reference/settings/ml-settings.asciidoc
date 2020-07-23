@@ -6,6 +6,8 @@
 <titleabbrev>Machine learning settings</titleabbrev>
 ++++
 
+[[ml-settings-description]]
+// tag::ml-settings-description-tag[]
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
 IMPORTANT: {ml-cap} uses SSE4.2 instructions, so will only work on machines whose
@@ -13,18 +15,21 @@ CPUs https://en.wikipedia.org/wiki/SSE4#Supporting_CPUs[support] SSE4.2. If you
 run {es} on older hardware you must disable {ml} (by setting `xpack.ml.enabled`
 to `false`).
 
-All of these settings can be added to the `elasticsearch.yml` configuration file. 
-The dynamic settings can also be updated across a cluster with the 
+All of these settings can be added to the `elasticsearch.yml` configuration file.
+The dynamic settings can also be updated across a cluster with the
 <<cluster-update-settings,cluster update settings API>>.
 
-TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml` 
+TIP: Dynamic settings take precedence over settings in the `elasticsearch.yml`
 file.
+
+// end::ml-settings-description-tag[]
 
 [float]
 [[general-ml-settings]]
 ==== General machine learning settings
 
 `node.ml`::
+deprecated:[7.9.0,"Use <<modules-node,node.roles>> instead."]
 Set to `true` (default) to identify the node as a _machine learning node_. +
 +
 If set to `false` in `elasticsearch.yml`, the node cannot run jobs. If set to
@@ -58,13 +63,16 @@ heap on each ingest node. The cache affords faster processing times for the
 or a percentage of total allocated heap. The default is "40%".
 See also <<model-inference-circuit-breaker>>.
 
-`xpack.ml.inference_model.time_to_live`::
+[[xpack-interference-model-ttl]]
+// tag::interference-model-ttl-tag[]
+`xpack.ml.inference_model.time_to_live` {ess-icon}::
 The time to live (TTL) for models in the inference model cache. The TTL is
 calculated from last access. The `inference` processor attempts to load the
 model from cache. If the `inference` processor does not receive any documents
 for the duration of the TTL, the referenced model is flagged for eviction from
 the cache. If a document is processed later, the model is again loaded into the
 cache. Defaults to `5m`.
+// end::interference-model-ttl-tag[]
 
 `xpack.ml.max_inference_processors` (<<cluster-update-settings,Dynamic>>)::
 The total number of `inference` type processors allowed across all ingest
@@ -88,12 +96,12 @@ affected when you update this setting. For more information about the
 [[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of jobs that can run simultaneously on a node. Defaults to
-`20`. In this context, jobs include both {anomaly-jobs} and {dfanalytics-jobs}. 
-The maximum number of jobs is also constrained by memory usage. Thus if the 
-estimated memory usage of the jobs would be higher than allowed, fewer jobs will 
-run on a node. Prior to version 7.1, this setting was a per-node non-dynamic 
-setting. It became a cluster-wide dynamic setting in version 7.1. As a result, 
-changes to its value after node startup are used only after every node in the 
+`20`. In this context, jobs include both {anomaly-jobs} and {dfanalytics-jobs}.
+The maximum number of jobs is also constrained by memory usage. Thus if the
+estimated memory usage of the jobs would be higher than allowed, fewer jobs will
+run on a node. Prior to version 7.1, this setting was a per-node non-dynamic
+setting. It became a cluster-wide dynamic setting in version 7.1. As a result,
+changes to its value after node startup are used only after every node in the
 cluster is running version 7.1 or higher. The maximum permitted value is `512`.
 
 `xpack.ml.node_concurrent_job_allocations` (<<cluster-update-settings,Dynamic>>)::
@@ -106,14 +114,14 @@ opening spend more time in the `opening` state. Defaults to `2`.
 [[advanced-ml-settings]]
 ==== Advanced machine learning settings
 
-These settings are for advanced use cases; the default values are generally 
+These settings are for advanced use cases; the default values are generally
 sufficient:
 
 `xpack.ml.enable_config_migration` (<<cluster-update-settings,Dynamic>>)::
 Reserved.
 
 `xpack.ml.max_anomaly_records` (<<cluster-update-settings,Dynamic>>)::
-The maximum number of records that are output per bucket. The default value is 
+The maximum number of records that are output per bucket. The default value is
 `500`.
 
 `xpack.ml.max_lazy_ml_nodes` (<<cluster-update-settings,Dynamic>>)::
@@ -139,23 +147,22 @@ JVM. If such a process does not connect within the time period specified by this
 setting then the process is assumed to have failed. Defaults to `10s`. The minimum
 value for this setting is `5s`.
 
+[float]
 [[model-inference-circuit-breaker]]
 ==== {ml-cap} circuit breaker settings
 
-`breaker.model_inference.limit` (<<cluster-update-settings,Dynamic>>)
-Limit for model inference breaker, defaults to 50% of JVM heap.
-If the parent circuit breaker is less than 50% of JVM heap, it is bound
-to that limit instead.
-See <<circuit-breaker>>.
+`breaker.model_inference.limit` (<<cluster-update-settings,Dynamic>>)::
+Limit for the model inference breaker, which defaults to 50% of the JVM heap.
+If the parent circuit breaker is less than 50% of the JVM heap, it is bound
+to that limit instead. See <<circuit-breaker>>.
 
-`breaker.model_inference.overhead` (<<cluster-update-settings,Dynamic>>)
-A constant that all accounting estimations are multiplied with to determine
-a final estimation. Defaults to 1.
-See <<circuit-breaker>>.
+`breaker.model_inference.overhead` (<<cluster-update-settings,Dynamic>>)::
+A constant that all accounting estimations are multiplied by to determine
+a final estimation. Defaults to 1. See <<circuit-breaker>>.
 
-`breaker.model_inference.type`
-The underlying type of the circuit breaker. There are two valid options:
-`noop`, meaning the circuit breaker does nothing to prevent too much memory usage,
-`memory`, meaning the circuit breaker tracks the memory used by inference models and
-could potentially break and prevent OutOfMemory errors.
-The default is `memory`.
+`breaker.model_inference.type`::
+The underlying type of the circuit breaker. There are two valid options: `noop`
+and `memory`. `noop` means the circuit breaker does nothing to prevent too much
+memory usage. `memory` means the circuit breaker tracks the memory used by
+inference models and can potentially break and prevent OutOfMemory errors. The
+default is `memory`.

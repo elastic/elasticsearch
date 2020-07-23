@@ -25,6 +25,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
@@ -59,7 +60,14 @@ public class ComparisonNode extends BinaryNode {
         return PainlessLookupUtility.typeToCanonicalTypeName(comparisonType);
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitComparison(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {

@@ -258,6 +258,9 @@ The recommended steps for configuring OpenID Claims mapping are as follows:
   the errors, you should only request scopes that the OP supports, and which you
   intend to map to {es} user properties.
 
+  NOTE: You can only map claims with values that are strings, numbers, boolean values or an array
+  of the aforementioned.
+
 . Configure the OpenID Connect realm in {es} to associate the {es} user properties (see
   <<oidc-user-properties, the listing>> below), to the name of the claims that your
   OP will release. In the example above, we have configured the `principal` and
@@ -437,7 +440,7 @@ PUT /_security/role_mapping/oidc-example
 
 <1> The `example_role` role is *not* a builtin Elasticsearch role.
 This example assumes that you have created a custom role of your own, with
-appropriate access to your <<roles-indices-priv,indices>> and
+appropriate access to your <<roles-indices-priv,data streams, indices,>> and
 {kibana-ref}/kibana-privileges.html#kibana-feature-privileges[Kibana features].
 
 The user properties that are mapped via the realm configuration are used to process

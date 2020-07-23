@@ -53,6 +53,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 `lang`::
 (Optional, string) The script language. Default: `painless`.
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `retry_on_conflict`::
@@ -84,8 +86,8 @@ First, let's index a simple doc:
 --------------------------------------------------
 PUT test/_doc/1
 {
-    "counter" : 1,
-    "tags" : ["red"]
+  "counter" : 1,
+  "tags" : ["red"]
 }
 --------------------------------------------------
 
@@ -96,13 +98,13 @@ following script:
 --------------------------------------------------
 POST test/_update/1
 {
-    "script" : {
-        "source": "ctx._source.counter += params.count",
-        "lang": "painless",
-        "params" : {
-            "count" : 4
-        }
+  "script" : {
+    "source": "ctx._source.counter += params.count",
+    "lang": "painless",
+    "params" : {
+      "count" : 4
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -114,13 +116,13 @@ Similarly, you could use and update script to add a tag to the list of tags
 --------------------------------------------------
 POST test/_update/1
 {
-    "script" : {
-        "source": "ctx._source.tags.add(params.tag)",
-        "lang": "painless",
-        "params" : {
-            "tag" : "blue"
-        }
+  "script": {
+    "source": "ctx._source.tags.add(params.tag)",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -135,13 +137,13 @@ script just removes one occurrence.
 --------------------------------------------------
 POST test/_update/1
 {
-    "script" : {
-        "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
-        "lang": "painless",
-        "params" : {
-            "tag" : "blue"
-        }
+  "script": {
+    "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
+    "lang": "painless",
+    "params": {
+      "tag": "blue"
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -153,7 +155,7 @@ adds the field `new_field`:
 --------------------------------------------------
 POST test/_update/1
 {
-    "script" : "ctx._source.new_field = 'value_of_new_field'"
+  "script" : "ctx._source.new_field = 'value_of_new_field'"
 }
 --------------------------------------------------
 // TEST[continued]
@@ -164,7 +166,7 @@ Conversely, this script removes the field `new_field`:
 --------------------------------------------------
 POST test/_update/1
 {
-    "script" : "ctx._source.remove('new_field')"
+  "script" : "ctx._source.remove('new_field')"
 }
 --------------------------------------------------
 // TEST[continued]
@@ -177,13 +179,13 @@ the `tags` field contains `green`, otherwise it does nothing (`noop`):
 --------------------------------------------------
 POST test/_update/1
 {
-    "script" : {
-        "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
-        "lang": "painless",
-        "params" : {
-            "tag" : "green"
-        }
+  "script": {
+    "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+    "lang": "painless",
+    "params": {
+      "tag": "green"
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -198,9 +200,9 @@ existing document:
 --------------------------------------------------
 POST test/_update/1
 {
-    "doc" : {
-        "name" : "new_name"
-    }
+  "doc": {
+    "name": "new_name"
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -218,9 +220,9 @@ anything and return `"result": "noop"`:
 --------------------------------------------------
 POST test/_update/1
 {
-    "doc" : {
-        "name" : "new_name"
-    }
+  "doc": {
+    "name": "new_name"
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -251,10 +253,10 @@ You can disable this behavior by setting `"detect_noop": false`:
 --------------------------------------------------
 POST test/_update/1
 {
-    "doc" : {
-        "name" : "new_name"
-    },
-    "detect_noop": false
+  "doc": {
+    "name": "new_name"
+  },
+  "detect_noop": false
 }
 --------------------------------------------------
 // TEST[continued]
@@ -271,16 +273,16 @@ are inserted as a new document.  If the document exists, the
 --------------------------------------------------
 POST test/_update/1
 {
-    "script" : {
-        "source": "ctx._source.counter += params.count",
-        "lang": "painless",
-        "params" : {
-            "count" : 4
-        }
-    },
-    "upsert" : {
-        "counter" : 1
+  "script": {
+    "source": "ctx._source.counter += params.count",
+    "lang": "painless",
+    "params": {
+      "count": 4
     }
+  },
+  "upsert": {
+    "counter": 1
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -296,18 +298,18 @@ To run the script whether or not the document exists, set `scripted_upsert` to
 --------------------------------------------------
 POST sessions/_update/dh3sgudg8gsrgl
 {
-    "scripted_upsert":true,
-    "script" : {
-        "id": "my_web_session_summariser",
-        "params" : {
-            "pageViewEvent" : {
-                "url":"foo.com/bar",
-                "response":404,
-                "time":"2014-01-01 12:32"
-            }
-        }
-    },
-    "upsert" : {}
+  "scripted_upsert": true,
+  "script": {
+    "id": "my_web_session_summariser",
+    "params": {
+      "pageViewEvent": {
+        "url": "foo.com/bar",
+        "response": 404,
+        "time": "2014-01-01 12:32"
+      }
+    }
+  },
+  "upsert": {}
 }
 --------------------------------------------------
 // TEST[s/"id": "my_web_session_summariser"/"source": "ctx._source.page_view_event = params.pageViewEvent"/]
@@ -325,10 +327,10 @@ value:
 --------------------------------------------------
 POST test/_update/1
 {
-    "doc" : {
-        "name" : "new_name"
-    },
-    "doc_as_upsert" : true
+  "doc": {
+    "name": "new_name"
+  },
+  "doc_as_upsert": true
 }
 --------------------------------------------------
 // TEST[continued]

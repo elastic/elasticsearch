@@ -24,6 +24,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
@@ -91,7 +92,14 @@ public class MemberCallNode extends ArgumentsNode {
         return bindingName;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitMemberCall(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {

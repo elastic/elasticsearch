@@ -43,7 +43,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.IsolateAllNodes;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
@@ -84,7 +83,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         final NetworkDisruption disruptionScheme
-            = new NetworkDisruption(new IsolateAllNodes(new HashSet<>(nodes)), new NetworkDisconnect());
+            = new NetworkDisruption(new IsolateAllNodes(new HashSet<>(nodes)), NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 
@@ -213,7 +212,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         logger.info("Cluster state:\n{}", clusterState.getState());
 
         final NetworkDisruption disruptionScheme
-            = new NetworkDisruption(new IsolateAllNodes(new HashSet<>(nodes)), new NetworkDisconnect());
+            = new NetworkDisruption(new IsolateAllNodes(new HashSet<>(nodes)), NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(disruptionScheme);
         disruptionScheme.startDisrupting();
 

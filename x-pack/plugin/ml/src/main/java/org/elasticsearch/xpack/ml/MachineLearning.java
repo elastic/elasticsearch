@@ -360,7 +360,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                                                        SearchPlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
-    public static final String PRE_V7_BASE_PATH = "/_xpack/ml/";
     public static final String DATAFEED_THREAD_POOL_NAME = NAME + "_datafeed";
     public static final String JOB_COMMS_THREAD_POOL_NAME = NAME + "_job_comms";
     public static final String UTILITY_THREAD_POOL_NAME = NAME + "_utility";
@@ -706,8 +705,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         this.modelLoadingService.set(modelLoadingService);
 
         // Data frame analytics components
-        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client, threadPool, analyticsProcessFactory,
-            dataFrameAnalyticsAuditor, trainedModelProvider, resultsPersisterService, EsExecutors.allocatedProcessors(settings));
+        AnalyticsProcessManager analyticsProcessManager = new AnalyticsProcessManager(client,
+            threadPool,
+            analyticsProcessFactory,
+            dataFrameAnalyticsAuditor,
+            trainedModelProvider,
+            modelLoadingService,
+            resultsPersisterService,
+            EsExecutors.allocatedProcessors(settings));
         MemoryUsageEstimationProcessManager memoryEstimationProcessManager =
             new MemoryUsageEstimationProcessManager(
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
@@ -982,10 +987,9 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     @Override
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         PipelineAggregationSpec spec = new PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
-            in -> new InferencePipelineAggregationBuilder(in, modelLoadingService),
+            in -> new InferencePipelineAggregationBuilder(in, getLicenseState(), modelLoadingService),
             (ContextParser<String, ? extends PipelineAggregationBuilder>)
-                (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, name, parser
-                ));
+                (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, getLicenseState(), name, parser));
         spec.addResultReader(InternalInferenceAggregation::new);
 
         return Collections.singletonList(spec);

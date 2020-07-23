@@ -9,14 +9,15 @@ Returns the health status of a cluster.
 [[cluster-health-api-request]]
 ==== {api-request-title}
 
-`GET _cluster/health/<index>`
+`GET _cluster/health/<target>`
 
 [[cluster-health-api-desc]]
 ==== {api-description-title}
 
 The cluster health API returns a simple status on the health of the 
-cluster. The API can also be executed against one or more indices to get just 
-the specified indices health.
+cluster. You can also use the API to get the health status of only specified
+data streams and indices. For data streams, the API retrieves the health status
+of the stream's backing indices.
 
 The cluster health status is: `green`, `yellow` or `red`. On the shard level, a 
 `red` status indicates that the specific shard is not allocated in the cluster, 
@@ -39,7 +40,13 @@ GET /_cluster/health?wait_for_status=yellow&timeout=50s
 [[cluster-health-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[cluster-health-api-query-params]]
 ==== {api-query-parms-title}

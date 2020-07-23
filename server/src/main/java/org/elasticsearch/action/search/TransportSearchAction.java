@@ -451,14 +451,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private Index[] resolveLocalIndices(OriginalIndices localIndices,
-                                IndicesOptions indicesOptions,
                                 ClusterState clusterState,
                                 SearchTimeProvider timeProvider) {
         if (localIndices == null) {
             return Index.EMPTY_ARRAY; //don't search on any local index (happens when only remote indices were specified)
         }
-        return indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, true,
-            timeProvider.getAbsoluteStartMillis(), localIndices.indices());
+        return indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.getAbsoluteStartMillis());
     }
 
     private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest,
@@ -471,7 +469,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
-        final Index[] indices = resolveLocalIndices(localIndices, searchRequest.indicesOptions(), clusterState, timeProvider);
+        final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
         Map<String, AliasFilter> aliasFilter = buildPerIndexAliasFilter(searchRequest, clusterState, indices, remoteAliasMap);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
             searchRequest.indices());

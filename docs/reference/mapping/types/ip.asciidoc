@@ -1,5 +1,5 @@
 [[ip]]
-=== IP datatype
+=== IP data type
 ++++
 <titleabbrev>IP</titleabbrev>
 ++++
@@ -36,7 +36,7 @@ GET my_index/_search
 --------------------------------------------------
 // TESTSETUP
 
-NOTE: You can also store ip ranges in a single field using an <<range,ip_range datatype>>.
+NOTE: You can also store ip ranges in a single field using an <<range,ip_range data type>>.
 
 [[ip-params]]
 ==== Parameters for `ip` fields

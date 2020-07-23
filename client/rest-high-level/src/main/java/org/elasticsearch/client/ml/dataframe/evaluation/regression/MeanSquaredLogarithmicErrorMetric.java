@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
+import org.elasticsearch.client.ml.dataframe.Regression.LossFunction;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -39,7 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
 
-    public static final String NAME = "mean_squared_logarithmic_error";
+    public static final String NAME = LossFunction.MSLE.toString();
 
     public static final ParseField OFFSET = new ParseField("offset");
 

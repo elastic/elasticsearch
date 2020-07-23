@@ -31,7 +31,6 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
-
 public class AnalyticsResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AnalyticsResultProcessor.class);
@@ -57,6 +56,8 @@ public class AnalyticsResultProcessor {
     private final ChunkedTrainedModelPersister chunkedTrainedModelPersister;
     private volatile String failure;
     private volatile boolean isCancelled;
+
+    private volatile String latestModelId;
 
     public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
                                     StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
@@ -153,7 +154,7 @@ public class AnalyticsResultProcessor {
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();
         if (modelSize != null) {
-            chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelSize);
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelMetadata(modelSize);
         }
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
         if (trainedModelDefinitionChunk != null) {
@@ -189,5 +190,10 @@ public class AnalyticsResultProcessor {
     private void processMemoryUsage(MemoryUsage memoryUsage) {
         statsHolder.setMemoryUsage(memoryUsage);
         statsPersister.persistWithRetry(memoryUsage, memoryUsage::documentId);
+    }
+
+    @Nullable
+    public String getLatestModelId() {
+        return latestModelId;
     }
 }

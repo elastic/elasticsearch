@@ -5,24 +5,30 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /** testing for {@link org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper} */
@@ -266,6 +272,41 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             assertTrue(serialized, serialized.contains("\"orientation\":\"" +
                 AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value() + "\""));
         }
+    }
+
+    public void testShapeArrayParsing() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "shape")
+            .endObject()
+            .endObject()
+            .endObject());
+
+        DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("_doc", new CompressedXContent(mapping));
+
+        BytesReference arrayedDoc = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+            .startArray("shape")
+            .startObject()
+            .field("type", "Point")
+            .startArray("coordinates").value(176.0).value(15.0).endArray()
+            .endObject()
+            .startObject()
+            .field("type", "Point")
+            .startArray("coordinates").value(76.0).value(-15.0).endArray()
+            .endObject()
+            .endArray()
+            .endObject()
+        );
+
+        SourceToParse sourceToParse = new SourceToParse("test", "1", arrayedDoc, XContentType.JSON);
+        ParsedDocument document = mapper.parse(sourceToParse);
+        assertThat(document.docs(), hasSize(1));
+        IndexableField[] fields = document.docs().get(0).getFields("shape.type");
+        assertThat(fields.length, equalTo(2));
     }
 
     public String toXContentString(ShapeFieldMapper mapper, boolean includeDefaults) throws IOException {

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -51,10 +53,29 @@ public final class InferenceToXContentCompressor {
     public static <T> T inflate(String compressedString,
                                 CheckedFunction<XContentParser, T, IOException> parserFunction,
                                 NamedXContentRegistry xContentRegistry) throws IOException {
+        return inflate(compressedString, parserFunction, xContentRegistry, MAX_INFLATED_BYTES);
+    }
+
+    static <T> T inflate(String compressedString,
+                         CheckedFunction<XContentParser, T, IOException> parserFunction,
+                         NamedXContentRegistry xContentRegistry,
+                         long maxBytes) throws IOException {
         try(XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE,
-            inflate(compressedString, MAX_INFLATED_BYTES))) {
+            inflate(compressedString, maxBytes))) {
             return parserFunction.apply(parser);
+        } catch (XContentParseException parseException) {
+            SimpleBoundedInputStream.StreamSizeExceededException streamSizeCause =
+                (SimpleBoundedInputStream.StreamSizeExceededException)
+                    ExceptionsHelper.unwrap(parseException, SimpleBoundedInputStream.StreamSizeExceededException.class);
+
+            if (streamSizeCause != null) {
+                // The root cause is that the model is too big.
+                throw new IOException("Cannot parse model definition as the content is larger than the maximum stream size of ["
+                + streamSizeCause.getMaxBytes() + "] bytes. Max stream size is 10% of the JVM heap or 1GB whichever is smallest");
+            } else {
+                throw parseException;
+            }
         }
     }
 

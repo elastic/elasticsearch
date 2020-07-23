@@ -47,7 +47,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private AnalyticsProcess<AnalyticsResult> process;
     private DataFrameRowsJoiner dataFrameRowsJoiner;
-    private StatsHolder statsHolder = new StatsHolder(ProgressTracker.fromZeroes(Collections.singletonList("analyzing")).report());
+    private StatsHolder statsHolder = new StatsHolder(ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report());
     private TrainedModelProvider trainedModelProvider;
     private DataFrameAnalyticsAuditor auditor;
     private StatsPersister statsPersister;

@@ -26,15 +26,15 @@ Let's look at a range of percentiles representing load time:
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_ranks" : {
-            "percentile_ranks" : {
-                "field" : "load_time", <1>
-                "values" : [500, 600]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "load_time_ranks": {
+      "percentile_ranks": {
+        "field": "load_time",   <1>
+        "values": [ 500, 600 ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]
@@ -46,16 +46,16 @@ The response will look like this:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
+  ...
 
-   "aggregations": {
-      "load_time_ranks": {
-         "values" : {
-            "500.0": 90.01,
-            "600.0": 100.0
-         }
+ "aggregations": {
+    "load_time_ranks": {
+      "values": {
+        "500.0": 90.01,
+        "600.0": 100.0
       }
-   }
+    }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -73,16 +73,16 @@ By default the `keyed` flag is set to `true` associates a unique string key with
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs": {
-        "load_time_ranks": {
-            "percentile_ranks": {
-                "field": "load_time",
-                "values": [500, 600],
-                "keyed": false
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "load_time_ranks": {
+      "percentile_ranks": {
+        "field": "load_time",
+        "values": [ 500, 600 ],
+        "keyed": false
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]
@@ -92,22 +92,22 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
+  ...
 
-    "aggregations": {
-        "load_time_ranks": {
-            "values": [
-                {
-                    "key": 500.0,
-                    "value": 90.01
-                },
-                {
-                    "key": 600.0,
-                    "value": 100.0
-                }
-            ]
+  "aggregations": {
+    "load_time_ranks": {
+      "values": [
+        {
+          "key": 500.0,
+          "value": 90.01
+        },
+        {
+          "key": 600.0,
+          "value": 100.0
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -125,21 +125,21 @@ a script to convert them on-the-fly:
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_ranks" : {
-            "percentile_ranks" : {
-                "values" : [500, 600],
-                "script" : {
-                    "lang": "painless",
-                    "source": "doc['load_time'].value / params.timeUnit", <1>
-                    "params" : {
-                        "timeUnit" : 1000   <2>
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "load_time_ranks": {
+      "percentile_ranks": {
+        "values": [ 500, 600 ],
+        "script": {
+          "lang": "painless",
+          "source": "doc['load_time'].value / params.timeUnit", <1>
+          "params": {
+            "timeUnit": 1000                                    <2>
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]
@@ -154,20 +154,20 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_ranks" : {
-            "percentile_ranks" : {
-                "values" : [500, 600],
-                "script" : {
-                    "id": "my_script",
-                    "params": {
-                        "field": "load_time"
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "load_time_ranks": {
+      "percentile_ranks": {
+        "values": [ 500, 600 ],
+        "script": {
+          "id": "my_script",
+          "params": {
+            "field": "load_time"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency,stored_example_script]
@@ -189,18 +189,18 @@ The HDR Histogram can be used by specifying the `hdr` object in the request:
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_ranks" : {
-            "percentile_ranks" : {
-                "field" : "load_time",
-                "values" : [500, 600],
-                "hdr": { <1>
-                  "number_of_significant_value_digits" : 3 <2>
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "load_time_ranks": {
+      "percentile_ranks": {
+        "field": "load_time",
+        "values": [ 500, 600 ],
+        "hdr": {                                  <1>
+          "number_of_significant_value_digits": 3 <2>
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]
@@ -221,16 +221,16 @@ had a value.
 --------------------------------------------------
 GET latency/_search
 {
-    "size": 0,
-    "aggs" : {
-        "load_time_ranks" : {
-            "percentile_ranks" : {
-                "field" : "load_time",
-                "values" : [500, 600],
-                "missing": 10 <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "load_time_ranks": {
+      "percentile_ranks": {
+        "field": "load_time",
+        "values": [ 500, 600 ],
+        "missing": 10           <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:latency]

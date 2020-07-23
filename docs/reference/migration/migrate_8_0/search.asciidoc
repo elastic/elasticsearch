@@ -71,7 +71,7 @@ more efficiently using the service time of prior inter-node communications.
 No action needed.
 ====
 
-.The `sparse_vector` field datatype has been removed.
+.The `sparse_vector` field data type has been removed.
 [%collapsible]
 ====
 *Details* +
@@ -82,8 +82,8 @@ suggestions around sparse vector functionality, please let us know through
 GitHub or the 'discuss' forums.
 
 *Impact* +
-Discontinue use of the `sparse_vector` field datatype. Requests containing 
-a mapping for this field datatype will return an error.
+Discontinue use of the `sparse_vector` field data type. Requests containing 
+a mapping for this field data type will return an error.
 ====
 
 .Vector functions using `(query, doc['field'])` are no longer supported.

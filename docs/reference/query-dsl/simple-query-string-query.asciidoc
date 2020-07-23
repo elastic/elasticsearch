@@ -152,12 +152,12 @@ value. For example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "simple_query_string" : {
-            "fields" : ["content"],
-            "query" : "foo bar -baz"
-        }
+  "query": {
+    "simple_query_string": {
+      "fields": [ "content" ],
+      "query": "foo bar -baz"
     }
+  }
 }
 --------------------------------------------------
 
@@ -180,12 +180,12 @@ and `PREFIX`.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "simple_query_string" : {
-            "query" : "foo | bar + baz*",
-            "flags" : "OR|AND|PREFIX"
-        }
+  "query": {
+    "simple_query_string": {
+      "query": "foo | bar + baz*",
+      "flags": "OR|AND|PREFIX"
     }
+  }
 }
 --------------------------------------------------
 

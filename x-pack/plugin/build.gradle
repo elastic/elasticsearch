@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.info.BuildParams
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
 apply plugin: 'elasticsearch.validate-rest-spec'
 
 archivesBaseName = 'x-pack'
@@ -15,6 +16,12 @@ dependencies {
 configurations {
   testArtifacts.extendsFrom testRuntime
   testArtifacts.extendsFrom testImplementation
+}
+
+restResources {
+  restApi {
+    includeCore '*'
+  }
 }
 
 artifacts {

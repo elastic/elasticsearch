@@ -7,7 +7,8 @@
 <titleabbrev>{transforms-cap} settings</titleabbrev>
 ++++
 
-You do not need to configure any settings to use {transforms}. It is enabled by default.
+You do not need to configure any settings to use {transforms}. It is enabled by
+default.
 
 All of these settings can be added to the `elasticsearch.yml` configuration file.
 The dynamic settings can also be updated across a cluster with the
@@ -21,6 +22,7 @@ file.
 ==== General {transforms} settings
 
 `node.transform`::
+deprecated:[7.9.0,"Use <<modules-node,node.roles>> instead."]
 Set to `true` to identify the node as a _transform node_. If `node.data`
 is `false` for the node, the default value is `false`. Otherwise, the default
 value is `true`.

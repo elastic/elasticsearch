@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 
+import org.elasticsearch.client.ml.dataframe.Regression.LossFunction;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -37,7 +38,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class MeanSquaredErrorMetric implements EvaluationMetric {
 
-    public static final String NAME = "mean_squared_error";
+    public static final String NAME = LossFunction.MSE.toString();
 
     private static final ObjectParser<MeanSquaredErrorMetric, Void> PARSER = new ObjectParser<>(NAME, true, MeanSquaredErrorMetric::new);
 

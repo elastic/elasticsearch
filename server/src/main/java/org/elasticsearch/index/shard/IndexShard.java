@@ -884,16 +884,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert opPrimaryTerm <= getOperationPrimaryTerm()
                 : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
         ensureWriteAllowed(origin);
-        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        final Engine.Delete delete = prepareDelete(id, uid, seqNo, opPrimaryTerm, version,
-            versionType, origin, ifSeqNo, ifPrimaryTerm);
+        final Engine.Delete delete = prepareDelete(id, seqNo, opPrimaryTerm, version, versionType, origin, ifSeqNo, ifPrimaryTerm);
         return delete(engine, delete);
     }
 
-    private Engine.Delete prepareDelete(String id, Term uid, long seqNo, long primaryTerm, long version,
-                                               VersionType versionType, Engine.Operation.Origin origin,
-                                               long ifSeqNo, long ifPrimaryTerm) {
+    public static Engine.Delete prepareDelete(String id, long seqNo, long primaryTerm, long version, VersionType versionType,
+                                              Engine.Operation.Origin origin, long ifSeqNo, long ifPrimaryTerm) {
         long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType,
             origin, startTime, ifSeqNo, ifPrimaryTerm);
     }

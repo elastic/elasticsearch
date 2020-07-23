@@ -25,6 +25,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -75,7 +76,14 @@ public class UnaryMathNode extends UnaryNode {
         return originallyExplicit;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitUnaryMath(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {

@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression.LossFunction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
  */
 public class MeanSquaredLogarithmicError implements EvaluationMetric {
 
-    public static final ParseField NAME = new ParseField("mean_squared_logarithmic_error");
+    public static final ParseField NAME = new ParseField(LossFunction.MSLE.toString());
 
     public static final ParseField OFFSET = new ParseField("offset");
     private static final double DEFAULT_OFFSET = 1.0;

@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
@@ -114,13 +112,6 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             }
             DeleteJobAction.Request other = (DeleteJobAction.Request) obj;
             return Objects.equals(jobId, other.jobId) && Objects.equals(force, other.force);
-        }
-    }
-
-    static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
-
-        RequestBuilder(ElasticsearchClient client, DeleteJobAction action) {
-            super(client, action, new Request());
         }
     }
 }

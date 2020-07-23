@@ -22,6 +22,7 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.symbol.WriteScope;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
@@ -67,7 +68,14 @@ public class MemberFieldStoreNode extends UnaryNode {
         return isStatic;
     }
 
-    /* ---- end node data ---- */
+    /* ---- end node data, begin visitor ---- */
+
+    @Override
+    public <Input, Output> Output visit(IRTreeVisitor<Input, Output> irTreeVisitor, Input input) {
+        return irTreeVisitor.visitMemberFieldStore(this, input);
+    }
+
+    /* ---- end visitor ---- */
 
     @Override
     public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {

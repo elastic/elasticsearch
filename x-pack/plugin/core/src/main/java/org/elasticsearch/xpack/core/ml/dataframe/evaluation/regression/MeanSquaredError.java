@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression.LossFunction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -40,7 +41,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
  */
 public class MeanSquaredError implements EvaluationMetric {
 
-    public static final ParseField NAME = new ParseField("mean_squared_error");
+    public static final ParseField NAME = new ParseField(LossFunction.MSE.toString());
 
     private static final String PAINLESS_TEMPLATE =
         "def diff = doc[''{0}''].value - doc[''{1}''].value;" +

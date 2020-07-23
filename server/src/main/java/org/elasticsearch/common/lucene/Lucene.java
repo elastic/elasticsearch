@@ -303,9 +303,15 @@ public class Lucene {
             TotalHits totalHits = readTotalHits(in);
             float maxScore = in.readFloat();
 
-            ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
-            for (int i = 0; i < scoreDocs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+            final int scoreDocCount = in.readVInt();
+            final ScoreDoc[] scoreDocs;
+            if (scoreDocCount == 0) {
+                scoreDocs = EMPTY_SCORE_DOCS;
+            } else {
+                scoreDocs = new ScoreDoc[scoreDocCount];
+                for (int i = 0; i < scoreDocs.length; i++) {
+                    scoreDocs[i] = new ScoreDoc(in.readVInt(), in.readFloat());
+                }
             }
             return new TopDocsAndMaxScore(new TopDocs(totalHits, scoreDocs), maxScore);
         } else if (type == 1) {

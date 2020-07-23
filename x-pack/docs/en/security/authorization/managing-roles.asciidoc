@@ -55,14 +55,14 @@ The following describes the structure of an indices permissions entry:
 -------
 // NOTCONSOLE
 
-<1> A list of indices (or index name patterns) to which the permissions in this
-    entry apply.
+<1> A list of data streams, indices, and index aliases to which the permissions
+    in this entry apply. Wildcard (`*`) expressions are supported.
 <2> The index level privileges the owners of the role have on the associated
-    indices (those indices that are specified in the `names` field)
+    data streams and indices specified in the `names` argument.
 <3> Specification for document fields the owners of the role have read access to.
     See <<field-and-document-access-control>> for details.
 <4> A search query that defines the documents the owners of the role have read
-    access to. A document within the associated indices must match this query
+    access to. A document within the associated data streams and indices must match this query
     in order for it to be accessible by the owners of the role.
 <5> Restricted indices are a special category of indices that are used
     internally to store configuration data. Only internal system
@@ -75,8 +75,8 @@ The following describes the structure of an indices permissions entry:
 
 [TIP]
 ==============================================================================
-When specifying index names, you can use indices and aliases with their full
-names or regular expressions that refer to multiple indices.
+The `names` parameter accepts wildcard and regular expressions that may refer to
+multiple data streams, indices, and index aliases.
 
 * Wildcard (default) - simple wildcard matching where `*` is a placeholder
   for zero or more characters, `?` is a placeholder for a single character

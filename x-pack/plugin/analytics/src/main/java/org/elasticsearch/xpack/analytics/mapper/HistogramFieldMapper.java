@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.analytics.mapper;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.HistogramValue;
 import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -121,13 +121,16 @@ public class HistogramFieldMapper extends FieldMapper {
         public Mapper.Builder<Builder> parse(String name, Map<String, Object> node, ParserContext parserContext)
                 throws MapperParsingException {
             Builder builder = new HistogramFieldMapper.Builder(name);
-            TypeParsers.parseMeta(builder, name, node);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
                 if (propName.equals(Names.IGNORE_MALFORMED)) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + "." + Names.IGNORE_MALFORMED));
+                    iterator.remove();
+                }
+                if (propName.equals("meta")) {
+                    builder.meta(TypeParsers.parseMeta(propName, propNode));
                     iterator.remove();
                 }
             }
@@ -167,18 +170,9 @@ public class HistogramFieldMapper extends FieldMapper {
             super(name, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
         }
 
-        HistogramFieldType(HistogramFieldType ref) {
-            super(ref);
-        }
-
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public MappedFieldType clone() {
-            return new HistogramFieldType(this);
         }
 
         @Override
@@ -187,10 +181,13 @@ public class HistogramFieldMapper extends FieldMapper {
             return new IndexFieldData.Builder() {
 
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                                               CircuitBreakerService breakerService, MapperService mapperService) {
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService,
+                    MapperService mapperService
+                ) {
 
-                    return new IndexHistogramFieldData(indexSettings.getIndex(), fieldType.name(), AnalyticsValuesSourceType.HISTOGRAM) {
+                    return new IndexHistogramFieldData(name(), AnalyticsValuesSourceType.HISTOGRAM) {
 
                         @Override
                         public LeafHistogramFieldData load(LeafReaderContext context) {

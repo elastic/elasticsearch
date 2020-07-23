@@ -21,18 +21,20 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DefInterfaceReferenceNode;
-import org.elasticsearch.painless.ir.FunctionNode;
-import org.elasticsearch.painless.ir.ReferenceNode;
-import org.elasticsearch.painless.ir.TypedInterfaceReferenceNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
+import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
+import org.elasticsearch.painless.symbol.Decorations.EncodingDecoration;
 import org.elasticsearch.painless.symbol.Decorations.LastSource;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.MethodNameDecoration;
+import org.elasticsearch.painless.symbol.Decorations.ParameterNames;
 import org.elasticsearch.painless.symbol.Decorations.Read;
+import org.elasticsearch.painless.symbol.Decorations.ReferenceDecoration;
+import org.elasticsearch.painless.symbol.Decorations.ReturnType;
 import org.elasticsearch.painless.symbol.Decorations.TargetType;
+import org.elasticsearch.painless.symbol.Decorations.TypeParameters;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.ScriptScope;
@@ -97,7 +99,17 @@ public class ELambda extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, SemanticScope semanticScope) {
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitLambda(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        blockNode.visit(userTreeVisitor, scope);
+    }
+
+    @Override
+    void analyze(SemanticScope semanticScope) {
         if (semanticScope.getCondition(this, Write.class)) {
             throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to a lambda"));
         }
@@ -113,9 +125,6 @@ public class ELambda extends AExpression {
         Class<?> returnType;
         List<Class<?>> typeParametersWithCaptures;
         List<String> parameterNames;
-        int maxLoopCounter;
-
-        Output output = new Output();
         Class<?> valueType;
 
         List<Class<?>> typeParameters;
@@ -185,14 +194,13 @@ public class ELambda extends AExpression {
         if (blockNode.getStatementNodes().isEmpty()) {
             throw createError(new IllegalArgumentException("cannot generate empty lambda"));
         }
+
         semanticScope.setCondition(blockNode, LastSource.class);
-        AStatement.Output blockOutput = blockNode.analyze(classNode, lambdaScope);
+        blockNode.analyze(lambdaScope);
 
         if (semanticScope.getCondition(blockNode, MethodEscape.class) == false) {
             throw createError(new IllegalArgumentException("not all paths return a value for lambda"));
         }
-
-        maxLoopCounter = scriptScope.getCompilerSettings().getMaxLoopCounter();
 
         // prepend capture list to lambda's arguments
         List<Variable> captures = new ArrayList<>(lambdaScope.getCaptures());
@@ -209,51 +217,23 @@ public class ELambda extends AExpression {
         name = scriptScope.getNextSyntheticName("lambda");
         scriptScope.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, true);
 
-        ReferenceNode referenceNode;
-
         // setup method reference to synthetic method
         if (targetType == null) {
-            valueType = String.class;
             String defReferenceEncoding = "Sthis." + name + "," + captures.size();
-
-            DefInterfaceReferenceNode defInterfaceReferenceNode = new DefInterfaceReferenceNode();
-            defInterfaceReferenceNode.setDefReferenceEncoding(defReferenceEncoding);
-            referenceNode = defInterfaceReferenceNode;
+            valueType = String.class;
+            semanticScope.putDecoration(this, new EncodingDecoration(defReferenceEncoding));
         } else {
             FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                     getLocation(), targetType.getTargetType(), "this", name, captures.size());
             valueType = targetType.getTargetType();
-
-            TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode();
-            typedInterfaceReferenceNode.setReference(ref);
-            referenceNode = typedInterfaceReferenceNode;
+            semanticScope.putDecoration(this, new ReferenceDecoration(ref));
         }
 
         semanticScope.putDecoration(this, new ValueType(valueType));
-
-        FunctionNode functionNode = new FunctionNode();
-        functionNode.setBlockNode((BlockNode)blockOutput.statementNode);
-        functionNode.setLocation(getLocation());
-        functionNode.setName(name);
-        functionNode.setReturnType(returnType);
-        functionNode.getTypeParameters().addAll(typeParametersWithCaptures);
-        functionNode.getParameterNames().addAll(parameterNames);
-        functionNode.setStatic(true);
-        functionNode.setVarArgs(false);
-        functionNode.setSynthetic(true);
-        functionNode.setMaxLoopCounter(maxLoopCounter);
-
-        classNode.addFunctionNode(functionNode);
-
-        referenceNode.setLocation(getLocation());
-        referenceNode.setExpressionType(valueType);
-
-        for (Variable capture : captures) {
-            referenceNode.addCapture(capture.getName());
-        }
-
-        output.expressionNode = referenceNode;
-
-        return output;
+        semanticScope.putDecoration(this, new MethodNameDecoration(name));
+        semanticScope.putDecoration(this, new ReturnType(returnType));
+        semanticScope.putDecoration(this, new TypeParameters(typeParametersWithCaptures));
+        semanticScope.putDecoration(this, new ParameterNames(parameterNames));
+        semanticScope.putDecoration(this, new CapturesDecoration(captures));
     }
 }

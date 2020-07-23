@@ -151,7 +151,6 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
-import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.dataframe.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
@@ -160,16 +159,16 @@ import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyM
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.AucRocMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetric.ConfusionMatrix;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.regression.HuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicErrorMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.regression.PseudoHuberMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric.ConfusionMatrix;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
@@ -2977,12 +2976,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-data-frame-analytics-dest-config
 
             // tag::put-data-frame-analytics-outlier-detection-default
-            DataFrameAnalysis outlierDetection = OutlierDetection.createDefault(); // <1>
+            DataFrameAnalysis outlierDetection = org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault(); // <1>
             // end::put-data-frame-analytics-outlier-detection-default
 
             // tag::put-data-frame-analytics-outlier-detection-customized
-            DataFrameAnalysis outlierDetectionCustomized = OutlierDetection.builder() // <1>
-                .setMethod(OutlierDetection.Method.DISTANCE_KNN) // <2>
+            DataFrameAnalysis outlierDetectionCustomized = org.elasticsearch.client.ml.dataframe.OutlierDetection.builder() // <1>
+                .setMethod(org.elasticsearch.client.ml.dataframe.OutlierDetection.Method.DISTANCE_KNN) // <2>
                 .setNNeighbors(5) // <3>
                 .setFeatureInfluenceThreshold(0.1) // <4>
                 .setComputeFeatureInfluence(true) // <5>
@@ -3040,6 +3039,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setAnalyzedFields(analyzedFields) // <5>
                 .setModelMemoryLimit(new ByteSizeValue(5, ByteSizeUnit.MB)) // <6>
                 .setDescription("this is an example description") // <7>
+                .setMaxNumThreads(1) // <8>
                 .build();
             // end::put-data-frame-analytics-config
 
@@ -3096,6 +3096,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setId("my-analytics-config")  // <1>
                 .setDescription("new description")  // <2>
                 .setModelMemoryLimit(new ByteSizeValue(128, ByteSizeUnit.MB))  // <3>
+                .setMaxNumThreads(4) // <4>
                 .build();
             // end::update-data-frame-analytics-config-update
 
@@ -3349,9 +3350,9 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
         {
-            // tag::evaluate-data-frame-evaluation-softclassification
+            // tag::evaluate-data-frame-evaluation-outlierdetection
             Evaluation evaluation =
-                new BinarySoftClassification( // <1>
+                new OutlierDetection( // <1>
                     "label", // <2>
                     "p", // <3>
                     // Evaluation metrics // <4>
@@ -3359,7 +3360,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     RecallMetric.at(0.5, 0.7), // <6>
                     ConfusionMatrixMetric.at(0.5), // <7>
                     AucRocMetric.withCurve()); // <8>
-            // end::evaluate-data-frame-evaluation-softclassification
+            // end::evaluate-data-frame-evaluation-outlierdetection
 
             // tag::evaluate-data-frame-request
             EvaluateDataFrameRequest request =
@@ -3377,13 +3378,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             List<EvaluationMetric.Result> metrics = response.getMetrics(); // <1>
             // end::evaluate-data-frame-response
 
-            // tag::evaluate-data-frame-results-softclassification
+            // tag::evaluate-data-frame-results-outlierdetection
             PrecisionMetric.Result precisionResult = response.getMetricByName(PrecisionMetric.NAME); // <1>
             double precision = precisionResult.getScoreByThreshold("0.4"); // <2>
 
             ConfusionMatrixMetric.Result confusionMatrixResult = response.getMetricByName(ConfusionMatrixMetric.NAME); // <3>
             ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5"); // <4>
-            // end::evaluate-data-frame-results-softclassification
+            // end::evaluate-data-frame-results-outlierdetection
 
             assertThat(
                 metrics.stream().map(EvaluationMetric.Result::getMetricName).collect(Collectors.toList()),
@@ -3398,7 +3399,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(
                 indexName,
                 new QueryConfig(QueryBuilders.termQuery("dataset", "blue")),
-                new BinarySoftClassification(
+                new OutlierDetection(
                     "label",
                     "p",
                     PrecisionMetric.at(0.4, 0.5, 0.6),
@@ -3573,7 +3574,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                     // Evaluation metrics // <4>
                     new MeanSquaredErrorMetric(), // <5>
                     new MeanSquaredLogarithmicErrorMetric(1.0), // <6>
-                    new PseudoHuberMetric(1.0), // <7>
+                    new HuberMetric(1.0), // <7>
                     new RSquaredMetric()); // <8>
             // end::evaluate-data-frame-evaluation-regression
 
@@ -3588,8 +3589,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 response.getMetricByName(MeanSquaredLogarithmicErrorMetric.NAME); // <3>
             double meanSquaredLogarithmicError = meanSquaredLogarithmicErrorResult.getValue(); // <4>
 
-            PseudoHuberMetric.Result pseudoHuberResult = response.getMetricByName(PseudoHuberMetric.NAME); // <5>
-            double pseudoHuber = pseudoHuberResult.getValue(); // <6>
+            HuberMetric.Result huberResult = response.getMetricByName(HuberMetric.NAME); // <5>
+            double huber = huberResult.getValue(); // <6>
 
             RSquaredMetric.Result rSquaredResult = response.getMetricByName(RSquaredMetric.NAME); // <7>
             double rSquared = rSquaredResult.getValue(); // <8>
@@ -3597,7 +3598,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertThat(meanSquaredError, closeTo(0.021, 1e-3));
             assertThat(meanSquaredLogarithmicError, closeTo(0.003, 1e-3));
-            assertThat(pseudoHuber, closeTo(0.01, 1e-3));
+            assertThat(huber, closeTo(0.01, 1e-3));
             assertThat(rSquared, closeTo(0.941, 1e-3));
         }
     }
@@ -3620,7 +3621,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::explain-data-frame-analytics-config-request
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
                 .setSource(DataFrameAnalyticsSource.builder().setIndex("explain-df-test-source-index").build())
-                .setAnalysis(OutlierDetection.createDefault())
+                .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
                 .build();
             request = new ExplainDataFrameAnalyticsRequest(config); // <1>
             // end::explain-data-frame-analytics-config-request
@@ -3650,7 +3651,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
                 .setSource(DataFrameAnalyticsSource.builder().setIndex("explain-df-test-source-index").build())
-                .setAnalysis(OutlierDetection.createDefault())
+                .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
                 .build();
             ExplainDataFrameAnalyticsRequest request = new ExplainDataFrameAnalyticsRequest(config);
             // tag::explain-data-frame-analytics-execute-listener
@@ -4355,6 +4356,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("put-test-dest-index")
                 .build())
-            .setAnalysis(OutlierDetection.createDefault())
+            .setAnalysis(org.elasticsearch.client.ml.dataframe.OutlierDetection.createDefault())
             .build();
 }

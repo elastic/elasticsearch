@@ -30,18 +30,7 @@ PUT /my-index/_alias/f-alias
 PUT /_index_template/foo_data_stream
 {
   "index_patterns": [ "foo" ],
-  "data_stream": {
-    "timestamp_field": "@timestamp"
-  },
-  "template": {
-    "mappings": {
-      "properties": {
-        "@timestamp": {
-          "type": "date"
-        }
-      }
-    }
-  }
+  "data_stream": { }
 }
 
 PUT /_data_stream/foo

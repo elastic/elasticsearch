@@ -4,7 +4,8 @@
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
-Clears caches for one or more indices.
+Clears the caches of one or more indices. For data streams, the API clears the
+caches of the stream's backing indices.
 
 [source,console]
 ----
@@ -16,7 +17,7 @@ POST /twitter/_cache/clear
 [[clear-cache-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_cache/clear`
+`POST /<target>/_cache/clear`
 
 `POST /_cache/clear`
 
@@ -24,7 +25,13 @@ POST /twitter/_cache/clear
 [[clear-cache-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases used to limit
+the request. Wildcard expressions (`*`) are supported.
++
+To target all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 
 [[clear-cache-api-query-params]]
@@ -127,7 +134,7 @@ POST /twitter/_cache/clear?fields=foo,bar   <1>
 
 
 [[clear-cache-api-multi-ex]]
-===== Clear caches for several indices
+===== Clear caches for several data streams and indices
 
 [source,console]
 ----
@@ -137,7 +144,7 @@ POST /kimchy,elasticsearch/_cache/clear
 
 
 [[clear-cache-api-all-ex]]
-===== Clear caches for all indices
+===== Clear caches for all data streams and indices
 
 [source,console]
 ----

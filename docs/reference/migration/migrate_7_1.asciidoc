@@ -16,33 +16,33 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[breaking_71_http_changes]]
 === HTTP changes
 
-[float]
+[discrete]
 ==== Deprecation of old HTTP settings
 
 The `http.tcp_no_delay` setting is deprecated in 7.1. It is replaced by
 `http.tcp.no_delay`.
 
-[float]
+[discrete]
 [[breaking_71_network_changes]]
 === Network changes
 
-[float]
+[discrete]
 ==== Deprecation of old network settings
 
 The `network.tcp.connect_timeout` setting is deprecated in 7.1. This setting
 was a fallback setting for `transport.connect_timeout`. To change the default
 connection timeout for client connections, modify `transport.connect_timeout`.
 
-[float]
+[discrete]
 [[breaking_71_transport_changes]]
 === Transport changes
 
 //tag::notable-breaking-changes[]
-[float]
+[discrete]
 ==== Deprecation of old transport settings
 
 The following settings are deprecated in 7.1. Each setting has a replacement

@@ -1,7 +1,7 @@
 [[index-modules-slowlog]]
 == Slow Log
 
-[float]
+[discrete]
 [[search-slow-log]]
 === Search Slow Log
 
@@ -82,7 +82,7 @@ logger.index_search_slowlog_rolling.appenderRef.index_search_slowlog_rolling.ref
 logger.index_search_slowlog_rolling.additivity = false
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Identifying search slow log origin
 
 It is often useful to identify what triggered a slow running query. If a call was initiated with an `X-Opaque-ID` header, then the user ID
@@ -117,7 +117,7 @@ The user ID is also included in JSON logs.
 ---------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[index-slow-log]]
 === Index Slow log
 

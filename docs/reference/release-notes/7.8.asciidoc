@@ -12,7 +12,7 @@ coming::[7.8.1]
 Also see <<breaking-changes-7.8,Breaking changes in 7.8>>.
 
 [[breaking-7.8.1]]
-[float]
+[discrete]
 === Breaking changes
 
 License::
@@ -21,7 +21,7 @@ License::
 
 
 [[feature-7.8.1]]
-[float]
+[discrete]
 === New features
 
 SQL::
@@ -30,7 +30,7 @@ SQL::
 
 
 [[enhancement-7.8.1]]
-[float]
+[discrete]
 === Enhancements
 
 Authorization::
@@ -56,7 +56,7 @@ Transform::
 
 
 [[bug-7.8.1]]
-[float]
+[discrete]
 === Bug fixes
 
 CCR::
@@ -143,7 +143,7 @@ Transform::
 
 
 [[upgrade-7.8.1]]
-[float]
+[discrete]
 === Upgrades
 
 Infra/Core::
@@ -156,7 +156,7 @@ Infra/Core::
 Also see <<breaking-changes-7.8,Breaking changes in 7.8>>.
 
 [[breaking-7.8.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Aggregations::
@@ -171,7 +171,7 @@ Mapping::
 
 
 [[deprecation-7.8.0]]
-[float]
+[discrete]
 === Deprecations
 
 Authentication::
@@ -200,7 +200,7 @@ Infra/Plugins::
 
 
 [[feature-7.8.0]]
-[float]
+[discrete]
 === New features
 
 Aggregations::
@@ -226,7 +226,7 @@ SQL::
 
 
 [[enhancement-7.8.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -402,7 +402,7 @@ Transform::
 
 
 [[bug-7.8.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -473,7 +473,7 @@ Transform::
 
 
 [[regression-7.8.0]]
-[float]
+[discrete]
 === Regressions
 
 Infra/Scripting::

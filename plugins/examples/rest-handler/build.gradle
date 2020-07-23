@@ -34,7 +34,7 @@ esplugin {
 test.enabled = false
 
 tasks.register("exampleFixture", org.elasticsearch.gradle.test.AntFixture) {
-  dependsOn javaRestTestClasses
+  dependsOn sourceSets.javaRestTest.runtimeClasspath
   env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'

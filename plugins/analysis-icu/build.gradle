@@ -26,12 +26,10 @@ esplugin {
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 
-List<String> forbidden_signatures = new ArrayList<>([
-  "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
-])
-
 forbiddenApisMain {
-  signatures += forbidden_signatures
+  signatures += [
+    "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
+  ]
 }
 
 dependencies {

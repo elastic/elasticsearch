@@ -22,11 +22,10 @@ package org.elasticsearch.search.aggregations.metrics;
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus.MAX_PRECISION;
-import static org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus.MIN_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MAX_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 
 public class HyperLogLogPlusPlusTests extends ESTestCase {
@@ -47,11 +46,11 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     }
 
     private void testEncodeDecode(int p1, long hash) {
-        final long index = HyperLogLogPlusPlus.index(hash, p1);
-        final int runLen = HyperLogLogPlusPlus.runLen(hash, p1);
-        final int encoded = HyperLogLogPlusPlus.encodeHash(hash, p1);
-        assertEquals(index, HyperLogLogPlusPlus.decodeIndex(encoded, p1));
-        assertEquals(runLen, HyperLogLogPlusPlus.decodeRunLen(encoded, p1));
+        final long index = AbstractHyperLogLog.index(hash, p1);
+        final int runLen = AbstractHyperLogLog.runLen(hash, p1);
+        final int encoded = AbstractLinearCounting.encodeHash(hash, p1);
+        assertEquals(index, AbstractHyperLogLog.decodeIndex(encoded, p1));
+        assertEquals(runLen, AbstractHyperLogLog.decodeRunLen(encoded, p1));
     }
 
     public void testAccuracy() {

@@ -7,7 +7,12 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,18 +21,27 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteExpiredDataAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.time.Clock;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.Supplier;
 
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -88,11 +102,7 @@ public class MlDailyMaintenanceService implements Releasable {
         int minutesOffset = random.ints(0, MAX_TIME_OFFSET_MINUTES).findFirst().getAsInt();
 
         ZonedDateTime now = ZonedDateTime.now(Clock.systemDefaultZone());
-        ZonedDateTime next = now.plusDays(1)
-            .toLocalDate()
-            .atStartOfDay(now.getZone())
-            .plusMinutes(30)
-            .plusMinutes(minutesOffset);
+        ZonedDateTime next = now.plusSeconds(10);
         return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
     }
 
@@ -135,24 +145,98 @@ public class MlDailyMaintenanceService implements Releasable {
                 LOGGER.warn("skipping scheduled [ML] maintenance tasks because upgrade mode is enabled");
                 return;
             }
-            LOGGER.info("triggering scheduled [ML] maintenance tasks");
-            executeAsyncWithOrigin(client,
-                ML_ORIGIN,
-                DeleteExpiredDataAction.INSTANCE,
-                new DeleteExpiredDataAction.Request(deleteExpiredDataRequestsPerSecond, TimeValue.timeValueHours(8)),
+            LOGGER.warn("triggering scheduled [ML] maintenance tasks");
+            triggerDeleteExpiredDataTask();
+            triggerDeleteJobsInStateDeletingWithoutDeletionTask(
                 ActionListener.wrap(
-                    response -> {
-                        if (response.isDeleted()) {
-                            LOGGER.info("Successfully completed [ML] maintenance tasks");
-                        } else {
-                            LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
-                        }
-                    },
-                    e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
-            auditUnassignedMlTasks(clusterService.state());
+                    response -> {},
+                    e -> LOGGER.error("An error occurred during maintenance tasks execution", e)
+                )
+            );
+            auditUnassignedMlTasks();
         } finally {
             scheduleNext();
         }
+    }
+
+    private void triggerDeleteExpiredDataTask() {
+        executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            DeleteExpiredDataAction.INSTANCE,
+            new DeleteExpiredDataAction.Request(deleteExpiredDataRequestsPerSecond, TimeValue.timeValueHours(8)),
+            ActionListener.wrap(
+                response -> {
+                    if (response.isDeleted()) {
+                        LOGGER.info("Successfully completed [ML] maintenance tasks");
+                    } else {
+                        LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
+                    }
+                },
+                e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
+    }
+
+    // Visible for testing
+    public void triggerDeleteJobsInStateDeletingWithoutDeletionTask(ActionListener<AcknowledgedResponse> finalListener) {
+        SetOnce<Set<String>> jobsInStateDeletingHolder = new SetOnce<>();
+
+        ActionListener<List<AcknowledgedResponse>> deleteJobsActionListener = ActionListener.wrap(
+            deleteJobsResponses -> {
+                if (deleteJobsResponses.stream().anyMatch(not(AcknowledgedResponse::isAcknowledged))) {
+                    LOGGER.warn("At least one of the ML jobs could not be deleted.");
+                }
+                finalListener.onResponse(new AcknowledgedResponse(true));
+            },
+            finalListener::onFailure
+        );
+
+        ActionListener<ListTasksResponse> listTasksActionListener = ActionListener.wrap(
+            listTasksResponse -> {
+                Set<String> jobsInStateDeleting = jobsInStateDeletingHolder.get();
+                Set<String> jobsWithDeletionTask =
+                    listTasksResponse.getTasks().stream()
+                        .filter(t -> t.getDescription() != null)
+                        .filter(t -> t.getDescription().startsWith(DeleteJobAction.DELETION_TASK_DESCRIPTION_PREFIX))
+                        .map(t -> t.getDescription().substring(DeleteJobAction.DELETION_TASK_DESCRIPTION_PREFIX.length()))
+                        .collect(toSet());
+                Set<String> jobsInStateDeletingWithoutDeletionTask = Sets.difference(jobsInStateDeleting, jobsWithDeletionTask);
+
+                TypedChainTaskExecutor<AcknowledgedResponse> chainTaskExecutor =
+                    new TypedChainTaskExecutor<>(threadPool.generic(), unused -> true, unused -> true);
+                for (String jobId : jobsInStateDeletingWithoutDeletionTask) {
+                    chainTaskExecutor.add(
+                        listener ->
+                            executeAsyncWithOrigin(
+                                client, ML_ORIGIN, DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId), listener)
+                    );
+                }
+                chainTaskExecutor.execute(deleteJobsActionListener);
+            },
+            finalListener::onFailure
+        );
+
+        ActionListener<GetJobsAction.Response> getJobsActionListener = ActionListener.wrap(
+            getJobsResponse -> {
+                Set<String> jobsInStateDeleting =
+                    getJobsResponse.getResponse().results().stream()
+                        .filter(Job::isDeleting)
+                        .map(Job::getId)
+                        .collect(toSet());
+                if (jobsInStateDeleting.isEmpty()) {
+                    finalListener.onResponse(new AcknowledgedResponse(true));
+                    return;
+                }
+                jobsInStateDeletingHolder.set(jobsInStateDeleting);
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    ListTasksAction.INSTANCE,
+                    new ListTasksRequest().setActions(DeleteJobAction.NAME),
+                    listTasksActionListener);
+            },
+            finalListener::onFailure
+        );
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request("*"), getJobsActionListener);
     }
 
     /**
@@ -161,7 +245,8 @@ public class MlDailyMaintenanceService implements Releasable {
      * to their entries in the UI jobs list.  (This functionality may need revisiting if the condition
      * for displaying a yellow triangle in the UI jobs list changes.)
      */
-    private void auditUnassignedMlTasks(ClusterState state) {
+    private void auditUnassignedMlTasks() {
+        ClusterState state = clusterService.state();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks != null) {
             mlAssignmentNotifier.auditUnassignedMlTasks(state.nodes(), tasks);

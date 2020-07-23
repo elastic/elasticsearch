@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
+import static org.hamcrest.Matchers.containsString;
 
 public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
 
@@ -76,6 +77,13 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         deleteJob(jobIdB);
         // 1 jobA annotation (real_user) and 1 jobB annotation (real_user)
         assertThatNumberOfAnnotationsIsEqualTo(2);
+    }
+
+    public void testDeletingMultipleJobsInOneRequestIsImpossible() {
+        String jobIdA = "delete-multiple-jobs-a";
+        String jobIdB = "delete-multiple-jobs-b";
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> deleteJob(jobIdA + "," + jobIdB));
+        assertThat(e.getMessage(), containsString("Invalid job_id"));
     }
 
     private void runJob(String jobId, String datafeedId) throws Exception {

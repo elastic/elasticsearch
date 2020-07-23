@@ -54,7 +54,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
-    private static final Version PLUGGABLE_ROLES_VERSION = Version.V_7_3_0;
+    public static final Version PLUGGABLE_ROLES_VERSION = Version.V_7_3_0;
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
@@ -407,8 +407,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @return true if the node can be a remote cluster client, false otherwise
      */
     public boolean isRemoteClusterClient() {
-        // Old nodes do not have the remote cluster client role
-        return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE) || version.before(PLUGGABLE_ROLES_VERSION);
+        return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
     }
 
     /**

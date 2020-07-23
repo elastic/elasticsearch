@@ -26,6 +26,7 @@
 package org.elasticsearch.xpack.ccr.allocation;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -57,11 +58,14 @@ public final class CcrPrimaryFollowerAllocationDecider extends AllocationDecider
             return allocation.decision(Decision.YES, NAME,
                 "shard is a primary follower but was bootstrapped already; hence is not under the purview of this decider");
         }
-        if (node.node().isRemoteClusterClient() == false) {
-            return allocation.decision(Decision.NO, NAME, "shard is a primary follower and being bootstrapped, but node does not have the "
-                + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+        if (node.node().isRemoteClusterClient()) {
+            return allocation.decision(Decision.YES, NAME,
+                "shard is a primary follower and node has the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
         }
-        return allocation.decision(Decision.YES, NAME,
-            "shard is a primary follower and node has the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+        if (node.node().getVersion().before(DiscoveryNode.PLUGGABLE_ROLES_VERSION)) {
+            return allocation.decision(Decision.YES, NAME, "shard is a primary follower and node has only the legacy roles");
+        }
+        return allocation.decision(Decision.NO, NAME, "shard is a primary follower and being bootstrapped, but node does not have the "
+            + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
     }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.net.InetAddress;
 import java.util.HashSet;
@@ -60,19 +59,6 @@ public class DiscoveryNodeTests extends ESTestCase {
             previous = current;
         }
 
-    }
-
-    public void testRemoteClusterClientRole() {
-        final Version oldVersion = VersionUtils.randomVersionBetween(random(),
-            Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
-        final DiscoveryNode oldNode = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(),
-            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), oldVersion);
-        assertTrue(oldNode.isRemoteClusterClient());
-
-        final HashSet<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
-        final Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.CURRENT);
-        final DiscoveryNode newNode = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(), roles, newVersion);
-        assertThat(newNode.isRemoteClusterClient(), equalTo(roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
     }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {

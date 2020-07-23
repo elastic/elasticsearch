@@ -153,13 +153,10 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
             .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1).numberOfReplicas(1);
-        final DiscoveryNode dataOnlyNode = newNode("d1", Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE));
-        final DiscoveryNode dataAndRemoteNode;
-        if (randomBoolean()) {
-            dataAndRemoteNode = newNode("dr1", Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
-        } else {
-            dataAndRemoteNode = newNodeWithLegacyRoles("dr1");
-        }
+        final DiscoveryNode dataOnlyNode = newNode("data_role_only", Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE));
+        final DiscoveryNode dataAndRemoteNode = newNode("data_and_remote_cluster_client_role",
+            Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        final DiscoveryNode nodeWithLegacyRolesOnly = newNodeWithLegacyRoles("legacy_roles_only");
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(dataOnlyNode).add(dataAndRemoteNode).build();
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         RoutingTable.Builder routingTable = RoutingTable.builder()
@@ -177,6 +174,11 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             Decision yesDecision = executeAllocation(clusterState, shardRouting.primaryShard(), dataAndRemoteNode);
             assertThat(yesDecision.type(), equalTo(Decision.Type.YES));
             assertThat(yesDecision.getExplanation(), equalTo("shard is a primary follower and node has the remote_cluster_client role"));
+
+            yesDecision = executeAllocation(clusterState, shardRouting.primaryShard(), nodeWithLegacyRolesOnly);
+            assertThat(yesDecision.type(), equalTo(Decision.Type.YES));
+            assertThat(yesDecision.getExplanation(), equalTo("shard is a primary follower and node has only the legacy roles"));
+
             for (ShardRouting replica : shardRouting.replicaShards()) {
                 assertThat(replica.state(), equalTo(UNASSIGNED));
                 yesDecision = executeAllocation(clusterState, replica, randomFrom(dataOnlyNode, dataAndRemoteNode));

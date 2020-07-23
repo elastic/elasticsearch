@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -71,7 +72,11 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public final class ShardGetService extends AbstractIndexShardComponent {
+    private static final double ALPHA = 0.1;
+    private static final double INITIAL_VALUE = TimeUnit.MICROSECONDS.toNanos(100);
+
     private final MapperService mapperService;
+    private final ExponentiallyWeightedMovingAverage getEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, INITIAL_VALUE);
     private final MeanMetric existsMetric = new MeanMetric();
     private final MeanMetric missingMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
@@ -103,10 +108,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             GetResult getResult =
                 innerGet(id, gFields, realtime, version, versionType, ifSeqNo, ifPrimaryTerm, fetchSourceContext);
 
+            long took = System.nanoTime() - now;
+            getEWMA.addValue(took);
             if (getResult.isExists()) {
-                existsMetric.inc(System.nanoTime() - now);
+                existsMetric.inc(took);
             } else {
-                missingMetric.inc(System.nanoTime() - now);
+                missingMetric.inc(took);
             }
             return getResult;
         } finally {

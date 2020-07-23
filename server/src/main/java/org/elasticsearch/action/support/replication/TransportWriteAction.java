@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -49,6 +50,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
@@ -101,6 +103,10 @@ public abstract class TransportWriteAction<
         }
     }
 
+    protected Stream<DocWriteRequest<?>> primaryOperations(Request request) {
+        return Stream.empty();
+    }
+
     protected long primaryOperationSize(Request request) {
         return 0;
     }
@@ -108,6 +114,10 @@ public abstract class TransportWriteAction<
     @Override
     protected Releasable checkReplicaLimits(ReplicaRequest request) {
         return indexingPressure.markReplicaOperationStarted(replicaOperationSize(request), forceExecution);
+    }
+
+    protected Stream<DocWriteRequest<?>> replicaOperations(ReplicaRequest request) {
+        return Stream.empty();
     }
 
     protected long replicaOperationSize(ReplicaRequest request) {

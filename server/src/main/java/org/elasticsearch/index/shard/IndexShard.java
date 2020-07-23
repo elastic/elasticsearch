@@ -993,6 +993,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return internalIndexingStats.stats(throttled, throttleTimeInMillis);
     }
 
+    public long getIndexCostFactor() {
+        return internalIndexingStats.indexCostFactor();
+    }
+
+    public long getDeleteCostFactor() {
+        return internalIndexingStats.deleteCostFactor();
+    }
+
+    public void getGetCostFactor() {
+
+    }
+
     public SearchStats searchStats(String... groups) {
         return searchStats.stats(groups);
     }

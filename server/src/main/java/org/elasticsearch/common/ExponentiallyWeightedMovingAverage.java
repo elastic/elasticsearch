@@ -45,17 +45,18 @@ public class ExponentiallyWeightedMovingAverage {
     }
 
     public double getAverage() {
-        return Double.longBitsToDouble(this.averageBits.get());
+        return bitsToAverage(this.averageBits.get());
+    }
+
+    private double bitsToAverage(long averageBits) {
+        return Double.longBitsToDouble(averageBits);
     }
 
     public void addValue(double newValue) {
-        boolean successful = false;
-        do {
-            final long currentBits = this.averageBits.get();
-            final double currentAvg = getAverage();
+        averageBits.getAndUpdate(currentBits -> {
+            final double currentAvg = bitsToAverage(currentBits);
             final double newAvg = (alpha * newValue) + ((1 - alpha) * currentAvg);
-            final long newBits = Double.doubleToLongBits(newAvg);
-            successful = averageBits.compareAndSet(currentBits, newBits);
-        } while (successful == false);
+            return Double.doubleToLongBits(newAvg);
+        });
     }
 }

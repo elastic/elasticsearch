@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.index.engine.Engine;
@@ -43,6 +44,14 @@ final class InternalIndexingStats implements IndexingOperationListener {
         return new IndexingStats(total);
     }
 
+    long indexCostFactor() {
+        return (long) totalStats.indexEWMA.getAverage();
+    }
+
+    long deleteCostFactor() {
+        return (long) totalStats.deleteEWMA.getAverage();
+    }
+
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
         if (operation.origin().isRecovery() == false) {
@@ -55,8 +64,9 @@ final class InternalIndexingStats implements IndexingOperationListener {
     public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
         switch (result.getResultType()) {
             case SUCCESS:
+                long took = result.getTook();
+                totalStats.indexEWMA.addValue(took);
                 if (index.origin().isRecovery() == false) {
-                    long took = result.getTook();
                     totalStats.indexMetric.inc(took);
                     totalStats.indexCurrent.dec();
                 }
@@ -90,8 +100,9 @@ final class InternalIndexingStats implements IndexingOperationListener {
     public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         switch (result.getResultType()) {
             case SUCCESS:
+                long took = result.getTook();
+                totalStats.deleteEWMA.addValue(took);
                 if (!delete.origin().isRecovery()) {
-                    long took = result.getTook();
                     totalStats.deleteMetric.inc(took);
                     totalStats.deleteCurrent.dec();
                 }
@@ -116,6 +127,11 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     static class StatsHolder {
+        private static final double ALPHA = 0.1;
+        private static final double INITIAL_VALUE = TimeUnit.MICROSECONDS.toNanos(100);
+
+        private final ExponentiallyWeightedMovingAverage indexEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, INITIAL_VALUE);
+        private final ExponentiallyWeightedMovingAverage deleteEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, INITIAL_VALUE);
         private final MeanMetric indexMetric = new MeanMetric();
         private final MeanMetric deleteMetric = new MeanMetric();
         private final CounterMetric indexCurrent = new CounterMetric();

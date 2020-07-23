@@ -47,8 +47,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.repositories.IndexId;
@@ -57,7 +55,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -151,7 +148,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         }
     }
 
-    public void testBootstrappingFollowerIndex() throws Exception {
+    public void testBootstrappingFollowerIndex() {
         String index = "test-index";
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
             .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
@@ -190,20 +187,14 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         }
     }
 
-    static DiscoveryNode newNodeWithLegacyRoles(String id) throws IOException {
+    static DiscoveryNode newNodeWithLegacyRoles(String id) {
         final Version version = VersionUtils.randomVersionBetween(random(),
             Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
         final Set<DiscoveryNodeRole> roles = Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE);
         if (randomBoolean()) {
             roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
         }
-        final DiscoveryNode node = new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), roles, version);
-        final BytesStreamOutput streamOutput = new BytesStreamOutput();
-        streamOutput.setVersion(version);
-        node.writeTo(streamOutput);
-        final StreamInput streamInput = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-        streamInput.setVersion(version);
-        return new DiscoveryNode(streamInput);
+        return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), roles, version);
     }
 
     static Decision executeAllocation(ClusterState clusterState, ShardRouting shardRouting, DiscoveryNode node) {

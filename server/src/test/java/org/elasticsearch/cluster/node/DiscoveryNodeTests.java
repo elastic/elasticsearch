@@ -38,7 +38,6 @@ import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 
 public class DiscoveryNodeTests extends ESTestCase {
@@ -63,36 +62,17 @@ public class DiscoveryNodeTests extends ESTestCase {
 
     }
 
-    public void testRemoteClusterClientRole() throws Exception {
-        {
-            final Version version = VersionUtils.randomVersionBetween(random(),
-                Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
-            final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
-            final DiscoveryNode node = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(), roles, version);
-            assertThat(node.isRemoteClusterClient(), equalTo(roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
-            final BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(version);
-            node.writeTo(streamOutput);
-            final StreamInput streamInput = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            streamInput.setVersion(version);
-            final DiscoveryNode serializedNode = new DiscoveryNode(streamInput);
-            assertThat(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE, in(serializedNode.getRoles()));
-            assertTrue(serializedNode.isRemoteClusterClient());
-        }
-        {
-            final HashSet<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
-            final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.CURRENT);
-            final DiscoveryNode node = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(), roles, version);
-            assertThat(node.isRemoteClusterClient(), equalTo(roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
-            final BytesStreamOutput out = new BytesStreamOutput();
-            out.setVersion(version);
-            node.writeTo(out);
-            final StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-            in.setVersion(version);
-            final DiscoveryNode serializedNode = new DiscoveryNode(in);
-            assertThat(serializedNode.getRoles(), equalTo(roles));
-            assertThat(serializedNode.isRemoteClusterClient(), equalTo(roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
-        }
+    public void testRemoteClusterClientRole() {
+        final Version oldVersion = VersionUtils.randomVersionBetween(random(),
+            Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
+        final DiscoveryNode oldNode = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), oldVersion);
+        assertTrue(oldNode.isRemoteClusterClient());
+
+        final HashSet<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        final Version newVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.CURRENT);
+        final DiscoveryNode newNode = new DiscoveryNode("name", "id", buildNewFakeTransportAddress(), emptyMap(), roles, newVersion);
+        assertThat(newNode.isRemoteClusterClient(), equalTo(roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
     }
 
     public void testDiscoveryNodeIsCreatedWithHostFromInetAddress() throws Exception {

@@ -106,7 +106,7 @@ GET /_cluster/allocation/explain
 //////
 [source,console]
 --------------------------------------------------	
-DELETE my-index-000001	
+DELETE my-index-000001
 --------------------------------------------------	
 //////
 
@@ -122,6 +122,7 @@ GET /_cluster/allocation/explain
   "primary": true
 }
 --------------------------------------------------
+// TEST[continued]
 
 
 The API returns the following response for an unassigned primary shard:

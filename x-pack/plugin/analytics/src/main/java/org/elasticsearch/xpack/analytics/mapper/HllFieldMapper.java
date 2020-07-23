@@ -408,7 +408,7 @@ public class HllFieldMapper extends FieldMapper {
             }
             if (fieldType().hasDocValues()) {
                 ByteBuffersDataOutput dataOutput = new ByteBuffersDataOutput();
-                if (runLenLength > m) {
+                if (runLenLength >= m) {
                     writeFixedLen(runLens, dataOutput);
                     assert dataOutput.size() == m + 1;
                 } else {

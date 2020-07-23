@@ -1,11 +1,8 @@
-[[indices-templates]]
+[[index-templates]]
 = Index templates
-++++
-<titleabbrev>Index templates</titleabbrev>
-++++
 
-NOTE: This topic describes the composable templates introduced in {es} 7.8. 
-For information about how templates worked previously, 
+NOTE: This topic describes the composable index templates introduced in {es} 7.8. 
+For information about how index templates worked previously, 
 see the <<indices-templates-v1,legacy template documentation>>.
 
 [[getting]]
@@ -93,7 +90,7 @@ PUT _index_template/template_1
 --------------------------------------------------
 // TESTSETUP
 
-//////////////////////////
+////
 
 [source,console]
 --------------------------------------------------
@@ -102,6 +99,6 @@ DELETE _component_template/*
 --------------------------------------------------
 // TEARDOWN
 
-//////////////////////////
+////
 
 include::simulate-multi-component-templates.asciidoc[]

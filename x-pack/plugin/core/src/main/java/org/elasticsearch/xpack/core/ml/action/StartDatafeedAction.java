@@ -83,9 +83,6 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             params = new DatafeedParams(in);
         }
 
-        public Request() {
-        }
-
         public DatafeedParams getParams() {
             return params;
         }

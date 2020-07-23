@@ -44,8 +44,6 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();

@@ -66,8 +66,6 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
         private DataFrameAnalyticsConfig config;
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             config = new DataFrameAnalyticsConfig(in);

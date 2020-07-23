@@ -57,8 +57,6 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        public Request() {}
-
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeedId = in.readString();

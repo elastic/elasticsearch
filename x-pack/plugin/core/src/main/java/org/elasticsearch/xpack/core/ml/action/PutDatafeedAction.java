@@ -46,9 +46,6 @@ public class PutDatafeedAction extends ActionType<PutDatafeedAction.Response> {
             this.datafeed = datafeed;
         }
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             datafeed = new DatafeedConfig(in);

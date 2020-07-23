@@ -8,6 +8,9 @@ package org.elasticsearch.xpack;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -20,8 +23,10 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -146,6 +151,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         if (clusterGroup != null && reuseClusters()) {
             clusterGroup.leaderCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
             clusterGroup.followerCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
+            setupMasterNodeRequestsValidatorOnFollowerCluster(clusterGroup.followerCluster);
             return;
         }
 
@@ -176,6 +182,30 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);
             assertNotNull(clusterService.state().metadata().custom(LicensesMetadata.TYPE));
         });
+        setupMasterNodeRequestsValidatorOnFollowerCluster(followerCluster);
+    }
+
+    private void setupMasterNodeRequestsValidatorOnFollowerCluster(InternalTestCluster followerCluster) {
+        for (String nodeName : followerCluster.getNodeNames()) {
+            MockTransportService transportService = (MockTransportService) followerCluster.getInstance(TransportService.class, nodeName);
+            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (request instanceof AcknowledgedRequest<?>) {
+                    final TimeValue masterTimeout = ((AcknowledgedRequest<?>) request).masterNodeTimeout();
+                    if (masterTimeout == null || masterTimeout.nanos() != TimeValue.MAX_VALUE.nanos()) {
+                        throw new AssertionError("time out of a master request [" + request + "] on the follower is not set to unbounded");
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+    }
+
+    private void removeMasterNodeRequestsValidatorOnFollowerCluster(InternalTestCluster followerCluster) {
+        for (String nodeName : followerCluster.getNodeNames()) {
+            MockTransportService transportService =
+                (MockTransportService) getFollowerCluster().getInstance(TransportService.class, nodeName);
+            transportService.clearAllRules();
+        }
     }
 
     /**
@@ -193,6 +223,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     @After
     public void afterTest() throws Exception {
         ensureEmptyWriteBuffers();
+        removeMasterNodeRequestsValidatorOnFollowerCluster(clusterGroup.followerCluster);
         String masterNode = clusterGroup.followerCluster.getMasterName();
         ClusterService clusterService = clusterGroup.followerCluster.getInstance(ClusterService.class, masterNode);
         removeCCRRelatedMetadataFromClusterState(clusterService);
@@ -283,7 +314,17 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     }
 
     protected final Client followerClient() {
-        return clusterGroup.followerCluster.client();
+        return new FilterClient(clusterGroup.followerCluster.client()) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                // Set timeout to unbounded to bypass MasterNodeRequestsValidatorOnFollowerCluster for requests used in tests.
+                if (request instanceof AcknowledgedRequest<?>) {
+                    ((AcknowledgedRequest<?>) request).masterNodeTimeout(TimeValue.MAX_VALUE);
+                }
+                super.doExecute(action, request, listener);
+            }
+        };
     }
 
     protected final InternalTestCluster getLeaderCluster() {

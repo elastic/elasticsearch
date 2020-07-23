@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
@@ -454,15 +455,15 @@ public class SysColumnsTests extends ESTestCase {
 
     public void testSysColumnsNoArg() throws Exception {
         executeCommand("SYS COLUMNS", emptyList(), r -> {
-            assertEquals(13, r.size());
+            assertEquals(15, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             // no index specified
-            assertEquals("", r.column(2));
+            assertEquals("test", r.column(2));
             assertEquals("bool", r.column(3));
             r.advanceRow();
             assertEquals(CLUSTER_NAME, r.column(0));
             // no index specified
-            assertEquals("", r.column(2));
+            assertEquals("test", r.column(2));
             assertEquals("int", r.column(3));
         }, mapping);
     }
@@ -506,28 +507,45 @@ public class SysColumnsTests extends ESTestCase {
         }, mapping);
     }
 
-    public void testSysColumnsTypesInOdbcMode() throws Exception {
+    public void testSysColumnsTypesInOdbcMode() {
         executeCommand("SYS COLUMNS", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
         executeCommand("SYS COLUMNS TABLE LIKE 'test'", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
     }
 
-    @SuppressWarnings({ "unchecked" })
+    public void testSysColumnsPaginationInOdbcMode() {
+        assertEquals(15, executeCommandInOdbcModeAndCountRows("SYS COLUMNS"));
+        assertEquals(15, executeCommandInOdbcModeAndCountRows("SYS COLUMNS TABLE LIKE 'test'"));
+    }
+
+    private int executeCommandInOdbcModeAndCountRows(String sql) {
+        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT,
+            null, Mode.ODBC, null, null, null, false, false);
+        Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, mapping);
+
+        int[] rowCount = {0};
+        tuple.v1().execute(tuple.v2(), new ActionListener<>() {
+            @Override
+            public void onResponse(Cursor.Page page) {
+                Cursor c = page.next();
+                rowCount[0] += page.rowSet().size();
+                if (c != Cursor.EMPTY) {
+                    c.nextPage(config, null, null, this);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.getMessage());
+            }
+        });
+        return rowCount[0];
+    }
+
     private void executeCommand(String sql, List<SqlTypedParamValue> params, Mode mode, Consumer<SchemaRowSet> consumer,
-                                Map<String, EsField> mapping)
-        throws Exception {
-        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, mode,
-            null, null, null, false, false);
+                                Map<String, EsField> mapping) {
+        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT, null, mode, null, null, null, false, false);
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
-
-        IndexResolver resolver = tuple.v2().indexResolver();
-
-        EsIndex test = new EsIndex("test", mapping);
-
-        doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
-            return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
 
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }
@@ -537,6 +555,7 @@ public class SysColumnsTests extends ESTestCase {
         executeCommand(sql, params, Mode.PLAIN, consumer, mapping);
     }
 
+    @SuppressWarnings({ "unchecked" })
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration config,
                                            Map<String, EsField> mapping) {
         EsIndex test = new EsIndex("test", mapping);
@@ -545,6 +564,14 @@ public class SysColumnsTests extends ESTestCase {
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
+        doAnswer(invocation -> {
+            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
+            return Void.TYPE;
+        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
+        doAnswer(invocation -> {
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[3]).onResponse(singletonList(test));
+            return Void.TYPE;
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any());
 
         SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);

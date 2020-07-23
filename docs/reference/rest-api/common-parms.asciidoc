@@ -518,7 +518,7 @@ tag::component-template[]
 (Required, string)
 Comma-separated list or wildcard expression of component template names
 used to limit the request.
-end::index-template[]
+end::component-template[]
 
 tag::lenient[]
 `lenient`::

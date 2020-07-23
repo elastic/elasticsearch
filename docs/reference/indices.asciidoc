@@ -48,7 +48,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-analyze>>
 
 [float]
-[[index-templates]]
+[[indices-templates]]
 === Index templates:
 
 Index templates automatically apply settings, mappings, and aliases to new indices.

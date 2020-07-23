@@ -33,7 +33,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 
-public class MapperValidatorTests extends ESTestCase {
+public class FieldAliasMapperValidationTests extends ESTestCase {
 
     public void testDuplicateFieldAliasAndObject() {
         ObjectMapper objectMapper = createObjectMapper("some.path");

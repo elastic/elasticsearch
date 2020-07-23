@@ -178,10 +178,6 @@ public final class DocumentFieldMappers implements Iterable<Mapper> {
         return objectMappers;
     }
 
-    public boolean isAlias(String path) {
-        return getMapper(path) instanceof FieldAliasMapper;
-    }
-
     public boolean isMultiField(String field) {
         String sourceParent = parentObject(field);
         return sourceParent != null && fieldMappers.containsKey(sourceParent);

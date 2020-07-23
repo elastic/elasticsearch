@@ -190,6 +190,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
     public abstract Mapper merge(Mapper mergeWith);
 
+    /**
+     * Validate any cross-field references made by this mapper
+     * @param mappers a {@link DocumentFieldMappers} that can produce references to other mappers
+     */
     public abstract void validate(DocumentFieldMappers mappers);
 
 }

@@ -98,7 +98,7 @@ public final class FieldAliasMapper extends Mapper {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias must refer to an existing field in the mappings.");
         }
-        if (mappers.isAlias(path)) {
+        if (mappers.getMapper(path) instanceof FieldAliasMapper) {
             throw new MapperParsingException("Invalid [path] value [" + path + "] for field alias [" +
                 name() + "]: an alias cannot refer to another alias.");
         }

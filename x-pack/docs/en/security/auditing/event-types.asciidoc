@@ -207,9 +207,9 @@ that have been previously described:
   `user.run_as.realm`  ::    The realm name of that the _impersonated_ user belongs to.
 
 * `access_granted` and `access_denied`:
-  `user.roles`         ::    The role names of the user as an array. If authentication is
-                             performed using an API Key this attribute designates the
-                             role names of the owner user of the key.
+  `user.roles`         ::    The role names of the user as an array. If authenticated
+                             using an API key, this contains the
+                             role names of the API key owner.
   `user.name`          ::    The name of the _effective_ user. This is usually the
                              same as the _authenticated_ user, but if using the
                              <<run-as-privilege, run as authorization functionality>>

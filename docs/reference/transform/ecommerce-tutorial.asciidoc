@@ -28,7 +28,8 @@ might want to derive from this eCommerce data.
 --
 _Pivoting_ your data involves using at least one field to group it and applying
 at least one aggregation. You can preview what the transformed data will look
-like, so go ahead and play with it!
+like, so go ahead and play with it! You can also enable histogram charts to get
+a better understanding of the distribution of values in your data.
 
 For example, you might want to group the data by product ID and calculate the
 total number of sales for each product and its average price. Alternatively, you
@@ -38,11 +39,11 @@ they purchased. Or you might want to take the currencies or geographies into
 consideration. What are the most interesting ways you can transform and
 interpret this data?
 
-Go to *Management* > *Elasticsearch* > *Transforms* in {kib} and use the
-wizard to create a {transform}:
+Go to *Management* > *Stack Management* > *Data* > *Transforms* in {kib} and use
+the wizard to create a {transform}:
 
 [role="screenshot"]
-image::images/ecommerce-pivot1.jpg["Creating a simple {transform} in {kib}"]
+image::images/ecommerce-pivot1.png["Creating a simple {transform} in {kib}"]
 
 In this case, we grouped the data by customer ID and calculated the sum of
 products each customer purchased.
@@ -59,7 +60,7 @@ We'll accomplish this by using the
 on the `order_id` field:
 
 [role="screenshot"]
-image::images/ecommerce-pivot2.jpg["Adding multiple aggregations to a {transform} in {kib}"]
+image::images/ecommerce-pivot2.png["Adding multiple aggregations to a {transform} in {kib}"]
 
 TIP: If you're interested in a subset of the data, you can optionally include a
 <<request-body-search-query,query>> element. In this
@@ -220,7 +221,7 @@ can stop it.
 You can start, stop, and manage {transforms} in {kib}:
 
 [role="screenshot"]
-image::images/manage-transforms.jpg["Managing {transforms} in {kib}"]
+image::images/manage-transforms.png["Managing {transforms} in {kib}"]
 
 Alternatively, you can use the
 <<start-transform,start {transforms}>> and
@@ -249,7 +250,7 @@ data is ingested.
 For example, use the *Discover* application in {kib}:
 
 [role="screenshot"]
-image::images/ecommerce-results.jpg["Exploring the new index in {kib}"]
+image::images/ecommerce-results.png["Exploring the new index in {kib}"]
 
 --
 

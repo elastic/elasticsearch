@@ -518,8 +518,8 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     private int executeCommandInOdbcModeAndCountRows(String sql) {
-        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT,
-            null, Mode.ODBC, null, null, null, false, false);
+        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT, null, Mode.ODBC, null, null, null, false, false);
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, mapping);
 
         int[] rowCount = {0};

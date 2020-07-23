@@ -27,15 +27,16 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
 
@@ -74,100 +75,124 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         return TYPE;
     }
 
+    static void register(ValuesSourceRegistry.Builder builder) {
+        builder.registerComposite(
+            TYPE,
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
+                final DocValueFormat docValueFormat;
+                if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
+                    // defaults to the raw format on date fields (preserve timestamp as longs).
+                    docValueFormat = DocValueFormat.RAW;
+                } else {
+                    docValueFormat = valuesSourceConfig.format();
+                }
+                return new CompositeValuesSourceConfig(
+                    name,
+                    valuesSourceConfig.fieldType(),
+                    valuesSourceConfig.getValuesSource(),
+                    docValueFormat,
+                    order,
+                    missingBucket,
+                    hasScript,
+                    (
+                        BigArrays bigArrays,
+                        IndexReader reader,
+                        int size,
+                        LongConsumer addRequestCircuitBreakerBytes,
+                        CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+
+                        final ValuesSource.Numeric vs = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
+                        if (vs.isFloatingPoint()) {
+                            return new DoubleValuesSource(
+                                bigArrays,
+                                compositeValuesSourceConfig.fieldType(),
+                                vs::doubleValues,
+                                compositeValuesSourceConfig.format(),
+                                compositeValuesSourceConfig.missingBucket(),
+                                size,
+                                compositeValuesSourceConfig.reverseMul()
+                            );
+
+                        } else {
+                            final LongUnaryOperator rounding;
+                            if (vs instanceof RoundingValuesSource) {
+                                // TODO: I'm pretty sure we can't get a RoundingValuesSource here.  This was copy/pasta from the old,
+                                //       global logic in CompositeValuesSourceConfig, which could have had a rounding values source.
+                                //       Now that path should be covered in DateHistogramValuesSourceBuilder
+                                rounding = ((RoundingValuesSource) vs)::round;
+                            } else {
+                                rounding = LongUnaryOperator.identity();
+                            }
+                            return new LongValuesSource(
+                                bigArrays,
+                                compositeValuesSourceConfig.fieldType(),
+                                vs::longValues,
+                                rounding,
+                                compositeValuesSourceConfig.format(),
+                                compositeValuesSourceConfig.missingBucket(),
+                                size,
+                                compositeValuesSourceConfig.reverseMul()
+                            );
+                        }
+
+                    });
+                    });
+
+
+        builder.registerComposite(
+            TYPE,
+            List.of(CoreValuesSourceType.BYTES,  CoreValuesSourceType.IP),
+            (valuesSourceConfig, compositeBucketStrategy, name, hasScript, format, missingBucket, order) -> {
+                return new CompositeValuesSourceConfig(
+                    name,
+                    valuesSourceConfig.fieldType(),
+                    valuesSourceConfig.getValuesSource(),
+                    valuesSourceConfig.format(),
+                    order,
+                    missingBucket,
+                    hasScript,
+                    (
+                        BigArrays bigArrays,
+                        IndexReader reader,
+                        int size,
+                        LongConsumer addRequestCircuitBreakerBytes,
+                        CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
+
+
+                        if (valuesSourceConfig.hasGlobalOrdinals() && reader instanceof DirectoryReader) {
+                            ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
+                            return new GlobalOrdinalValuesSource(
+                                bigArrays,
+                                compositeValuesSourceConfig.fieldType(),
+                                vs::globalOrdinalsValues,
+                                compositeValuesSourceConfig.format(),
+                                compositeValuesSourceConfig.missingBucket(),
+                                size,
+                                compositeValuesSourceConfig.reverseMul()
+                            );
+                        } else {
+                            ValuesSource.Bytes vs = (ValuesSource.Bytes) compositeValuesSourceConfig.valuesSource();
+                            return new BinaryValuesSource(
+                                bigArrays,
+                                addRequestCircuitBreakerBytes,
+                                compositeValuesSourceConfig.fieldType(),
+                                vs::bytesValues,
+                                compositeValuesSourceConfig.format(),
+                                compositeValuesSourceConfig.missingBucket(),
+                                size,
+                                compositeValuesSourceConfig.reverseMul()
+                            );
+                        }
+                    });
+
+                });
+    }
+
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        ValuesSource valuesSource = config.getValuesSource();
-        final MappedFieldType fieldType = config.fieldType();
-        final DocValueFormat format;
-        if (format() == null && fieldType instanceof DateFieldMapper.DateFieldType) {
-            // defaults to the raw format on date fields (preserve timestamp as longs).
-            format = DocValueFormat.RAW;
-        } else {
-            format = config.format();
-        }
-        return new CompositeValuesSourceConfig(
-            name,
-            fieldType,
-            valuesSource,
-            format,
-            order(),
-            missingBucket(),
-            script() != null,
-            (
-                BigArrays bigArrays,
-                IndexReader reader,
-                int size,
-                LongConsumer addRequestCircuitBreakerBytes,
-                CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
-
-                // TODO: this is a mess, and we can do better, by knowing what actual values source we should have here.
-                final int reverseMul = compositeValuesSourceConfig.reverseMul();
-                if (compositeValuesSourceConfig.valuesSource() instanceof ValuesSource.Bytes.WithOrdinals
-                    && reader instanceof DirectoryReader) {
-                    ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
-                    return new GlobalOrdinalValuesSource(
-                        bigArrays,
-                        compositeValuesSourceConfig.fieldType(),
-                        vs::globalOrdinalsValues,
-                        compositeValuesSourceConfig.format(),
-                        compositeValuesSourceConfig.missingBucket(),
-                        size,
-                        reverseMul
-                    );
-                } else if (compositeValuesSourceConfig.valuesSource() instanceof ValuesSource.Bytes) {
-                    ValuesSource.Bytes vs = (ValuesSource.Bytes) compositeValuesSourceConfig.valuesSource();
-                    return new BinaryValuesSource(
-                        bigArrays,
-                        addRequestCircuitBreakerBytes,
-                        compositeValuesSourceConfig.fieldType(),
-                        vs::bytesValues,
-                        compositeValuesSourceConfig.format(),
-                        compositeValuesSourceConfig.missingBucket(),
-                        size,
-                        reverseMul
-                    );
-
-                } else if (compositeValuesSourceConfig.valuesSource() instanceof ValuesSource.Numeric) {
-                    final ValuesSource.Numeric vs = (ValuesSource.Numeric) compositeValuesSourceConfig.valuesSource();
-                    if (vs.isFloatingPoint()) {
-                        return new DoubleValuesSource(
-                            bigArrays,
-                            compositeValuesSourceConfig.fieldType(),
-                            vs::doubleValues,
-                            compositeValuesSourceConfig.format(),
-                            compositeValuesSourceConfig.missingBucket(),
-                            size,
-                            reverseMul
-                        );
-
-                    } else {
-                        final LongUnaryOperator rounding;
-                        if (vs instanceof RoundingValuesSource) {
-                            // TODO: I'm pretty sure we can't get a RoundingValuesSource here
-                            rounding = ((RoundingValuesSource) vs)::round;
-                        } else {
-                            rounding = LongUnaryOperator.identity();
-                        }
-                        return new LongValuesSource(
-                            bigArrays,
-                            compositeValuesSourceConfig.fieldType(),
-                            vs::longValues,
-                            rounding,
-                            compositeValuesSourceConfig.format(),
-                            compositeValuesSourceConfig.missingBucket(),
-                            size,
-                            reverseMul
-                        );
-                    }
-                } else {
-                    throw new IllegalArgumentException(
-                        "Unknown values source type: "
-                            + compositeValuesSourceConfig.valuesSource().getClass().getName()
-                            + " for source: "
-                            + name()
-                    );
-                }
-            }
-        );
+        return queryShardContext.getValuesSourceRegistry()
+            .getComposite(TYPE, config)
+            .apply(config, new CompositeBucketStrategy(), name, script() != null, format(), missingBucket(), order());
     }
 }

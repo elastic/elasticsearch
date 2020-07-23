@@ -296,6 +296,7 @@ public class DateHistogramValuesSourceBuilder
             })
         );
     }
+
     @Override
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);

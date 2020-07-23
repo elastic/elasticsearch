@@ -66,6 +66,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         DateHistogramValuesSourceBuilder.register(builder);
         HistogramValuesSourceBuilder.register(builder);
         GeoTileGridValuesSourceBuilder.register(builder);
+        TermsValuesSourceBuilder.register(builder);
         builder.registerUsage(NAME);
     }
 

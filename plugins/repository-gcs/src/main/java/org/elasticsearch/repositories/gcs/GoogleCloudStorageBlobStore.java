@@ -43,9 +43,9 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -101,16 +101,19 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final String repositoryName;
     private final GoogleCloudStorageService storageService;
     private final GoogleCloudStorageOperationsStats stats;
+    private final int bufferSize;
 
     GoogleCloudStorageBlobStore(String bucketName,
                                 String clientName,
                                 String repositoryName,
-                                GoogleCloudStorageService storageService) {
+                                GoogleCloudStorageService storageService,
+                                int bufferSize) {
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
         this.storageService = storageService;
         this.stats = new GoogleCloudStorageOperationsStats(bucketName);
+        this.bufferSize = bufferSize;
         if (doesBucketExist(bucketName) == false) {
             throw new BlobStoreException("Bucket [" + bucketName + "] does not exist");
         }
@@ -126,7 +129,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         storageService.closeRepositoryClient(repositoryName);
     }
 
@@ -252,7 +255,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
         if (blobSize > getLargeBlobThresholdInBytes()) {
-            writeBlobResumable(blobInfo, inputStream, failIfAlreadyExists);
+            writeBlobResumable(blobInfo, inputStream, blobSize, failIfAlreadyExists);
         } else {
             writeBlobMultipart(blobInfo, inputStream, blobSize, failIfAlreadyExists);
         }
@@ -269,13 +272,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
      * @param blobInfo the info for the blob to be uploaded
      * @param inputStream the stream containing the blob data
+     * @param size expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
+    private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, long size, boolean failIfAlreadyExists)
+            throws IOException {
         // We retry 410 GONE errors to cover the unlikely but possible scenario where a resumable upload session becomes broken and
         // needs to be restarted from scratch. Given how unlikely a 410 error should be according to SLAs we retry only twice.
         assert inputStream.markSupported();
         inputStream.mark(Integer.MAX_VALUE);
+        final byte[] buffer = new byte[size < bufferSize ? Math.toIntExact(size) : bufferSize];
         StorageException storageException = null;
         final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
             new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} : new Storage.BlobWriteOption[0];
@@ -303,8 +309,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     public void close() throws IOException {
                         SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                     }
-
-                }));
+                }), buffer);
                 // We don't track this operation on the http layer as
                 // we do with the GET/LIST operations since this operations
                 // can trigger multiple underlying http requests but only one

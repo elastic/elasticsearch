@@ -564,9 +564,9 @@ in 7.0 the endpoint will immediately follow the index name:
 --------------------------------------------------
 POST index/_update/1
 {
-    "doc" : {
-        "foo" : "qux"
-    }
+  "doc" : {
+    "foo" : "qux"
+  }
 }
 
 GET /index/_source/1
@@ -620,16 +620,16 @@ GET index/_doc/1
 [source,console-result]
 --------------------------------------------------
 {
-    "_index" : "index",
-    "_type" : "_doc",
-    "_id" : "1",
-    "_version" : 1,
-    "_seq_no" : 0,
-    "_primary_term" : 1,
-    "found": true,
-    "_source" : {
-        "foo" : "baz"
-    }
+  "_index" : "index",
+  "_type" : "_doc",
+  "_id" : "1",
+  "_version" : 1,
+  "_seq_no" : 0,
+  "_primary_term" : 1,
+  "found": true,
+  "_source" : {
+    "foo" : "baz"
+  }
 }
 --------------------------------------------------
 

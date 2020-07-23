@@ -11,7 +11,7 @@
 include::rollup/index.asciidoc[tag=rollup-intro]
 * <<transforms,Transforming your data>>
 +
-include::transform/index.asciidoc[tag=transform-intro]
+include::transform/transforms.asciidoc[tag=transform-intro]
 
 --
 

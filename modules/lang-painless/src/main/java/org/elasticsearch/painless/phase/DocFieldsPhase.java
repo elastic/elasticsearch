@@ -69,12 +69,11 @@ public class DocFieldsPhase extends UserTreeBaseVisitor<ScriptScope> {
             for (AExpression argumentNode : argumentNodes) {
                 argumentNode.visit(this, scriptScope);
             }
-            return;
+        } else {
+            AExpression argument = argumentNodes.get(0);
+            scriptScope.replicateCondition(prefixNode, argument, Decorations.IsDocument.class);
+            argument.visit(this, scriptScope);
         }
-
-        AExpression argument = argumentNodes.get(0);
-        scriptScope.replicateCondition(prefixNode, argument, Decorations.IsDocument.class);
-        argument.visit(this, scriptScope);
     }
 
     @Override

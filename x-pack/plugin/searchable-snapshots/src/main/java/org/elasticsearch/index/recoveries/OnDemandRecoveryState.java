@@ -105,7 +105,7 @@ public final class OnDemandRecoveryState extends RecoveryState {
             for (CacheFile cacheFile : cacheFiles) {
                 recovered += cacheFile.getCachedLength();
             }
-            return recovered;
+            return Math.min(recovered, length());
         }
     }
 }

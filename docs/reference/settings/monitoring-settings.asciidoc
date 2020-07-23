@@ -22,7 +22,7 @@ configure monitoring settings in `logstash.yml`.
 
 For more information, see <<monitor-elasticsearch-cluster>>.
 
-[float]
+[discrete]
 [[general-monitoring-settings]]
 ==== General Monitoring Settings
 
@@ -30,7 +30,7 @@ For more information, see <<monitor-elasticsearch-cluster>>.
 deprecated:[7.8.0,Basic License features should always be enabled] +
 This deprecated setting has no effect.
 
-[float]
+[discrete]
 [[monitoring-collection-settings]]
 ==== Monitoring Collection Settings
 
@@ -124,7 +124,7 @@ information, see <<local-exporter-settings,Local exporter settings>>,
 <<http-exporter-settings,HTTP exporter settings>>, and
 <<how-monitoring-works>>.
 
-[float]
+[discrete]
 [[local-exporter-settings]]
 ==== Local Exporter Settings
 
@@ -163,7 +163,7 @@ cluster alerts are not displayed.
 (<<time-units,time value>>) Time to wait for the master node to setup `local` exporter for monitoring.
 After that, the non-master nodes will warn the user for possible missing X-Pack configuration. Defaults to `30s`.
 
-[float]
+[discrete]
 [[http-exporter-settings]]
 ==== HTTP Exporter Settings
 

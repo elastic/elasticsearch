@@ -4,7 +4,7 @@
 Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
 
 [[stats-7.10.0]]
-[float]
+[discrete]
 === Stats changes
 
 Estimates removed from filesystem stats::

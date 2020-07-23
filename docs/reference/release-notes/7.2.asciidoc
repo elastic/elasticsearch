@@ -4,7 +4,7 @@
 Also see <<breaking-changes-7.2,Breaking changes in 7.2>>.
 
 [[enhancement-7.2.1]]
-[float]
+[discrete]
 === Enhancements
 
 Infra/Core::
@@ -18,7 +18,7 @@ Machine Learning::
 * Introduce a setting for the process connect timeout {es-pull}43234[#43234]
 
 [[bug-7.2.1]]
-[float]
+[discrete]
 === Bug fixes
 
 Analysis::
@@ -85,7 +85,7 @@ Security::
 
 Also see <<breaking-changes-7.2,Breaking changes in 7.2>>.
 
-[float]
+[discrete]
 === Known issues
 
 * Applying deletes or updates on an index after it has been shrunk may corrupt
@@ -102,7 +102,7 @@ https://github.com/elastic/elasticsearch/pull/52555
 This is fixed in {es} 7.7 and later versions.
 
 [[breaking-7.2.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Cluster Coordination::
@@ -110,7 +110,7 @@ Cluster Coordination::
 
 
 [[breaking-java-7.2.0]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Infra/Plugins::
@@ -118,7 +118,7 @@ Infra/Plugins::
 
 
 [[deprecation-7.2.0]]
-[float]
+[discrete]
 === Deprecations
 
 Authorization::
@@ -141,7 +141,7 @@ Security::
 * Deprecate the native realm migration tool {es-pull}42142[#42142]
 
 [[feature-7.2.0]]
-[float]
+[discrete]
 === New features
 
 Authentication::
@@ -182,7 +182,7 @@ Search::
 
 
 [[enhancement-7.2.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -398,7 +398,7 @@ Suggesters::
 
 
 [[bug-7.2.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -559,7 +559,7 @@ Suggesters::
 
 
 [[upgrade-7.2.0]]
-[float]
+[discrete]
 === Upgrades
 
 Features/Watcher::

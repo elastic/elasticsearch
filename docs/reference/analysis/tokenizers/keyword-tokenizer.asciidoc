@@ -8,7 +8,7 @@ The `keyword` tokenizer  is a ``noop'' tokenizer that accepts whatever text it
 is given and outputs the exact same text as a single term.  It can be combined
 with token filters to normalise output, e.g. lower-casing email addresses.
 
-[float]
+[discrete]
 === Example output
 
 [source,console]
@@ -95,7 +95,7 @@ The request produces the following token:
 ---------------------------
 
 
-[float]
+[discrete]
 === Configuration
 
 The `keyword` tokenizer accepts the following parameters:

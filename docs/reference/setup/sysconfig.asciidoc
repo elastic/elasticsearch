@@ -16,7 +16,7 @@ The following settings *must* be considered before going to production:
 * <<executable-jna-tmpdir,Temporary directory not mounted with `noexec`>>
 
 [[dev-vs-prod]]
-[float]
+[discrete]
 === Development mode vs production mode
 
 By default, Elasticsearch assumes that you are working in development mode.

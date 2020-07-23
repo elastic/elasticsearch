@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -144,6 +146,7 @@ enum TextFormat {
             if (delimiterParam == null) {
                 return delimiter();
             }
+            delimiterParam = URLDecoder.decode(delimiterParam, StandardCharsets.UTF_8);
             if (delimiterParam.length() != 1) {
                 throw new IllegalArgumentException("invalid " +
                     (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]");
@@ -209,12 +212,12 @@ enum TextFormat {
                 }
                 return true;
             } else {
-                List<String> allowed = List.of(PARAM_HEADER_ABSENT, PARAM_HEADER_PRESENT);
-                if (allowed.contains(header.toLowerCase(Locale.ROOT)) == false) {
-                    throw new IllegalArgumentException("illegal value of [" + URL_PARAM_HEADER + "] attribute: [" + header + "]; " +
-                        "allowed values: " + allowed);
+                switch (header.toLowerCase(Locale.ROOT)) {
+                    case PARAM_HEADER_ABSENT: return false;
+                    case PARAM_HEADER_PRESENT: return true;
+                    default: throw new IllegalArgumentException("illegal value of [" + URL_PARAM_HEADER + "] " +
+                        "attribute: [" + header + "]; " + "allowed values: [" + PARAM_HEADER_ABSENT + ", " + PARAM_HEADER_PRESENT + "]");
                 }
-                return header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT) == false;
             }
         }
     },

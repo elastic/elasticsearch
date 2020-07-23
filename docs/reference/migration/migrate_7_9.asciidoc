@@ -92,8 +92,8 @@ during indexing or ingest:
 * `create`
 * `index`
 
-These privileges will continue to allow mapping actions on indices until {es} 8.0.0. However,
-deprecation warnings will be returned.
+These privileges will continue to allow mapping actions on indices (but not on data streams) until
+{es} 8.0.0. However, deprecation warnings will be returned.
 
 *Impact* +
 To allow users to explicitly update the mapping of an index,

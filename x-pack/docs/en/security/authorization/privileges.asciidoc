@@ -267,7 +267,8 @@ Privilege to perform all write operations to documents, which includes the
 permission to index, update, and delete documents as well as performing bulk
 operations, and allows the {ref}/dynamic-mapping.html[dynamic mapping updates]
 as a result of these.
-_Deprecated:_ Until the next major release, this also grants access to the
++
+deprecated:[7.9] Until the next major release, this also grants access to the
 update mapping action, but only on indices, not on data streams.
 
 ==== Run as privilege

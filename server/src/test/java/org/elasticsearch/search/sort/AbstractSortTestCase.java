@@ -196,7 +196,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
-            return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
+            return builder.build(new IndexFieldDataCache.None(), null, null);
         };
         return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
                 null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,

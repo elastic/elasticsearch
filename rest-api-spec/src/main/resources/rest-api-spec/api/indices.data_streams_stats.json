@@ -26,25 +26,6 @@
           }
         }
       ]
-    },
-    "params":{
-      "expand_wildcards":{
-        "type":"enum",
-        "options":[
-          "open",
-          "closed",
-          "hidden",
-          "none",
-          "all"
-        ],
-        "default":"open",
-        "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
-      },
-      "forbid_closed_indices":{
-        "type":"boolean",
-        "description":"If set to false stats will also collected from closed indices if explicitly specified or if expand_wildcards expands to closed indices",
-        "default":true
-      }
     }
   }
 }

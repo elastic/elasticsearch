@@ -31,22 +31,22 @@ Given the following index with locations as `geo_shape` fields:
 --------------------------------------------------
 PUT /example
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_shape"
+      }
     }
+  }
 }
 
 POST /example/_doc?refresh
 {
-    "name": "Wind & Wetter, Berlin, Germany",
-    "location": {
-        "type": "point",
-        "coordinates": [13.400544, 52.530286]
-    }
+  "name": "Wind & Wetter, Berlin, Germany",
+  "location": {
+    "type": "point",
+    "coordinates": [ 13.400544, 52.530286 ]
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -59,24 +59,24 @@ extension:
 --------------------------------------------------
 GET /example/_search
 {
-    "query":{
-        "bool": {
-            "must": {
-                "match_all": {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_shape": {
+          "location": {
+            "shape": {
+              "type": "envelope",
+              "coordinates": [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]
             },
-            "filter": {
-                "geo_shape": {
-                    "location": {
-                        "shape": {
-                            "type": "envelope",
-                            "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
-                        },
-                        "relation": "within"
-                    }
-                }
-            }
+            "relation": "within"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -87,19 +87,19 @@ The above query can, similarly, be queried on `geo_point` fields.
 --------------------------------------------------
 PUT /example_points
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_point"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_point"
+      }
     }
+  }
 }
 
 PUT /example_points/_doc/1?refresh
 {
-    "name": "Wind & Wetter, Berlin, Germany",
-    "location": [13.400544, 52.530286]
+  "name": "Wind & Wetter, Berlin, Germany",
+  "location": [13.400544, 52.530286]
 }
 --------------------------------------------------
 // TEST[continued]
@@ -112,24 +112,24 @@ returned.
 --------------------------------------------------
 GET /example_points/_search
 {
-    "query":{
-        "bool": {
-            "must": {
-                "match_all": {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_shape": {
+          "location": {
+            "shape": {
+              "type": "envelope",
+              "coordinates": [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]
             },
-            "filter": {
-                "geo_shape": {
-                    "location": {
-                        "shape": {
-                            "type": "envelope",
-                            "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
-                        },
-                        "relation": "intersects"
-                    }
-                }
-            }
+            "relation": "intersects"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -191,40 +191,40 @@ shape:
 --------------------------------------------------
 PUT /shapes
 {
-    "mappings": {
-        "properties": {
-            "location": {
-                "type": "geo_shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "location": {
+        "type": "geo_shape"
+      }
     }
+  }
 }
 
 PUT /shapes/_doc/deu
 {
-    "location": {
-        "type": "envelope",
-        "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
-    }
+  "location": {
+    "type": "envelope",
+    "coordinates" : [[13.0, 53.0], [14.0, 52.0]]
+  }
 }
 
 GET /example/_search
 {
-    "query": {
-        "bool": {
-            "filter": {
-                "geo_shape": {
-                    "location": {
-                        "indexed_shape": {
-                            "index": "shapes",
-                            "id": "deu",
-                            "path": "location"
-                        }
-                    }
-                }
+  "query": {
+    "bool": {
+      "filter": {
+        "geo_shape": {
+          "location": {
+            "indexed_shape": {
+              "index": "shapes",
+              "id": "deu",
+              "path": "location"
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

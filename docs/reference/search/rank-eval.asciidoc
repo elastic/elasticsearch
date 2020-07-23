@@ -97,10 +97,10 @@ In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 -----------------------------
 GET /my_index/_rank_eval
 {
-    "requests": [ ... ], <1>  
-    "metric": { <2>
-      "mean_reciprocal_rank": { ... } <3>
-   }
+  "requests": [ ... ],                            <1>  
+  "metric": {                                     <2>
+    "mean_reciprocal_rank": { ... }               <3>
+  }
 }
 -----------------------------
 // NOTCONSOLE
@@ -116,29 +116,29 @@ application, along with the document ratings for each particular search request.
 -----------------------------
 GET /my_index/_rank_eval
 {
-    "requests": [
-        {
-            "id": "amsterdam_query", <1>
-            "request": { <2>
-                "query": { "match": { "text": "amsterdam" }}
-            },
-            "ratings": [ <3> 
-                 { "_index": "my_index", "_id": "doc1", "rating": 0 },
-                 { "_index": "my_index", "_id": "doc2", "rating": 3},
-                 { "_index": "my_index", "_id": "doc3", "rating": 1 }
-            ]
-        },
-        {
-            "id": "berlin_query",
-            "request": {
-                "query": { "match": { "text": "berlin" }}
-            },
-            "ratings": [
-                { "_index": "my_index", "_id": "doc1", "rating": 1 }
-            ]
-        }
-    ]
-  }
+  "requests": [
+    {
+      "id": "amsterdam_query",                                  <1>
+      "request": {                                              <2>
+          "query": { "match": { "text": "amsterdam" } }
+      },
+      "ratings": [                                              <3> 
+        { "_index": "my_index", "_id": "doc1", "rating": 0 },
+        { "_index": "my_index", "_id": "doc2", "rating": 3 },
+        { "_index": "my_index", "_id": "doc3", "rating": 1 }
+      ]
+    },
+    {
+      "id": "berlin_query",
+      "request": {
+        "query": { "match": { "text": "berlin" } }
+      },
+      "ratings": [
+        { "_index": "my_index", "_id": "doc1", "rating": 1 }
+      ]
+    }
+  ]
+}
 -----------------------------
 // NOTCONSOLE
 
@@ -232,19 +232,19 @@ that contains one relevant result in position 1.
 --------------------------------
 GET /twitter/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-      "precision": {
-        "k" : 20,
-        "relevant_rating_threshold": 1,
-        "ignore_unlabeled": false
-      }
-   }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "precision": {
+      "k": 20,
+      "relevant_rating_threshold": 1,
+      "ignore_unlabeled": false
+    }
+  }
 }
 --------------------------------
 // TEST[setup:twitter]
@@ -287,18 +287,18 @@ that contains one relevant result in position 1.
 --------------------------------
 GET /twitter/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query",
-        "request": { "query": { "match_all": {}}},
-        "ratings": []
-    }],
-    "metric": {
-      "recall": {
-        "k" : 20,
-        "relevant_rating_threshold": 1
-      }
-   }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "recall": {
+      "k": 20,
+      "relevant_rating_threshold": 1
+    }
+  }
 }
 --------------------------------
 // TEST[setup:twitter]
@@ -328,18 +328,18 @@ https://en.wikipedia.org/wiki/Mean_reciprocal_rank[mean reciprocal rank].
 --------------------------------
 GET /twitter/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-        "mean_reciprocal_rank": {
-            "k" : 20,
-            "relevant_rating_threshold" : 1
-        }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "mean_reciprocal_rank": {
+      "k": 20,
+      "relevant_rating_threshold": 1
     }
+  }
 }
 --------------------------------
 // TEST[setup:twitter]
@@ -372,18 +372,18 @@ the overall DCG metric.
 --------------------------------
 GET /twitter/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-       "dcg": {
-            "k" : 20,
-            "normalize": false
-       }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "dcg": {
+      "k": 20,
+      "normalize": false
     }
+  }
 }
 --------------------------------
 // TEST[setup:twitter]
@@ -428,18 +428,18 @@ for.
 --------------------------------
 GET /twitter/_rank_eval
 {
-    "requests": [
+  "requests": [
     {
-        "id": "JFK query", 
-        "request": { "query": { "match_all": {}}},
-        "ratings": []  
-    }],
-    "metric": {
-       "expected_reciprocal_rank": {
-            "maximum_relevance" : 3,
-            "k" : 20
-       }
+      "id": "JFK query",
+      "request": { "query": { "match_all": {} } },
+      "ratings": []
+    } ],
+  "metric": {
+    "expected_reciprocal_rank": {
+      "maximum_relevance": 3,
+      "k": 20
     }
+  }
 }
 --------------------------------
 // TEST[setup:twitter]
@@ -466,39 +466,39 @@ potential errors of individual queries. The response has the following format:
 [source,js]
 --------------------------------
 {
-    "rank_eval": {
-        "metric_score": 0.4, <1>
-        "details": {  
-            "my_query_id1": { <2>
-                "metric_score": 0.6, <3>
-                "unrated_docs": [ <4>
-                    {
-                        "_index": "my_index",
-                        "_id": "1960795"
-                    }, [...]
-                ],
-                "hits": [
-                    {
-                        "hit": { <5>
-                            "_index": "my_index",
-                            "_type": "page",
-                            "_id": "1528558",
-                            "_score": 7.0556192
-                        },
-                        "rating": 1
-                    }, [...]
-                ],
-                "metric_details": { <6>
-                    "precision" : {
-                        "relevant_docs_retrieved": 6,
-                        "docs_retrieved": 10
-                    }
-                }
+  "rank_eval": {
+    "metric_score": 0.4,                          <1>
+      "details": {
+      "my_query_id1": {                           <2>
+        "metric_score": 0.6,                      <3>
+        "unrated_docs": [                         <4>
+          {
+            "_index": "my_index",
+            "_id": "1960795"
+          }, ...
+        ],
+        "hits": [
+          {
+            "hit": {                              <5>
+              "_index": "my_index",
+              "_type": "page",
+              "_id": "1528558",
+              "_score": 7.0556192
             },
-            "my_query_id2" : { [...] }
-        },
-        "failures": { [...] }
-    }
+            "rating": 1
+          }, ...
+        ],
+        "metric_details": {                       <6>
+          "precision": {
+            "relevant_docs_retrieved": 6,
+            "docs_retrieved": 10
+          }
+        }
+      },
+      "my_query_id2": { [... ] }
+    },
+    "failures": { [... ] }
+  }
 }
 --------------------------------
 // NOTCONSOLE

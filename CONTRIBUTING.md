@@ -149,6 +149,81 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
  - In the subsequent dialog navigate to the root `build.gradle` file
  - In the subsequent dialog select **Open as Project**
 
+<<<<<<< HEAD
+=======
+### Importing the project into Eclipse
+
+Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
+will either need to use an appropriate JDK to run Eclipse itself (e.g. by
+specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
+defining the JDK Gradle uses by setting **Prefercences** > **Gradle** >
+**Advanced Options** > **Java home** to an appropriate version.
+
+IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
+           then you must build an entirely new workspace and `git clean -xdf` to
+           blow away *everything* that the gradle eclipse plugin made.
+
+ - Select **File > Import...**
+ - Select **Existing Gradle Project**
+ - Select **Next** then **Next** again
+ - Set the **Project root directory** to the root of your elasticsearch clone
+ - Click **Finish**
+
+This will spin for a long, long time but you'll see many errors about circular
+dependencies. Fix them:
+
+ - Select **Window > Preferences**
+ - Select **Java > Compiler > Building**
+ - Look under **Build Path Problems**
+ - Set **Circular dependencies** to **Warning**
+ - Apply that and let the build spin away for a while
+
+Next you'll want to import our auto-formatter:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Formatter**
+ - Click **Import**
+ - Import the file at **buildSrc/formatterConfig.xml**
+ - Make sure it is the **Active profile**
+
+Finally, set up import order:
+
+ - Select **Window > Preferences**
+ - Select **Java > Code Style > Organize Imports**
+ - Click **Import...**
+ - Import the file at **buildSrc/elastic.importorder**
+ - Set the **Number of imports needed for `.*`** to ***9999***
+ - Set the **Number of static imports needed for `.*`** to ***9999*** as well
+ - Apply that
+
+IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
+           As convenient as it'd be for the projects to always be perfect this
+           tends to add many many seconds to every branch change. Instead, you
+           should manually right click on a project and
+           **Gradle > Refresh Gradle Project** if the configuration is out of
+           date.
+
+As we add more subprojects you might have to re-import the gradle project (the
+first step) again. There is no need to blow away the existing projects before
+doing that.
+
+### REST Endpoint Conventions
+
+Elasticsearch typically uses singular nouns rather than plurals in URLs.
+For example:
+
+    /_ingest/pipeline
+    /_ingest/pipeline/{id}
+
+but not:
+
+    /_ingest/pipelines
+    /_ingest/pipelines/{id}
+
+You may find counterexamples, but new endpoints should use the singular
+form.
+
+>>>>>>> c2dc5ad12da... Update Gradle configurations section in CONTRIBUTING (#59906)
 ### Java Language Formatting Guidelines
 
 Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
@@ -415,10 +490,14 @@ allows you to use these configurations arbitrarily. Here are some of the most
 common configurations in our build and how we use them:
 
 <dl>
-<dt>`compile`</dt><dd>Code that is on the classpath at both compile and
-runtime.</dd>
-<dt>`runtime`</dt><dd>Code that is not on the classpath at compile time but is
-on the classpath at runtime. We mostly use this configuration to make sure that
+<dt>`implementation`</dt><dd>Dependencies that are used by the project 
+at compile and runtime but are not exposed as a compile dependency to other dependent projects.
+Dependencies added to the `implementation` configuration are considered an implementation detail 
+that can be changed at a later date without affecting any dependent projects.</dd>
+<dt>`api`</dt><dd>Dependencies that are used as compile and runtime depdendencies of a project
+ and are considered part of the external api of the project.
+<dt>`runtimeOnly`</dt><dd>Dependencies that not on the classpath at compile time but 
+are on the classpath at runtime. We mostly use this configuration to make sure that
 we do not accidentally compile against dependencies of our dependencies also
 known as "transitive" dependencies".</dd>
 <dt>`compileOnly`</dt><dd>Code that is on the classpath at compile time but that

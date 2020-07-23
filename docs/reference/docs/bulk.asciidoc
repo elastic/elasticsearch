@@ -52,7 +52,7 @@ and have the same semantics as the `op_type` parameter in the standard index API
 
 NOTE: <<data-streams,Data streams>> support only the `create` action. To update
 or delete a document in a data stream, you must target the backing index
-containing the document. See <<update-delete-docs-in-a-data-stream>>.
+containing the document. See <<update-delete-docs-in-a-backing-index>>.
 
 `update` expects that the partial doc, upsert, 
 and script and its options are specified on the next line.

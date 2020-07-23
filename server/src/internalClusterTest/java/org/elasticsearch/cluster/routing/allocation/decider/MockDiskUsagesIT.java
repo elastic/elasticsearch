@@ -89,7 +89,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        clusterInfoService.onMaster();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);
@@ -151,7 +150,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        clusterInfoService.onMaster();
 
         // prevent any effects from in-flight recoveries, since we are only simulating a 100-byte disk
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 0L);

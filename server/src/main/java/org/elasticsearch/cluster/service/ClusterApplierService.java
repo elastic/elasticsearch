@@ -114,7 +114,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
-        this.localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
+        this.localNodeMasterListeners = new LocalNodeMasterListeners();
         this.nodeName = nodeName;
 
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -611,11 +611,9 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private static class LocalNodeMasterListeners implements ClusterStateListener {
 
         private final List<LocalNodeMasterListener> listeners = new CopyOnWriteArrayList<>();
-        private final ThreadPool threadPool;
         private volatile boolean master = false;
 
-        private LocalNodeMasterListeners(ThreadPool threadPool) {
-            this.threadPool = threadPool;
+        private LocalNodeMasterListeners() {
         }
 
         @Override
@@ -623,17 +621,20 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             if (!master && event.localNodeMaster()) {
                 master = true;
                 for (LocalNodeMasterListener listener : listeners) {
-                    java.util.concurrent.Executor executor = threadPool.executor(listener.executorName());
-                    executor.execute(new OnMasterRunnable(listener));
+                    try {
+                        listener.onMaster();
+                    } catch (Exception e) {
+                        logger.warn("failed to notify LocalNodeMasterListener", e);
+                    }
                 }
-                return;
-            }
-
-            if (master && !event.localNodeMaster()) {
+            } else if (master && !event.localNodeMaster()) {
                 master = false;
                 for (LocalNodeMasterListener listener : listeners) {
-                    java.util.concurrent.Executor executor = threadPool.executor(listener.executorName());
-                    executor.execute(new OffMasterRunnable(listener));
+                    try {
+                        listener.offMaster();
+                    } catch (Exception e) {
+                        logger.warn("failed to notify LocalNodeMasterListener", e);
+                    }
                 }
             }
         }
@@ -642,34 +643,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             listeners.add(listener);
         }
 
-    }
-
-    private static class OnMasterRunnable implements Runnable {
-
-        private final LocalNodeMasterListener listener;
-
-        private OnMasterRunnable(LocalNodeMasterListener listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public void run() {
-            listener.onMaster();
-        }
-    }
-
-    private static class OffMasterRunnable implements Runnable {
-
-        private final LocalNodeMasterListener listener;
-
-        private OffMasterRunnable(LocalNodeMasterListener listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public void run() {
-            listener.offMaster();
-        }
     }
 
     // this one is overridden in tests so we can control time

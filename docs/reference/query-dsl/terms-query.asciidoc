@@ -19,12 +19,12 @@ or `elasticsearch`.
 ----
 GET /_search
 {
-    "query" : {
-        "terms" : {
-            "user" : ["kimchy", "elasticsearch"],
-            "boost" : 1.0
-        }
+  "query": {
+    "terms": {
+      "user": [ "kimchy", "elasticsearch" ],
+      "boost": 1.0
     }
+  }
 }
 ----
 
@@ -127,11 +127,11 @@ To see how terms lookup works, try the following example.
 ----
 PUT my_index
 {
-    "mappings" : {
-        "properties" : {
-            "color" : { "type" : "keyword" }
-        }
+  "mappings": {
+    "properties": {
+      "color": { "type": "keyword" }
     }
+  }
 }
 ----
 --

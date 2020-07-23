@@ -11,10 +11,10 @@ deprecated[5.2.0, This format is deprecated. Please use array format instead.]
 --------------------------------------------------
 GET /_search
 {
-    "indices_boost" : {
-        "index1" : 1.4,
-        "index2" : 1.3
-    }
+  "indices_boost" : {
+    "index1" : 1.4,
+    "index2" : 1.3
+  }
 }
 --------------------------------------------------
 // TEST[setup:index_boost warning:Object format in indices_boost is deprecated, please use array format instead]
@@ -25,10 +25,10 @@ You can also specify it as an array to control the order of boosts.
 --------------------------------------------------
 GET /_search
 {
-    "indices_boost" : [
-        { "alias1" : 1.4 },
-        { "index*" : 1.3 }
-    ]
+  "indices_boost" : [
+    { "alias1" : 1.4 },
+    { "index*" : 1.3 }
+  ]
 }
 --------------------------------------------------
 // TEST[continued]

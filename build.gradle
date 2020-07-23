@@ -435,8 +435,6 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
-  apply plugin: 'elasticsearch.enforce-deprecation-use-failures'
-
   tasks.register('resolveAllDependencies') {
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)

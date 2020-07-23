@@ -15,30 +15,30 @@ For example:
 --------------------------------------------------
 PUT my_index/_doc/1
 {
-    "names": [ "John Abraham", "Lincoln Smith"]
+  "names": [ "John Abraham", "Lincoln Smith"]
 }
 
 GET my_index/_search
 {
-    "query": {
-        "match_phrase": {
-            "names": {
-                "query": "Abraham Lincoln" <1>
-            }
-        }
+  "query": {
+    "match_phrase": {
+      "names": {
+        "query": "Abraham Lincoln" <1>
+      }
     }
+  }
 }
 
 GET my_index/_search
 {
-    "query": {
-        "match_phrase": {
-            "names": {
-                "query": "Abraham Lincoln",
-                "slop": 101 <2>
-            }
-        }
+  "query": {
+    "match_phrase": {
+      "names": {
+        "query": "Abraham Lincoln",
+        "slop": 101 <2>
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -65,16 +65,16 @@ PUT my_index
 
 PUT my_index/_doc/1
 {
-    "names": [ "John Abraham", "Lincoln Smith"]
+  "names": [ "John Abraham", "Lincoln Smith"]
 }
 
 GET my_index/_search
 {
-    "query": {
-        "match_phrase": {
-            "names": "Abraham Lincoln" <2>
-        }
+  "query": {
+    "match_phrase": {
+      "names": "Abraham Lincoln" <2>
     }
+  }
 }
 --------------------------------------------------
 

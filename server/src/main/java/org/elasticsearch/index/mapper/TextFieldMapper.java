@@ -758,6 +758,7 @@ public class TextFieldMapper extends FieldMapper {
                     + "field data by uninverting the inverted index. Note that this can use significant memory.");
             }
             return new PagedBytesIndexFieldData.Builder(
+                name(),
                 fielddataMinFrequency,
                 fielddataMaxFrequency,
                 fielddataMinSegmentSize,

@@ -108,7 +108,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new VectorIndexFieldData.Builder(false, CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), false, CoreValuesSourceType.BYTES);
         }
 
         @Override

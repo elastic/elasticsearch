@@ -118,9 +118,9 @@ you can use the _Cluster Update Settings API_. For example:
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "persistent" : {
-        "xpack.security.transport.filter.allow" : "172.16.0.0/24"
-    }
+  "persistent" : {
+    "xpack.security.transport.filter.allow" : "172.16.0.0/24"
+  }
 }
 --------------------------------------------------
 
@@ -130,9 +130,9 @@ You can also dynamically disable filtering completely:
 --------------------------------------------------
 PUT /_cluster/settings
 {
-    "persistent" : {
-        "xpack.security.transport.filter.enabled" : false
-    }
+  "persistent" : {
+    "xpack.security.transport.filter.enabled" : false
+  }
 }
 --------------------------------------------------
 // TEST[continued]

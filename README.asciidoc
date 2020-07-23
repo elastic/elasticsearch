@@ -45,23 +45,23 @@ Let's try and index some twitter like information. First, let's index some tweet
 ----
 curl -XPUT 'http://localhost:9200/twitter/_doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
-    "user": "kimchy",
-    "post_date": "2009-11-15T13:12:00",
-    "message": "Trying out Elasticsearch, so far so good?"
+  "user": "kimchy",
+  "post_date": "2009-11-15T13:12:00",
+  "message": "Trying out Elasticsearch, so far so good?"
 }'
 
 curl -XPUT 'http://localhost:9200/twitter/_doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
-    "user": "kimchy",
-    "post_date": "2009-11-15T14:12:12",
-    "message": "Another tweet, will it be indexed?"
+  "user": "kimchy",
+  "post_date": "2009-11-15T14:12:12",
+  "message": "Another tweet, will it be indexed?"
 }'
 
 curl -XPUT 'http://localhost:9200/twitter/_doc/3?pretty' -H 'Content-Type: application/json' -d '
 {
-    "user": "elastic",
-    "post_date": "2010-01-15T01:46:38",
-    "message": "Building the site, should be kewl"
+  "user": "elastic",
+  "post_date": "2010-01-15T01:46:38",
+  "message": "Building the site, should be kewl"
 }'
 ----
 
@@ -87,9 +87,9 @@ We can also use the JSON query language Elasticsearch provides instead of a quer
 ----
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
-    "query" : {
-        "match" : { "user": "kimchy" }
-    }
+  "query" : {
+    "match" : { "user": "kimchy" }
+  }
 }'
 ----
 
@@ -98,9 +98,9 @@ Just for kicks, let's get all the documents stored (we should see the tweet from
 ----
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
-    "query" : {
-        "match_all" : {}
-    }
+  "query" : {
+    "match_all" : {}
+  }
 }'
 ----
 
@@ -109,11 +109,11 @@ We can also do range search (the `post_date` was automatically identified as dat
 ----
 curl -XGET 'http://localhost:9200/twitter/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
-    "query" : {
-        "range" : {
-            "post_date" : { "from" : "2009-11-15T13:00:00", "to" : "2009-11-15T14:00:00" }
-        }
+  "query" : {
+    "range" : {
+      "post_date" : { "from" : "2009-11-15T13:00:00", "to" : "2009-11-15T14:00:00" }
     }
+  }
 }'
 ----
 
@@ -130,16 +130,16 @@ Another way to define our simple twitter system is to have a different index per
 ----
 curl -XPUT 'http://localhost:9200/kimchy/_doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
-    "user": "kimchy",
-    "post_date": "2009-11-15T13:12:00",
-    "message": "Trying out Elasticsearch, so far so good?"
+  "user": "kimchy",
+  "post_date": "2009-11-15T13:12:00",
+  "message": "Trying out Elasticsearch, so far so good?"
 }'
 
 curl -XPUT 'http://localhost:9200/kimchy/_doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
-    "user": "kimchy",
-    "post_date": "2009-11-15T14:12:12",
-    "message": "Another tweet, will it be indexed?"
+  "user": "kimchy",
+  "post_date": "2009-11-15T14:12:12",
+  "message": "Another tweet, will it be indexed?"
 }'
 ----
 
@@ -150,10 +150,10 @@ Complete control on the index level is allowed. As an example, in the above case
 ----
 curl -XPUT http://localhost:9200/another_user?pretty -H 'Content-Type: application/json' -d '
 {
-    "settings" : {
-        "index.number_of_shards" : 2,
-        "index.number_of_replicas" : 1
-    }
+  "settings" : {
+    "index.number_of_shards" : 2,
+    "index.number_of_replicas" : 1
+  }
 }'
 ----
 
@@ -163,9 +163,9 @@ index (twitter user), for example:
 ----
 curl -XGET 'http://localhost:9200/kimchy,another_user/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
-    "query" : {
-        "match_all" : {}
-    }
+  "query" : {
+    "match_all" : {}
+  }
 }'
 ----
 
@@ -174,9 +174,9 @@ Or on all the indices:
 ----
 curl -XGET 'http://localhost:9200/_search?pretty=true' -H 'Content-Type: application/json' -d '
 {
-    "query" : {
-        "match_all" : {}
-    }
+  "query" : {
+    "match_all" : {}
+  }
 }'
 ----
 

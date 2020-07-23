@@ -68,7 +68,7 @@ public class AggregationInfo implements ReportingService.Info {
         }
     }
 
-    public Map<String, Set<String>> getProcessors() {
+    public Map<String, Set<String>> getAggregations() {
         return aggs;
     }
 

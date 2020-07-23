@@ -15,6 +15,4 @@
       nodes.info:
         metric: [ aggregations ]
 
-  # if this test failed because a new aggregation was added, please open an issues in the elastic/telemetry repository
-  # so they can update the mapping accordingly
   - match : { nodes.$node_id.aggregations.filter: { "types": ["other"] } }

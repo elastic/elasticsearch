@@ -946,4 +946,8 @@ See <<highlighting>>.
 [role="exclude",id="highlighter-internal-work"]
 ==== How highlighters work internally
 See <<how-highlighters-work-internally>>.
+
+[role="exclude",id="request-body-search-sort"]
+==== Sort
+See <<sort-search-results>>.
 ////

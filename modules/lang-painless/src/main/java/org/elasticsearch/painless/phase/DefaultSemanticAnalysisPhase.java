@@ -362,27 +362,27 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.replicateCondition(userIfElseNode, userElseBlockNode, LastLoop.class);
         visit(userElseBlockNode, semanticScope.newLocalScope());
 
-        if (semanticScope.getCondition(userIfBlockNode, MethodEscape.class) &&
+        if (    semanticScope.getCondition(userIfBlockNode, MethodEscape.class) &&
                 semanticScope.getCondition(userElseBlockNode, MethodEscape.class)) {
             semanticScope.setCondition(userIfElseNode, MethodEscape.class);
         }
 
-        if (semanticScope.getCondition(userIfBlockNode, LoopEscape.class) &&
+        if (    semanticScope.getCondition(userIfBlockNode, LoopEscape.class) &&
                 semanticScope.getCondition(userElseBlockNode, LoopEscape.class)) {
             semanticScope.setCondition(userIfElseNode, LoopEscape.class);
         }
 
-        if (semanticScope.getCondition(userIfBlockNode, AllEscape.class) &&
+        if (    semanticScope.getCondition(userIfBlockNode, AllEscape.class) &&
                 semanticScope.getCondition(userElseBlockNode, AllEscape.class)) {
             semanticScope.setCondition(userIfElseNode, AllEscape.class);
         }
 
-        if (semanticScope.getCondition(userIfBlockNode, AnyContinue.class) ||
+        if (    semanticScope.getCondition(userIfBlockNode, AnyContinue.class) ||
                 semanticScope.getCondition(userElseBlockNode, AnyContinue.class)) {
             semanticScope.setCondition(userIfElseNode, AnyContinue.class);
         }
 
-        if (semanticScope.getCondition(userIfBlockNode, AnyBreak.class) ||
+        if (    semanticScope.getCondition(userIfBlockNode, AnyBreak.class) ||
                 semanticScope.getCondition(userElseBlockNode, AnyBreak.class)) {
             semanticScope.setCondition(userIfElseNode, AnyBreak.class);
         }
@@ -1572,7 +1572,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (constructor.typeParameters.size() != userArgumentsSize) {
             throw userNewObjNode.createError(new IllegalArgumentException(
                     "When calling constructor on type [" + PainlessLookupUtility.typeToCanonicalTypeName(valueType) + "] " +
-                            "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + userArgumentsSize + "]."));
+                    "expected [" + constructor.typeParameters.size() + "] arguments, but found [" + userArgumentsSize + "]."));
         }
 
         for (int i = 0; i < userArgumentsSize; ++i) {
@@ -2260,9 +2260,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             throw userDotNode.createError(new IllegalArgumentException("not a statement: result of dot operator [.] not used"));
         }
 
-        ScriptScope scriptScope = semanticScope.getScriptScope();
-        String index = userDotNode.getIndex();
-
         AExpression userPrefixNode = userDotNode.getPrefixNode();
         semanticScope.setCondition(userPrefixNode, Read.class);
         visit(userPrefixNode, semanticScope);
@@ -2274,6 +2271,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     "value [" + prefixValueType.getValueCanonicalTypeName() + "] " +
                     "and type [" + prefixStaticType.getStaticCanonicalTypeName() + "]"));
         }
+
+        ScriptScope scriptScope = semanticScope.getScriptScope();
+        String index = userDotNode.getIndex();
 
         if (semanticScope.hasDecoration(userPrefixNode, PartialCanonicalTypeName.class)) {
             if (prefixValueType != null) {

@@ -164,7 +164,8 @@ be mapped rather than an explicit <<indices-put-mapping,put mapping>> request.
 `create`::
 Privilege to index documents, allowing overwriting any existing document, but
 not permitting updating one.
-_Deprecated:_ Also grants the permission to update the index mapping (but not
++
+deprecated:[7.9] Also grants the permission to update the index mapping (but not
 the data stream mapping), using the update mapping action, or relying on
 {ref}/dynamic-mapping.html[dynamic mappings]. In the next major release,
 this privilege will not grant any mapping update permission.

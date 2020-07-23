@@ -26,7 +26,7 @@ order.
 The processors in a pipeline have read and write access to documents that pass through the pipeline.
 The processors can access fields in the source of a document and the document's metadata fields.
 
-[float]
+[discrete]
 [[accessing-source-fields]]
 === Accessing Fields in the Source
 Accessing a field in the source is straightforward. You simply refer to fields by
@@ -56,7 +56,7 @@ On top of this, fields from the source are always accessible via the `_source` p
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[accessing-metadata-fields]]
 === Accessing Metadata Fields
 You can access metadata fields in the same way that you access fields in the source. This
@@ -78,7 +78,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 
 The following metadata fields are accessible by a processor: `_index`, `_id`, `_routing`.
 
-[float]
+[discrete]
 [[accessing-ingest-metadata]]
 === Accessing Ingest Metadata Fields
 Beyond metadata fields and source fields, ingest also adds ingest metadata to the documents that it processes.
@@ -106,7 +106,7 @@ Unlike Elasticsearch metadata fields, the ingest metadata field name `_ingest` c
 in the source of a document. Use `_source._ingest` to refer to the field in the source document. Otherwise, `_ingest`
 will be interpreted as an ingest metadata field.
 
-[float]
+[discrete]
 [[accessing-template-fields]]
 === Accessing Fields and Metafields in Templates
 A number of processor settings also support templating. Settings that support templating can have zero or more
@@ -747,7 +747,7 @@ continues to execute, which in this case means that the pipeline does nothing.
 
 The `ignore_failure` can be set on any processor and defaults to `false`.
 
-[float]
+[discrete]
 [[accessing-error-metadata]]
 === Accessing Error Metadata From Processors Handling Exceptions
 
@@ -849,7 +849,7 @@ A node will not start if this plugin is not available.
 The <<cluster-nodes-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
-[float]
+[discrete]
 === Ingest Processor Plugins
 
 Additional ingest processors can be implemented and installed as Elasticsearch {plugins}/intro.html[plugins].

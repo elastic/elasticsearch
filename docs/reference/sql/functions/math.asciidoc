@@ -7,7 +7,7 @@ All math and trigonometric functions require their input (where applicable)
 to be numeric.
 
 [[sql-functions-math-generic]]
-[float]
+[discrete]
 === Generic
 
 [[sql-functions-math-abs]]
@@ -388,7 +388,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[mathTruncateWithNegativeParameter
 --------------------------------------------------
 
 [[sql-functions-math-trigonometric]]
-[float]
+[discrete]
 === Trigonometric
 
 [[sql-functions-math-acos]]

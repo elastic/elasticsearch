@@ -219,7 +219,7 @@ the order specified.
 
 <3> Allow automatic creation of any index. This is the default.
 
-[float]
+[discrete]
 [[operation-type]]
 ===== Put if absent
 
@@ -228,7 +228,7 @@ setting the `op_type` parameter to _create_. In this case,
 the index operation fails if a document with the specified ID
 already exists in the index.
 
-[float]
+[discrete]
 ===== Create document IDs automatically
 
 When using the `POST /<target>/_doc/` request format, the `op_type` is
@@ -265,7 +265,7 @@ The API returns the following result:
 --------------------------------------------------
 // TESTRESPONSE[s/W0tpsmIBdwcYyG50zbta/$body._id/ s/"successful": 2/"successful": 1/]
 
-[float]
+[discrete]
 [[optimistic-concurrency-control-index]]
 ===== Optimistic concurrency control
 
@@ -275,7 +275,7 @@ term specified by the `if_seq_no` and `if_primary_term` parameters. If a
 mismatch is detected, the operation will result in a `VersionConflictException`
 and a status code of 409. See <<optimistic-concurrency-control>> for more details.
 
-[float]
+[discrete]
 [[index-routing]]
 ===== Routing
 
@@ -307,7 +307,7 @@ value is provided or extracted.
 NOTE: Data streams do not support custom routing. Instead, target the
 appropriate backing index for the stream.
 
-[float]
+[discrete]
 [[index-distributed]]
 ===== Distributed
 
@@ -316,7 +316,7 @@ The index operation is directed to the primary shard based on its route
 containing this shard. After the primary shard completes the operation,
 if needed, the update is distributed to applicable replicas.
 
-[float]
+[discrete]
 [[index-wait-for-active-shards]]
 ===== Active shards
 
@@ -374,14 +374,14 @@ replication succeeded/failed.
 --------------------------------------------------
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[index-refresh]]
 ===== Refresh
 
 Control when the changes made by this request are visible to search. See
 <<docs-refresh,refresh>>.
 
-[float]
+[discrete]
 [[index-noop]]
 ===== Noop updates
 
@@ -396,7 +396,7 @@ It's a combination of lots of factors like how frequently your data source
 sends updates that are actually noops and how many queries per second
 Elasticsearch runs on the shard receiving the updates.
 
-[float]
+[discrete]
 [[timeout]]
 ===== Timeout
 
@@ -419,7 +419,7 @@ PUT twitter/_doc/1?timeout=5m
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 [[index-versioning]]
 ===== Versioning
 
@@ -465,7 +465,7 @@ a database is simplified if external versioning is used, as only the
 latest version will be used if the index operations arrive out of order for
 whatever reason.
 
-[float]
+[discrete]
 [[index-version-types]]
 ===== Version types
 

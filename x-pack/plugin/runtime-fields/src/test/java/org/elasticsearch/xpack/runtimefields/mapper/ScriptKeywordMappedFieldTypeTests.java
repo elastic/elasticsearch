@@ -32,24 +32,25 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.painless.PainlessPlugin;
-import org.elasticsearch.painless.PainlessScriptEngine;
-import org.elasticsearch.plugins.ExtensiblePlugin.ExtensionLoader;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
-import org.elasticsearch.xpack.runtimefields.RuntimeFieldsPainlessExtension;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptBinaryFieldData;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
@@ -64,10 +65,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType ft = build(
-                    "for (def v : source.foo) {value(v.toString() + params.param)}",
-                    Map.of("param", "-suffix")
-                );
+                ScriptKeywordMappedFieldType ft = build("append_param", Map.of("param", "-suffix"));
                 ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
                 ifd.setSearchLookup(mockContext().lookup());
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
@@ -107,8 +105,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType ft = build("for (def v : source.foo) { value(v.toString())}");
-                ScriptBinaryFieldData ifd = ft.fielddataBuilder("test").build(null, null, null);
+                ScriptBinaryFieldData ifd = simpleMappedFieldType().fielddataBuilder("test").build(null, null, null);
                 ifd.setSearchLookup(mockContext().lookup());
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
@@ -127,7 +124,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                QueryShardContext qsc = mockContext(true, build("for (def v : source.foo) { value(v.toString())}"));
+                QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -156,7 +153,7 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(build("for (def v : source.foo) { value(v.toString())}").existsQuery(mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
             }
         }
     }
@@ -168,15 +165,15 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
     public void testFuzzyQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));   // No edits, matches
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"caat\"}"))));  // Single insertion, matches
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cta\"}"))));   // Single transposition, matches
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"caaat\"}")))); // Two insertions, no match
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));   // Totally wrong, no match
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));   // No edits, matches
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caat\"]}"))));  // Single insertion, matches
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cta\"]}"))));   // Single transposition, matches
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caaat\"]}")))); // Two insertions, no match
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));   // Totally wrong, no match
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
-                    searcher.count(build("value(source.foo)").fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())),
+                    searcher.count(simpleMappedFieldType().fuzzyQuery("cat", Fuzziness.AUTO, 0, 1, true, mockContext())),
                     equalTo(3)
                 );
             }
@@ -198,12 +195,12 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
     public void testPrefixQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cata\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(build("value(source.foo)").prefixQuery("cat", null, mockContext())), equalTo(2));
+                assertThat(searcher.count(simpleMappedFieldType().prefixQuery("cat", null, mockContext())), equalTo(2));
             }
         }
     }
@@ -215,13 +212,13 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cata\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
-                    searcher.count(build("value(source.foo)").rangeQuery("cat", "d", false, false, null, null, null, mockContext())),
+                    searcher.count(simpleMappedFieldType().rangeQuery("cat", "d", false, false, null, null, null, mockContext())),
                     equalTo(1)
                 );
             }
@@ -246,14 +243,14 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
     public void testRegexpQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cat\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"cata\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"dog\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        build("value(source.foo)").regexpQuery("ca.+", 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
+                        simpleMappedFieldType().regexpQuery("ca.+", 0, Operations.DEFAULT_MAX_DETERMINIZED_STATES, null, mockContext())
                     ),
                     equalTo(2)
                 );
@@ -268,11 +265,11 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType fieldType = build("value(source.foo.toString() + params.param)", Map.of("param", "-suffix"));
+                ScriptKeywordMappedFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
                 assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
@@ -286,13 +283,13 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 3}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 4}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [3]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(build("value(source.foo.toString())").termsQuery(List.of("1", "2"), mockContext())), equalTo(2));
+                assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("1", "2"), mockContext())), equalTo(2));
             }
         }
     }
@@ -304,11 +301,11 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
     public void testWildcardQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"aab\"}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": \"b\"}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(build("value(source.foo)").wildcardQuery("a*b", null, mockContext())), equalTo(1));
+                assertThat(searcher.count(simpleMappedFieldType().wildcardQuery("a*b", null, mockContext())), equalTo(1));
             }
         }
     }
@@ -319,11 +316,11 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
 
     public void testMatchQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 1}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": 2}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                ScriptKeywordMappedFieldType fieldType = build("value(source.foo.toString() + params.param)", Map.of("param", "-Suffix"));
+                ScriptKeywordMappedFieldType fieldType = build("append_param", Map.of("param", "-Suffix"));
                 QueryShardContext queryShardContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(queryShardContext);
                 assertThat(searcher.count(query), equalTo(1));
@@ -332,8 +329,8 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
     }
 
     @Override
-    protected AbstractScriptMappedFieldType simpleMappedFieldType() throws IOException {
-        return build("value(source.foo)");
+    protected ScriptKeywordMappedFieldType simpleMappedFieldType() throws IOException {
+        return build("read_foo", Map.of());
     }
 
     @Override
@@ -341,32 +338,75 @@ public class ScriptKeywordMappedFieldTypeTests extends AbstractScriptMappedField
         return "keyword";
     }
 
-    private static ScriptKeywordMappedFieldType build(String code) throws IOException {
-        return build(new Script(code));
-    }
-
     private static ScriptKeywordMappedFieldType build(String code, Map<String, Object> params) throws IOException {
-        return build(new Script(ScriptType.INLINE, PainlessScriptEngine.NAME, code, params));
+        return build(new Script(ScriptType.INLINE, "test", code, params));
     }
 
     private static ScriptKeywordMappedFieldType build(Script script) throws IOException {
-        PainlessPlugin painlessPlugin = new PainlessPlugin();
-        painlessPlugin.loadExtensions(new ExtensionLoader() {
+        ScriptPlugin scriptPlugin = new ScriptPlugin() {
             @Override
-            @SuppressWarnings("unchecked") // We only ever load painless extensions here so it is fairly safe.
-            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
-                return (List<T>) List.of(new RuntimeFieldsPainlessExtension());
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new ScriptEngine() {
+                    @Override
+                    public String getType() {
+                        return "test";
+                    }
+
+                    @Override
+                    public Set<ScriptContext<?>> getSupportedContexts() {
+                        return Set.of(StringScriptFieldScript.CONTEXT);
+                    }
+
+                    @Override
+                    public <FactoryType> FactoryType compile(
+                        String name,
+                        String code,
+                        ScriptContext<FactoryType> context,
+                        Map<String, String> params
+                    ) {
+                        @SuppressWarnings("unchecked")
+                        FactoryType factory = (FactoryType) factory(code);
+                        return factory;
+                    }
+
+                    private StringScriptFieldScript.Factory factory(String code) {
+                        switch (code) {
+                            case "read_foo":
+                                return (params, lookup) -> (ctx) -> new StringScriptFieldScript(params, lookup, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                            new StringScriptFieldScript.Value(this).value(foo.toString());
+                                        }
+                                    }
+                                };
+                            case "append_param":
+                                return (params, lookup) -> (ctx) -> new StringScriptFieldScript(params, lookup, ctx) {
+                                    @Override
+                                    public void execute() {
+                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                            new StringScriptFieldScript.Value(this).value(
+                                                foo.toString() + getParams().get("param").toString()
+                                            );
+                                        }
+                                    }
+                                };
+                            default:
+                                throw new IllegalArgumentException("unsupported script [" + code + "]");
+                        }
+                    }
+                };
             }
-        });
-        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(painlessPlugin, new RuntimeFields()));
+        };
+        ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
             StringScriptFieldScript.Factory factory = scriptService.compile(script, StringScriptFieldScript.CONTEXT);
             return new ScriptKeywordMappedFieldType("test", script, factory, emptyMap());
         }
     }
 
-    private static void checkExpensiveQuery(BiConsumer<ScriptKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
-        ScriptKeywordMappedFieldType ft = build("value('cat')");
+    private void checkExpensiveQuery(BiConsumer<ScriptKeywordMappedFieldType, QueryShardContext> queryBuilder) throws IOException {
+        ScriptKeywordMappedFieldType ft = simpleMappedFieldType();
         Exception e = expectThrows(ElasticsearchException.class, () -> queryBuilder.accept(ft, mockContext(false)));
         assertThat(
             e.getMessage(),

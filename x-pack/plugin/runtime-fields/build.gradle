@@ -15,7 +15,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(':modules:lang-painless') // TODO we don't want to depend on painless if we're not extending it. But it is convenient for testing now.
+  compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
 }
 

@@ -157,9 +157,9 @@ There are a few events that have some more attributes in addition to those
 that have been previously described:
 
 * `authentication_success`:
-  `realm`              ::   The name of the realm that successfully authenticated the user,
-                            or the special value of `_es_api_key` if authentication is
-                            performed using an API Key. This is a shorthand attribute
+  `realm`              ::   The name of the realm that successfully authenticated the user.
+                            If authenticated using an API key, this is the special value of
+                            `_es_api_key`. This is a shorthand attribute
                             for the same information that is described by the `user.realm`,
                             `user.run_by.realm` and `authentication.type` attributes.
   `user.name`          ::   The name of the _effective_ user. This is usually the

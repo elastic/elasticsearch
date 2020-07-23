@@ -17,21 +17,21 @@ For example:
 --------------------------------------------------
 PUT /my_index
 {
-    "settings": {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["lowercase", "my_snow"]
-                }
-            },
-            "filter" : {
-                "my_snow" : {
-                    "type" : "snowball",
-                    "language" : "Lovins"
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [ "lowercase", "my_snow" ]
         }
+      },
+      "filter": {
+        "my_snow": {
+          "type": "snowball",
+          "language": "Lovins"
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

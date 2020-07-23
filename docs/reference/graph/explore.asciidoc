@@ -204,23 +204,23 @@ An initial search typically begins with a query to identify strongly related ter
 --------------------------------------------------
 POST clicklogs/_graph/explore
 {
-    "query": { <1>
-        "match": {
-            "query.raw": "midi"
-        }
-    },
-    "vertices": [ <2>
-        {
-            "field": "product"
-        }
-    ],
-    "connections": {  <3>
-        "vertices": [
-            {
-                "field": "query.raw"
-            }
-        ]
+  "query": {                  <1>
+    "match": {
+      "query.raw": "midi"
     }
+  },
+  "vertices": [               <2>
+    {
+      "field": "product"
+    }
+  ],
+  "connections": {            <3>
+    "vertices": [
+      {
+        "field": "query.raw"
+      }
+    ]
+  }
 }
 --------------------------------------------------
 
@@ -309,51 +309,51 @@ every document could be of interest, see the
 --------------------------------------------------
 POST clicklogs/_graph/explore
 {
-    "query": {
-        "match": {
-            "query.raw": "midi"
-        }
+  "query": {
+    "match": {
+      "query.raw": "midi"
+    }
+  },
+  "controls": {
+    "use_significance": false,        <1>
+    "sample_size": 2000,              <2>
+    "timeout": 2000,                  <3>
+    "sample_diversity": {             <4>
+      "field": "category.raw",
+      "max_docs_per_value": 500
+    }
+  },
+  "vertices": [
+    {
+      "field": "product",
+      "size": 5,                      <5>
+      "min_doc_count": 10,            <6>
+      "shard_min_doc_count": 3        <7>
+    }
+  ],
+  "connections": {
+    "query": {                        <8>
+      "bool": {
+        "filter": [
+          {
+            "range": {
+              "query_time": {
+                "gte": "2015-10-01 00:00:00"
+              }
+            }
+          }
+        ]
+      }
     },
-   "controls": {
-      "use_significance": false,<1>
-      "sample_size": 2000,<2>
-      "timeout": 2000,<3>
-      "sample_diversity": {<4>
-         "field": "category.raw",
-         "max_docs_per_value": 500
-      }
-   },
-   "vertices": [
+    "vertices": [
       {
-         "field": "product",
-         "size": 5,<5>
-         "min_doc_count": 10,<6>
-         "shard_min_doc_count": 3<7>
+        "field": "query.raw",
+        "size": 5,
+        "min_doc_count": 10,
+        "shard_min_doc_count": 3
       }
-   ],
-   "connections": {
-      "query": {<8>
-         "bool": {
-            "filter": [
-               {
-                  "range": {
-                     "query_time": {
-                        "gte": "2015-10-01 00:00:00"
-                     }
-                  }
-               }
-            ]
-         }
-      },
-      "vertices": [
-         {
-            "field": "query.raw",
-            "size": 5,
-            "min_doc_count": 10,
-            "shard_min_doc_count": 3
-         }
-      ]
-   }
+    ]
+  }
 }
 --------------------------------------------------
 

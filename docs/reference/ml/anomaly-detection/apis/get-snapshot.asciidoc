@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-snapshot]]
-=== Get model snapshots API
+= Get model snapshots API
 ++++
 <titleabbrev>Get model snapshots</titleabbrev>
 ++++
@@ -9,21 +9,21 @@
 Retrieves information about model snapshots.
 
 [[ml-get-snapshot-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/model_snapshots` +
 
 `GET _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
 [[ml-get-snapshot-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
 <<security-privileges>>.
 
 [[ml-get-snapshot-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
@@ -39,7 +39,7 @@ all model snapshots.
 --
 
 [[ml-get-snapshot-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `desc`::
   (Optional, boolean) If true, the results are sorted in descending order.
@@ -62,7 +62,7 @@ all model snapshots.
 
 [role="child_attributes"]
 [[ml-get-snapshot-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of model snapshot objects, which have the following 
 properties:
@@ -198,7 +198,7 @@ snapshot. For example: "1491852978".
 (date) The creation timestamp for the snapshot.
 
 [[ml-get-snapshot-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

@@ -1,8 +1,8 @@
 ---
 "Roll over a data stream":
   - skip:
-      version: " - 7.9.99"
-      reason: "enable in 7.9+ when backported"
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
       features: allowed_warnings
 
   - do:
@@ -12,8 +12,7 @@
         name: my-template
         body:
           index_patterns: [data-*]
-          data_stream:
-            timestamp_field: '@timestamp'
+          data_stream: {}
 
   - do:
       indices.create_data_stream:

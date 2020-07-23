@@ -7,26 +7,25 @@
 package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.execution.payload.AbstractPayload;
 import org.elasticsearch.xpack.eql.session.Results.Type;
-import org.elasticsearch.xpack.eql.util.ReversedIterator;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 class SequencePayload extends AbstractPayload {
 
-    private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> sequences;
+    private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values;
 
-    SequencePayload(List<Sequence> seq, boolean timedOut, TimeValue timeTook) {
+    SequencePayload(List<Sequence> sequences, List<List<SearchHit>> searchHits, boolean timedOut, TimeValue timeTook) {
         super(timedOut, timeTook);
-        sequences = new ArrayList<>(seq.size());
-        boolean needsReversal = seq.size() > 1 && (seq.get(0).ordinal().compareTo(seq.get(1).ordinal()) > 0);
+        values = new ArrayList<>(sequences.size());
         
-        for (Iterator<Sequence> it = needsReversal ? new ReversedIterator<>(seq) : seq.iterator(); it.hasNext();) {
-            Sequence s = it.next();
-            sequences.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asStringList(), s.hits()));
+        for (int i = 0; i < sequences.size(); i++) {
+            Sequence s = sequences.get(i);
+            List<SearchHit> hits = searchHits.get(i);
+            values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asStringList(), hits));
         }
     }
 
@@ -38,6 +37,6 @@ class SequencePayload extends AbstractPayload {
     @SuppressWarnings("unchecked")
     @Override
     public <V> List<V> values() {
-        return (List<V>) sequences;
+        return (List<V>) values;
     }
 }

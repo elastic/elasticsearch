@@ -132,7 +132,7 @@ public class GeoShapeWithDocValuesFieldMapper extends GeoShapeFieldMapper {
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
             failIfNoDocValues();
-            return new AbstractLatLonShapeIndexFieldData.Builder(GeoShapeValuesSourceType.instance());
+            return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance());
         }
     }
 

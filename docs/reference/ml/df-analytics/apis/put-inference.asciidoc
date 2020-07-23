@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-inference]]
-=== Create {infer} trained model API
+= Create {infer} trained model API
 [subs="attributes"]
 ++++
 <titleabbrev>Create {infer} trained model</titleabbrev>
@@ -19,13 +19,13 @@ experimental[]
 
 
 [[ml-put-inference-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `PUT _ml/inference/<model_id>`
 
 
 [[ml-put-inference-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following
 built-in roles and privileges:
@@ -36,14 +36,14 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-put-inference-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 The create {infer} trained model API enables you to supply a trained model that
 is not created by {dfanalytics}.
 
 
 [[ml-put-inference-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<model_id>`::
 (Required, string)
@@ -51,7 +51,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [role="child_attributes"]
 [[ml-put-inference-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `compressed_definition`::
 (Required, string)
@@ -94,6 +94,10 @@ The field name to encode.
 `frequency_map`::
 (Required, object map of string:double)
 Object that maps the field value to the frequency encoded value.
+
+`custom`::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
 ======
 //End frequency encoding
 
@@ -112,6 +116,10 @@ The field name to encode.
 `hot_map`::
 (Required, object map of strings)
 String map of "field_value: one_hot_column_name".
+
+`custom`::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
 ======
 //End one hot encoding
 
@@ -138,6 +146,10 @@ The field name to encode.
 `target_map`:::
 (Required, object map of string:double)
 Object that maps the field value to the target mean value.
+
+`custom`::
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-preprocessor]
+
 ======
 //End target mean encoding
 =====
@@ -437,10 +449,10 @@ An array of tags to organize the model.
 
 
 [[ml-put-inference-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [[ml-put-inference-preprocessor-example]]
-===== Preprocessor examples
+=== Preprocessor examples
 
 The example below shows a `frequency_encoding` preprocessor object:
 
@@ -507,7 +519,7 @@ This example shows a `target_mean_encoding` preprocessor object:
 
 
 [[ml-put-inference-model-example]]
-===== Model examples
+=== Model examples
 
 The first example shows a `trained_model` object:
 
@@ -591,7 +603,7 @@ The following example shows an `ensemble` model object:
 
 
 [[ml-put-inference-aggregated-output-example]]
-===== Aggregated output example
+=== Aggregated output example
 
 Example of a `logistic_regression` object:
 
@@ -646,7 +658,7 @@ Example of an `exponent` object:
 
 
 [[ml-put-inference-json-schema]]
-===== {infer-cap} JSON schema
+=== {infer-cap} JSON schema
 
 For the full JSON schema of model {infer},
 https://github.com/elastic/ml-json-schemas[click here].

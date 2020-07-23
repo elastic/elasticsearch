@@ -840,7 +840,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                         "      }\n" +
                         "    }\n" +
                         "  }"), null),
-                List.of("ct1"), 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+                List.of("ct1"), 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "logs-data-stream-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-data-stream-template",
@@ -947,7 +947,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             state = service.addComponentTemplate(state, true, "ct1", ct1);
             ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs*"), null, List.of("ct1"), 0L, 1L, null,
-                new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+                new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "logs-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "logs-template",
@@ -982,7 +982,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 "      }\n" +
                 "    }"), null);
             ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("timeseries*"), template, null, 0L, 1L, null,
-                new ComposableIndexTemplate.DataStreamTemplate(DEFAULT_TIMESTAMP_FIELD));
+                new ComposableIndexTemplate.DataStreamTemplate());
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template",
@@ -1296,7 +1296,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("logs-*-*"),
-            null, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            null, null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate());
 
         state = service.addIndexTemplateV2(state, false, "logs", template);
 
@@ -1340,7 +1340,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Change the pattern to one that doesn't match the data stream
         e = expectThrows(IllegalArgumentException.class, () -> {
             ComposableIndexTemplate newTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-postgres-*"), null,
-                null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+                null, 100L, null, null, new ComposableIndexTemplate.DataStreamTemplate());
             service.addIndexTemplateV2(stateWithDS, false, "logs", newTemplate);
         });
 
@@ -1350,7 +1350,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Add an additional template that matches our data stream at a lower priority
         ComposableIndexTemplate mysqlTemplate = new ComposableIndexTemplate(Collections.singletonList("logs-mysql-*"), null,
-            null, 50L, null, null, new ComposableIndexTemplate.DataStreamTemplate("@timestamp"));
+            null, 50L, null, null, new ComposableIndexTemplate.DataStreamTemplate());
         ClusterState stateWithDSAndTemplate = service.addIndexTemplateV2(stateWithDS, false, "logs-mysql", mysqlTemplate);
 
         // We should be able to replace the "logs" template, because we have the "logs-mysql" template that can handle the data stream
@@ -1500,11 +1500,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 public MetadataFieldMapper.Builder<?> parse(String name,
                                                             Map<String, Object> node,
                                                             ParserContext parserContext) throws MapperParsingException {
-                    String path = (String) node.remove("path");
+                    Boolean enabled = (Boolean) node.remove("enabled");
                     return new MetadataFieldMapper.Builder(name, new FieldType()) {
                         @Override
                         public MetadataFieldMapper build(Mapper.BuilderContext context) {
-                            return newInstance(path);
+                            return newInstance(enabled);
                         }
                     };
                 }
@@ -1514,7 +1514,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     return newInstance(null);
                 }
 
-                MetadataFieldMapper newInstance(String path) {
+                MetadataFieldMapper newInstance(Boolean enabled) {
                     FieldType fieldType = new FieldType();
                     fieldType.freeze();
                     MappedFieldType mappedFieldType =
@@ -1547,12 +1547,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
                         @Override
                         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                            if (path == null) {
+                            if (enabled == null) {
                                 return builder;
                             }
 
                             builder.startObject(simpleName());
-                            builder.field("path", path);
+                            builder.field("enabled", enabled);
                             return builder.endObject();
                         }
 

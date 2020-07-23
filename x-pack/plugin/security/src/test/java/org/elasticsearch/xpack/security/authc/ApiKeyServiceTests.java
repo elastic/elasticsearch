@@ -845,6 +845,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public static class Utils {
+
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
 
         public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,
@@ -862,24 +863,35 @@ public class ApiKeyServiceTests extends ESTestCase {
                             new SecureString("pass".toCharArray())),
                     Clock.systemUTC(), authenticationResultFuture);
 
-            final TestThreadPool threadPool = new TestThreadPool("utils");
-            try {
-                final ThreadContext threadContext = threadPool.getThreadContext();
-                final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-                authenticationContextSerializer.writeToContext(
-                    apiKeyService.createApiKeyAuthentication(authenticationResultFuture.get(), "node01"), threadContext);
-                final CompletableFuture<Authentication> authFuture = new CompletableFuture<>();
-                securityContext.executeAfterRewritingAuthentication((c) -> {
-                    try {
-                        authFuture.complete(authenticationContextSerializer.readFromContext(threadContext));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }, version);
-                return authFuture.get();
-            } finally {
-                terminate(threadPool);
+            AuthenticationResult authenticationResult = authenticationResultFuture.get();
+            if (randomBoolean()) {
+                // maybe remove realm name to simulate old API Key authentication
+                assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
+                Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
+                authenticationResultMetadata.remove(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+                authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
             }
+            if (randomBoolean()) {
+                // simulate authentication with nameless API Key, see https://github.com/elastic/elasticsearch/issues/59484
+                assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
+                Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
+                authenticationResultMetadata.remove(ApiKeyService.API_KEY_NAME_KEY);
+                authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
+            }
+
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+            authenticationContextSerializer.writeToContext(
+                    apiKeyService.createApiKeyAuthentication(authenticationResult, "node01"), threadContext);
+            final CompletableFuture<Authentication> authFuture = new CompletableFuture<>();
+            securityContext.executeAfterRewritingAuthentication((c) -> {
+                try {
+                    authFuture.complete(authenticationContextSerializer.readFromContext(threadContext));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }, version);
+            return authFuture.get();
         }
 
         public static Authentication createApiKeyAuthentication(ApiKeyService apiKeyService,

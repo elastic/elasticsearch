@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[evaluate-dfanalytics]]
-=== Evaluate {dfanalytics} API
+= Evaluate {dfanalytics} API
 
 [subs="attributes"]
 ++++
@@ -14,13 +14,13 @@ experimental[]
 
 
 [[ml-evaluate-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/data_frame/_evaluate`
 
 
 [[ml-evaluate-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 privileges:
@@ -31,7 +31,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[ml-evaluate-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 The API packages together commonly used evaluation metrics for various types of 
 machine learning features. This has been designed for use on indexes created by 
@@ -40,7 +40,7 @@ result field to be present.
 
 
 [[ml-evaluate-dfanalytics-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `evaluation`::
 (Required, object) Defines the type of evaluation you want to perform.
@@ -49,7 +49,7 @@ See <<ml-evaluate-dfanalytics-resources>>.
 --
 Available evaluation types:
 
-* `binary_soft_classification`
+* `outlier_detection`
 * `regression`
 * `classification`
 
@@ -64,15 +64,13 @@ performed.
 source index. See <<query-dsl>>.
 
 [[ml-evaluate-dfanalytics-resources]]
-==== {dfanalytics-cap} evaluation resources
+== {dfanalytics-cap} evaluation resources
 
-[[binary-sc-resources]]
-===== Binary soft classification evaluation objects
+[[oldetection-resources]]
+=== {oldetection-cap} evaluation objects
 
-Binary soft classification evaluates the results of an analysis which outputs 
-the probability that each document belongs to a certain class. For example, in 
-the context of {oldetection}, the analysis outputs the probability whether each 
-document is an outlier.
+{oldetection-cap} evaluates the results of an {oldetection} analysis which outputs
+the probability that each document is an outlier.
 
 `actual_field`::
   (Required, string) The field of the `index` which contains the `ground truth`. 
@@ -109,7 +107,7 @@ document is an outlier.
 
     
 [[regression-evaluation-resources]]
-===== {regression-cap} evaluation objects
+=== {regression-cap} evaluation objects
 
 {regression-cap} evaluation evaluates the results of a {regression} analysis 
 which outputs a prediction of values.
@@ -145,7 +143,7 @@ which outputs a prediction of values.
 
   
 [[classification-evaluation-resources]]
-==== {classification-cap} evaluation objects
+== {classification-cap} evaluation objects
 
 {classification-cap} evaluation evaluates the results of a {classanalysis} which 
 outputs a prediction that identifies to which of the classes each document 
@@ -178,10 +176,10 @@ belongs.
 
 ////
 [[ml-evaluate-dfanalytics-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
-`binary_soft_classification`::
-  (object) If you chose to do binary soft classification, the API returns the
+`outlier_detection`::
+  (object) If you chose to do outlier detection, the API returns the
   following evaluation metrics:
   
 `auc_roc`::: TBD
@@ -195,11 +193,11 @@ belongs.
 
 
 [[ml-evaluate-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 
-[[ml-evaluate-binary-soft-class-example]]
-===== Binary soft classification
+[[ml-evaluate-oldetection-example]]
+=== {oldetection-cap}
 
 [source,console]
 --------------------------------------------------
@@ -207,7 +205,7 @@ POST _ml/data_frame/_evaluate
 {
   "index": "my_analytics_dest_index",
   "evaluation": {
-    "binary_soft_classification": {
+    "outlier_detection": {
       "actual_field": "is_outlier",
       "predicted_probability_field": "ml.outlier_score"
     }
@@ -221,7 +219,7 @@ The API returns the following results:
 [source,console-result]
 ----
 {
-  "binary_soft_classification": {
+  "outlier_detection": {
     "auc_roc": {
       "score": 0.92584757746414444
     },
@@ -261,7 +259,7 @@ The API returns the following results:
 
 
 [[ml-evaluate-regression-example]]
-===== {regression-cap}
+=== {regression-cap}
 
 [source,console]
 --------------------------------------------------
@@ -375,7 +373,7 @@ calculated by the {reganalysis}.
 
 
 [[ml-evaluate-classification-example]]
-===== {classification-cap}
+=== {classification-cap}
 
 
 [source,console]

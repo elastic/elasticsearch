@@ -24,8 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -47,8 +49,10 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
     static {
         InstantiatingObjectParser.Builder<DoubleBounds, Void> parser =
             InstantiatingObjectParser.builder("double_bounds", false, DoubleBounds.class);
-        parser.declareDouble(optionalConstructorArg(), MIN_FIELD);
-        parser.declareDouble(optionalConstructorArg(), MAX_FIELD);
+        parser.declareField(optionalConstructorArg(), p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
+            MIN_FIELD, ObjectParser.ValueType.DOUBLE_OR_NULL);
+        parser.declareField(optionalConstructorArg(), p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.doubleValue(),
+            MAX_FIELD, ObjectParser.ValueType.DOUBLE_OR_NULL);
         PARSER = parser.build();
     }
 
@@ -86,8 +90,12 @@ public class DoubleBounds implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MIN_FIELD.getPreferredName(), min);
-        builder.field(MAX_FIELD.getPreferredName(), max);
+        if (min != null) {
+            builder.field(MIN_FIELD.getPreferredName(), min);
+        }
+        if (max != null) {
+            builder.field(MAX_FIELD.getPreferredName(), max);
+        }
         return builder;
     }
 

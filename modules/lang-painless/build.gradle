@@ -97,12 +97,13 @@ testClusters {
 }
 
 task generateContextDoc(type: DefaultTestClustersTask) {
+  dependsOn sourceSets.doc.runtimeClasspath
   useCluster testClusters.generateContextCluster
   doFirst {
     project.javaexec {
       main = 'org.elasticsearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
-      systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI()}"
+      systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"
     }.assertNormalExitValue()
   }
 }

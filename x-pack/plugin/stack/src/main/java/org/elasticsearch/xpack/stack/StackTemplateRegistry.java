@@ -137,4 +137,15 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     protected String getOrigin() {
         return ClientHelper.STACK_ORIGIN;
     }
+
+    @Override
+    protected boolean requiresMasterNode() {
+        // Stack templates use the composable index template and component APIs,
+        // these APIs aren't supported in 7.7 and earlier and in mixed cluster
+        // environments this can cause a lot of ActionNotFoundTransportException
+        // errors in the logs during rolling upgrades. If these templates
+        // are only installed via elected master node then the APIs are always
+        // there and the ActionNotFoundTransportException errors are then prevented.
+        return true;
+    }
 }

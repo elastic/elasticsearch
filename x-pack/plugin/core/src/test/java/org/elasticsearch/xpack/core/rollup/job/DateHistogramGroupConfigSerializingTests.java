@@ -68,8 +68,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [date] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field] in " +
+            "any of the indices matching the index pattern."));
     }
 
     public void testValidateNomatchingField() {
@@ -83,8 +83,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [date] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(e.validationErrors().get(0), equalTo("Could not find one of [date,date_nanos] fields with name [my_field] in " +
+            "any of the indices matching the index pattern."));
     }
 
     public void testValidateFieldWrongType() {
@@ -98,8 +98,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be a [date] type across all " +
-                "indices in the index pattern.  Found: [keyword] for field [my_field]"));
+        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be one of type " +
+            "[date,date_nanos] across all indices in the index pattern.  Found: [keyword] for field [my_field]"));
     }
 
     public void testValidateFieldMixtureTypes() {
@@ -116,8 +116,8 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         DateHistogramGroupConfig config = new DateHistogramGroupConfig.CalendarInterval("my_field",
             new DateHistogramInterval("1d"), null, null);
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be a [date] type across all " +
-                "indices in the index pattern.  Found: [date, keyword] for field [my_field]"));
+        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a date_histo group must be one of type " +
+            "[date,date_nanos] across all indices in the index pattern.  Found: [date, keyword] for field [my_field]"));
     }
 
     public void testValidateFieldMatchingNotAggregatable() {

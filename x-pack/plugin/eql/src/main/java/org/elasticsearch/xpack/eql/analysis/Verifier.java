@@ -6,16 +6,25 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.xpack.eql.plan.logical.Head;
+import org.elasticsearch.xpack.eql.plan.logical.Join;
+import org.elasticsearch.xpack.eql.plan.logical.Sequence;
+import org.elasticsearch.xpack.eql.plan.logical.Tail;
+import org.elasticsearch.xpack.eql.stats.FeatureMetric;
+import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -23,6 +32,27 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_UNTIL;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FOUR;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_ONE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_THREE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_TWO;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FIVE_OR_MORE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_FOUR;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_THREE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_QUERIES_TWO;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.PIPE_HEAD;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.PIPE_TAIL;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_MAXSPAN;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FIVE_OR_MORE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_FOUR;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
+import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /**
@@ -30,6 +60,12 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
  * It is created in the plan executor along with the metrics instance passed as constructor parameter.
  */
 public class Verifier {
+
+    private final Metrics metrics;
+
+    public Verifier(Metrics metrics) {
+        this.metrics = metrics;
+    }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
         Collection<Failure> failures = verify(plan);
@@ -103,6 +139,87 @@ public class Verifier {
 
             failures.addAll(localFailures);
         });
+
+        // gather metrics
+        if (failures.isEmpty()) {
+            BitSet b = new BitSet(FeatureMetric.values().length);
+            Holder<Boolean> isLikelyAnEventQuery = new Holder<>(false);
+
+            plan.forEachDown(p -> {
+                if (p instanceof Project) {
+                    isLikelyAnEventQuery.set(true);
+                } else if (p instanceof Head) {
+                    b.set(PIPE_HEAD.ordinal());
+                } else if (p instanceof Tail) {
+                    b.set(PIPE_TAIL.ordinal());
+                } else if (p instanceof Join) {
+                    Join j = (Join) p;
+
+                    if (p instanceof Sequence) {
+                        b.set(SEQUENCE.ordinal());
+                        Sequence s = (Sequence) p;
+                        if (s.maxSpan().duration() > 0) {
+                            b.set(SEQUENCE_MAXSPAN.ordinal());
+                        }
+                        
+                        int queriesCount = s.queries().size();
+                        switch (queriesCount) {
+                            case 2:  b.set(SEQUENCE_QUERIES_TWO.ordinal());
+                                     break;
+                            case 3:  b.set(SEQUENCE_QUERIES_THREE.ordinal());
+                                     break;
+                            case 4:  b.set(SEQUENCE_QUERIES_FOUR.ordinal());
+                                     break;
+                            default: b.set(SEQUENCE_QUERIES_FIVE_OR_MORE.ordinal());
+                                     break;
+                        }
+                        if (j.until().keys().isEmpty() == false) {
+                            b.set(SEQUENCE_UNTIL.ordinal());
+                        }
+                    } else {
+                        b.set(FeatureMetric.JOIN.ordinal());
+                        int queriesCount = j.queries().size();
+                        switch (queriesCount) {
+                            case 2:  b.set(JOIN_QUERIES_TWO.ordinal());
+                                     break;
+                            case 3:  b.set(JOIN_QUERIES_THREE.ordinal());
+                                     break;
+                            case 4:  b.set(JOIN_QUERIES_FOUR.ordinal());
+                                     break;
+                            default: b.set(JOIN_QUERIES_FIVE_OR_MORE.ordinal());
+                                     break;
+                        }
+                        if (j.until().keys().isEmpty() == false) {
+                            b.set(JOIN_UNTIL.ordinal());
+                        }
+                    }
+
+                    int joinKeysCount = j.queries().get(0).keys().size();
+                    switch (joinKeysCount) {
+                        case 1:  b.set(JOIN_KEYS_ONE.ordinal());
+                                 break;
+                        case 2:  b.set(JOIN_KEYS_TWO.ordinal());
+                                 break;
+                        case 3:  b.set(JOIN_KEYS_THREE.ordinal());
+                                 break;
+                        case 4:  b.set(JOIN_KEYS_FOUR.ordinal());
+                                 break;
+                        default: if (joinKeysCount >= 5) {
+                                     b.set(JOIN_KEYS_FIVE_OR_MORE.ordinal());
+                                 }
+                                 break;
+                    }
+                }
+            });
+
+            if (isLikelyAnEventQuery.get() && b.get(SEQUENCE.ordinal()) == false && b.get(JOIN.ordinal()) == false) {
+                b.set(EVENT.ordinal());
+            }
+
+            for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
+                metrics.inc(FeatureMetric.values()[i]);
+            }
+        }
 
         return failures;
     }

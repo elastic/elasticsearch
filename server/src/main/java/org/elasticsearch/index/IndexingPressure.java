@@ -33,11 +33,18 @@ public class IndexingPressure {
     public static final Setting<ByteSizeValue> MAX_INDEXING_BYTES =
         Setting.memorySizeSetting("indexing_pressure.memory.limit", "10%", Setting.Property.NodeScope);
 
-    private final AtomicLong currentCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    private final AtomicLong currentCoordinatingBytes = new AtomicLong(0);
+    private final AtomicLong currentPrimaryBytes = new AtomicLong(0);
     private final AtomicLong currentReplicaBytes = new AtomicLong(0);
-    private final AtomicLong totalCoordinatingAndPrimaryBytes = new AtomicLong(0);
+
+    private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
+    private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
+    private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalReplicaBytes = new AtomicLong(0);
-    private final AtomicLong coordinatingAndPrimaryRejections = new AtomicLong(0);
+
+    private final AtomicLong coordinatingRejections = new AtomicLong(0);
+    private final AtomicLong primaryRejections = new AtomicLong(0);
     private final AtomicLong replicaRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
@@ -48,28 +55,60 @@ public class IndexingPressure {
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
-    public Releasable markIndexingOperationStarted(long bytes) {
-        return markIndexingOperationStarted(bytes, false);
-    }
-
-    public Releasable markIndexingOperationStarted(long bytes, boolean forceExecution) {
-        long writeBytes = this.currentCoordinatingAndPrimaryBytes.addAndGet(bytes);
+    public Releasable markCoordinatingOperationStarted(long bytes) {
+        long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
-        long totalBytes = writeBytes + replicaWriteBytes;
-        if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
-            long bytesWithoutOperation = writeBytes - bytes;
+        long totalBytes = combinedBytes + replicaWriteBytes;
+        if (totalBytes > primaryAndCoordinatingLimits) {
+            long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
-            this.currentCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-            this.coordinatingAndPrimaryRejections.getAndIncrement();
-            throw new EsRejectedExecutionException("rejected execution of operation [" +
+            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            this.coordinatingRejections.getAndIncrement();
+            throw new EsRejectedExecutionException("rejected execution of coordinating operation [" +
                 "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
                 "replica_bytes=" + replicaWriteBytes + ", " +
                 "all_bytes=" + totalBytesWithoutOperation + ", " +
                 "operation_bytes=" + bytes + ", " +
                 "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
-        totalCoordinatingAndPrimaryBytes.getAndAdd(bytes);
-        return () -> this.currentCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+        currentCoordinatingBytes.getAndAdd(bytes);
+        totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+        totalCoordinatingBytes.getAndAdd(bytes);
+        return () -> {
+            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            this.currentCoordinatingBytes.getAndAdd(-bytes);
+        };
+    }
+
+    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(long bytes) {
+        currentPrimaryBytes.getAndAdd(bytes);
+        totalPrimaryBytes.getAndAdd(bytes);
+        return () -> this.currentPrimaryBytes.getAndAdd(-bytes);
+    }
+
+    public Releasable markPrimaryOperationStarted(long bytes, boolean forceExecution) {
+        long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
+        long replicaWriteBytes = this.currentReplicaBytes.get();
+        long totalBytes = combinedBytes + replicaWriteBytes;
+        if (forceExecution == false && totalBytes > primaryAndCoordinatingLimits) {
+            long bytesWithoutOperation = combinedBytes - bytes;
+            long totalBytesWithoutOperation = totalBytes - bytes;
+            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            this.primaryRejections.getAndIncrement();
+            throw new EsRejectedExecutionException("rejected execution of primary operation [" +
+                "coordinating_and_primary_bytes=" + bytesWithoutOperation + ", " +
+                "replica_bytes=" + replicaWriteBytes + ", " +
+                "all_bytes=" + totalBytesWithoutOperation + ", " +
+                "operation_bytes=" + bytes + ", " +
+                "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
+        }
+        currentPrimaryBytes.getAndAdd(bytes);
+        totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+        totalPrimaryBytes.getAndAdd(bytes);
+        return () -> {
+            this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
+            this.currentPrimaryBytes.getAndAdd(-bytes);
+        };
     }
 
     public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
@@ -87,25 +126,26 @@ public class IndexingPressure {
         return () -> this.currentReplicaBytes.getAndAdd(-bytes);
     }
 
-    public long getCurrentCoordinatingAndPrimaryBytes() {
-        return currentCoordinatingAndPrimaryBytes.get();
+    public long getCurrentCombinedCoordinatingAndPrimaryBytes() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get();
+    }
+
+    public long getCurrentCoordinatingBytes() {
+        return currentCoordinatingBytes.get();
+    }
+
+    public long getCurrentPrimaryBytes() {
+        return currentPrimaryBytes.get();
     }
 
     public long getCurrentReplicaBytes() {
         return currentReplicaBytes.get();
     }
 
-    public long getTotalCoordinatingAndPrimaryBytes() {
-        return totalCoordinatingAndPrimaryBytes.get();
-    }
-
-    public long getTotalReplicaBytes() {
-        return totalReplicaBytes.get();
-    }
-
     public IndexingPressureStats stats() {
-        return new IndexingPressureStats(totalCoordinatingAndPrimaryBytes.get(), totalReplicaBytes.get(),
-            currentCoordinatingAndPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingAndPrimaryRejections.get(),
-            replicaRejections.get());
+        return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
+            totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
+            currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
+            primaryRejections.get(), replicaRejections.get());
     }
 }

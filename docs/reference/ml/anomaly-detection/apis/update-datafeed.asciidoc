@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-datafeed]]
-=== Update {dfeeds} API
+= Update {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -12,13 +12,13 @@ Updates certain properties of a {dfeed}.
 
 
 [[ml-update-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_update`
 
 
 [[ml-update-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If {es} {security-features} are enabled, you must have `manage_ml`, or `manage`
 cluster privileges to use this API. See
@@ -26,7 +26,7 @@ cluster privileges to use this API. See
 
 
 [[ml-update-datafeed-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 If you update a {dfeed} property, you must stop and start the {dfeed} for the 
 change to be applied.
@@ -38,7 +38,7 @@ using those same roles. If you provide
 credentials are used instead.
 
 [[ml-update-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
@@ -46,7 +46,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [role="child_attributes"]
 [[ml-update-datafeed-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 The following properties can be updated after the {dfeed} is created:
 
@@ -109,7 +109,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=scroll-size]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=indices-options]
 
 [[ml-update-datafeed-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

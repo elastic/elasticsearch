@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -101,7 +100,6 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testLookbackOnlyDataStream() throws Exception {
-        assumeTrue("should only run if data streams are enabled", ActionModule.DATASTREAMS_FEATURE_ENABLED);
         String mapping = "{\n" +
             "      \"properties\": {\n" +
             "        \"time\": {\n" +
@@ -112,7 +110,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             "        }" +
             "      }\n" +
             "    }";
-        createDataStreamAndTemplate("datafeed_data_stream", "@timestamp", mapping);
+        createDataStreamAndTemplate("datafeed_data_stream", mapping);
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long oneWeekAgo = now - 604800000;

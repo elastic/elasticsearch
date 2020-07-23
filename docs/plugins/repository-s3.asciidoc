@@ -200,7 +200,7 @@ pattern then you should set this setting to `true` when upgrading.
     https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/ClientConfiguration.html#setSignerOverride-java.lang.String-[AWS
     Java SDK documentation] for details. Defaults to empty string which means that no signing algorithm override will be used.
 
-[float]
+[discrete]
 [[repository-s3-compatible-services]]
 ===== S3-compatible services
 
@@ -435,7 +435,7 @@ The bucket needs to exist to register a repository for snapshots. If you did not
 create the bucket then the repository registration will fail.
 
 [[repository-s3-aws-vpc]]
-[float]
+[discrete]
 ==== AWS VPC Bandwidth Settings
 
 AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch

@@ -1,7 +1,7 @@
 [[release-notes-7.4.2]]
 == {es} version 7.4.2
 
-[float]
+[discrete]
 [[bug-7.4.2]]
 === Bug fixes
 
@@ -14,7 +14,7 @@ Transform::
 Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
 
 [[enhancement-7.4.1]]
-[float]
+[discrete]
 === Enhancements
 
 Engine::
@@ -33,7 +33,7 @@ Machine Learning::
 
 
 [[bug-7.4.1]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -108,7 +108,7 @@ Transform::
 
 Also see <<breaking-changes-7.4,Breaking changes in 7.4>>.
 
-[float]
+[discrete]
 === Known issues
 
 * Applying deletes or updates on an index after it has been shrunk may corrupt
@@ -130,7 +130,7 @@ https://github.com/elastic/elasticsearch/pull/52555
 This is fixed in {es} 7.7 and later versions.
 
 [[breaking-7.4.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Infra/REST API::
@@ -154,7 +154,7 @@ Transforms::
 
 
 [[breaking-java-7.4.0]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Geo::
@@ -166,7 +166,7 @@ Network::
 
 
 [[deprecation-7.4.0]]
-[float]
+[discrete]
 === Deprecations
 
 Geo::
@@ -189,7 +189,7 @@ Machine Learning::
 
 
 [[feature-7.4.0]]
-[float]
+[discrete]
 === New features
 
 Aggregations::
@@ -227,7 +227,7 @@ Machine Learning::
 
 
 [[enhancement-7.4.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -404,7 +404,7 @@ Transforms::
 
 
 [[bug-7.4.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -629,7 +629,7 @@ Transforms::
 * Audit message missing for autostop {es-pull}43984[#43984] (issue: {es-issue}43977[#43977])
 
 [[regression-7.4.0]]
-[float]
+[discrete]
 === Regressions
 
 Aggregations::
@@ -638,7 +638,7 @@ Aggregations::
 
 
 [[upgrade-7.4.0]]
-[float]
+[discrete]
 === Upgrades
 
 Infra/Core::

@@ -4,7 +4,7 @@
 Most search APIs support <<search-multi-index,multi-target syntax>>, with the
 exception of the <<search-explain>> endpoints.
 
-[float]
+[discrete]
 [[search-routing]]
 === Routing
 
@@ -52,7 +52,7 @@ The routing parameter can be multi valued represented as a comma
 separated string. This will result in hitting the relevant shards where
 the routing values match to.
 
-[float]
+[discrete]
 [[search-adaptive-replica]]
 === Adaptive Replica Selection
 
@@ -82,7 +82,7 @@ If adaptive replica selection is turned off, searches are sent to the
 index/indices shards in a round robin fashion between all copies of the data
 (primaries and replicas).
 
-[float]
+[discrete]
 [[stats-groups]]
 === Stats Groups
 
@@ -104,7 +104,7 @@ POST /_search
 --------------------------------------------------
 // TEST[setup:twitter]
 
-[float]
+[discrete]
 [[global-search-timeout]]
 === Global Search Timeout
 
@@ -121,7 +121,7 @@ The setting key is `search.default_search_timeout` and can be set using the
 <<cluster-update-settings>> endpoints. The default value is no global timeout.
 Setting this value to `-1` resets the global search timeout to no timeout.
 
-[float]
+[discrete]
 [[global-search-cancellation]]
 === Search Cancellation
 
@@ -131,7 +131,7 @@ perform the request is closed by the client. It is fundamental that the http
 client sending requests closes connections whenever requests time out or are
 aborted.
 
-[float]
+[discrete]
 [[search-concurrency-and-parallelism]]
 === Search concurrency and parallelism
 

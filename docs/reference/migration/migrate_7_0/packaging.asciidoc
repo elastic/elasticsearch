@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_packaging_changes]]
 === Packaging changes
 
@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 [[systemd-service-file-config]]
 ==== systemd service file is no longer configuration
 
@@ -18,19 +18,19 @@ was previously marked as a configuration file in rpm and deb packages.
 Overrides to the systemd elasticsearch service should be made
 in `/etc/systemd/system/elasticsearch.service.d/override.conf`.
 
-[float]
+[discrete]
 ==== tar package no longer includes windows specific files
 
 The tar package previously included files in the `bin` directory meant only
 for windows. These files have been removed. Use the `zip` package instead.
 
-[float]
+[discrete]
 ==== Ubuntu 14.04 is no longer supported
 
 Ubuntu 14.04 will reach end-of-life on April 30, 2019. As such, we are no longer
 supporting Ubuntu 14.04.
 
-[float]
+[discrete]
 ==== CLI secret prompting is no longer supported
 The ability to use `${prompt.secret}` and `${prompt.text}` to collect secrets
 from the CLI at server start is no longer supported.  Secure settings have replaced

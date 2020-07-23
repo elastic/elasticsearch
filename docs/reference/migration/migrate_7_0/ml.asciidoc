@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_70_ml_changes]]
 === ML changes
 
@@ -9,7 +9,7 @@
 
 // end::notable-breaking-changes[]
 
-[float]
+[discrete]
 ==== Types in Datafeed config are no longer valid
 Types have been removed from the datafeed config and are no longer
 valid parameters.

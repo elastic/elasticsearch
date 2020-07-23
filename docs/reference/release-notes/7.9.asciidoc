@@ -6,7 +6,7 @@ Also see <<breaking-changes-7.9,Breaking changes in 7.9>>.
 coming::[7.9.0]
 
 [[breaking-7.9.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Script Cache::
@@ -41,7 +41,7 @@ Dangling indices::
   {es-pull}58176[#58176] {es-pull}58898[#58898] (issue: {es-issue}48366[#48366])
 
 [[breaking-java-7.9.0]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Aggregations::
@@ -53,7 +53,7 @@ Features/Ingest::
 
 
 [[feature-7.9.0]]
-[float]
+[discrete]
 === New features
 
 Aggregations::
@@ -80,7 +80,7 @@ Search::
 
 
 [[enhancement-7.9.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -247,7 +247,7 @@ Transform::
 
 
 [[bug-7.9.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -309,7 +309,7 @@ Snapshot/Restore::
 
 
 [[upgrade-7.9.0]]
-[float]
+[discrete]
 === Upgrades
 
 Search::

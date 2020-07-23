@@ -192,11 +192,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
     static DiscoveryNode newNodeWithLegacyRoles(String id) {
         final Version version = VersionUtils.randomVersionBetween(random(),
             Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_3_0));
-        final Set<DiscoveryNodeRole> roles = Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE);
-        if (randomBoolean()) {
-            roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
-        }
-        return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), roles, version);
+        return new DiscoveryNode(id, buildNewFakeTransportAddress(), emptyMap(), Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), version);
     }
 
     static Decision executeAllocation(ClusterState clusterState, ShardRouting shardRouting, DiscoveryNode node) {

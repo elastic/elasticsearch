@@ -25,13 +25,13 @@ include-tagged::{doc-tests-file}[{api}-request]
 ==== Evaluation
 
 Evaluation to be performed.
-Currently, supported evaluations include: +BinarySoftClassification+, +Classification+, +Regression+.
+Currently, supported evaluations include: +OutlierDetection+, +Classification+, +Regression+.
 
-===== Binary soft classification
+===== Outlier detection
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-evaluation-softclassification]
+include-tagged::{doc-tests-file}[{api}-evaluation-outlierdetection]
 --------------------------------------------------
 <1> Constructing a new evaluation
 <2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false.
@@ -87,11 +87,11 @@ include-tagged::{doc-tests-file}[{api}-response]
 
 ==== Results
 
-===== Binary soft classification
+===== Outlier detection
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-results-softclassification]
+include-tagged::{doc-tests-file}[{api}-results-outlierdetection]
 --------------------------------------------------
 
 <1> Fetching precision metric by name

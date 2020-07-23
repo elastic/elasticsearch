@@ -65,230 +65,230 @@ import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
 
-public class UserTreeBaseVisitor<Input, Output> implements UserTreeVisitor<Input, Output> {
+public class UserTreeBaseVisitor<Scope> implements UserTreeVisitor<Scope> {
 
     @Override
-    public Output visitClass(SClass userClassNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitClass(SClass userClassNode, Scope scope) {
+        userClassNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitFunction(SFunction userFunctionNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitFunction(SFunction userClassNode, Scope scope) {
+        userClassNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitBlock(SBlock userBlockNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitBlock(SBlock userBlockNode, Scope scope) {
+        userBlockNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitIf(SIf userIfNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitIf(SIf userIfNode, Scope scope) {
+        userIfNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitIfElse(SIfElse userIfElseNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitIfElse(SIfElse userIfElseNode, Scope scope) {
+        userIfElseNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitWhile(SWhile userWhileNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitWhile(SWhile userWhileNode, Scope scope) {
+        userWhileNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitDo(SDo userDoNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitDo(SDo userDoNode, Scope scope) {
+        userDoNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitFor(SFor userForNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitFor(SFor userForNode, Scope scope) {
+        userForNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitEach(SEach userEachNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitEach(SEach userEachNode, Scope scope) {
+        userEachNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitDeclBlock(SDeclBlock userDeclBlockNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitDeclBlock(SDeclBlock userDeclBlockNode, Scope scope) {
+        userDeclBlockNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitDeclaration(SDeclaration userDeclarationNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitDeclaration(SDeclaration userDeclarationNode, Scope scope) {
+        userDeclarationNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitReturn(SReturn userReturnNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitReturn(SReturn userReturnNode, Scope scope) {
+        userReturnNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitExpression(SExpression userExpressionNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitExpression(SExpression userExpressionNode, Scope scope) {
+        userExpressionNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitTry(STry userTryNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitTry(STry userTryNode, Scope scope) {
+        userTryNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitCatch(SCatch userCatchNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitCatch(SCatch userCatchNode, Scope scope) {
+        userCatchNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitThrow(SThrow userThrowNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitThrow(SThrow userThrowNode, Scope scope) {
+        userThrowNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitContinue(SContinue userContinueNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitContinue(SContinue userContinueNode, Scope scope) {
+        userContinueNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitBreak(SBreak userBreakNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitBreak(SBreak userBreakNode, Scope scope) {
+        userBreakNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitAssignment(EAssignment userAssignmentNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitAssignment(EAssignment userAssignmentNode, Scope scope) {
+        userAssignmentNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitUnary(EUnary userUnaryNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitUnary(EUnary userUnaryNode, Scope scope) {
+        userUnaryNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitBinary(EBinary userBinaryNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitBinary(EBinary userBinaryNode, Scope scope) {
+        userBinaryNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitBool(EBooleanComp userBoolNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitBooleanComp(EBooleanComp userBooleanCompNode, Scope scope) {
+        userBooleanCompNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitComp(EComp userCompNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitComp(EComp userCompNode, Scope scope) {
+        userCompNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitExplicit(EExplicit userExplicitNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitExplicit(EExplicit userExplicitNode, Scope scope) {
+        userExplicitNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitInstanceof(EInstanceof userInstanceofNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitInstanceof(EInstanceof userInstanceofNode, Scope scope) {
+        userInstanceofNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitConditional(EConditional userConditionalNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitConditional(EConditional userConditionalNode, Scope scope) {
+        userConditionalNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitElvis(EElvis userElvisNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitElvis(EElvis userElvisNode, Scope scope) {
+        userElvisNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitListInit(EListInit userListInitNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitListInit(EListInit userListInitNode, Scope scope) {
+        userListInitNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitMapInit(EMapInit userMapInitNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitMapInit(EMapInit userMapInitNode, Scope scope) {
+        userMapInitNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitNewArray(ENewArray userNewArrayNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitNewArray(ENewArray userNewArrayNode, Scope scope) {
+        userNewArrayNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitNewObj(ENewObj userNewObjNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitNewObj(ENewObj userNewObjNode, Scope scope) {
+        userNewObjNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitCallLocal(ECallLocal userCallLocalNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitCallLocal(ECallLocal userCallLocalNode, Scope scope) {
+        userCallLocalNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitBoolean(EBooleanConstant userBooleanNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitBooleanConstant(EBooleanConstant userBooleanConstantNode, Scope scope) {
+        userBooleanConstantNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitNumeric(ENumeric userNumericNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitNumeric(ENumeric userNumericNode, Scope scope) {
+        userNumericNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitDecimal(EDecimal userDecimalNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitDecimal(EDecimal userDecimalNode, Scope scope) {
+        userDecimalNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitString(EString userStringNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitString(EString userStringNode, Scope scope) {
+        userStringNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitNull(ENull userNullNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitNull(ENull userNullNode, Scope scope) {
+        userNullNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitRegex(ERegex userRegexNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitRegex(ERegex userRegexNode, Scope scope) {
+        userRegexNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitLambda(ELambda userLambdaNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitLambda(ELambda userLambdaNode, Scope scope) {
+        userLambdaNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitFunctionRef(EFunctionRef userFunctionRefNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitFunctionRef(EFunctionRef userFunctionRefNode, Scope scope) {
+        userFunctionRefNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitNewArrayFunctionRef(ENewArrayFunctionRef userNewArrayFunctionRefNode, Scope scope) {
+        userNewArrayFunctionRefNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitSymbol(ESymbol userSymbolNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitSymbol(ESymbol userSymbolNode, Scope scope) {
+        userSymbolNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitDot(EDot userDotNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitDot(EDot userDotNode, Scope scope) {
+        userDotNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitBrace(EBrace userBraceNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitBrace(EBrace userBraceNode, Scope scope) {
+        userBraceNode.visitChildren(this, scope);
     }
 
     @Override
-    public Output visitCall(ECall userCallNode, Input input) {
-        throw new UnsupportedOperationException();
+    public void visitCall(ECall userCallNode, Scope scope) {
+        userCallNode.visitChildren(this, scope);
     }
 }

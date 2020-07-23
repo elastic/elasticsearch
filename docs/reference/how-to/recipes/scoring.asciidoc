@@ -104,16 +104,16 @@ look like this:
 --------------------------------------------------
 PUT index
 {
-    "mappings": {
-        "properties": {
-            "body": {
-                "type": "text"
-            },
-            "pagerank": {
-                "type": "long"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "body": {
+        "type": "text"
+      },
+      "pagerank": {
+        "type": "long"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -123,16 +123,16 @@ PUT index
 --------------------------------------------------
 GET index/_search
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "body": "elasticsearch" }
-            },
-            "script" : {
-                "source" : "_score * saturation(doc['pagerank'].value, 10)" <1>
-            }
-        }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "body": "elasticsearch" }
+      },
+      "script": {
+        "source": "_score * saturation(doc['pagerank'].value, 10)" <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 //TEST[continued]
@@ -148,16 +148,16 @@ look like below:
 --------------------------------------------------
 PUT index
 {
-    "mappings": {
-        "properties": {
-            "body": {
-                "type": "text"
-            },
-            "pagerank": {
-                "type": "rank_feature"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "body": {
+        "type": "text"
+      },
+      "pagerank": {
+        "type": "rank_feature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST
@@ -168,21 +168,21 @@ PUT index
 --------------------------------------------------
 GET _search
 {
-    "query" : {
-        "bool" : {
-            "must": {
-                "match": { "body": "elasticsearch" }
-            },
-            "should": {
-                "rank_feature": {
-                    "field": "pagerank", <1>
-                    "saturation": {
-                        "pivot": 10
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match": { "body": "elasticsearch" }
+      },
+      "should": {
+        "rank_feature": {
+          "field": "pagerank", <1>
+          "saturation": {
+            "pivot": 10
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

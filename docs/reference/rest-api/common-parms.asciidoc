@@ -373,7 +373,7 @@ end::if_seq_no[]
 tag::ignore_throttled[]
 `ignore_throttled`::
 (Optional, boolean) If `true`, concrete, expanded or aliased indices are
-ignored when frozen.
+ignored when frozen. Defaults to `true`.
 end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
@@ -739,7 +739,7 @@ end::request_cache[]
 tag::requests_per_second[]
 `requests_per_second`::
 (Optional, integer) The throttle for this request in sub-requests per second.
--1 means no throttle. Defaults to 0.
+Defaults to `-1` (no throttle).
 end::requests_per_second[]
 
 tag::routing[]

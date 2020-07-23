@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[stop-transform]]
-=== Stop {transforms} API
+= Stop {transforms} API
 
 [subs="attributes"]
 ++++
@@ -12,7 +12,7 @@ Stops one or more {transforms}.
 
 
 [[stop-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _transform/<transform_id>/_stop` +
 
@@ -22,7 +22,7 @@ Stops one or more {transforms}.
 
 
 [[stop-transform-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 built-in roles and privileges:
@@ -35,7 +35,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[stop-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 You can stop multiple {transforms} in a single API request by using a
 comma-separated list of {transforms} or a wildcard expression.
@@ -44,14 +44,14 @@ All {transforms} can be stopped by using `_all` or `*` as the
 
 
 [[stop-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[stop-transform-query-parms]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, boolean)
@@ -81,7 +81,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transfo
   stops as soon as possible. Defaults to `false`.
 
 [[stop-transform-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
@@ -89,7 +89,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transfo
 
 
 [[stop-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

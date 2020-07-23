@@ -65,18 +65,18 @@ Then that piece of metadata will be returned in place for our `titles` terms agg
 [source,console-result]
 --------------------------------------------------
 {
-    "aggregations": {
-        "titles": {
-            "meta": {
-                "color" : "blue"
-            },
-            "doc_count_error_upper_bound" : 0,
-            "sum_other_doc_count" : 0,
-            "buckets": [
-            ]
-        }
-    },
-    ...
+  "aggregations": {
+    "titles": {
+      "meta": {
+        "color": "blue"
+      },
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+      ]
+    }
+  },
+  ...
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]
@@ -121,40 +121,40 @@ In the response, the aggregations names will be changed to respectively `date_hi
 [source,console-result]
 --------------------------------------------------
 {
-    "aggregations": {
-        "date_histogram#tweets_over_time": { <1>
-            "buckets" : [
+  "aggregations": {
+    "date_histogram#tweets_over_time": {                    <1>
+      "buckets": [
+        {
+          "key_as_string": "2009-01-01T00:00:00.000Z",
+          "key": 1230768000000,
+          "doc_count": 5,
+          "top_hits#top_users": {                           <2>
+            "hits": {
+              "total": {
+                "value": 5,
+                "relation": "eq"
+            },
+              "max_score": 1.0,
+              "hits": [
                 {
-                    "key_as_string" : "2009-01-01T00:00:00.000Z",
-                    "key" : 1230768000000,
-                    "doc_count" : 5,
-                    "top_hits#top_users" : {  <2>
-                        "hits" : {
-                            "total" : {
-                                "value": 5,
-                                "relation": "eq"
-                            },
-                            "max_score" : 1.0,
-                            "hits" : [
-                                {
-                                  "_index": "twitter",
-                                  "_id": "0",
-                                  "_score": 1.0,
-                                  "_source": {
-                                    "date": "2009-11-15T14:12:12",
-                                    "message": "trying out Elasticsearch",
-                                    "user": "kimchy",
-                                    "likes": 0
-                                  }
-                                }
-                            ]
-                        }
-                    }
+                  "_index": "twitter",
+                  "_id": "0",
+                  "_score": 1.0,
+                  "_source": {
+                    "date": "2009-11-15T14:12:12",
+                    "message": "trying out Elasticsearch",
+                    "user": "kimchy",
+                    "likes": 0
+                  }
                 }
-            ]
+              ]
+            }
+          }
         }
-    },
-    ...
+      ]
+    }
+  },
+  ...
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"/]

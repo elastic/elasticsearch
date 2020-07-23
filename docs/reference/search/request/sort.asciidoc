@@ -9,7 +9,7 @@ Assuming the following index mapping:
 
 [source,console]
 --------------------------------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
@@ -28,7 +28,7 @@ PUT /my_index
 
 [source,console]
 --------------------------------------------------
-GET /my_index/_search
+GET /my-index-000001/_search
 {
   "sort" : [
     { "post_date" : {"order" : "asc"}},
@@ -92,7 +92,7 @@ the average price per document.
 
 [source,console]
 --------------------------------------------------
-PUT /my_index/_doc/1?refresh
+PUT /my-index-000001/_doc/1?refresh
 {
    "product": "chocolate",
    "price": [20, 4]

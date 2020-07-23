@@ -137,7 +137,7 @@ In this example, we configure the `standard` tokenizer to have a
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -156,7 +156,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."

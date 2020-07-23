@@ -117,7 +117,7 @@ To simulate the settings that would be applied to a matching index name:
 
 [source,console]
 --------------------------------------------------
-POST /_index_template/_simulate_index/myindex
+POST /_index_template/_simulate_index/my-index-000001
 --------------------------------------------------
 
 To simulate the settings that would be applied from a particular template:
@@ -485,7 +485,7 @@ PUT /_index_template/template_1
   "_meta": {
     "description": "set number of shards to three",
     "serialization": {
-      "class": "MyIndexTemplate",
+      "class": "my-index-000001Template",
       "id": 17
     }
   }

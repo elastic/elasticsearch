@@ -57,7 +57,7 @@ index as follows:
 
 [source,console]
 -----------------------------
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "index.requests.cache.enable": false
@@ -70,7 +70,7 @@ It can also be enabled or disabled dynamically on an existing index with the
 
 [source,console]
 -----------------------------
-PUT /my_index/_settings
+PUT /my-index-000001/_settings
 { "index.requests.cache.enable": true }
 -----------------------------
 // TEST[continued]
@@ -84,7 +84,7 @@ caching on a *per-request* basis.  If set, it overrides the index-level setting:
 
 [source,console]
 -----------------------------
-GET /my_index/_search?request_cache=true
+GET /my-index-000001/_search?request_cache=true
 {
   "size": 0,
   "aggs": {

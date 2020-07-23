@@ -362,23 +362,23 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.replicateCondition(userIfElseNode, userElseBlockNode, LastLoop.class);
         visit(userElseBlockNode, semanticScope.newLocalScope());
 
-        if (    semanticScope.getCondition(userIfBlockNode, MethodEscape.class) &&
-                semanticScope.getCondition(userElseBlockNode, MethodEscape.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, MethodEscape.class) &&
+            semanticScope.getCondition(userElseBlockNode, MethodEscape.class)) {
             semanticScope.setCondition(userIfElseNode, MethodEscape.class);
         }
 
-        if (    semanticScope.getCondition(userIfBlockNode, LoopEscape.class) &&
-                semanticScope.getCondition(userElseBlockNode, LoopEscape.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, LoopEscape.class) &&
+            semanticScope.getCondition(userElseBlockNode, LoopEscape.class)) {
             semanticScope.setCondition(userIfElseNode, LoopEscape.class);
         }
 
-        if (    semanticScope.getCondition(userIfBlockNode, AllEscape.class) &&
-                semanticScope.getCondition(userElseBlockNode, AllEscape.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, AllEscape.class) &&
+            semanticScope.getCondition(userElseBlockNode, AllEscape.class)) {
             semanticScope.setCondition(userIfElseNode, AllEscape.class);
         }
 
-        if (    semanticScope.getCondition(userIfBlockNode, AnyContinue.class) ||
-                semanticScope.getCondition(userElseBlockNode, AnyContinue.class)) {
+        if (semanticScope.getCondition(userIfBlockNode, AnyContinue.class) ||
+            semanticScope.getCondition(userElseBlockNode, AnyContinue.class)) {
             semanticScope.setCondition(userIfElseNode, AnyContinue.class);
         }
 

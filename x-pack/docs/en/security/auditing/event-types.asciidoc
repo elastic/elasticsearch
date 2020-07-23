@@ -41,7 +41,7 @@ The following is a list of the events that can be generated:
                                           profile.
 |======
 
-[float]
+[discrete]
 [[audit-event-attributes]]
 === Audit event attributes
 
@@ -235,7 +235,7 @@ that have been previously described:
                             This attribute is only provided for authentication using an API key.
 
 
-[float]
+[discrete]
 [[audit-event-attributes-deprecated-formats]]
 === Audit event attributes for the deprecated formats
 

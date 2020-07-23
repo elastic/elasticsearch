@@ -34,7 +34,7 @@ Other versions:
 // end::notable-highlights[]
 
 // Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [float]
+// [discrete]
 // === Heading
 //
 // Description.
@@ -98,7 +98,7 @@ Snapshot operations can now execute in a fully concurrent manner.
 
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Improve speed and memory usage of multi-bucket aggregations
 
 Before {minor-version}, many of our more complex aggregations made a simplifying
@@ -138,7 +138,7 @@ should help!
 // end::notable-highlights[]
 
 
-[float]
+[discrete]
 === Allow index filtering in field capabilities API
 
 You can now supply an `index_filter` to the <<search-field-caps,field
@@ -146,7 +146,7 @@ capabilities API>>. Indices are filtered from the response if the provided
 query rewrites to `match_none` on every shard.
 
 
-[float]
+[discrete]
 === Support `terms` and `rare_terms` aggregations in transforms
 
 Transforms now support the `terms` and `rare_terms` aggregations. The
@@ -169,7 +169,7 @@ field explosion while still providing (limited) search and aggregation
 capabilities.
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Optimize `date_histograms` across daylight savings time
 
 Rounding dates on a shard that contains a daylight savings time transition
@@ -182,7 +182,7 @@ overhead to requests.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Improved resilience to network disruption
 
 {es} now has mechansisms to safely resume peer recoveries when there is
@@ -192,7 +192,7 @@ recoveries.
 
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Wildcard field optimised for wildcard queries
 
 {es} now supports a `wildcard` field type, which stores values optimised
@@ -206,7 +206,7 @@ information.
 
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Indexing metrics and back pressure
 
 {es} {minor-version} now tracks metrics about the number of indexing

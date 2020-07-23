@@ -26,7 +26,7 @@ Scripted queries that use the API calls which are non-deterministic, such as
 `Math.random()` or `new Date()` are not cached.
 ===================================
 
-[float]
+[discrete]
 ==== Cache invalidation
 
 The cache is smart -- it keeps the same _near real-time_ promise as uncached
@@ -49,7 +49,7 @@ POST /kimchy,elasticsearch/_cache/clear?request=true
 ------------------------
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-[float]
+[discrete]
 ==== Enabling and disabling caching
 
 The cache is enabled by default, but can be disabled when creating a new
@@ -76,7 +76,7 @@ PUT /my_index/_settings
 // TEST[continued]
 
 
-[float]
+[discrete]
 ==== Enabling and disabling caching per request
 
 The `request_cache` query-string parameter can be used to enable or disable
@@ -102,7 +102,7 @@ Requests where `size` is greater than 0 will not be cached even if the request c
 enabled in the index settings. To cache these requests you will need to use the
 query-string parameter detailed here.
 
-[float]
+[discrete]
 ==== Cache key
 
 The whole JSON body is used as the cache key.  This means that if the JSON
@@ -113,7 +113,7 @@ TIP: Most JSON libraries support a _canonical_ mode which ensures that JSON
 keys are always emitted in the same order. This canonical mode can be used in
 the application to ensure that a request is always serialized in the same way.
 
-[float]
+[discrete]
 ==== Cache settings
 
 The cache is managed at the node level, and has a default maximum size of `1%`
@@ -129,7 +129,7 @@ for cached results, but there should be no reason to do so.  Remember that
 stale results are automatically invalidated when the index is refreshed. This
 setting is provided for completeness' sake only.
 
-[float]
+[discrete]
 ==== Monitoring cache usage
 
 The size of the cache (in bytes) and the number of evictions can be viewed

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-get-bucket]]
-=== Get buckets API
+= Get buckets API
 ++++
 <titleabbrev>Get buckets</titleabbrev>
 ++++
@@ -9,14 +9,14 @@
 Retrieves {anomaly-job} results for one or more buckets.
 
 [[ml-get-bucket-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/anomaly_detectors/<job_id>/results/buckets` +
 
 `GET _ml/anomaly_detectors/<job_id>/results/buckets/<timestamp>`
 
 [[ml-get-bucket-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
@@ -27,13 +27,13 @@ privileges. For more information, see
 <<built-in-roles>>.
 
 [[ml-get-bucket-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 The get buckets API presents a chronological view of the records, grouped by
 bucket.
 
 [[ml-get-bucket-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<job_id>`::
 (Required, string)
@@ -44,7 +44,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 specify this parameter, the API returns information about all buckets.
 
 [[ml-get-bucket-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `anomaly_score`::
 (Optional, double) Returns buckets with anomaly scores greater or equal than
@@ -77,7 +77,7 @@ default, the buckets are sorted by the `timestamp` field.
 
 [role="child_attributes"]
 [[ml-get-bucket-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns an array of bucket objects, which have the following properties:
 
@@ -172,7 +172,7 @@ the results for the bucket.
 --
 
 [[ml-get-bucket-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

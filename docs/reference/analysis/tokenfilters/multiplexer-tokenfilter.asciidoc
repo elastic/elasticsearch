@@ -36,22 +36,22 @@ You can set it up like:
 --------------------------------------------------
 PUT /multiplexer_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : [ "my_multiplexer" ]
-                }
-            },
-            "filter" : {
-                "my_multiplexer" : {
-                    "type" : "multiplexer",
-                    "filters" : [ "lowercase", "lowercase, porter_stem" ]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [ "my_multiplexer" ]
         }
+      },
+      "filter": {
+        "my_multiplexer": {
+          "type": "multiplexer",
+          "filters": [ "lowercase", "lowercase, porter_stem" ]
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 

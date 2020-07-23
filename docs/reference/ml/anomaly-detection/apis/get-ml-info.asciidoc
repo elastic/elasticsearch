@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[get-ml-info]]
-=== Get machine learning info API
+= Get machine learning info API
 
 [subs="attributes"]
 ++++
@@ -11,12 +11,12 @@
 Returns defaults and limits used by machine learning.
 
 [[get-ml-info-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/info`
 
 [[get-ml-info-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. The
@@ -25,7 +25,7 @@ privileges. See <<security-privileges>> and
 <<built-in-roles>>.
 
 [[get-ml-info-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This endpoint is designed to be used by a user interface that needs to fully
 understand machine learning configurations where some options are not specified,
@@ -33,7 +33,7 @@ meaning that the defaults should be used.  This endpoint may be used to find out
 what those defaults are.
 
 [[get-ml-info-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The endpoint takes no arguments:
 

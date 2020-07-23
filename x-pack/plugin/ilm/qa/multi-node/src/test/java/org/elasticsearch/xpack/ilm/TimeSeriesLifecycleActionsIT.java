@@ -969,8 +969,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertTrue(indexExists(shrunkenIndex));
             assertTrue(aliasExists(shrunkenIndex, index));
             assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
-
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testMoveToStepRereadsPolicy() throws Exception {

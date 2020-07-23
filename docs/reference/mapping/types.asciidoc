@@ -22,10 +22,12 @@ string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard
 <<nested>>::    `nested` for arrays of JSON objects
 
 [float]
-=== Geo data types
+=== Spatial data types
 
 <<geo-point>>::     `geo_point` for lat/lon points
 <<geo-shape>>::     `geo_shape` for complex shapes like polygons
+<<point>>::         `point` for arbitrary cartesian points.
+<<shape>>::         `shape` for arbitrary cartesian geometries.
 
 [float]
 === Specialised data types
@@ -53,8 +55,6 @@ string::         <<text,`text`>>, <<keyword,`keyword`>> and <<wildcard,`wildcard
 <<alias>>::         Defines an alias to an existing field.
 
 <<flattened>>:: Allows an entire JSON object to be indexed as a single field.
-
-<<shape>>:: `shape` for arbitrary cartesian geometries.
 
 <<histogram>>:: `histogram` for pre-aggregated numerical values for percentiles aggregations.
 
@@ -116,6 +116,8 @@ include::types/numeric.asciidoc[]
 include::types/object.asciidoc[]
 
 include::types/percolator.asciidoc[]
+
+include::types/point.asciidoc[]
 
 include::types/range.asciidoc[]
 

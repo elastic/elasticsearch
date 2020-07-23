@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[put-dfanalytics]]
-=== Create {dfanalytics-jobs} API
+= Create {dfanalytics-jobs} API
 [subs="attributes"]
 ++++
 <titleabbrev>Create {dfanalytics-jobs}</titleabbrev>
@@ -12,13 +12,13 @@ Instantiates a {dfanalytics-job}.
 experimental[]
 
 [[ml-put-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `PUT _ml/data_frame/analytics/<data_frame_analytics_id>`
 
 
 [[ml-put-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 built-in roles and privileges:
@@ -40,7 +40,7 @@ those same roles. If you provide
 those credentials are used instead.
 
 [[ml-put-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API creates a {dfanalytics-job} that performs an analysis on the source 
 indices and stores the outcome in a destination index.
@@ -54,7 +54,7 @@ determines a value for each of the undefined parameters.
 
 
 [[ml-put-dfanalytics-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
 (Required, string)
@@ -62,7 +62,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 
 [role="child_attributes"]
 [[ml-put-dfanalytics-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `allow_lazy_start`::
 (Optional, boolean) 
@@ -386,10 +386,10 @@ the destination.
 ====
 
 [[ml-put-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [[ml-put-dfanalytics-example-preprocess]]
-===== Preprocessing actions example
+=== Preprocessing actions example
 
 The following example shows how to limit the scope of the analysis to certain 
 fields, specify excluded fields in the destination index, and use a query to 
@@ -460,7 +460,7 @@ excluded field by the `excludes` parameter of the `analyzed_fields` object.
 
 
 [[ml-put-dfanalytics-example-od]]
-===== {oldetection-cap} example
+=== {oldetection-cap} example
 
 The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
 type is `outlier_detection`:
@@ -493,30 +493,30 @@ The API returns the following result:
 [source,console-result]
 ----
 {
-    "id": "loganalytics",
-    "description": "Outlier detection on log data",
-    "source": {
-        "index": ["logdata"],
-        "query": {
-            "match_all": {}
-        }
-    },
-    "dest": {
-        "index": "logdata_out",
-        "results_field": "ml"
-    },
-    "analysis": {
-        "outlier_detection": {
-            "compute_feature_influence": true,
-            "outlier_fraction": 0.05,
-            "standardization_enabled": true
-        }
-    },
-    "model_memory_limit": "1gb",
-    "create_time" : 1562265491319,
-    "version" : "8.0.0",
-    "allow_lazy_start" : false,
-    "max_num_threads": 1
+  "id": "loganalytics",
+  "description": "Outlier detection on log data",
+  "source": {
+    "index": [ "logdata" ],
+    "query": {
+      "match_all": {}
+    }
+  },
+  "dest": {
+    "index": "logdata_out",
+    "results_field": "ml"
+  },
+  "analysis": {
+    "outlier_detection": {
+      "compute_feature_influence": true,
+      "outlier_fraction": 0.05,
+      "standardization_enabled": true
+    }
+  },
+  "model_memory_limit": "1gb",
+  "create_time": 1562265491319,
+  "version": "8.0.0",
+  "allow_lazy_start": false,
+  "max_num_threads": 1
 }
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
@@ -524,7 +524,7 @@ The API returns the following result:
 
 
 [[ml-put-dfanalytics-example-r]]
-===== {regression-cap} examples
+=== {regression-cap} examples
 
 The following example creates the `house_price_regression_analysis` 
 {dfanalytics-job}, the analysis type is `regression`:
@@ -613,7 +613,7 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 
 
 [[ml-put-dfanalytics-example-c]]
-===== {classification-cap} example
+=== {classification-cap} example
 
 The following example creates the `loan_classification` {dfanalytics-job}, the 
 analysis type is `classification`:

@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -267,12 +266,15 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNoDocValues();
             return new IndexFieldData.Builder() {
                 @Override
-                public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
-                        CircuitBreakerService breakerService, MapperService mapperService) {
+                public IndexFieldData<?> build(
+                    IndexFieldDataCache cache,
+                    CircuitBreakerService breakerService,
+                    MapperService mapperService
+                ) {
                     final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
+                        name(),
                         IndexNumericFieldData.NumericType.LONG
-                    )
-                            .build(indexSettings, fieldType, cache, breakerService, mapperService);
+                    ).build(cache, breakerService, mapperService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
                 }
             };

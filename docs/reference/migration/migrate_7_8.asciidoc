@@ -29,7 +29,7 @@ As of the `7.8.1` release
 [%collapsible]
 ====
 *Details*
-The <<get-license,`GET /_license`>> endpoint displays Enterprise licenses as
+The `GET /_license` endpoint displays Enterprise licenses as
 Platinum by default so that old clients (including Beats, Kibana and
 Logstash) know to interpret this new license type as if it were a
 Platinum license.

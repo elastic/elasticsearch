@@ -223,17 +223,7 @@ public class CompletionFieldMapper extends ParametrizedFieldMapper {
     public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(Fields.CONTENT_FIELD_NAME_INPUT,
             Fields.CONTENT_FIELD_NAME_WEIGHT, Fields.CONTENT_FIELD_NAME_CONTEXTS);
 
-    public static class TypeParser implements Mapper.TypeParser {
-
-        @Override
-        public Mapper.Builder<?> parse(String name, Map<String, Object> node, ParserContext parserContext)
-                throws MapperParsingException {
-            CompletionFieldMapper.Builder builder
-                = new CompletionFieldMapper.Builder(name, parserContext.getIndexAnalyzers().get("simple"));
-            builder.parse(name, parserContext, node);
-            return builder;
-        }
-    }
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers().get("simple")));
 
     public static final class CompletionFieldType extends TermBasedFieldType {
 

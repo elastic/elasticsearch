@@ -56,8 +56,17 @@ public class SIf extends AStatement {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitIf(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitIf(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+
+        if (ifblockNode != null) {
+            ifblockNode.visit(userTreeVisitor, scope);
+        }
     }
 
     @Override

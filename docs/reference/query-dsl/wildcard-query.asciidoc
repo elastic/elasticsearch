@@ -21,15 +21,15 @@ that begins with `ki` and ends with `y`. These matching terms can include `kiy`,
 ----
 GET /_search
 {
-    "query": {
-        "wildcard": {
-            "user": {
-                "value": "ki*y",
-                "boost": 1.0,
-                "rewrite": "constant_score"
-            }
-        }
+  "query": {
+    "wildcard": {
+      "user": {
+        "value": "ki*y",
+        "boost": 1.0,
+        "rewrite": "constant_score"
+      }
     }
+  }
 }
 ----
 

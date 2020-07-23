@@ -23,12 +23,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -40,22 +38,17 @@ import org.elasticsearch.search.sort.SortOrder;
 public class BinaryIndexFieldData implements IndexFieldData<BinaryDVLeafFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
+        private final String name;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType) {
+            this.name = name;
             this.valuesSourceType = valuesSourceType;
         }
 
         @Override
-        public BinaryIndexFieldData build(
-            IndexSettings indexSettings,
-            MappedFieldType fieldType,
-            IndexFieldDataCache cache,
-            CircuitBreakerService breakerService,
-            MapperService mapperService
-        ) {
-            final String fieldName = fieldType.name();
-            return new BinaryIndexFieldData(fieldName, valuesSourceType);
+        public BinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+            return new BinaryIndexFieldData(name, valuesSourceType);
         }
     }
     protected final String fieldName;

@@ -18,16 +18,16 @@ The following `script_score` query assigns each returned document a score equal 
 --------------------------------------------------
 GET /_search
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : "doc['likes'].value / 10 "
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": "doc['likes'].value / 10 "
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -345,23 +345,23 @@ Using an <<search-explain, explain request>> provides an explanation of how the 
 --------------------------------------------------
 GET /twitter/_explain/0
 {
-    "query" : {
-        "script_score" : {
-            "query" : {
-                "match": { "message": "elasticsearch" }
-            },
-            "script" : {
-                "source" : """
-                  long likes = doc['likes'].value;
-                  double normalizedLikes = likes / 10;
-                  if (explanation != null) {
-                    explanation.set('normalized likes = likes / 10 = ' + likes + ' / 10 = ' + normalizedLikes);
-                  }
-                  return normalizedLikes;
-                """
-            }
-        }
-     }
+  "query": {
+    "script_score": {
+      "query": {
+        "match": { "message": "elasticsearch" }
+      },
+      "script": {
+        "source": """
+          long likes = doc['likes'].value;
+          double normalizedLikes = likes / 10;
+          if (explanation != null) {
+            explanation.set('normalized likes = likes / 10 = ' + likes + ' / 10 = ' + normalizedLikes);
+          }
+          return normalizedLikes;
+        """
+      }
+    }
+  }
 }
 --------------------------------------------------
 // TEST[setup:twitter]

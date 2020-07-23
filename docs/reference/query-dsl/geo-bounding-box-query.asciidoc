@@ -11,27 +11,27 @@ bounding box. Assuming the following indexed document:
 --------------------------------------------------
 PUT /my_locations
 {
-    "mappings": {
+  "mappings": {
+    "properties": {
+      "pin": {
         "properties": {
-            "pin": {
-                "properties": {
-                    "location": {
-                        "type": "geo_point"
-                    }
-                }
-            }
+          "location": {
+            "type": "geo_point"
+          }
         }
+      }
     }
+  }
 }
 
 PUT /my_locations/_doc/1
 {
-    "pin" : {
-        "location" : {
-            "lat" : 40.12,
-            "lon" : -71.34
-        }
+  "pin": {
+    "location": {
+      "lat": 40.12,
+      "lon": -71.34
     }
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -43,27 +43,27 @@ Then the following simple query can be executed with a
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
             },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.01,
-                            "lon" : -71.12
-                        }
-                    }
-                }
+            "bottom_right": {
+              "lat": 40.01,
+              "lon": -71.12
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -98,27 +98,27 @@ representations of the geo point, the filter can accept it as well:
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
             },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.01,
-                            "lon" : -71.12
-                        }
-                    }
-                }
+            "bottom_right": {
+              "lat": 40.01,
+              "lon": -71.12
             }
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -132,21 +132,21 @@ conform with http://geojson.org/[GeoJSON].
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : [-74.1, 40.73],
-                        "bottom_right" : [-71.12, 40.01]
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": [ -74.1, 40.73 ],
+            "bottom_right": [ -71.12, 40.01 ]
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -159,21 +159,21 @@ Format in `lat,lon`.
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : "40.73, -74.1",
-                        "bottom_right" : "40.01, -71.12"
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": "40.73, -74.1",
+            "bottom_right": "40.01, -71.12"
+          }
+        }
+      }
     }
-}
+  }
 }
 --------------------------------------------------
 
@@ -184,20 +184,20 @@ GET my_locations/_search
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "wkt": "BBOX (-74.1, -71.12, 40.73, 40.01)"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -208,21 +208,21 @@ GET my_locations/_search
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : "dr5r9ydj2y73",
-                        "bottom_right" : "drj7teegpus6"
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": "dr5r9ydj2y73",
+            "bottom_right": "drj7teegpus6"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -242,14 +242,14 @@ geohash the geohash can be specified in both `top_left` and
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "geo_bounding_box" : {
-            "pin.location" : {
-                "top_left" : "dr",
-                "bottom_right" : "dr"
-            }
-        }
+  "query": {
+    "geo_bounding_box": {
+      "pin.location": {
+        "top_left": "dr",
+        "bottom_right": "dr"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -271,23 +271,23 @@ values separately.
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
-            },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top" : 40.73,
-                        "left" : -74.1,
-                        "bottom" : 40.01,
-                        "right" : -71.12
-                    }
-                }
-            }
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top": 40.73,
+            "left": -74.1,
+            "bottom": 40.01,
+            "right": -71.12
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -320,28 +320,28 @@ are not supported. Here is an example:
 --------------------------------------------------
 GET my_locations/_search
 {
-    "query": {
-        "bool" : {
-            "must" : {
-                "match_all" : {}
+  "query": {
+    "bool": {
+      "must": {
+        "match_all": {}
+      },
+      "filter": {
+        "geo_bounding_box": {
+          "pin.location": {
+            "top_left": {
+              "lat": 40.73,
+              "lon": -74.1
             },
-            "filter" : {
-                "geo_bounding_box" : {
-                    "pin.location" : {
-                        "top_left" : {
-                            "lat" : 40.73,
-                            "lon" : -74.1
-                        },
-                        "bottom_right" : {
-                            "lat" : 40.10,
-                            "lon" : -71.12
-                        }
-                    },
-                    "type" : "indexed"
-                }
+            "bottom_right": {
+              "lat": 40.10,
+              "lon": -71.12
             }
+          },
+          "type": "indexed"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 

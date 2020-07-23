@@ -19,8 +19,6 @@
 
 package org.elasticsearch.monitor.fs;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -435,10 +433,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             paths[i] = new Path(in);
         }
         this.total = total();
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readOptionalWriteable(DiskUsage::new); // previously leastDiskEstimate
-            in.readOptionalWriteable(DiskUsage::new); // previously mostDiskEstimate
-        }
     }
 
     @Override
@@ -448,10 +442,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         out.writeVInt(paths.length);
         for (Path path : paths) {
             path.writeTo(out);
-        }
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(null); // previously leastDiskEstimate
-            out.writeOptionalWriteable(null); // previously mostDiskEstimate
         }
     }
 

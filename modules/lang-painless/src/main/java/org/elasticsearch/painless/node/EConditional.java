@@ -63,8 +63,15 @@ public class EConditional extends AExpression {
     }
 
     @Override
-    public <Input, Output> Output visit(UserTreeVisitor<Input, Output> userTreeVisitor, Input input) {
-        return userTreeVisitor.visitConditional(this, input);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitConditional(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
+        trueNode.visit(userTreeVisitor, scope);
+        falseNode.visit(userTreeVisitor, scope);
     }
 
     @Override
@@ -81,7 +88,7 @@ public class EConditional extends AExpression {
         semanticScope.putDecoration(conditionNode, new TargetType(boolean.class));
         analyze(conditionNode, semanticScope);
         conditionNode.cast(semanticScope);
-        
+
         semanticScope.setCondition(trueNode, Read.class);
         semanticScope.copyDecoration(this, trueNode, TargetType.class);
         semanticScope.replicateCondition(this, trueNode, Explicit.class);
@@ -114,7 +121,7 @@ public class EConditional extends AExpression {
         } else {
             valueType = targetType.getTargetType();
         }
-        
+
         trueNode.cast(semanticScope);
         falseNode.cast(semanticScope);
 

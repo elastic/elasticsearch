@@ -12,17 +12,17 @@ import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.MulticlassConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.AucRoc;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.ConfusionMatrix;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Precision;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.Recall;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.ScoreByThresholdResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Huber;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredLogarithmicError;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regression;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.AucRoc;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ConfusionMatrix;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.Precision;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.Recall;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ScoreByThresholdResult;
 
 import java.util.Arrays;
 import java.util.List;
@@ -57,22 +57,22 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
             // Evaluations
-            new NamedXContentRegistry.Entry(Evaluation.class, BinarySoftClassification.NAME, BinarySoftClassification::fromXContent),
+            new NamedXContentRegistry.Entry(Evaluation.class, OutlierDetection.NAME, OutlierDetection::fromXContent),
             new NamedXContentRegistry.Entry(Evaluation.class, Classification.NAME, Classification::fromXContent),
             new NamedXContentRegistry.Entry(Evaluation.class, Regression.NAME, Regression::fromXContent),
 
-            // Soft classification metrics
+            // Outlier detection metrics
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(registeredMetricName(BinarySoftClassification.NAME, AucRoc.NAME)),
+                new ParseField(registeredMetricName(OutlierDetection.NAME, AucRoc.NAME)),
                 AucRoc::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(registeredMetricName(BinarySoftClassification.NAME, Precision.NAME)),
+                new ParseField(registeredMetricName(OutlierDetection.NAME, Precision.NAME)),
                 Precision::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(registeredMetricName(BinarySoftClassification.NAME, Recall.NAME)),
+                new ParseField(registeredMetricName(OutlierDetection.NAME, Recall.NAME)),
                 Recall::fromXContent),
             new NamedXContentRegistry.Entry(EvaluationMetric.class,
-                new ParseField(registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrix.NAME)),
+                new ParseField(registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME)),
                 ConfusionMatrix::fromXContent),
 
             // Classification metrics
@@ -113,8 +113,8 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         return Arrays.asList(
             // Evaluations
             new NamedWriteableRegistry.Entry(Evaluation.class,
-                BinarySoftClassification.NAME.getPreferredName(),
-                BinarySoftClassification::new),
+                OutlierDetection.NAME.getPreferredName(),
+                OutlierDetection::new),
             new NamedWriteableRegistry.Entry(Evaluation.class,
                 Classification.NAME.getPreferredName(),
                 Classification::new),
@@ -124,16 +124,16 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
 
             // Evaluation metrics
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(BinarySoftClassification.NAME, AucRoc.NAME),
+                registeredMetricName(OutlierDetection.NAME, AucRoc.NAME),
                 AucRoc::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(BinarySoftClassification.NAME, Precision.NAME),
+                registeredMetricName(OutlierDetection.NAME, Precision.NAME),
                 Precision::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(BinarySoftClassification.NAME, Recall.NAME),
+                registeredMetricName(OutlierDetection.NAME, Recall.NAME),
                 Recall::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
-                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrix.NAME),
+                registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME),
                 ConfusionMatrix::new),
             new NamedWriteableRegistry.Entry(EvaluationMetric.class,
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrix.NAME),
@@ -164,13 +164,13 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
 
             // Evaluation metrics results
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(BinarySoftClassification.NAME, AucRoc.NAME),
+                registeredMetricName(OutlierDetection.NAME, AucRoc.NAME),
                 AucRoc.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(BinarySoftClassification.NAME, ScoreByThresholdResult.NAME),
+                registeredMetricName(OutlierDetection.NAME, ScoreByThresholdResult.NAME),
                 ScoreByThresholdResult::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
-                registeredMetricName(BinarySoftClassification.NAME, ConfusionMatrix.NAME),
+                registeredMetricName(OutlierDetection.NAME, ConfusionMatrix.NAME),
                 ConfusionMatrix.Result::new),
             new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
                 registeredMetricName(Classification.NAME, MulticlassConfusionMatrix.NAME),

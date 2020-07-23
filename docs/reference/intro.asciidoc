@@ -102,7 +102,7 @@ https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]
 for your language of choice: Java, JavaScript, Go, .NET, PHP, Perl, Python
 or Ruby.
 
-[float]
+[discrete]
 [[search-data]]
 ==== Searching your data
 
@@ -127,7 +127,7 @@ construct <<sql-overview, SQL-style queries>> to search and aggregate data
 natively inside {es}, and JDBC and ODBC drivers enable a broad range of
 third-party applications to interact with {es} via SQL.
 
-[float]
+[discrete]
 [[analyze-data]]
 ==== Analyzing your data
 
@@ -159,7 +159,7 @@ size 70 needles, you’re displaying a count of the size 70 needles
 that match your users' search criteria--for example, all size 70 _non-stick
 embroidery_ needles.
 
-[float]
+[discrete]
 [[more-features]]
 ===== But wait, there’s more
 
@@ -206,7 +206,7 @@ The number of primary shards in an index is fixed at the time that an index is
 created, but the number of replica shards can be changed at any time, without
 interrupting indexing or query operations.
 
-[float]
+[discrete]
 [[it-depends]]
 ==== It depends...
 
@@ -234,7 +234,7 @@ The best way to determine the optimal configuration for your use case is
 through https://www.elastic.co/elasticon/conf/2016/sf/quantitative-cluster-sizing[
 testing with your own data and queries].
 
-[float]
+[discrete]
 [[disaster-ccr]]
 ==== In case of disaster
 
@@ -254,7 +254,7 @@ create secondary clusters to serve read requests in geo-proximity to your users.
 the active leader index and handles all write requests. Indices replicated to
 secondary clusters are read-only followers.
 
-[float]
+[discrete]
 [[admin]]
 ==== Care and feeding
 

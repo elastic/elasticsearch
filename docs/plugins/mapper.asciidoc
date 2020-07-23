@@ -3,7 +3,7 @@
 
 Mapper plugins allow new field data types to be added to Elasticsearch.
 
-[float]
+[discrete]
 === Core mapper plugins
 
 The core mapper plugins are:

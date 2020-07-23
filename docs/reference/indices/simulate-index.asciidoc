@@ -14,7 +14,7 @@ existing <<indices-templates, index template>>.
 --------------------------------------------------
 PUT _index_template/template_1
 {
-  "index_patterns": ["my-index-000001*"],
+  "index_patterns": ["my-index-*"],
   "template": {
     "settings": {
       "number_of_shards": 1
@@ -131,7 +131,7 @@ PUT /_component_template/ct2                    <2>
 
 PUT /_index_template/final-template             <3>
 {
-  "index_patterns": ["my-index-000001*"],
+  "index_patterns": ["my-index-*"],
   "composed_of": ["ct1", "ct2"],
   "priority": 5
 }
@@ -168,7 +168,7 @@ The response shows the index settings, mappings, and aliases applied by the `fin
     {
       "name" : "template_1",
       "index_patterns" : [
-        "my-index-000001*"
+        "my-index-*"
       ]
     }
   ]

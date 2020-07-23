@@ -654,7 +654,7 @@ The API returns the following response:
 
 [source,console]
 ----
-GET /my-index-000001,my-index--000002/_search?q=user.id:kimchy
+GET /my-index-000001,my-index-000002/_search?q=user.id:kimchy
 ----
 // TEST[setup:my_index]
 // TEST[s/^/PUT my-index-000002\n/]

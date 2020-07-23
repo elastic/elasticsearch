@@ -4,7 +4,7 @@
 Index APIs are used to manage individual indices,
 index settings, aliases, mappings, and index templates.
 
-[float]
+[discrete]
 [[index-management]]
 === Index management:
 
@@ -23,7 +23,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-resolve-index-api>>
 
 
-[float]
+[discrete]
 [[mapping-management]]
 === Mapping management:
 
@@ -31,7 +31,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-get-mapping>>
 * <<indices-get-field-mapping>>
 
-[float]
+[discrete]
 [[alias-management]]
 === Alias management:
 * <<indices-add-alias>>
@@ -40,14 +40,14 @@ index settings, aliases, mappings, and index templates.
 * <<indices-alias-exists>>
 * <<indices-aliases>>
 
-[float]
+[discrete]
 [[index-settings]]
 === Index settings:
 * <<indices-update-settings>>
 * <<indices-get-settings>>
 * <<indices-analyze>>
 
-[float]
+[discrete]
 [[index-templates-apis]]
 === Index templates:
 
@@ -67,7 +67,7 @@ For more information, see <<indices-templates, Index Templates>>.
 * <<indices-simulate-index>>
 * <<indices-simulate-template>>
 
-[float]
+[discrete]
 [[monitoring]]
 === Monitoring:
 * <<indices-stats>>
@@ -75,7 +75,7 @@ For more information, see <<indices-templates, Index Templates>>.
 * <<indices-recovery>>
 * <<indices-shards-stores>>
 
-[float]
+[discrete]
 [[status-management]]
 === Status management:
 * <<indices-clearcache>>
@@ -83,7 +83,7 @@ For more information, see <<indices-templates, Index Templates>>.
 * <<indices-flush>>
 * <<indices-forcemerge>>
 
-[float]
+[discrete]
 [[dangling-indices-api]]
 === Dangling indices:
 * <<dangling-indices-list>>

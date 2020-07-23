@@ -291,7 +291,7 @@ xpack.notification.email:
       ...
 --------------------------------------------------
 
-[float]
+[discrete]
 [[gmail]]
 ===== Sending email from Gmail
 
@@ -329,7 +329,7 @@ a unique App Password to send email from {watcher}. See
 https://support.google.com/accounts/answer/185833?hl=en[Sign in using App Passwords]
 for more information.
 
-[float]
+[discrete]
 [[outlook]]
 ===== Sending email from Outlook.com
 
@@ -365,7 +365,7 @@ NOTE:   You need to use a unique App Password if two-step verification is enable
         See http://windows.microsoft.com/en-us/windows/app-passwords-two-step-verification[App
         passwords and two-step verification] for more information.
 
-[float]
+[discrete]
 [[amazon-ses]]
 ===== Sending email from Amazon SES (Simple Email Service)
 
@@ -402,7 +402,7 @@ NOTE:   You need to use your Amazon SES SMTP credentials to send email through
         or https://docs.aws.amazon.com/ses/latest/DeveloperGuide/verify-domains.html[your whole domain]
         at AWS.
 
-[float]
+[discrete]
 [[exchange]]
 ===== Sending email from Microsoft Exchange
 
@@ -437,7 +437,7 @@ To store the account SMTP password, use the keystore command
 bin/elasticsearch-keystore add xpack.notification.email.account.exchange_account.smtp.secure_password
 --------------------------------------------------
 
-[float]
+[discrete]
 [[email-html-sanitization]]
 ===== Configuring HTML sanitization options
 

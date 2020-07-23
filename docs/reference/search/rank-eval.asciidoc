@@ -208,7 +208,7 @@ GET /my_index/_rank_eval
 The `metric` section determines which of the available evaluation metrics 
 will be used. The following metrics are supported:
 
-[float]
+[discrete]
 [[k-precision]]
 ===== Precision at K (P@k)
 
@@ -263,7 +263,7 @@ If set to 'true', unlabeled documents are ignored and neither count as relevant 
 |=======================================================================
 
 
-[float]
+[discrete]
 [[k-recall]]
 ===== Recall at K (R@k)
 
@@ -315,7 +315,7 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Mean reciprocal rank
 
 For every query in the test suite, this metric calculates the reciprocal of the 
@@ -356,7 +356,7 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Discounted cumulative gain (DCG)
 
 In contrast to the two metrics above, 
@@ -399,7 +399,7 @@ in the query. Defaults to 10.
 |=======================================================================
 
 
-[float]
+[discrete]
 ===== Expected Reciprocal Rank (ERR)
 
 Expected Reciprocal Rank (ERR) is an extension of the classical reciprocal rank 

@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_breaker_changes]]
 === Circuit breaker changes
 

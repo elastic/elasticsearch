@@ -434,7 +434,6 @@ public class AnalyticsProcessManager {
             if (inferenceRunner.get() != null) {
                 inferenceRunner.get().cancel();
             }
-            statsPersister.cancel();
             if (process.get() != null) {
                 try {
                     process.get().kill();

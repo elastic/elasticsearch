@@ -28,9 +28,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -44,6 +47,8 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -68,6 +74,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -77,7 +84,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String aliasName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = true ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
         final Path repo = randomRepoPath();
@@ -126,7 +133,14 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(snapshotInfo.successfulShards(), greaterThan(0));
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertShardFolders(indexName, false);
+
+        final boolean deletedBeforeMount = false;
+        if (deletedBeforeMount) {
+            assertAcked(client().admin().indices().prepareDelete(indexName));
+        } else {
+            assertAcked(client().admin().indices().prepareClose(indexName));
+        }
 
         final boolean cacheEnabled = randomBoolean();
         logger.info("--> restoring index [{}] with cache [{}]", restoredIndexName, cacheEnabled ? "enabled" : "disabled");
@@ -187,9 +201,12 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertRecovered(restoredIndexName, originalAllHits, originalBarHits);
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
+        assertShardFolders(restoredIndexName, true);
 
-        assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
-        assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        if (deletedBeforeMount) {
+            assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
+            assertAcked(client().admin().indices().prepareAliases().addAlias(restoredIndexName, aliasName));
+        }
         assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertRecovered(aliasName, originalAllHits, originalBarHits, false);
 
@@ -273,6 +290,29 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertAcked(client().admin().indices().prepareAliases().addAlias(clonedIndexName, aliasName));
         assertRecovered(aliasName, originalAllHits, originalBarHits, false);
 
+    }
+
+    private void assertShardFolders(String indexName, boolean snapshotDirectory) throws IOException {
+        final Index restoredIndex = resolveIndex(indexName);
+        final ShardId shardId = new ShardId(restoredIndex, 0);
+        for (String node : internalCluster().getNodeNames()) {
+            final NodeEnvironment service = internalCluster().getInstance(NodeEnvironment.class, node);
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, null);
+            if (shardPath != null && Files.exists(shardPath.getDataPath())) {
+                assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
+
+                assertTrue(Files.exists(shardPath.resolveTranslog()));
+
+                try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
+                    final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
+                    if (snapshotDirectory) {
+                        assertEquals(2L, translogFiles);
+                    } else {
+                        assertThat(translogFiles, greaterThanOrEqualTo(2L));
+                    }
+                }
+            }
+        }
     }
 
     public void testCanMountSnapshotTakenWhileConcurrentlyIndexing() throws Exception {

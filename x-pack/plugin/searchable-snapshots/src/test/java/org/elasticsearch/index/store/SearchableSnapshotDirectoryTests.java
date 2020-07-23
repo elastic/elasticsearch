@@ -62,6 +62,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.cache.TestUtils;
@@ -548,6 +549,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                 final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
+                final Path shardDir = createTempDir();
+                final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = createTempDir();
                 final CacheService cacheService = TestUtils.createDefaultCacheService();
                 releasables.add(cacheService);
@@ -567,6 +570,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                         () -> 0L,
                         cacheService,
                         cacheDir,
+                        shardPath,
                         threadPool
                     )
                 ) {
@@ -637,6 +641,8 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
             final IndexId indexId = new IndexId("_id", "_uuid");
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
+            final Path shardDir = createTempDir();
+            final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = createTempDir();
             final ThreadPool threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders());
             try (
@@ -655,6 +661,7 @@ public class SearchableSnapshotDirectoryTests extends ESTestCase {
                     () -> 0L,
                     cacheService,
                     cacheDir,
+                    shardPath,
                     threadPool
                 )
             ) {

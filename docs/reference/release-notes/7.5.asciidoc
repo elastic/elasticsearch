@@ -2,7 +2,7 @@
 == {es} version 7.5.2
 
 [[enhancement-7.5.2]]
-[float]
+[discrete]
 === Enhancements
 
 Features/Ingest::
@@ -13,7 +13,7 @@ Infra/Core::
 
 
 [[bug-7.5.2]]
-[float]
+[discrete]
 === Bug fixes
 
 Analysis::
@@ -64,7 +64,7 @@ Security::
 Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
 
 [[enhancement-7.5.1]]
-[float]
+[discrete]
 === Enhancements
 
 Features/Watcher::
@@ -76,7 +76,7 @@ Network::
 
 
 [[bug-7.5.1]]
-[float]
+[discrete]
 === Bug fixes
 
 Authentication::
@@ -138,7 +138,7 @@ Transform::
 Also see <<breaking-changes-7.5,Breaking changes in 7.5>>.
 
 [[known-issues-7.5.0]]
-[float]
+[discrete]
 === Known issues
 
 * Applying deletes or updates on an index after it has been shrunk may corrupt
@@ -159,7 +159,7 @@ https://github.com/elastic/elasticsearch/pull/52555
 This is fixed in {es} 7.7 and later versions.
 
 [[breaking-7.5.0]]
-[float]
+[discrete]
 === Breaking changes
 
 Search::
@@ -168,7 +168,7 @@ Search::
 
 
 [[deprecation-7.5.0]]
-[float]
+[discrete]
 === Deprecations
 
 Aggregations::
@@ -186,7 +186,7 @@ Search::
 
 
 [[feature-7.5.0]]
-[float]
+[discrete]
 === New features
 
 Features/ILM+SLM::
@@ -213,7 +213,7 @@ SQL::
 
 
 [[enhancement-7.5.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -344,7 +344,7 @@ Transform::
 
 
 [[bug-7.5.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -554,7 +554,7 @@ Transform::
 
 
 [[regression-7.5.0]]
-[float]
+[discrete]
 === Regressions
 
 Aggregations::
@@ -567,7 +567,7 @@ Infra/Core::
 
 
 [[upgrade-7.5.0]]
-[float]
+[discrete]
 === Upgrades
 
 Infra/Scripting::

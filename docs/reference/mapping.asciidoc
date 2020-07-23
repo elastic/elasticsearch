@@ -30,7 +30,7 @@ document.
 NOTE: Before 7.0.0, the 'mappings' definition used to include a type name.
 For more details, please see <<removal-of-types>>.
 
-[float]
+[discrete]
 [[field-datatypes]]
 == Field data types
 
@@ -55,7 +55,7 @@ This is the purpose of _multi-fields_.  Most data types support multi-fields
 via the <<multi-fields>> parameter.
 
 [[mapping-limit-settings]]
-[float]
+[discrete]
 === Settings to prevent mappings explosion
 
 Defining too many fields in an index can lead to a
@@ -115,7 +115,7 @@ If your field mappings contain a large, arbitrary set of keys, consider using th
     unless a user starts to add a huge number of fields with really long names. Default is
     `Long.MAX_VALUE` (no limit).
 
-[float]
+[discrete]
 == Dynamic mapping
 
 Fields and mapping types do not need to be defined before being used. Thanks
@@ -126,7 +126,7 @@ type, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
 The <<dynamic-mapping,dynamic mapping>> rules can be configured to customise
 the mapping that is used for new fields.
 
-[float]
+[discrete]
 == Explicit mappings
 
 You know more about your data than Elasticsearch can guess, so while dynamic
@@ -136,7 +136,7 @@ your own explicit mappings.
 You can create field mappings when you <<create-mapping,create an index>> and
 <<add-field-mapping,add fields to an existing index>>.
 
-[float]
+[discrete]
 [[create-mapping]]
 == Create an index with an explicit mapping
 
@@ -161,7 +161,7 @@ PUT /my-index
 <2> Creates `email`, a <<keyword,`keyword`>> field
 <3> Creates `name`, a <<text,`text`>> field
 
-[float]
+[discrete]
 [[add-field-mapping]]
 == Add a field to an existing mapping
 
@@ -186,7 +186,7 @@ PUT /my-index/_mapping
 ----
 // TEST[continued]
 
-[float]
+[discrete]
 [[update-mapping]]
 === Update the mapping of a field
 
@@ -194,7 +194,7 @@ include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=change-field-mapping]
 
 include::{es-repo-dir}/indices/put-mapping.asciidoc[tag=rename-field]
 
-[float]
+[discrete]
 [[view-mapping]]
 == View the mapping of an index
 
@@ -235,7 +235,7 @@ The API returns the following response:
 ----
 
 
-[float]
+[discrete]
 [[view-field-mapping]]
 == View the mapping of specific fields
 

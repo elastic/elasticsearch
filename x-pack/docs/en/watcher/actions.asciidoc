@@ -20,7 +20,7 @@ serve as a model for a templated email body.
 <<actions-logging,`logging`>>, <<actions-slack,`slack`>>,
 and <<actions-pagerduty,`pagerduty`>>.
 
-[float]
+[discrete]
 [[actions-ack-throttle]]
 === Acknowledgement and throttling
 
@@ -316,7 +316,7 @@ include::actions/pagerduty.asciidoc[]
 
 include::actions/jira.asciidoc[]
 
-[float]
+[discrete]
 [[actions-ssl-openjdk]]
 === Using SSL/TLS with OpenJDK
 

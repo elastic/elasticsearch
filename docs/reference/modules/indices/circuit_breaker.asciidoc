@@ -9,7 +9,7 @@ live cluster with the <<cluster-update-settings,cluster-update-settings>> API.
 // end::circuit-breaker-description-tag[]
 
 [[parent-circuit-breaker]]
-[float]
+[discrete]
 ==== Parent circuit breaker
 
 The parent-level breaker can be configured with the following settings:
@@ -30,7 +30,7 @@ The parent-level breaker can be configured with the following settings:
 // end::indices-breaker-total-limit-tag[]
 
 [[fielddata-circuit-breaker]]
-[float]
+[discrete]
 ==== Field data circuit breaker
 The field data circuit breaker allows Elasticsearch to estimate the amount of
 memory a field will require to be loaded into memory. It can then prevent the
@@ -54,7 +54,7 @@ parameters:
 // end::fielddata-circuit-breaker-overhead-tag[]
 
 [[request-circuit-breaker]]
-[float]
+[discrete]
 ==== Request circuit breaker
 
 The request circuit breaker allows Elasticsearch to prevent per-request data
@@ -77,7 +77,7 @@ request) from exceeding a certain amount of memory.
 // end::request-breaker-overhead-tag[]
 
 [[in-flight-circuit-breaker]]
-[float]
+[discrete]
 ==== In flight requests circuit breaker
 
 The in flight requests circuit breaker allows Elasticsearch to limit the memory usage of all
@@ -97,7 +97,7 @@ also as a structured object which is reflected by default overhead.
     final estimation. Defaults to 2.
 
 [[accounting-circuit-breaker]]
-[float]
+[discrete]
 ==== Accounting requests circuit breaker
 
 The accounting circuit breaker allows Elasticsearch to limit the memory
@@ -115,7 +115,7 @@ completed. This includes things like the Lucene segment memory.
     final estimation. Defaults to 1
 
 [[script-compilation-circuit-breaker]]
-[float]
+[discrete]
 ==== Script compilation circuit breaker
 
 Slightly different than the previous memory-based circuit breaker, the script

@@ -9,7 +9,7 @@ character which is in a defined set. It is mostly useful for cases where a simpl
 custom tokenization is desired, and the overhead of use of the <<analysis-pattern-tokenizer, `pattern` tokenizer>>
 is not acceptable.
 
-[float]
+[discrete]
 === Configuration
 
 The `char_group` tokenizer accepts one parameter:
@@ -22,7 +22,7 @@ The `char_group` tokenizer accepts one parameter:
     `punctuation`, `symbol`.
 
 
-[float]
+[discrete]
 === Example output
 
 [source,console]

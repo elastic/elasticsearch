@@ -9,8 +9,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -75,13 +73,6 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
             }
             Request other = (Request) obj;
             return Objects.equals(filterId, other.filterId);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, DeleteFilterAction action) {
-            super(client, action, new Request());
         }
     }
 }

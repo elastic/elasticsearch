@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -136,13 +134,6 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetJobsStatsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends BaseTasksResponse implements ToXContentObject {
 
         public static class JobStats implements ToXContentObject, Writeable {
@@ -203,7 +194,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
             }
-            
+
             public ForecastStats getForecastStats() {
                 return forecastStats;
             }
@@ -247,7 +238,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
                 if (forecastStats != null) {
                     builder.field(FORECASTS_STATS, forecastStats);
                 }
-                
+
                 builder.field(STATE, state.toString());
                 if (node != null) {
                     builder.startObject(NODE);

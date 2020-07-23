@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,13 +29,6 @@ public class UpdateProcessAction extends ActionType<UpdateProcessAction.Response
 
     private UpdateProcessAction() {
         super(NAME, UpdateProcessAction.Response::new);
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, UpdateProcessAction action) {
-            super(client, action, new Request());
-        }
     }
 
     public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {

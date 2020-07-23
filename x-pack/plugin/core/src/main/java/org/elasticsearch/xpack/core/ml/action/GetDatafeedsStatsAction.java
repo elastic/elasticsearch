@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -106,13 +104,6 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             }
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, GetDatafeedsStatsAction action) {
-            super(client, action, new Request());
         }
     }
 

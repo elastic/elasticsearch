@@ -1,8 +1,6 @@
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.java-rest-test'
 
-import org.elasticsearch.gradle.util.GradleUtils
-
 esplugin {
   name 'security-authorization-engine'
   description 'An example spi extension plugin for security that implements an Authorization Engine'
@@ -12,13 +10,12 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-// let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest")
-
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
   javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 //no unit tests
 test.enabled = false

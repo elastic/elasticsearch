@@ -216,9 +216,9 @@ that have been previously described:
                              this instead denotes the name of the  _impersonated_ user.
                              If authenticated using an API key, this is
                              the name of the API key owner.
-  `user.realm`         ::    The realm name that the _effective_ user belongs to. If authentication
-                             is performed using an API Key this attribute designates the realm name
-                             that the owner of the key belongs to.
+  `user.realm`         ::   Name of the the realm to which the _effective_ user 
+                            belongs. If authenticated using an API key, this is
+                            the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::    This attribute is present only if the request is
                              using the <<run-as-privilege, run as authorization functionality>>
                              and denoted the name of the _authenticated_ user,

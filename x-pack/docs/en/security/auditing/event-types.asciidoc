@@ -157,16 +157,34 @@ There are a few events that have some more attributes in addition to those
 that have been previously described:
 
 * `authentication_success`:
-  `realm`              ::   The name of the realm that successfully
-                            authenticated the user.
+  `realm`              ::   The name of the realm that successfully authenticated the user.
+                            If authenticated using an API key, this is the special value of
+                            `_es_api_key`. This is a shorthand attribute
+                            for the same information that is described by the `user.realm`,
+                            `user.run_by.realm` and `authentication.type` attributes.
   `user.name`          ::   The name of the _effective_ user. This is usually the
                             same as the _authenticated_ user, but if using the
                             <<run-as-privilege, run as authorization functionality>>
                             this instead denotes the name of the  _impersonated_ user.
+                            If authenticated using an API key, this is
+                            the name of the API key owner.
+  `user.realm`         ::   Name of the the realm to which the _effective_ user 
+                            belongs. If authenticated using an API key, this is
+                            the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::   This attribute is present only if the request is
                             using the <<run-as-privilege, run as authorization functionality>>
                             and denotes the name of the  _authenticated_ user, 
                             which is also known as the _impersonator_.
+  `user.run_by.realm`  ::   Name of the realm to which the _authenticated_
+                            (_impersonator_) user belongs.
+                            This attribute is provided only if the request
+                            uses the <<run-as-privilege, run as authorization functionality>>.
+  `authentication.type`::   Method used to authenticate the user.
+                            Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
+  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+                            This attribute is only provided for authentication using an API key.
+  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+                            This attribute is only provided for authentication using an API key.
 
 * `authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
@@ -188,13 +206,19 @@ that have been previously described:
                              action is granted or denied.
   `user.run_as.realm`  ::    The realm name of that the _impersonated_ user belongs to.
 
-* `access_granted` or `access_denied`:
-  `user.roles`         ::    The role names of the user as an array.
-  `user.name`          ::    The name of the _effective_ user that is being
-                             authorized or unauthorized. This is usually the _authenticated_
-                             user, but if using the <<run-as-privilege, run as authorization functionality>>
+* `access_granted` and `access_denied`:
+  `user.roles`         ::    The role names of the user as an array. If authenticated
+                             using an API key, this contains the
+                             role names of the API key owner.
+  `user.name`          ::    The name of the _effective_ user. This is usually the
+                             same as the _authenticated_ user, but if using the
+                             <<run-as-privilege, run as authorization functionality>>
                              this instead denotes the name of the  _impersonated_ user.
-  `user.realm`         ::    The realm name that the _effective_ user belongs to.
+                             If authenticated using an API key, this is
+                             the name of the API key owner.
+  `user.realm`         ::   Name of the the realm to which the _effective_ user 
+                            belongs. If authenticated using an API key, this is
+                            the name of the realm to which the API key owner belongs.
   `user.run_by.name`   ::    This attribute is present only if the request is
                              using the <<run-as-privilege, run as authorization functionality>>
                              and denoted the name of the _authenticated_ user,
@@ -203,6 +227,12 @@ that have been previously described:
                              using the <<run-as-privilege, run as authorization functionality>>
                              and denotes the name of the realm that the _authenticated_
                              (_impersonator_) user belongs to.
+  `authentication.type`::   Method used to authenticate the user.
+                            Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
+  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+                            This attribute is only provided for authentication using an API key.
+  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+                            This attribute is only provided for authentication using an API key.
 
 
 [float]

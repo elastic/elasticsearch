@@ -101,10 +101,6 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public void merge(long thisBucket, HyperLogLogPlusPlus other, long otherBucket) {
-        if (precision() != other.precision()) {
-            throw new IllegalArgumentException();
-        }
-        hll.ensureCapacity(thisBucket + 1);
         if (other.algorithm.get(otherBucket) == LINEAR_COUNTING) {
             other.lc.bucket = otherBucket;
             merge(thisBucket, other.lc);
@@ -115,6 +111,10 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public void merge(long bucket, AbstractLinearCounting other) {
+        if (precision() != other.precision()) {
+            throw new IllegalArgumentException();
+        }
+        hll.ensureCapacity(bucket + 1);
         hll.bucket = bucket;
         lc.bucket = bucket;
         final AbstractLinearCounting.HashesIterator values = other.values();
@@ -132,6 +132,10 @@ public final class HyperLogLogPlusPlus implements Releasable {
     }
 
     public void merge(long bucket, AbstractHyperLogLog other) {
+        if (precision() != other.precision()) {
+            throw new IllegalArgumentException();
+        }
+        hll.ensureCapacity(bucket + 1);
         if (algorithm.get(bucket) != HYPERLOGLOG) {
             upgradeToHll(bucket);
         }

@@ -18,12 +18,8 @@
  */
 package org.elasticsearch.common;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.HeaderWarningAppender;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
@@ -31,14 +27,6 @@ import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 
 public class ParseFieldTests extends ESTestCase {
-    @BeforeClass
-    public static void setup() {
-        final HeaderWarningAppender appender = HeaderWarningAppender.createAppender("header_warning", null);
-        appender.start();
-
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), appender);
-    }
-
     public void testParse() {
         String name = "foo_bar";
         ParseField field = new ParseField(name);

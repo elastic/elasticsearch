@@ -56,7 +56,7 @@ copying just the missing operations from the translog
 <<index-modules-translog-retention,as long as those operations are retained
 there>>. {ccr-cap} will not function if soft deletes are disabled.
 
-[float]
+[discrete]
 === History retention settings
 
 `index.soft_deletes.enabled`::

@@ -4,7 +4,7 @@
 Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 
 [[bug-7.3.2]]
-[float]
+[discrete]
 === Bug fixes
 
 Data Frame::
@@ -38,7 +38,7 @@ Search::
 Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 
 [[enhancement-7.3.1]]
-[float]
+[discrete]
 === Enhancements
 
 CCR::
@@ -58,7 +58,7 @@ SQL::
 
 
 [[bug-7.3.1]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -127,7 +127,7 @@ Security::
 
 
 [[upgrade-7.3.1]]
-[float]
+[discrete]
 === Upgrades
 
 Infra/Packaging::
@@ -140,7 +140,7 @@ Infra/Packaging::
 Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 
 
-[float]
+[discrete]
 === Known issues
 
 * Applying deletes or updates on an index after it has been shrunk may corrupt
@@ -158,7 +158,7 @@ This is fixed in {es} 7.7 and later versions.
 
 
 [[breaking-7.3.0]]
-[float]
+[discrete]
 === Breaking changes
 
 CCR::
@@ -168,7 +168,7 @@ Data Frame::
 * Removing format support in date_histogram group_by {es-pull}43659[#43659]
 
 [[breaking-java-7.3.0]]
-[float]
+[discrete]
 === Breaking Java changes
 
 Mapping::
@@ -180,7 +180,7 @@ Search::
 
 
 [[deprecation-7.3.0]]
-[float]
+[discrete]
 === Deprecations
 
 Features/Java High Level REST Client::
@@ -198,7 +198,7 @@ Search::
 
 
 [[feature-7.3.0]]
-[float]
+[discrete]
 === New features
 
 Aggregations::
@@ -233,7 +233,7 @@ Search::
 
 
 [[enhancement-7.3.0]]
-[float]
+[discrete]
 === Enhancements
 
 Aggregations::
@@ -385,7 +385,7 @@ Store::
 
 
 [[bug-7.3.0]]
-[float]
+[discrete]
 === Bug fixes
 
 Aggregations::
@@ -579,7 +579,7 @@ Suggesters::
 
 
 [[regression-7.3.0]]
-[float]
+[discrete]
 === Regressions
 
 Infra/Core::
@@ -588,7 +588,7 @@ Infra/Core::
 
 
 [[upgrade-7.3.0]]
-[float]
+[discrete]
 === Upgrades
 
 Discovery-Plugins::

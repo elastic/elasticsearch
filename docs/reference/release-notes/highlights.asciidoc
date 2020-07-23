@@ -19,7 +19,7 @@ Other versions:
 
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Geo improvements
 
 We have made several improvements to geo support in {es} 7.8.
@@ -38,7 +38,7 @@ from all coordinate values for a geo_point field.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Add support for t-test aggregations
 
 {es} now supports a `t_test` metrics
@@ -54,7 +54,7 @@ statistically significant and did not occur by chance alone. See
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Expose aggregation usage in feature usage API
 
 It is now possible to fetch a count of aggregations that have been executed
@@ -71,7 +71,7 @@ lot and could perhaps can be eliminated.
 
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Support `value_count` and `avg` aggregations over histogram fields
 
 {es} now implements `value_count` and `avg` aggregations over histogram
@@ -89,7 +89,7 @@ array.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Reduce aggregation memory consumption
 
 {es} now attempts to save memory on the coordinating node by delaying
@@ -105,7 +105,7 @@ the memory usage as low as possible between reductions.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 === Scalar functions now supported in SQL aggregations
 
 When querying {es} using SQL, it is now possible to use scalar functions
@@ -125,7 +125,7 @@ HAVING
 
 // end::notable-highlights[]
 // tag::notable-highlights[]
-[float]
+[discrete]
 [[release-highlights-7.8.0-throttling]]
 === Increase the performance and scalability of {transforms} with throttling
 
@@ -138,7 +138,7 @@ create or update your {transform}.
 
 // end::notable-highlights[]
 // tag::notable-highlights[]
-[float]
+[discrete]
 [[release-highlights-7.8.0-mml]]
 === Better estimates for {ml} model memory usage
 
@@ -151,7 +151,7 @@ being analyzed.
  
 // end::notable-highlights[]
 // tag::notable-highlights[]
-[float]
+[discrete]
 [[release-highlights-7.8.0-loss-functions]]
 === Additional loss functions for {regression}
 
@@ -165,7 +165,7 @@ loss function that fits best with your data set.
 // end::notable-highlights[]
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 [[release-highlights-7.8.0-data-visualizer]]
 === Extended upload limit and explanations for Data Visualizer
 
@@ -178,7 +178,7 @@ diagnose issues with file upload.
 
 
 // tag::notable-highlights[]
-[float]
+[discrete]
 [[release-highlights-7.8.1-ccr-out-of-memory-fix]]
 ==== Fixed out-of-memory error when using {ccr} with large documents
 

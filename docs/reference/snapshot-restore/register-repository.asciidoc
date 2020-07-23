@@ -96,7 +96,7 @@ When a repository is unregistered, {es} only removes the reference to the
 location where the repository is storing the snapshots. The snapshots themselves
 are left untouched and in place.
 
-[float]
+[discrete]
 [[snapshots-filesystem-repository]]
 === Shared file system repository
 
@@ -163,7 +163,7 @@ unit, for example: `1GB`, `10MB`, `5KB`, `500B`. Defaults to `null` (unlimited c
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
 `readonly`:: Makes repository read-only.  Defaults to `false`.
 
-[float]
+[discrete]
 [[snapshots-read-only-repository]]
 === Read-only URL repository
 
@@ -217,7 +217,7 @@ repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydo
 NOTE: URLs using the `ftp`, `http`, `https`, or `jar` protocols do not need to
 be registered in the `path.repo` setting.
 
-[float]
+[discrete]
 [role="xpack"]
 [testenv="basic"]
 [[snapshots-source-only-repository]]
@@ -261,7 +261,7 @@ PUT _snapshot/my_src_only_repository
 -----------------------------------
 // TEST[continued]
 
-[float]
+[discrete]
 [[snapshots-repository-plugins]]
 === Repository plugins
 
@@ -272,7 +272,7 @@ Other repository backends are available in these official plugins:
 * {plugins}/repository-azure.html[repository-azure] for Azure storage repositories
 * {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage repositories
 
-[float]
+[discrete]
 [[snapshots-repository-verification]]
 === Repository verification
 When a repository is registered, it's immediately verified on all master and data nodes to make sure that it is functional
@@ -301,7 +301,7 @@ POST /_snapshot/my_unverified_backup/_verify
 
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
-[float]
+[discrete]
 [[snapshots-repository-cleanup]]
 === Repository cleanup
 Repositories can over time accumulate data that is not referenced by any existing snapshot. This is a result of the data safety guarantees

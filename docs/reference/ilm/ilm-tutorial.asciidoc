@@ -114,7 +114,7 @@ You can use the {kib} Create template wizard to add the template. From Kibana,
 open the menu and go to *Stack Management > Index Management*. In the *Index
 Templates* tab, click *Create template*.
 
-image::images/data-streams/create-index-template.png[]
+image::images/data-streams/create-index-template.png[Create template page]
 
 This wizard invokes the <<indices-templates,put index template API>> to create
 the index template with the options you specify.

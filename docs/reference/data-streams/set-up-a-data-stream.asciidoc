@@ -57,7 +57,7 @@ to *Stack Management > Index Lifecycle Policies*. Click *Index Lifecycle
 Policies*.
 
 [role="screenshot"]
-image::images/ilm/create-policy.png[]
+image::images/ilm/create-policy.png[Index Lifecycle Policies page]
 
 You can also create a policy using the <<ilm-put-lifecycle,create lifecycle
 policy API>>.
@@ -129,7 +129,7 @@ You can create an index template through the Kibana UI:
 template is used exclusively for data streams.
 
 [role="screenshot"]
-image::images/data-streams/create-index-template.png[]
+image::images/data-streams/create-index-template.png[Create template page]
 
 You can also create a template using the <<indices-templates,put index template
 API>>. The template must include a `data_stream` object with an empty body
@@ -275,7 +275,7 @@ To view information about a data stream in Kibana, open the menu and go to
 stream's name to view information about the stream.
 
 [role="screenshot"]
-image::images/data-streams/data-streams-list.png[]
+image::images/data-streams/data-streams-list.png[Data Streams tab]
 
 You can also use the <<indices-get-data-stream,get data stream API>> to retrieve
 the following information about one or more data streams:
@@ -360,7 +360,7 @@ Kibana, open the menu and go to *Stack Management > Index Management*. In the
 indices.
 
 [role="screenshot"]
-image::images/data-streams/data-streams-list.png[]
+image::images/data-streams/data-streams-list.png[Data Streams tab]
 
 You can also use the the <<indices-delete-data-stream,delete data stream API>>
 to delete a data stream. The following delete data stream API request deletes

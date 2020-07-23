@@ -10,10 +10,14 @@ You can take snapshots of an entire cluster, including all its data streams and
 indices. You can also take snapshots of only specific data streams or indices in
 the cluster.
 
+You must
+<<snapshots-register-repository, register a snapshot repository>>
+before you can <<snapshots-take-snapshot, create snapshots>>.
+
 Snapshots can be stored in either local or remote repositories.
 Remote repositories can reside on Amazon S3, HDFS, Microsoft Azure,
 Google Cloud Storage,
-and other platforms supported by a repository plugin.
+and other platforms supported by a {plugins}/repository.html[repository plugin].
 
 Snapshots are incremental: each snapshot only stores data that
 is not part of an earlier snapshot.
@@ -21,16 +25,14 @@ This enables you to take frequent snapshots with minimal overhead.
 // end::snapshot-intro[]
 
 // tag::restore-intro[]
-You can restore snapshots to a running cluster with the <<snapshots-restore-snapshot,restore API>>.
-By default, all data streams and indices in the snapshot are restored.
+You can <<snapshots-restore-snapshot,restore snapshots>> to a running cluster, which includes all data streams and indices in the snapshot
+by default.
 However, you can choose to restore only the cluster state or specific data
 streams or indices from a snapshot.
 // end::restore-intro[]
 
-You must <<snapshots-register-repository, register a snapshot repository>>
-before you can <<snapshots-take-snapshot, take snapshots>>.
-
-You can use <<getting-started-snapshot-lifecycle-management, snapshot lifecycle management>>
+You can use
+<<getting-started-snapshot-lifecycle-management, {slm}>>
 to automatically take and manage snapshots.
 
 // tag::backup-warning[]

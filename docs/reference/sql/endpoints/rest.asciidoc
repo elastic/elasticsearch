@@ -118,7 +118,7 @@ Controls if the CSV header should be included in the response or not. It can tak
 * `delimiter` (default: `,`)
 +
 Indicates which character should be used to separate the CSV values. The following values cannot be used for this attribute:
-double quotes (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used, the `tsv` format needs to be used
+double quote (`"`), carriage-return (`\r`) and new-line (`\n`). The tab (`\t`) can also not be used, the `tsv` format needs to be used
 instead.
 
 Here are some examples for the human readable formats:

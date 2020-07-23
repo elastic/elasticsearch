@@ -20,17 +20,21 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -54,6 +58,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -212,6 +217,13 @@ public class VersionStringFieldMapper extends FieldMapper {
             return wildcardQuery(value + "*", method, context);
         }
 
+        /**
+         * We cannot simply use RegexpQuery directly since we use the encoded terms from the dictionary, but the
+         * automaton in the query will assume unencoded terms. We are running through all terms, decode them and
+         * then run them through the automaton manually instead. This is not as efficient as intersecting the original
+         * Terms with the compiled automaton, but we expect the number of distinct version terms indexed into this field
+         * to be low enough and the use of "rexexp" queries on this field rare enough to brute-force this
+         */
         @Override
         public Query regexpQuery(
             String value,
@@ -234,9 +246,8 @@ public class VersionStringFieldMapper extends FieldMapper {
 
                         @Override
                         protected AcceptStatus accept(BytesRef term) throws IOException {
-                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes();
+                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
                             boolean accepted = compiled.runAutomaton.run(decoded, 0, decoded.length);
-                            // System.out.println(accepted + " : " + VersionEncoder.decodeVersion(term));
                             if (accepted) {
                                 return AcceptStatus.YES;
                             }
@@ -250,6 +261,55 @@ public class VersionStringFieldMapper extends FieldMapper {
                 query.setRewriteMethod(method);
             }
             return query;
+        }
+
+        /**
+         * We cannot simply use FuzzyQuery directly since we use the encoded terms from the dictionary, but the
+         * automaton in the query will assume unencoded terms. We are running through all terms, decode them and
+         * then run them through the automaton manually instead. This is not as efficient as intersecting the original
+         * Terms with the compiled automaton, but we expect the number of distinct version terms indexed into this field
+         * to be low enough and the use of "fuzzy" queries on this field rare enough to brute-force this
+         */
+        @Override
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            QueryShardContext context
+        ) {
+            if (context.allowExpensiveQueries() == false) {
+                throw new ElasticsearchException(
+                    "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+                );
+            }
+            failIfNotIndexed();
+            return new FuzzyQuery(
+                new Term(name(), (BytesRef) value),
+                fuzziness.asDistance(BytesRefs.toString(value)),
+                prefixLength,
+                maxExpansions,
+                transpositions
+            ) {
+                @Override
+                protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
+                    ByteRunAutomaton runAutomaton = getAutomata().runAutomaton;
+
+                    return new FilteredTermsEnum(terms.iterator(), false) {
+
+                        @Override
+                        protected AcceptStatus accept(BytesRef term) throws IOException {
+                            byte[] decoded = VersionEncoder.decodeVersion(term).getBytes(StandardCharsets.UTF_8);
+                            boolean accepted = runAutomaton.run(decoded, 0, decoded.length);
+                            if (accepted) {
+                                return AcceptStatus.YES;
+                            }
+                            return AcceptStatus.NO;
+                        }
+                    };
+                }
+            };
         }
 
         @Override

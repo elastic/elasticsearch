@@ -32,7 +32,7 @@ GET /_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== Query Options
 
 [cols="<,<",options="header",]
@@ -45,10 +45,10 @@ invalid latitude or longitude, `COERCE` to try and infer correct latitude
 or longitude, or `STRICT` (default is `STRICT`).
 |=======================================================================
 
-[float]
+[discrete]
 ==== Allowed Formats
 
-[float]
+[discrete]
 ===== Lat Long as Array
 
 Format as `[lon, lat]`
@@ -81,7 +81,7 @@ GET /_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Lat Lon as String
 
 Format in `lat,lon`.
@@ -111,7 +111,7 @@ GET /_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ===== Geohash
 
 [source,console]
@@ -139,13 +139,13 @@ GET /_search
 }
 --------------------------------------------------
 
-[float]
+[discrete]
 ==== geo_point Type
 
 The query *requires* the <<geo-point,`geo_point`>> type to be set on the
 relevant field.
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field

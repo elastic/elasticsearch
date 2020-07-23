@@ -4,7 +4,7 @@
 <titleabbrev>Get component template</titleabbrev>
 ++++
 
-Returns information about one or more component templates.
+Retrieves information about one or more component templates.
 
 //////////////////////////
 
@@ -51,7 +51,7 @@ GET /_component_template/template_1
 ==== {api-path-parms-title}
 
 `<component-template>`
-(Required, string)
+(Optional, string)
 Comma-separated list of component template names used to limit the request.
 Wildcard (`*`) expressions are supported.
 

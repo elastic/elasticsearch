@@ -47,7 +47,7 @@ GET /_index_template/template_1
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-template]
 +
-To return all index templates, omit this parameter or use a value of `*`.
+To retrieve all index templates, omit this parameter or use a value of `*`.
 
 
 [[get-template-api-query-params]]
